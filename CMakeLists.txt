@@ -25,13 +25,14 @@ FetchContent_MakeAvailable(SDL3)
 # Main executable
 add_library(engine_lib STATIC
     src/core/application.cpp
+    src/core/render/basic_renderer.cpp
 )
 
 set(ENGINE_LIB_LIBS
     SDL3::SDL3
 )
 
-target_link_libraries(engine_lib PRIVATE
+target_link_libraries(engine_lib PUBLIC
     ${ENGINE_LIB_LIBS}
 )
 
