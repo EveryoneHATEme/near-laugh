@@ -65,8 +65,7 @@ BasicRenderer::~BasicRenderer() {
 }
 
 void BasicRenderer::Draw(SDL_Window* window) {
-  SDL_GPUCommandBuffer* command_buffer =
-      SDL_AcquireGPUCommandBuffer(gpuDevice);
+  SDL_GPUCommandBuffer* command_buffer = SDL_AcquireGPUCommandBuffer(gpuDevice);
   if (command_buffer == nullptr) {
     SDL_Log("AcquireGPUCommandBuffer failed: %s", SDL_GetError());
     return;

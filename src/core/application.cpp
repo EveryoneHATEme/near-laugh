@@ -1,8 +1,9 @@
 #include "application.hpp"
-#include "render/basic_renderer.hpp"
 
 #include <SDL3/SDL.h>
 
+#include <filesystem>
+#include <stdexcept>
 
 Application::Application() {
   if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -10,51 +11,39 @@ Application::Application() {
   } else {
     SDL_Log("SDL initialized successfully");
   }
+
+  SDL_Window* _window = SDL_CreateWindow("window", 1024, 768, 0);
+  if (_window == nullptr) {
+    throw std::runtime_error("APPLICATION: CreateWindow failed");
+  }
+  window.reset(_window);
+
+  renderer = std::make_unique<Renderer>(window.get());
+  graphics_pipeline = std::make_unique<GraphicsPipeline>(
+      renderer->getDevice(), renderer->getSwapchainFormat(),
+      std::filesystem::path("resources/shaders/triangle_vertex.spv"),
+      std::filesystem::path("resources/shaders/triangle_fragment.spv"));
 }
 
 Application::~Application() {}
 
 void Application::GameLoop() {
-  BasicRenderer renderer(gpuDevice, window,
-                         "resources/shaders/triangle_vertex.spv",
-                         "resources/shaders/triangle_fragment.spv");
-
   bool run = true;
 
   while (run) {
+    auto& frame_context = renderer->beginFrame();
+    SDL_GPURenderPass* render_pass =
+        renderer->beginRenderPass(frame_context, 0, 0, 0, 1);
+    graphics_pipeline->draw(render_pass);
+    renderer->endRenderPass(render_pass);
+    renderer->endFrame(frame_context);
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_EVENT_QUIT) {
         run = false;
         break;
       }
-      renderer.Draw(window);
     }
   }
-}
-
-void Application::InitializeGPU() {
-  gpuDevice = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, nullptr);
-
-  if (gpuDevice == nullptr) {
-    SDL_Log("ERROR: CreateGPUDevice failed");
-    return;
-  }
-
-  window = SDL_CreateWindow("window", 1024, 768, 0);
-  if (window == nullptr) {
-    SDL_Log("ERROR: CreateWindow failed: %s", SDL_GetError());
-    return;
-  }
-
-  if (!SDL_ClaimWindowForGPUDevice(gpuDevice, window)) {
-    SDL_Log("ERROR: ClaimWindowForGPUDevice failed");
-    return;
-  }
-}
-
-void Application::ReleaseGPU() {
-  SDL_ReleaseWindowFromGPUDevice(gpuDevice, window);
-  SDL_DestroyWindow(window);
-  SDL_DestroyGPUDevice(gpuDevice);
 }

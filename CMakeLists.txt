@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(engine)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Dependencies
@@ -25,7 +25,8 @@ FetchContent_MakeAvailable(SDL3)
 # Main executable
 add_library(engine_lib STATIC
     src/core/application.cpp
-    src/core/render/basic_renderer.cpp
+    src/core/render/renderer.cpp
+    src/core/render/graphics_pipeline.cpp
 )
 
 set(ENGINE_LIB_LIBS
