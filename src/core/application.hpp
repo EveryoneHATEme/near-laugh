@@ -5,8 +5,10 @@
 
 #include <memory>
 
-#include "render/renderer.hpp"
+#include "game/game_world.hpp"
+#include "input/input_state.hpp"
 #include "render/graphics_pipeline.hpp"
+#include "render/renderer.hpp"
 
 struct WindowDeleter {
   void operator()(SDL_Window* window) const noexcept {
@@ -22,6 +24,8 @@ class Application {
   WindowPtr window;
   std::unique_ptr<Renderer> renderer;
   std::unique_ptr<GraphicsPipeline> graphics_pipeline;
+  std::unique_ptr<GameWorld> world;
+  InputState input;
 
  public:
   Application();
