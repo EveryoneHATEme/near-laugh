@@ -1,52 +1,64 @@
 #ifndef CORE_RENDER_RENDERER_H
 #define CORE_RENDER_RENDERER_H
 
-#include <SDL3/SDL.h>
+#include <vulkan/vulkan.h>
 
+#include <array>
+#include <cstddef>
 #include <memory>
 #include <vector>
 
-const size_t FRAMES_IN_FLIGHT = 4;
+#include "core/render/vulkan_context.hpp"
 
-struct GPUDeviceDeleter {
-  void operator()(SDL_GPUDevice* device) const noexcept {
-    if (device != nullptr) {
-      SDL_DestroyGPUDevice(device);
-    }
-  }
-};
-using GPUDevicePtr = std::unique_ptr<SDL_GPUDevice, GPUDeviceDeleter>;
-
-struct FrameContext {
-  SDL_GPUCommandBuffer* commandBuffer = nullptr;
-  SDL_GPUTexture* swapchainTexture = nullptr;
-};
+class GraphicsPipeline;
+class Window;
 
 class Renderer {
- private:
-  SDL_Window* window{nullptr};
-  GPUDevicePtr device{nullptr};
-
-  size_t currentFrame{};
-  std::vector<FrameContext> frames{};
-
  public:
-  Renderer(SDL_Window* window);
+  explicit Renderer(Window& window);
   ~Renderer();
 
-  SDL_GPURenderPass* beginRenderPass(FrameContext& frame, float r, float g,
-                                     float b, float a);
-  void endRenderPass(SDL_GPURenderPass* render_pass);
+  Renderer(const Renderer&) = delete;
+  Renderer& operator=(const Renderer&) = delete;
+  Renderer(Renderer&&) = delete;
+  Renderer& operator=(Renderer&&) = delete;
 
-  FrameContext& beginFrame();
-  void endFrame(FrameContext& frame);
+  [[nodiscard]] bool renderFrame();
+  void requestSwapchainRecreation() noexcept;
+  [[nodiscard]] bool validationEnabled() const noexcept;
 
-  SDL_GPUTextureFormat getSwapchainFormat() const {
-    return SDL_GetGPUSwapchainTextureFormat(device.get(), window);
-  }
-  SDL_GPUDevice* getDevice() const {
-    return device.get();
-  }
+ private:
+  static constexpr std::size_t frames_in_flight = 2;
+
+  struct FrameSlot {
+    VkCommandPool command_pool{VK_NULL_HANDLE};
+    VkCommandBuffer command_buffer{VK_NULL_HANDLE};
+    VkSemaphore image_available{VK_NULL_HANDLE};
+    VkSemaphore render_finished{VK_NULL_HANDLE};
+    VkFence completion{VK_NULL_HANDLE};
+  };
+
+  void createSwapchain();
+  void cleanupSwapchain() noexcept;
+  void recreateSwapchain();
+  void createFrameSlots();
+  void cleanupFrameSlots() noexcept;
+  void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index);
+  [[nodiscard]] bool waitForRenderableExtent();
+
+  Window& window_;
+  VulkanContext context_;
+  VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
+  VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
+  VkExtent2D swapchain_extent_{};
+  std::vector<VkImage> swapchain_images_{};
+  std::vector<VkImageView> swapchain_views_{};
+  std::vector<VkFence> image_fences_{};
+  std::vector<bool> image_initialized_{};
+  std::unique_ptr<GraphicsPipeline> pipeline_{};
+  std::array<FrameSlot, frames_in_flight> frames_{};
+  std::size_t current_frame_{};
+  bool recreate_requested_{};
 };
 
 #endif

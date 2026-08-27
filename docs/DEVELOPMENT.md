@@ -5,7 +5,7 @@
 - CMake
 - Ninja
 - C++ compiler
-- Vulkan SDK
+- Vulkan SDK 1.3 or newer
 - Git
 
 ## Configure
@@ -22,7 +22,32 @@ ctest --preset debug --output-on-failure
 
 ## Run
 
+On Windows:
+
+```powershell
+.\build\debug\bin\fps.exe
+```
+
+On other supported desktop environments:
+
+```sh
 ./build/debug/bin/fps
+```
+
+The executable loads its copied SPIR-V assets from
+`resources/shaders` beneath the runtime output directory.
+
+## Vulkan Smoke Test
+
+The normal `debug` test preset contains deterministic tests and excludes the
+window/GPU-dependent smoke test. Run the smoke path explicitly with:
+
+```sh
+ctest --preset vulkan-smoke --output-on-failure
+```
+
+The smoke executable renders fixed frames and forces one swapchain recreation.
+It requires a desktop session and a Vulkan 1.3 presentation-capable device.
 
 ## Debug Build Requirements
 
