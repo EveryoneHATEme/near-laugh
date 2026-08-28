@@ -4,8 +4,7 @@
 #include <string>
 
 namespace {
-std::filesystem::path normalizedAbsolute(
-    const std::filesystem::path& path) {
+std::filesystem::path normalizedAbsolute(const std::filesystem::path& path) {
   return std::filesystem::absolute(path).lexically_normal();
 }
 
@@ -25,10 +24,10 @@ RuntimeResources resolveRuntimeResources(
                              root.string());
   }
 
-  RuntimeResources resources{
-      root, root / "shaders" / "triangle_vertex.spv",
-      root / "shaders" / "triangle_fragment.spv"};
-  requireFile(resources.triangle_vertex_shader);
-  requireFile(resources.triangle_fragment_shader);
+  RuntimeResources resources{root,
+                             root / "shaders" / "prototype_scene_vertex.spv",
+                             root / "shaders" / "prototype_scene_fragment.spv"};
+  requireFile(resources.scene_vertex_shader);
+  requireFile(resources.scene_fragment_shader);
   return resources;
 }

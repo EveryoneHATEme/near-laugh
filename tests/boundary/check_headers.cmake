@@ -5,7 +5,7 @@ endif()
 
 foreach(HEADER IN LISTS PUBLIC_HEADERS)
     file(READ "${HEADER}" CONTENT)
-    if(CONTENT MATCHES "(vulkan[/\\\\]|Vk[A-Z]|GLFW|glfw|core/platform|core/render)")
+    if(CONTENT MATCHES "(vulkan[/\\\\]|Vk[A-Z]|GLFW|glfw|glm[/\\\\]|core/platform|core/render)")
         message(FATAL_ERROR "Backend dependency leaked into ${HEADER}")
     endif()
 endforeach()

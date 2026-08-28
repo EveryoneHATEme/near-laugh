@@ -100,13 +100,17 @@ Shutdown happens in reverse dependency order.
 Resource destruction must never depend on already-destroyed subsystems.
 
 The runtime loop owns platform polling, close decisions, input sampling,
-minimized-window waiting, and the decision to issue at most one frame request
-per iteration. A blocking wait begins its own input batch, and the runtime maps
-that batch immediately after the wait returns, before a later poll can reset
-its cursor delta. The renderer consumes the current framebuffer extent/resize
-state and reports rendered, skipped, or recovered without controlling events or
-application lifetime. The runtime exhaustively consumes each outcome before it
-continues the application-owned loop.
+minimized-window waiting, bounded steady-clock sampling, prototype cursor
+capture, free-fly camera updates, and the decision to issue at most one frame
+request per iteration. A blocking wait begins its own input batch, and the
+runtime maps that batch immediately after the wait returns, before a later poll
+can reset its cursor delta. It also resets camera timing across the wait so
+restoration cannot create a movement jump. The renderer consumes the current
+framebuffer extent/resize state and a backend-neutral column-major camera
+matrix, then reports rendered, skipped, or recovered without controlling
+events, input, time, camera state, or application lifetime. The runtime
+exhaustively consumes each outcome before it continues the application-owned
+loop.
 
 Platform callbacks retain held physical keys/buttons and accumulate cursor
 movement for one event batch. `FpsInputMapper` maps W/A/S/D, Space, Left Shift,
@@ -118,6 +122,10 @@ The `fps` launcher uses a private, host-native helper to discover its actual
 executable path and supplies the adjacent `resources` directory through
 `RuntimeConfig`. Invocation text and the process working directory do not
 participate in runtime layout discovery.
+
+The current world-space geometry is one immutable renderer-private vertex
+stream built into the executable for prototype inspection. It is not a World,
+scene hierarchy, asset pipeline, or gameplay player representation.
 
 ## Threading
 

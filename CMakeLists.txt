@@ -22,6 +22,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glfw)
 
+set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLM_BUILD_INSTALL OFF CACHE BOOL "" FORCE)
+set(GLM_BUILD_LIBRARY OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(glm)
+
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
@@ -51,7 +62,9 @@ near_laugh_enable_warnings(near_laugh_platform)
 
 add_library(near_laugh_render STATIC
     src/core/platform/glfw_vulkan_bridge.cpp
+    src/core/render/depth_attachment.cpp
     src/core/render/graphics_pipeline.cpp
+    src/core/render/prototype_scene.cpp
     src/core/render/renderer.cpp
     src/core/render/validation_diagnostics.cpp
     src/core/render/vulkan_context.cpp
@@ -72,16 +85,21 @@ endif()
 
 add_library(near_laugh_runtime STATIC
     src/core/application.cpp
+    src/core/camera/free_fly_camera.cpp
     src/core/engine.cpp
     src/core/input/fps_input.cpp
     src/core/runtime_resources.cpp
 )
 target_include_directories(near_laugh_runtime
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${glm_SOURCE_DIR}
 )
 target_link_libraries(near_laugh_runtime
     PRIVATE near_laugh_platform near_laugh_render
+)
+target_compile_definitions(near_laugh_runtime PRIVATE
+    GLM_FORCE_RADIANS
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
 )
 near_laugh_enable_warnings(near_laugh_runtime)
 
@@ -95,10 +113,17 @@ if(NOT near_laugh_runtime_interface_includes STREQUAL
 endif()
 get_target_property(near_laugh_runtime_interface_links
                     near_laugh_runtime INTERFACE_LINK_LIBRARIES)
-if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw")
+if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw|glm")
     message(FATAL_ERROR
         "near_laugh_runtime exposes a backend usage requirement: "
         "${near_laugh_runtime_interface_links}")
+endif()
+get_target_property(near_laugh_runtime_interface_definitions
+                    near_laugh_runtime INTERFACE_COMPILE_DEFINITIONS)
+if(near_laugh_runtime_interface_definitions MATCHES "GLM_")
+    message(FATAL_ERROR
+        "near_laugh_runtime exposes GLM compile definitions: "
+        "${near_laugh_runtime_interface_definitions}")
 endif()
 
 add_executable(fps

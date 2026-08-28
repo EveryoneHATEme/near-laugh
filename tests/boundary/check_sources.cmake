@@ -3,13 +3,65 @@ file(READ "${RENDERER_SOURCE}" RENDERER_CONTENT)
 if(RENDERER_CONTENT MATCHES "pollEvents|waitEvents|shouldClose")
     message(FATAL_ERROR "Renderer source controls platform events or close state")
 endif()
+file(GLOB_RECURSE RENDER_SOURCES
+     "${SOURCE_ROOT}/src/core/render/*.cpp"
+     "${SOURCE_ROOT}/src/core/render/*.hpp")
+foreach(RENDER_SOURCE IN LISTS RENDER_SOURCES)
+    file(READ "${RENDER_SOURCE}" RENDER_SOURCE_CONTENT)
+    if(RENDER_SOURCE_CONTENT MATCHES
+       "FpsActionSnapshot|steady_clock|<chrono>|free_fly_camera")
+        message(FATAL_ERROR
+            "Renderer source consumes FPS actions, camera policy, or timing: "
+            "${RENDER_SOURCE}")
+    endif()
+endforeach()
+if(RENDERER_CONTENT MATCHES
+   "vkCreateRenderPass|vkCmdPipelineBarrier\\(|vkQueueSubmit\\(")
+    message(FATAL_ERROR
+        "Renderer introduced a legacy render pass or synchronization API")
+endif()
+foreach(REQUIRED_DEPTH_TOKEN IN ITEMS
+        "vkCmdPipelineBarrier2"
+        "VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL"
+        "pDepthAttachment")
+    if(NOT RENDERER_CONTENT MATCHES "${REQUIRED_DEPTH_TOKEN}")
+        message(FATAL_ERROR
+            "Renderer is missing required depth path: ${REQUIRED_DEPTH_TOKEN}")
+    endif()
+endforeach()
+
+file(GLOB_RECURSE RUNTIME_HEADERS
+     "${SOURCE_ROOT}/include/*.hpp"
+     "${SOURCE_ROOT}/src/core/camera/*.hpp")
+list(APPEND RUNTIME_HEADERS "${SOURCE_ROOT}/src/core/frame.hpp")
+foreach(RUNTIME_HEADER IN LISTS RUNTIME_HEADERS)
+    file(READ "${RUNTIME_HEADER}" RUNTIME_HEADER_CONTENT)
+    if(RUNTIME_HEADER_CONTENT MATCHES
+       "vulkan[/\\\\]|Vk[A-Z]|GLFW|glfw3|glm[/\\\\]")
+        message(FATAL_ERROR
+            "Backend or GLM type leaked into runtime header: ${RUNTIME_HEADER}")
+    endif()
+endforeach()
+
+file(READ "${SOURCE_ROOT}/src/core/render/graphics_pipeline.cpp"
+     PIPELINE_CONTENT)
+foreach(REQUIRED_PIPELINE_TOKEN IN ITEMS
+        "depthTestEnable"
+        "depthWriteEnable"
+        "depthAttachmentFormat"
+        "vkCmdPushConstants")
+    if(NOT PIPELINE_CONTENT MATCHES "${REQUIRED_PIPELINE_TOKEN}")
+        message(FATAL_ERROR
+            "Graphics pipeline is missing: ${REQUIRED_PIPELINE_TOKEN}")
+    endif()
+endforeach()
 
 foreach(RUNTIME_SOURCE IN ITEMS
         "${SOURCE_ROOT}/src/core/application.cpp"
         "${SOURCE_ROOT}/src/core/engine.cpp"
         "${SOURCE_ROOT}/src/core/engine.hpp")
     file(READ "${RUNTIME_SOURCE}" RUNTIME_CONTENT)
-    if(RUNTIME_CONTENT MATCHES "vulkan[/\\\\]|Vk[A-Z]|GLFW|glfw3")
+    if(RUNTIME_CONTENT MATCHES "vulkan[/\\\\]|Vk[A-Z]|GLFW|glfw3|glm[/\\\\]")
         message(FATAL_ERROR "Backend dependency leaked into ${RUNTIME_SOURCE}")
     endif()
 endforeach()
@@ -31,6 +83,25 @@ if(ENGINE_CONTENT MATCHES
    "static_cast<void>\\([^)]*renderFrame|[\r\n][ \t]*renderer_\\.renderFrame")
     message(FATAL_ERROR
         "Engine must consume each renderer frame outcome before continuing")
+endif()
+foreach(REQUIRED_RUNTIME_CAMERA_TOKEN IN ITEMS
+        "setCursorCaptured(true)"
+        "cursorCaptureTransition"
+        "FrameClock::Clock::now"
+        "camera_.update"
+        "frame.camera = camera_.frame")
+    string(FIND "${ENGINE_CONTENT}"
+           "${REQUIRED_RUNTIME_CAMERA_TOKEN}" CAMERA_TOKEN_POSITION)
+    if(CAMERA_TOKEN_POSITION LESS 0)
+        message(FATAL_ERROR
+            "Engine is missing runtime camera coordination: "
+            "${REQUIRED_RUNTIME_CAMERA_TOKEN}")
+    endif()
+endforeach()
+if(NOT ENGINE_CONTENT MATCHES
+   "window_\\.waitEvents\\(\\)[^;]*;[^}]*frame_clock_\\.reset\\(\\)")
+    message(FATAL_ERROR
+        "Engine must reset frame timing after a blocking window wait")
 endif()
 
 file(READ "${SOURCE_ROOT}/src/main.cpp" LAUNCHER_CONTENT)
@@ -63,6 +134,7 @@ string(JSON COMMAND_COUNT LENGTH "${COMPILE_COMMANDS}")
 math(EXPR LAST_COMMAND "${COMMAND_COUNT} - 1")
 set(REQUIRED_RUNTIME_FILES
         "src/core/application.cpp"
+        "src/core/camera/free_fly_camera.cpp"
         "src/core/engine.cpp"
         "src/core/input/fps_input.cpp"
         "src/core/runtime_resources.cpp"

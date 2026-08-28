@@ -4,10 +4,10 @@
 
 #include "core/render/graphics_pipeline.hpp"
 
-TEST(TriangleVertex, MatchesVulkanPipelineDescription) {
+TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   constexpr VkVertexInputBindingDescription binding =
-      triangleVertexBindingDescription();
-  constexpr auto attributes = triangleVertexAttributeDescriptions();
+      sceneVertexBindingDescription();
+  constexpr auto attributes = sceneVertexAttributeDescriptions();
 
   EXPECT_EQ(binding.binding, 0U);
   EXPECT_EQ(binding.stride, sizeof(PositionColorVertex));
@@ -18,4 +18,11 @@ TEST(TriangleVertex, MatchesVulkanPipelineDescription) {
   EXPECT_EQ(attributes[1].location, 1U);
   EXPECT_EQ(attributes[1].format, VK_FORMAT_R8G8B8A8_UNORM);
   EXPECT_EQ(attributes[1].offset, offsetof(PositionColorVertex, color));
+}
+
+TEST(ScenePipeline, CameraFrameFitsTheVertexPushConstantRange) {
+  constexpr VkPushConstantRange range = sceneCameraPushConstantRange();
+  EXPECT_EQ(range.stageFlags, VK_SHADER_STAGE_VERTEX_BIT);
+  EXPECT_EQ(range.offset, 0U);
+  EXPECT_EQ(range.size, sizeof(CameraFrame));
 }

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -11,14 +12,16 @@
 
 GraphicsPipeline::GraphicsPipeline(
     VkDevice device, VkPhysicalDevice physical_device,
-    VkFormat swapchain_format, const std::filesystem::path& vertex_shader_path,
+    VkFormat swapchain_format, VkFormat depth_format,
+    const std::filesystem::path& vertex_shader_path,
     const std::filesystem::path& fragment_shader_path)
     : device_(device), physical_device_(physical_device) {
   if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
     throw std::runtime_error("GraphicsPipeline requires valid Vulkan handles");
   }
   try {
-    createPipeline(swapchain_format, vertex_shader_path, fragment_shader_path);
+    createPipeline(swapchain_format, depth_format, vertex_shader_path,
+                   fragment_shader_path);
     createVertexBuffer();
   } catch (...) {
     cleanup();
@@ -45,7 +48,8 @@ VkShaderModule GraphicsPipeline::createShaderModule(
 }
 
 void GraphicsPipeline::createPipeline(
-    VkFormat swapchain_format, const std::filesystem::path& vertex_shader_path,
+    VkFormat swapchain_format, VkFormat depth_format,
+    const std::filesystem::path& vertex_shader_path,
     const std::filesystem::path& fragment_shader_path) {
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
@@ -64,8 +68,8 @@ void GraphicsPipeline::createPipeline(
     stages[1].pName = "main";
 
     const VkVertexInputBindingDescription binding =
-        triangleVertexBindingDescription();
-    const auto attributes = triangleVertexAttributeDescriptions();
+        sceneVertexBindingDescription();
+    const auto attributes = sceneVertexAttributeDescriptions();
     VkPipelineVertexInputStateCreateInfo vertex_input{
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
     vertex_input.vertexBindingDescriptionCount = 1;
@@ -90,6 +94,11 @@ void GraphicsPipeline::createPipeline(
     VkPipelineMultisampleStateCreateInfo multisample{
         VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo depth_stencil{
+        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+    depth_stencil.depthTestEnable = VK_TRUE;
+    depth_stencil.depthWriteEnable = VK_TRUE;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
     VkPipelineColorBlendAttachmentState blend_attachment{};
     blend_attachment.colorWriteMask =
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -108,6 +117,10 @@ void GraphicsPipeline::createPipeline(
 
     VkPipelineLayoutCreateInfo layout_info{
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    const VkPushConstantRange camera_push_constant =
+        sceneCameraPushConstantRange();
+    layout_info.pushConstantRangeCount = 1;
+    layout_info.pPushConstantRanges = &camera_push_constant;
     requireVulkan(
         vkCreatePipelineLayout(device_, &layout_info, nullptr, &layout_),
         "Create Vulkan pipeline layout");
@@ -116,6 +129,7 @@ void GraphicsPipeline::createPipeline(
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
     rendering_info.colorAttachmentCount = 1;
     rendering_info.pColorAttachmentFormats = &swapchain_format;
+    rendering_info.depthAttachmentFormat = depth_format;
     VkGraphicsPipelineCreateInfo pipeline_info{
         VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
     pipeline_info.pNext = &rendering_info;
@@ -126,6 +140,7 @@ void GraphicsPipeline::createPipeline(
     pipeline_info.pViewportState = &viewport_state;
     pipeline_info.pRasterizationState = &rasterization;
     pipeline_info.pMultisampleState = &multisample;
+    pipeline_info.pDepthStencilState = &depth_stencil;
     pipeline_info.pColorBlendState = &blend;
     pipeline_info.pDynamicState = &dynamic;
     pipeline_info.layout = layout_;
@@ -148,60 +163,55 @@ void GraphicsPipeline::createPipeline(
 }
 
 void GraphicsPipeline::createVertexBuffer() {
-  constexpr std::array<PositionColorVertex, 3> vertices = {{
-      {{-1.0F, -1.0F, 0.0F}, {255, 0, 0, 255}},
-      {{1.0F, -1.0F, 0.0F}, {0, 255, 0, 255}},
-      {{0.0F, 1.0F, 0.0F}, {0, 0, 255, 255}},
-  }};
+  const std::vector<PositionColorVertex>& vertices = prototypeSceneVertices();
+  if (vertices.empty() ||
+      vertices.size() >
+          static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+    throw std::runtime_error("Prototype scene vertex count is invalid");
+  }
+  const VkDeviceSize vertex_bytes =
+      sizeof(PositionColorVertex) * vertices.size();
   VkBufferCreateInfo buffer_info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-  buffer_info.size = sizeof(vertices);
+  buffer_info.size = vertex_bytes;
   buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
   buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   requireVulkan(vkCreateBuffer(device_, &buffer_info, nullptr, &vertex_buffer_),
-                "Create triangle vertex buffer");
+                "Create prototype scene vertex buffer");
 
   VkMemoryRequirements requirements{};
   vkGetBufferMemoryRequirements(device_, vertex_buffer_, &requirements);
   VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
   allocation.allocationSize = requirements.size;
-  allocation.memoryTypeIndex = findMemoryType(
-      requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  VkPhysicalDeviceMemoryProperties memory_properties{};
+  vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
+  allocation.memoryTypeIndex =
+      chooseMemoryType(requirements.memoryTypeBits, memory_properties,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                       "prototype scene vertices");
   requireVulkan(
       vkAllocateMemory(device_, &allocation, nullptr, &vertex_memory_),
-      "Allocate triangle vertex memory");
+      "Allocate prototype scene vertex memory");
   requireVulkan(vkBindBufferMemory(device_, vertex_buffer_, vertex_memory_, 0),
-                "Bind triangle vertex memory");
+                "Bind prototype scene vertex memory");
 
   void* mapped = nullptr;
   requireVulkan(
-      vkMapMemory(device_, vertex_memory_, 0, sizeof(vertices), 0, &mapped),
-      "Map triangle vertex memory");
-  std::memcpy(mapped, vertices.data(), sizeof(vertices));
+      vkMapMemory(device_, vertex_memory_, 0, vertex_bytes, 0, &mapped),
+      "Map prototype scene vertex memory");
+  std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(vertex_bytes));
   vkUnmapMemory(device_, vertex_memory_);
+  vertex_count_ = static_cast<std::uint32_t>(vertices.size());
 }
 
-std::uint32_t GraphicsPipeline::findMemoryType(
-    std::uint32_t type_bits, VkMemoryPropertyFlags properties) const {
-  VkPhysicalDeviceMemoryProperties memory_properties{};
-  vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
-  for (std::uint32_t index = 0; index < memory_properties.memoryTypeCount;
-       ++index) {
-    if ((type_bits & (1U << index)) != 0 &&
-        (memory_properties.memoryTypes[index].propertyFlags & properties) ==
-            properties) {
-      return index;
-    }
-  }
-  throw std::runtime_error(
-      "No host-visible coherent Vulkan memory type for triangle vertices");
-}
-
-void GraphicsPipeline::bindAndDraw(VkCommandBuffer command_buffer) const {
+void GraphicsPipeline::bindAndDraw(VkCommandBuffer command_buffer,
+                                   const CameraFrame& camera) const {
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+  vkCmdPushConstants(command_buffer, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                     sizeof(CameraFrame), camera.view_projection.data());
   const VkDeviceSize offset = 0;
   vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer_, &offset);
-  vkCmdDraw(command_buffer, 3, 1, 0, 0);
+  vkCmdDraw(command_buffer, vertex_count_, 1, 0, 0);
 }
 
 void GraphicsPipeline::cleanup() noexcept {

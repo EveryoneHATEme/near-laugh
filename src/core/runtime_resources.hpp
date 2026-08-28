@@ -5,8 +5,8 @@
 
 struct RuntimeResources {
   std::filesystem::path root{};
-  std::filesystem::path triangle_vertex_shader{};
-  std::filesystem::path triangle_fragment_shader{};
+  std::filesystem::path scene_vertex_shader{};
+  std::filesystem::path scene_fragment_shader{};
 };
 
 [[nodiscard]] RuntimeResources resolveRuntimeResources(

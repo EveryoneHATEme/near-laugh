@@ -22,7 +22,27 @@ Polling and blocking waits each open one input batch; the Engine samples a
 waited batch before another poll can clear its cursor delta, while held actions
 remain active. Each renderer request returns rendered, skipped, or recovered,
 and the Engine exhaustively consumes that outcome while retaining loop and
-application-lifetime control.
+application-lifetime control. The Engine also owns the prototype's steady-clock
+sampling, cursor capture transitions, free-fly camera state, and framebuffer
+aspect. Rendering receives only a column-major view-projection matrix and does
+not interpret input or elapsed time.
+
+## Prototype scene controls
+
+The executable starts with the cursor captured and shows one built-in,
+vertex-colored 3D room with a floor, boundaries, and several boxes or pillars.
+It requires no model, texture, material, or level files.
+
+- Mouse: look
+- W/A/S/D: move horizontally relative to the current view
+- Space / Left Control: move up / down
+- Left Shift: sprint
+- Escape: release the cursor
+- Left mouse button: recapture the cursor
+
+This is an unconstrained inspection camera. It intentionally has no collision,
+gravity, jumping physics, or ground constraint, so it can pass through every
+scene surface.
 
 ## Build
 
@@ -35,11 +55,13 @@ cmake --build --preset debug
 ctest --preset debug --output-on-failure
 ```
 
-SPIR-V shaders are copied to `build/debug/bin/resources/shaders`; the launcher
+`prototype_scene_vertex.spv` and `prototype_scene_fragment.spv` are copied to
+`build/debug/bin/resources/shaders`; the launcher
 uses the host's native process facility to discover the actual executable and
 passes its adjacent resource root explicitly to the runtime. Asset loading is
 therefore independent of both the current working directory and the spelling
 of the invocation. Swapchain creation also validates color-attachment usage
 and selects a supported composite-alpha mode from the queried surface
-capabilities before calling Vulkan. See
+capabilities before calling Vulkan. Opaque visibility uses one device-local
+depth attachment per swapchain image. See
 `docs/DEVELOPMENT.md` for run commands and the optional Vulkan smoke preset.

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -9,6 +10,7 @@
 #include <thread>
 #include <vector>
 
+#include "core/camera/free_fly_camera.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
 #include "core/render/renderer.hpp"
@@ -19,8 +21,8 @@ namespace {
 RendererResources smokeResources() {
   const std::filesystem::path resources =
       std::filesystem::absolute("resources").lexically_normal();
-  return {resources / "shaders/triangle_vertex.spv",
-          resources / "shaders/triangle_fragment.spv"};
+  return {resources / "shaders/prototype_scene_vertex.spv",
+          resources / "shaders/prototype_scene_fragment.spv"};
 }
 
 void requireLifecycle(const std::vector<std::string>& actual,
@@ -34,6 +36,28 @@ void requireLifecycle(const std::vector<std::string>& actual,
       message += event + ' ';
     }
     throw std::runtime_error(message);
+  }
+}
+
+std::vector<std::string> withoutDepthEvents(
+    const std::vector<std::string>& events) {
+  std::vector<std::string> filtered;
+  std::copy_if(events.begin(), events.end(), std::back_inserter(filtered),
+               [](const std::string& event) {
+                 return event != "depth.created" && event != "depth.destroyed";
+               });
+  return filtered;
+}
+
+void requireBalancedDepthLifecycle(const std::vector<std::string>& events,
+                                   std::string_view phase) {
+  const auto created =
+      std::count(events.begin(), events.end(), std::string{"depth.created"});
+  const auto destroyed =
+      std::count(events.begin(), events.end(), std::string{"depth.destroyed"});
+  if (created == 0 || created != destroyed) {
+    throw std::runtime_error("Unbalanced depth attachment lifetime during " +
+                             std::string(phase));
   }
 }
 
@@ -64,11 +88,12 @@ void runLifecycleSmoke() {
                       diagnostics);
   }
   setLifecycleLog(nullptr);
-  requireLifecycle(events,
-                   {"platform.created", "window.created", "renderer.created",
-                    "renderer.destroyed", "window.destroyed",
-                    "platform.destroyed"},
-                   "normal shutdown");
+  requireBalancedDepthLifecycle(events, "normal shutdown");
+  requireLifecycle(
+      withoutDepthEvents(events),
+      {"platform.created", "window.created", "renderer.created",
+       "renderer.destroyed", "window.destroyed", "platform.destroyed"},
+      "normal shutdown");
 
   events.clear();
   setForcedVulkanStage("instance");
@@ -92,6 +117,30 @@ void runLifecycleSmoke() {
                    {"platform.created", "window.created", "window.destroyed",
                     "platform.destroyed"},
                    "renderer construction failure");
+
+  events.clear();
+  setForcedVulkanStage("depth");
+  setLifecycleLog(&events);
+  renderer_failed = false;
+  try {
+    Platform platform;
+    Window window(platform, 320, 240, "near-laugh depth failure smoke");
+    Renderer renderer(window, window.framebufferExtent(), smokeResources(),
+                      diagnostics);
+  } catch (const std::runtime_error&) {
+    renderer_failed = true;
+  }
+  setLifecycleLog(nullptr);
+  setForcedVulkanStage("");
+  if (!renderer_failed) {
+    throw std::runtime_error(
+        "Forced depth attachment construction failure did not occur");
+  }
+  requireBalancedDepthLifecycle(events, "depth construction failure");
+  requireLifecycle(withoutDepthEvents(events),
+                   {"platform.created", "window.created", "window.destroyed",
+                    "platform.destroyed"},
+                   "depth construction failure");
 }
 }  // namespace
 
@@ -146,8 +195,13 @@ int main(int argc, char** argv) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
           }
         }
-        const FrameRequest request{window.framebufferExtent(),
-                                   window.consumeFramebufferResize()};
+        const FramebufferExtent extent = window.framebufferExtent();
+        const CameraFrame camera = FreeFlyCamera{}.frame(
+            extent.isZero() ? 1.0F
+                            : static_cast<float>(extent.width) /
+                                  static_cast<float>(extent.height));
+        const FrameRequest request{extent, window.consumeFramebufferResize(),
+                                   camera};
         static_cast<void>(renderer.renderFrame(request));
       }
       if (inject_validation_error) {

@@ -1,4 +1,5 @@
 add_executable(engine_tests
+    core/test_camera.cpp
     core/test_input.cpp
     core/test_executable_path.cpp
     core/test_frame.cpp
@@ -8,6 +9,7 @@ add_executable(engine_tests
     core/test_vertex_layout.cpp
     core/test_vulkan_utils.cpp
     core/test_ownership.cpp
+    core/test_prototype_scene.cpp
     ${CMAKE_SOURCE_DIR}/src/launcher/executable_path.cpp
 )
 target_include_directories(engine_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
@@ -28,7 +30,7 @@ gtest_discover_tests(engine_tests
 add_executable(vulkan_smoke core/vulkan_smoke.cpp)
 target_include_directories(vulkan_smoke PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(vulkan_smoke PRIVATE
-    near_laugh_platform near_laugh_render Vulkan::Vulkan
+    near_laugh_runtime near_laugh_platform near_laugh_render Vulkan::Vulkan
 )
 near_laugh_enable_warnings(vulkan_smoke)
 set_target_properties(vulkan_smoke PROPERTIES

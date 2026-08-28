@@ -77,3 +77,46 @@ TEST(SwapchainSelection, ChoosesDeterministicSupportedCompositeAlphaFallback) {
             VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
   EXPECT_THROW(chooseCompositeAlpha(0), std::runtime_error);
 }
+
+TEST(DepthSelection, PrefersFirstSupportedCandidateAndFallsBack) {
+  const FormatFeatureSupport unsupported{VK_FORMAT_D32_SFLOAT, 0};
+  const FormatFeatureSupport first{
+      VK_FORMAT_D32_SFLOAT, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT};
+  const FormatFeatureSupport fallback{
+      VK_FORMAT_D24_UNORM_S8_UINT,
+      VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT};
+  EXPECT_EQ(chooseDepthFormat({first, fallback}), VK_FORMAT_D32_SFLOAT);
+  EXPECT_EQ(chooseDepthFormat({unsupported, fallback}),
+            VK_FORMAT_D24_UNORM_S8_UINT);
+  try {
+    static_cast<void>(chooseDepthFormat({unsupported}));
+    FAIL() << "Expected unsupported depth candidates to fail";
+  } catch (const std::runtime_error& error) {
+    EXPECT_NE(std::string(error.what()).find("depth format"),
+              std::string::npos);
+  }
+}
+
+TEST(MemorySelection, UsesCompatiblePreferredOrFallbackType) {
+  VkPhysicalDeviceMemoryProperties properties{};
+  properties.memoryTypeCount = 3;
+  properties.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+  properties.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+  properties.memoryTypes[2].propertyFlags =
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+  EXPECT_EQ(chooseMemoryType(0b111, properties,
+                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "test"),
+            1U);
+  EXPECT_EQ(chooseMemoryType(0b100, properties,
+                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "test"),
+            2U);
+  try {
+    static_cast<void>(chooseMemoryType(0b001, properties,
+                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                       "depth attachment"));
+    FAIL() << "Expected incompatible memory types to fail";
+  } catch (const std::runtime_error& error) {
+    EXPECT_NE(std::string(error.what()).find("depth attachment"),
+              std::string::npos);
+  }
+}

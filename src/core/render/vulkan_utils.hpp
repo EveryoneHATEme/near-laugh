@@ -8,6 +8,11 @@
 #include <string_view>
 #include <vector>
 
+struct FormatFeatureSupport {
+  VkFormat format{VK_FORMAT_UNDEFINED};
+  VkFormatFeatureFlags optimal_tiling_features{};
+};
+
 struct QueueFamilyCandidate {
   bool supports_graphics{};
   bool supports_present{};
@@ -31,9 +36,14 @@ void requireVulkan(VkResult result, std::string_view operation);
     const std::vector<VkSurfaceFormatKHR>& formats);
 [[nodiscard]] VkExtent2D chooseSwapchainExtent(
     const VkSurfaceCapabilitiesKHR& capabilities, VkExtent2D framebuffer);
-void requireColorAttachmentSwapchainUsage(
-    VkImageUsageFlags supported_usage);
+void requireColorAttachmentSwapchainUsage(VkImageUsageFlags supported_usage);
 [[nodiscard]] VkCompositeAlphaFlagBitsKHR chooseCompositeAlpha(
     VkCompositeAlphaFlagsKHR supported_modes);
+[[nodiscard]] VkFormat chooseDepthFormat(
+    const std::vector<FormatFeatureSupport>& candidates);
+[[nodiscard]] std::uint32_t chooseMemoryType(
+    std::uint32_t type_bits,
+    const VkPhysicalDeviceMemoryProperties& memory_properties,
+    VkMemoryPropertyFlags required_properties, std::string_view resource);
 
 #endif

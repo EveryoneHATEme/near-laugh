@@ -12,9 +12,9 @@ int main(int argc, char** argv) {
   try {
     const std::filesystem::path root = launcher::executableResourceRoot();
     const std::filesystem::path vertex =
-        root / "shaders" / "triangle_vertex.spv";
+        root / "shaders" / "prototype_scene_vertex.spv";
     const std::filesystem::path fragment =
-        root / "shaders" / "triangle_fragment.spv";
+        root / "shaders" / "prototype_scene_fragment.spv";
     if (!std::filesystem::is_regular_file(vertex) ||
         !std::filesystem::is_regular_file(fragment)) {
       std::cerr << "Executable-relative shader resources are missing beneath: "

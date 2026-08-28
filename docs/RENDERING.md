@@ -94,7 +94,8 @@ Prefer a simple and correct synchronization model over maximizing
 CPU/GPU overlap.
 
 The runtime sends one explicit frame request containing framebuffer extent and
-resize state. A zero extent is skipped before GPU submission. Swapchain
+resize state plus a standard-layout, column-major camera view-projection
+matrix. A zero extent is skipped before GPU submission. Swapchain
 out-of-date/suboptimal interpretation and recovery remain renderer-owned, and a
 backend-neutral rendered/skipped/recovered outcome is returned to the runtime.
 The runtime handles all three outcomes explicitly and retains ownership of the
@@ -109,6 +110,22 @@ composite-alpha mode is reported before `vkCreateSwapchainKHR`.
 Shader paths are resolved beneath `RuntimeConfig::resource_root` before renderer
 construction. Renderer code never constructs a path relative to the process
 working directory.
+
+The current visible smoke output is a single immutable world-space triangle
+stream for the built-in prototype room. The graphics pipeline reads position
+and packed vertex color, and the vertex stage receives the current 4x4 camera
+matrix through a 64-byte push constant. The scene uses one vertex buffer and
+one draw call; it does not introduce model assets, descriptors, per-object
+transforms, or a general scene framework.
+
+The renderer selects the first supported format from its small depth candidate
+list and owns one device-local depth image, allocation, and view for every
+swapchain image. Corresponding depth resources are created and destroyed with
+the swapchain, including recreation and partial-construction cleanup. Each
+recording transitions its color and depth image through Synchronization 2,
+clears depth to 1.0, and supplies the depth view directly to Dynamic Rendering.
+The opaque pipeline uses depth test/write with `LESS`; no render pass or legacy
+synchronization path exists.
 
 The Vulkan debug callback records decoded severity/category messages in a
 thread-safe runtime-owned diagnostics sink and never throws or aborts. The sink

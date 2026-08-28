@@ -44,19 +44,19 @@ The runtime SHALL initialize its platform owner before creating a window, create
 - **THEN** the window and platform are released in dependency-safe order without entering the main loop
 
 ### Requirement: Main-thread loop ownership
-The runtime SHALL keep event processing, close decisions, minimized-window waiting, input sampling, and render coordination under the Engine-owned main-thread loop. Rendering SHALL NOT poll or wait for platform events or decide whether the application exits.
+The runtime SHALL keep event processing, close decisions, minimized-window waiting, input sampling, bounded frame timing, free-fly camera updates, and render coordination under the Engine-owned main-thread loop. Rendering SHALL NOT poll or wait for platform events, interpret FPS actions, update the camera, or decide whether the application exits.
 
 #### Scenario: Normal loop iteration
 - **WHEN** the window is open and has a non-zero framebuffer extent
-- **THEN** the runtime processes events and input before requesting at most one rendered frame for that iteration
+- **THEN** the runtime processes events and input, updates the camera from a bounded elapsed interval, and supplies the resulting backend-neutral camera frame before requesting at most one rendered frame for that iteration
 
 #### Scenario: Close is requested
 - **WHEN** event processing reports a window close request
-- **THEN** the runtime stops requesting new rendered frames and begins shutdown
+- **THEN** the runtime stops updating the camera or requesting new rendered frames and begins shutdown
 
 #### Scenario: Window is minimized
 - **WHEN** event processing reports a zero-sized framebuffer
-- **THEN** the runtime waits for platform events without submitting render work until a non-zero extent or close request is observed
+- **THEN** the runtime waits for platform events without updating camera translation or submitting render work until a non-zero extent or close request is observed, and resets elapsed-time tracking so the blocked duration is not applied after restoration
 
 ### Requirement: Renderer outcome coordination
 Each frame request SHALL produce an engine-owned outcome that distinguishes rendered work, temporarily skipped work, and swapchain recovery. The runtime SHALL consume that outcome before deciding how the application loop proceeds and SHALL retain event processing and application lifetime ownership without inspecting Vulkan results.

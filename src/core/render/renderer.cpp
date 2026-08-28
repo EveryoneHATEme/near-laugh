@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "core/platform/window.hpp"
+#include "core/render/depth_attachment.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/validation_diagnostics.hpp"
 #include "core/render/vulkan_context.hpp"
@@ -52,6 +53,20 @@ SwapchainSupport querySwapchainSupport(VkPhysicalDevice physical_device,
   }
   return support;
 }
+
+VkFormat selectDepthFormat(VkPhysicalDevice physical_device) {
+  constexpr std::array<VkFormat, 3> candidates = {VK_FORMAT_D32_SFLOAT,
+                                                  VK_FORMAT_D32_SFLOAT_S8_UINT,
+                                                  VK_FORMAT_D24_UNORM_S8_UINT};
+  std::vector<FormatFeatureSupport> support;
+  support.reserve(candidates.size());
+  for (const VkFormat format : candidates) {
+    VkFormatProperties properties{};
+    vkGetPhysicalDeviceFormatProperties(physical_device, format, &properties);
+    support.push_back({format, properties.optimalTilingFeatures});
+  }
+  return chooseDepthFormat(support);
+}
 }  // namespace
 
 class Renderer::Impl {
@@ -82,15 +97,18 @@ class Renderer::Impl {
   void recreateSwapchain(FramebufferExtent framebuffer);
   void createFrameSlots();
   void cleanupFrameSlots() noexcept;
-  void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index);
+  void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index,
+                   const CameraFrame& camera);
 
   VulkanContext context_;
   RendererResources resources_{};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
+  VkFormat depth_format_{VK_FORMAT_UNDEFINED};
   VkExtent2D swapchain_extent_{};
   std::vector<VkImage> swapchain_images_{};
   std::vector<VkImageView> swapchain_views_{};
+  std::vector<std::unique_ptr<DepthAttachment>> depth_attachments_{};
   std::vector<VkFence> image_fences_{};
   std::vector<bool> image_initialized_{};
   std::unique_ptr<GraphicsPipeline> pipeline_{};
@@ -102,8 +120,8 @@ class Renderer::Impl {
 Renderer::Renderer(const Window& window, FramebufferExtent initial_extent,
                    RendererResources resources,
                    ValidationDiagnostics& diagnostics)
-    : impl_(std::make_unique<Impl>(window, initial_extent,
-                                  std::move(resources), diagnostics)) {}
+    : impl_(std::make_unique<Impl>(window, initial_extent, std::move(resources),
+                                   diagnostics)) {}
 
 Renderer::~Renderer() = default;
 
@@ -127,10 +145,11 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
                      ValidationDiagnostics& diagnostics)
     : context_(window, diagnostics), resources_(std::move(resources)) {
   try {
+    depth_format_ = selectDepthFormat(context_.physicalDevice());
     createSwapchain(initial_extent);
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), context_.physicalDevice(), swapchain_format_,
-        resources_.vertex_shader, resources_.fragment_shader);
+        depth_format_, resources_.vertex_shader, resources_.fragment_shader);
     createFrameSlots();
     recordLifecycleEvent("renderer.created");
   } catch (...) {
@@ -224,6 +243,11 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
                                       &swapchain_views_[index]),
                     "Create Vulkan swapchain image view");
     }
+    depth_attachments_.reserve(swapchain_images_.size());
+    for (std::size_t index = 0; index < swapchain_images_.size(); ++index) {
+      depth_attachments_.push_back(std::make_unique<DepthAttachment>(
+          context_.device(), context_.physicalDevice(), extent, depth_format_));
+    }
   } catch (...) {
     cleanupSwapchain();
     throw;
@@ -238,6 +262,7 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
 }
 
 void Renderer::Impl::cleanupSwapchain() noexcept {
+  depth_attachments_.clear();
   for (const VkImageView view : swapchain_views_) {
     if (view != VK_NULL_HANDLE) {
       vkDestroyImageView(context_.device(), view, nullptr);
@@ -265,7 +290,7 @@ void Renderer::Impl::recreateSwapchain(FramebufferExtent framebuffer) {
   if (pipeline_ != nullptr && previous_format != swapchain_format_) {
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), context_.physicalDevice(), swapchain_format_,
-        resources_.vertex_shader, resources_.fragment_shader);
+        depth_format_, resources_.vertex_shader, resources_.fragment_shader);
   }
   recreate_requested_ = false;
 }
@@ -332,7 +357,8 @@ void Renderer::Impl::cleanupFrameSlots() noexcept {
 }
 
 void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
-                                 std::uint32_t image_index) {
+                                 std::uint32_t image_index,
+                                 const CameraFrame& camera) {
   VkCommandBufferBeginInfo begin_info{
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -356,9 +382,34 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   to_color.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   to_color.subresourceRange.levelCount = 1;
   to_color.subresourceRange.layerCount = 1;
+  DepthAttachment& depth = *depth_attachments_[image_index];
+  VkImageMemoryBarrier2 to_depth{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
+  to_depth.srcStageMask = depth.initialized()
+                              ? VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                                    VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+                              : VK_PIPELINE_STAGE_2_NONE;
+  to_depth.srcAccessMask =
+      depth.initialized() ? VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT : 0;
+  to_depth.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                          VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+  to_depth.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                           VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  to_depth.oldLayout = depth.initialized()
+                           ? VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
+                           : VK_IMAGE_LAYOUT_UNDEFINED;
+  to_depth.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+  to_depth.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  to_depth.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  to_depth.image = depth.image();
+  to_depth.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  to_depth.subresourceRange.levelCount = 1;
+  to_depth.subresourceRange.layerCount = 1;
+  const std::array<VkImageMemoryBarrier2, 2> attachment_barriers = {to_color,
+                                                                    to_depth};
   VkDependencyInfo dependency{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-  dependency.imageMemoryBarrierCount = 1;
-  dependency.pImageMemoryBarriers = &to_color;
+  dependency.imageMemoryBarrierCount =
+      static_cast<std::uint32_t>(attachment_barriers.size());
+  dependency.pImageMemoryBarriers = attachment_barriers.data();
   vkCmdPipelineBarrier2(command_buffer, &dependency);
 
   const VkClearValue clear = {{{0.02F, 0.025F, 0.04F, 1.0F}}};
@@ -369,11 +420,19 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   color_attachment.clearValue = clear;
+  VkRenderingAttachmentInfo depth_attachment{
+      VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+  depth_attachment.imageView = depth.view();
+  depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+  depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  depth_attachment.clearValue.depthStencil = {1.0F, 0};
   VkRenderingInfo rendering_info{VK_STRUCTURE_TYPE_RENDERING_INFO};
   rendering_info.renderArea.extent = swapchain_extent_;
   rendering_info.layerCount = 1;
   rendering_info.colorAttachmentCount = 1;
   rendering_info.pColorAttachments = &color_attachment;
+  rendering_info.pDepthAttachment = &depth_attachment;
   vkCmdBeginRendering(command_buffer, &rendering_info);
   const VkViewport viewport{0.0F,
                             0.0F,
@@ -384,7 +443,7 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   const VkRect2D scissor{{0, 0}, swapchain_extent_};
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-  pipeline_->bindAndDraw(command_buffer);
+  pipeline_->bindAndDraw(command_buffer, camera);
   vkCmdEndRendering(command_buffer);
 
   VkImageMemoryBarrier2 to_present{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -400,6 +459,7 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   to_present.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   to_present.subresourceRange.levelCount = 1;
   to_present.subresourceRange.layerCount = 1;
+  dependency.imageMemoryBarrierCount = 1;
   dependency.pImageMemoryBarriers = &to_present;
   vkCmdPipelineBarrier2(command_buffer, &dependency);
   requireVulkan(vkEndCommandBuffer(command_buffer),
@@ -440,7 +500,7 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
 
   requireVulkan(vkResetCommandPool(context_.device(), frame.command_pool, 0),
                 "Reset per-frame Vulkan command pool");
-  recordFrame(frame.command_buffer, image_index);
+  recordFrame(frame.command_buffer, image_index, request.camera);
   requireVulkan(vkResetFences(context_.device(), 1, &frame.completion),
                 "Reset Vulkan frame completion fence");
 
@@ -465,6 +525,7 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
                 "Submit Vulkan frame with Synchronization 2");
   image_fences_[image_index] = frame.completion;
   image_initialized_[image_index] = true;
+  depth_attachments_[image_index]->markInitialized();
 
   VkPresentInfoKHR present_info{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
   present_info.waitSemaphoreCount = 1;

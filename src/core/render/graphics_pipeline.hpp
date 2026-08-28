@@ -9,23 +9,19 @@
 #include <filesystem>
 #include <type_traits>
 
-struct PositionColorVertex {
-  float position[3];
-  std::uint8_t color[4];
-};
+#include "core/frame.hpp"
+#include "core/render/prototype_scene.hpp"
 
-static_assert(std::is_standard_layout_v<PositionColorVertex>);
 static_assert(offsetof(PositionColorVertex, position) == 0);
 static_assert(offsetof(PositionColorVertex, color) == sizeof(float) * 3);
-static_assert(sizeof(PositionColorVertex) == sizeof(float) * 3 + 4);
 
 [[nodiscard]] constexpr VkVertexInputBindingDescription
-triangleVertexBindingDescription() noexcept {
+sceneVertexBindingDescription() noexcept {
   return {0, sizeof(PositionColorVertex), VK_VERTEX_INPUT_RATE_VERTEX};
 }
 
 [[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 2>
-triangleVertexAttributeDescriptions() noexcept {
+sceneVertexAttributeDescriptions() noexcept {
   return {
       {{0, 0, VK_FORMAT_R32G32B32_SFLOAT,
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, position))},
@@ -33,10 +29,15 @@ triangleVertexAttributeDescriptions() noexcept {
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, color))}}};
 }
 
+[[nodiscard]] constexpr VkPushConstantRange
+sceneCameraPushConstantRange() noexcept {
+  return {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(CameraFrame)};
+}
+
 class GraphicsPipeline {
  public:
   GraphicsPipeline(VkDevice device, VkPhysicalDevice physical_device,
-                   VkFormat swapchain_format,
+                   VkFormat swapchain_format, VkFormat depth_format,
                    const std::filesystem::path& vertex_shader_path,
                    const std::filesystem::path& fragment_shader_path);
   ~GraphicsPipeline();
@@ -46,17 +47,16 @@ class GraphicsPipeline {
   GraphicsPipeline(GraphicsPipeline&&) = delete;
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
-  void bindAndDraw(VkCommandBuffer command_buffer) const;
+  void bindAndDraw(VkCommandBuffer command_buffer,
+                   const CameraFrame& camera) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(
       const std::filesystem::path& path) const;
-  void createPipeline(VkFormat swapchain_format,
+  void createPipeline(VkFormat swapchain_format, VkFormat depth_format,
                       const std::filesystem::path& vertex_shader_path,
                       const std::filesystem::path& fragment_shader_path);
   void createVertexBuffer();
-  [[nodiscard]] std::uint32_t findMemoryType(
-      std::uint32_t type_bits, VkMemoryPropertyFlags properties) const;
   void cleanup() noexcept;
 
   VkDevice device_{VK_NULL_HANDLE};
@@ -65,6 +65,7 @@ class GraphicsPipeline {
   VkPipeline pipeline_{VK_NULL_HANDLE};
   VkBuffer vertex_buffer_{VK_NULL_HANDLE};
   VkDeviceMemory vertex_memory_{VK_NULL_HANDLE};
+  std::uint32_t vertex_count_{};
 };
 
 #endif

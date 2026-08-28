@@ -120,8 +120,7 @@ VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities,
                      capabilities.maxImageExtent.height)};
 }
 
-void requireColorAttachmentSwapchainUsage(
-    VkImageUsageFlags supported_usage) {
+void requireColorAttachmentSwapchainUsage(VkImageUsageFlags supported_usage) {
   if ((supported_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0) {
     throw std::runtime_error(
         "Swapchain creation failed: surface does not support required "
@@ -144,4 +143,33 @@ VkCompositeAlphaFlagBitsKHR chooseCompositeAlpha(
   throw std::runtime_error(
       "Swapchain creation failed: surface reports no supported "
       "composite-alpha mode");
+}
+
+VkFormat chooseDepthFormat(
+    const std::vector<FormatFeatureSupport>& candidates) {
+  for (const FormatFeatureSupport candidate : candidates) {
+    if ((candidate.optimal_tiling_features &
+         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0) {
+      return candidate.format;
+    }
+  }
+  throw std::runtime_error(
+      "Depth attachment creation failed: no supported depth format in the "
+      "renderer candidate list");
+}
+
+std::uint32_t chooseMemoryType(
+    std::uint32_t type_bits,
+    const VkPhysicalDeviceMemoryProperties& memory_properties,
+    VkMemoryPropertyFlags required_properties, std::string_view resource) {
+  for (std::uint32_t index = 0; index < memory_properties.memoryTypeCount;
+       ++index) {
+    if ((type_bits & (1U << index)) != 0 &&
+        (memory_properties.memoryTypes[index].propertyFlags &
+         required_properties) == required_properties) {
+      return index;
+    }
+  }
+  throw std::runtime_error("No suitable Vulkan memory type for " +
+                           std::string(resource));
 }

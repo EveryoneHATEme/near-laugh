@@ -1,6 +1,18 @@
 #include <gtest/gtest.h>
 
+#include <type_traits>
+
 #include "core/frame.hpp"
+
+TEST(FrameContract, CameraFrameIsBackendNeutralColumnMajorScalarData) {
+  static_assert(std::is_standard_layout_v<CameraFrame>);
+  const CameraFrame camera;
+  EXPECT_EQ(camera.view_projection.size(), 16U);
+  EXPECT_FLOAT_EQ(camera.view_projection[0], 1.0F);
+  EXPECT_FLOAT_EQ(camera.view_projection[5], 1.0F);
+  EXPECT_FLOAT_EQ(camera.view_projection[10], 1.0F);
+  EXPECT_FLOAT_EQ(camera.view_projection[15], 1.0F);
+}
 
 TEST(FrameContract, ExposesEveryBackendNeutralOutcome) {
   EXPECT_NE(FrameOutcome::Rendered, FrameOutcome::Skipped);
@@ -18,8 +30,7 @@ TEST(FrameContract, ZeroExtentCannotReachGpuSubmission) {
 }
 
 TEST(RuntimeLoop, StopsBeforeRenderingAfterClose) {
-  EXPECT_EQ(decideLoopAction(true, {800, 600}, false).action,
-            LoopAction::Stop);
+  EXPECT_EQ(decideLoopAction(true, {800, 600}, false).action, LoopAction::Stop);
 }
 
 TEST(RuntimeLoop, WaitsForAZeroFramebuffer) {
@@ -28,9 +39,13 @@ TEST(RuntimeLoop, WaitsForAZeroFramebuffer) {
 }
 
 TEST(RuntimeLoop, CreatesOneExplicitFrameRequest) {
-  const LoopDecision decision = decideLoopAction(false, {800, 600}, true);
+  CameraFrame camera;
+  camera.view_projection[12] = 7.0F;
+  const LoopDecision decision =
+      decideLoopAction(false, {800, 600}, true, camera);
   EXPECT_EQ(decision.action, LoopAction::Render);
   EXPECT_EQ(decision.frame.framebuffer.width, 800U);
   EXPECT_EQ(decision.frame.framebuffer.height, 600U);
   EXPECT_TRUE(decision.frame.framebuffer_resized);
+  EXPECT_FLOAT_EQ(decision.frame.camera.view_projection[12], 7.0F);
 }

@@ -56,6 +56,18 @@ Required capabilities:
 Do not create a generic cinematic camera framework unless a concrete
 game requirement appears.
 
+The current executable uses a temporary concrete free-fly inspection camera to
+exercise the first world-space rendering slice. Mouse controls yaw/pitch;
+W/A/S/D translate relative to horizontal view orientation; Space and Left
+Control move vertically; Left Shift selects sprint speed. Escape releases the
+captured cursor and the primary mouse action recaptures it. Translation is
+frame-rate independent with a 100 ms discontinuity cap.
+
+This prototype camera is not the future physical player controller. It applies
+no gravity, collision, jump impulse, crouch shape, or ground constraint, and it
+may pass through the floor, boundaries, and objects. Those gameplay behaviors
+remain requirements for a later player-controller change.
+
 ## Weapons
 
 The game may contain:

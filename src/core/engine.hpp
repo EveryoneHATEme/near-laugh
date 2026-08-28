@@ -3,6 +3,7 @@
 
 #include <utility>
 
+#include "core/camera/free_fly_camera.hpp"
 #include "core/input/fps_input.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
@@ -31,6 +32,8 @@ class Engine {
   Window window_;
   FpsInputMapper input_mapper_{};
   FpsActionSnapshot input_{};
+  FreeFlyCamera camera_{};
+  FrameClock frame_clock_{};
   Renderer renderer_;
 };
 

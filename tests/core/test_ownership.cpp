@@ -1,12 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
 #include <string_view>
 #include <type_traits>
 
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
+#include "core/render/depth_attachment.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/renderer.hpp"
 #include "core/render/vulkan_context.hpp"
@@ -17,6 +18,8 @@ TEST(Ownership, RuntimeAndVulkanOwnersAreNonCopyable) {
   static_assert(!std::is_copy_constructible_v<Platform>);
   static_assert(!std::is_copy_constructible_v<Window>);
   static_assert(!std::is_copy_constructible_v<VulkanContext>);
+  static_assert(!std::is_copy_constructible_v<DepthAttachment>);
+  static_assert(!std::is_move_constructible_v<DepthAttachment>);
   static_assert(!std::is_copy_constructible_v<GraphicsPipeline>);
   static_assert(!std::is_copy_constructible_v<Renderer>);
   static_assert(!std::is_copy_constructible_v<near_laugh::Application>);
