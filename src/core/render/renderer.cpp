@@ -6,11 +6,15 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "core/platform/window.hpp"
 #include "core/render/graphics_pipeline.hpp"
+#include "core/render/validation_diagnostics.hpp"
+#include "core/render/vulkan_context.hpp"
 #include "core/render/vulkan_utils.hpp"
+#include "core/testing/test_controls.hpp"
 
 namespace {
 struct SwapchainSupport {
@@ -50,14 +54,85 @@ SwapchainSupport querySwapchainSupport(VkPhysicalDevice physical_device,
 }
 }  // namespace
 
-Renderer::Renderer(Window& window) : window_(window), context_(window) {
+class Renderer::Impl {
+ public:
+  static constexpr std::size_t frames_in_flight = 2;
+
+  struct FrameSlot {
+    VkCommandPool command_pool{VK_NULL_HANDLE};
+    VkCommandBuffer command_buffer{VK_NULL_HANDLE};
+    VkSemaphore image_available{VK_NULL_HANDLE};
+    VkSemaphore render_finished{VK_NULL_HANDLE};
+    VkFence completion{VK_NULL_HANDLE};
+  };
+
+  Impl(const Window& window, FramebufferExtent initial_extent,
+       RendererResources resources, ValidationDiagnostics& diagnostics);
+  ~Impl();
+
+  [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
+  void requestSwapchainRecreation() noexcept { recreate_requested_ = true; }
+  [[nodiscard]] bool validationEnabled() const noexcept {
+    return context_.validationEnabled();
+  }
+
+ private:
+  void createSwapchain(FramebufferExtent framebuffer);
+  void cleanupSwapchain() noexcept;
+  void recreateSwapchain(FramebufferExtent framebuffer);
+  void createFrameSlots();
+  void cleanupFrameSlots() noexcept;
+  void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index);
+
+  VulkanContext context_;
+  RendererResources resources_{};
+  VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
+  VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
+  VkExtent2D swapchain_extent_{};
+  std::vector<VkImage> swapchain_images_{};
+  std::vector<VkImageView> swapchain_views_{};
+  std::vector<VkFence> image_fences_{};
+  std::vector<bool> image_initialized_{};
+  std::unique_ptr<GraphicsPipeline> pipeline_{};
+  std::array<FrameSlot, frames_in_flight> frames_{};
+  std::size_t current_frame_{};
+  bool recreate_requested_{};
+};
+
+Renderer::Renderer(const Window& window, FramebufferExtent initial_extent,
+                   RendererResources resources,
+                   ValidationDiagnostics& diagnostics)
+    : impl_(std::make_unique<Impl>(window, initial_extent,
+                                  std::move(resources), diagnostics)) {}
+
+Renderer::~Renderer() = default;
+
+FrameOutcome Renderer::renderFrame(const FrameRequest& request) {
+  if (!frameRequestCanSubmit(request)) {
+    return FrameOutcome::Skipped;
+  }
+  return impl_->renderFrame(request);
+}
+
+void Renderer::requestSwapchainRecreation() noexcept {
+  impl_->requestSwapchainRecreation();
+}
+
+bool Renderer::validationEnabled() const noexcept {
+  return impl_->validationEnabled();
+}
+
+Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
+                     RendererResources resources,
+                     ValidationDiagnostics& diagnostics)
+    : context_(window, diagnostics), resources_(std::move(resources)) {
   try {
-    createSwapchain();
+    createSwapchain(initial_extent);
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), context_.physicalDevice(), swapchain_format_,
-        std::filesystem::path("resources/shaders/triangle_vertex.spv"),
-        std::filesystem::path("resources/shaders/triangle_fragment.spv"));
+        resources_.vertex_shader, resources_.fragment_shader);
     createFrameSlots();
+    recordLifecycleEvent("renderer.created");
   } catch (...) {
     cleanupFrameSlots();
     pipeline_.reset();
@@ -66,24 +141,17 @@ Renderer::Renderer(Window& window) : window_(window), context_(window) {
   }
 }
 
-Renderer::~Renderer() {
+Renderer::Impl::~Impl() {
   if (context_.device() != VK_NULL_HANDLE) {
     vkDeviceWaitIdle(context_.device());
   }
   cleanupFrameSlots();
   pipeline_.reset();
   cleanupSwapchain();
+  recordLifecycleEvent("renderer.destroyed");
 }
 
-bool Renderer::validationEnabled() const noexcept {
-  return context_.validationEnabled();
-}
-
-void Renderer::requestSwapchainRecreation() noexcept {
-  recreate_requested_ = true;
-}
-
-void Renderer::createSwapchain() {
+void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
   const SwapchainSupport support =
       querySwapchainSupport(context_.physicalDevice(), context_.surface());
   if (support.formats.empty() || support.present_modes.empty()) {
@@ -93,7 +161,6 @@ void Renderer::createSwapchain() {
   }
   const VkSurfaceFormatKHR surface_format =
       chooseSurfaceFormat(support.formats);
-  const FramebufferExtent framebuffer = window_.framebufferExtent();
   const VkExtent2D extent = chooseSwapchainExtent(
       support.capabilities, {framebuffer.width, framebuffer.height});
   std::uint32_t image_count = support.capabilities.minImageCount + 1;
@@ -166,7 +233,7 @@ void Renderer::createSwapchain() {
             << ", images " << image_count << '\n';
 }
 
-void Renderer::cleanupSwapchain() noexcept {
+void Renderer::Impl::cleanupSwapchain() noexcept {
   for (const VkImageView view : swapchain_views_) {
     if (view != VK_NULL_HANDLE) {
       vkDestroyImageView(context_.device(), view, nullptr);
@@ -182,34 +249,24 @@ void Renderer::cleanupSwapchain() noexcept {
   }
 }
 
-bool Renderer::waitForRenderableExtent() {
-  FramebufferExtent extent = window_.framebufferExtent();
-  while (extent.isZero() && !window_.shouldClose()) {
-    window_.waitEvents();
-    extent = window_.framebufferExtent();
-  }
-  return !extent.isZero() && !window_.shouldClose();
-}
-
-void Renderer::recreateSwapchain() {
-  if (!waitForRenderableExtent()) {
+void Renderer::Impl::recreateSwapchain(FramebufferExtent framebuffer) {
+  if (framebuffer.isZero()) {
     return;
   }
   requireVulkan(vkDeviceWaitIdle(context_.device()),
                 "Wait for Vulkan device before swapchain recreation");
   const VkFormat previous_format = swapchain_format_;
   cleanupSwapchain();
-  createSwapchain();
+  createSwapchain(framebuffer);
   if (pipeline_ != nullptr && previous_format != swapchain_format_) {
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), context_.physicalDevice(), swapchain_format_,
-        std::filesystem::path("resources/shaders/triangle_vertex.spv"),
-        std::filesystem::path("resources/shaders/triangle_fragment.spv"));
+        resources_.vertex_shader, resources_.fragment_shader);
   }
   recreate_requested_ = false;
 }
 
-void Renderer::createFrameSlots() {
+void Renderer::Impl::createFrameSlots() {
   try {
     for (FrameSlot& frame : frames_) {
       VkCommandPoolCreateInfo pool_info{
@@ -248,7 +305,7 @@ void Renderer::createFrameSlots() {
   }
 }
 
-void Renderer::cleanupFrameSlots() noexcept {
+void Renderer::Impl::cleanupFrameSlots() noexcept {
   for (FrameSlot& frame : frames_) {
     if (frame.completion != VK_NULL_HANDLE) {
       vkDestroyFence(context_.device(), frame.completion, nullptr);
@@ -270,8 +327,8 @@ void Renderer::cleanupFrameSlots() noexcept {
   }
 }
 
-void Renderer::recordFrame(VkCommandBuffer command_buffer,
-                           std::uint32_t image_index) {
+void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
+                                 std::uint32_t image_index) {
   VkCommandBufferBeginInfo begin_info{
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -345,20 +402,11 @@ void Renderer::recordFrame(VkCommandBuffer command_buffer,
                 "End Vulkan frame command buffer");
 }
 
-bool Renderer::renderFrame() {
-  recreate_requested_ =
-      window_.consumeFramebufferResize() || recreate_requested_;
+FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
+  recreate_requested_ = request.framebuffer_resized || recreate_requested_;
   if (recreate_requested_) {
-    recreateSwapchain();
-    if (window_.shouldClose()) {
-      return false;
-    }
-  }
-  if (window_.framebufferExtent().isZero()) {
-    if (!waitForRenderableExtent()) {
-      return false;
-    }
-    recreateSwapchain();
+    recreateSwapchain(request.framebuffer);
+    return FrameOutcome::Recovered;
   }
 
   FrameSlot& frame = frames_[current_frame_];
@@ -372,8 +420,8 @@ bool Renderer::renderFrame() {
       context_.device(), swapchain_, std::numeric_limits<std::uint64_t>::max(),
       frame.image_available, VK_NULL_HANDLE, &image_index);
   if (acquire == VK_ERROR_OUT_OF_DATE_KHR) {
-    recreateSwapchain();
-    return false;
+    recreate_requested_ = true;
+    return FrameOutcome::Recovered;
   }
   if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR) {
     requireVulkan(acquire, "Acquire Vulkan swapchain image");
@@ -429,8 +477,9 @@ bool Renderer::renderFrame() {
   current_frame_ = (current_frame_ + 1) % frames_in_flight;
 
   if (present == VK_ERROR_OUT_OF_DATE_KHR || present == VK_SUBOPTIMAL_KHR ||
-      suboptimal || window_.consumeFramebufferResize()) {
+      suboptimal) {
     recreate_requested_ = true;
+    return FrameOutcome::Recovered;
   }
-  return true;
+  return FrameOutcome::Rendered;
 }

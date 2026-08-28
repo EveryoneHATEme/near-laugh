@@ -6,10 +6,11 @@
 #include "core/render/vulkan_utils.hpp"
 
 class Window;
+class ValidationDiagnostics;
 
 class VulkanContext {
  public:
-  explicit VulkanContext(const Window& window);
+  VulkanContext(const Window& window, ValidationDiagnostics& diagnostics);
   ~VulkanContext();
 
   VulkanContext(const VulkanContext&) = delete;
@@ -35,7 +36,7 @@ class VulkanContext {
   }
 
  private:
-  void createInstance(const Window& window);
+  void createInstance();
   void createDebugMessenger();
   void selectPhysicalDevice();
   void createDevice();
@@ -49,6 +50,8 @@ class VulkanContext {
   VkQueue graphics_queue_{VK_NULL_HANDLE};
   VkQueue present_queue_{VK_NULL_HANDLE};
   QueueFamilySelection queue_families_{};
+  const Window& window_;
+  ValidationDiagnostics& diagnostics_;
   bool validation_enabled_{};
 };
 

@@ -39,28 +39,70 @@ function(near_laugh_enable_warnings target)
     endif()
 endfunction()
 
-add_library(engine_lib STATIC
-    src/core/application.cpp
-    src/core/engine.cpp
+add_library(near_laugh_platform STATIC
     src/core/platform/input.cpp
     src/core/platform/platform.cpp
     src/core/platform/window.cpp
+    src/core/testing/test_controls.cpp
+)
+target_include_directories(near_laugh_platform PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh_platform PRIVATE glfw)
+near_laugh_enable_warnings(near_laugh_platform)
+
+add_library(near_laugh_render STATIC
+    src/core/platform/glfw_vulkan_bridge.cpp
     src/core/render/graphics_pipeline.cpp
     src/core/render/renderer.cpp
+    src/core/render/validation_diagnostics.cpp
     src/core/render/vulkan_context.cpp
     src/core/render/vulkan_utils.cpp
     src/core/resources/shader_provider.cpp
 )
-target_include_directories(engine_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(engine_lib PUBLIC Vulkan::Vulkan PRIVATE glfw)
-near_laugh_enable_warnings(engine_lib)
+target_include_directories(near_laugh_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh_render
+    PRIVATE near_laugh_platform Vulkan::Vulkan glfw
+)
+near_laugh_enable_warnings(near_laugh_render)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(engine_lib PRIVATE NEAR_LAUGH_ENABLE_VULKAN_VALIDATION=1)
+    target_compile_definitions(near_laugh_render
+        PRIVATE NEAR_LAUGH_ENABLE_VULKAN_VALIDATION=1
+    )
+endif()
+
+add_library(near_laugh_runtime STATIC
+    src/core/application.cpp
+    src/core/engine.cpp
+    src/core/input/fps_input.cpp
+    src/core/runtime_resources.cpp
+)
+target_include_directories(near_laugh_runtime
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(near_laugh_runtime
+    PRIVATE near_laugh_platform near_laugh_render
+)
+near_laugh_enable_warnings(near_laugh_runtime)
+
+get_target_property(near_laugh_runtime_interface_includes
+                    near_laugh_runtime INTERFACE_INCLUDE_DIRECTORIES)
+if(NOT near_laugh_runtime_interface_includes STREQUAL
+       "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    message(FATAL_ERROR
+        "near_laugh_runtime exposes unexpected include directories: "
+        "${near_laugh_runtime_interface_includes}")
+endif()
+get_target_property(near_laugh_runtime_interface_links
+                    near_laugh_runtime INTERFACE_LINK_LIBRARIES)
+if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw")
+    message(FATAL_ERROR
+        "near_laugh_runtime exposes a backend usage requirement: "
+        "${near_laugh_runtime_interface_links}")
 endif()
 
 add_executable(fps src/main.cpp)
-target_link_libraries(fps PRIVATE engine_lib)
+target_link_libraries(fps PRIVATE near_laugh_runtime)
 near_laugh_enable_warnings(fps)
 set_target_properties(fps PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"

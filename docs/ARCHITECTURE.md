@@ -22,6 +22,20 @@ World   Renderer   Physics   Audio   Input
  │        │
  └──── Core / Platform ───────────┘
 
+The executable-facing boundary is the PImpl-based
+`near_laugh::Application` facade and `RuntimeConfig`. Its public headers contain
+only standard-library types. The concrete build modules are:
+
+- `near_laugh_runtime`: application composition, the main-thread loop, resource
+  configuration, and fixed FPS input mapping;
+- `near_laugh_platform`: GLFW lifetime, the window, event batches, and
+  engine-owned physical keyboard/mouse state;
+- `near_laugh_render`: Vulkan lifetime, presentation, and explicit frame
+  requests/outcomes.
+
+GLFW/Vulkan surface coupling is confined to one internal bridge. It is not a
+rendering-backend abstraction.
+
  ## Dependency Rules
 
 Game-specific code may depend on engine code.
@@ -73,16 +87,28 @@ The intended high-level lifetime is:
 Application
   creates
 Engine
-  creates
+  creates, in order
 Platform
+Window
 Renderer
-Physics
-Audio
-World
+
+Physics, Audio, and World will be added only when their FPS requirements are
+implemented.
 
 Shutdown happens in reverse dependency order.
 
 Resource destruction must never depend on already-destroyed subsystems.
+
+The runtime loop owns platform polling, close decisions, input sampling,
+minimized-window waiting, and the decision to issue at most one frame request
+per iteration. The renderer consumes the current framebuffer extent/resize
+state and reports rendered, skipped, or recovered without controlling events or
+application lifetime.
+
+Platform callbacks retain held physical keys/buttons and accumulate cursor
+movement for one event batch. `FpsInputMapper` maps W/A/S/D, Space, Left Shift,
+Left Control, Escape, and the left/right mouse buttons to the single-player FPS
+action snapshot. Look delta resets between batches while held actions persist.
 
 ## Threading
 

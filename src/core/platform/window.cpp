@@ -1,12 +1,15 @@
 #include "core/platform/window.hpp"
 
-#define GLFW_INCLUDE_VULKAN
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <string>
+
+#include "core/platform/platform.hpp"
+#include "core/testing/test_controls.hpp"
 
 struct Window::Impl {
   GLFWwindow* handle{};
@@ -36,28 +39,28 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
   auto& input = implementation(window).input;
   switch (key) {
     case GLFW_KEY_W:
-      input.setKey(Key::MoveForward, down);
+      input.setKey(PhysicalKey::W, down);
       break;
     case GLFW_KEY_S:
-      input.setKey(Key::MoveBackward, down);
+      input.setKey(PhysicalKey::S, down);
       break;
     case GLFW_KEY_A:
-      input.setKey(Key::MoveLeft, down);
+      input.setKey(PhysicalKey::A, down);
       break;
     case GLFW_KEY_D:
-      input.setKey(Key::MoveRight, down);
+      input.setKey(PhysicalKey::D, down);
       break;
     case GLFW_KEY_SPACE:
-      input.setKey(Key::Jump, down);
+      input.setKey(PhysicalKey::Space, down);
       break;
     case GLFW_KEY_LEFT_SHIFT:
-      input.setKey(Key::Sprint, down);
+      input.setKey(PhysicalKey::LeftShift, down);
       break;
     case GLFW_KEY_LEFT_CONTROL:
-      input.setKey(Key::Crouch, down);
+      input.setKey(PhysicalKey::LeftControl, down);
       break;
     case GLFW_KEY_ESCAPE:
-      input.setKey(Key::Escape, down);
+      input.setKey(PhysicalKey::Escape, down);
       break;
     default:
       break;
@@ -72,13 +75,13 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
   auto& input = implementation(window).input;
   switch (button) {
     case GLFW_MOUSE_BUTTON_LEFT:
-      input.setMouseButton(MouseButton::Left, down);
+      input.setMouseButton(PhysicalMouseButton::Left, down);
       break;
     case GLFW_MOUSE_BUTTON_RIGHT:
-      input.setMouseButton(MouseButton::Right, down);
+      input.setMouseButton(PhysicalMouseButton::Right, down);
       break;
     case GLFW_MOUSE_BUTTON_MIDDLE:
-      input.setMouseButton(MouseButton::Middle, down);
+      input.setMouseButton(PhysicalMouseButton::Middle, down);
       break;
     default:
       break;
@@ -86,9 +89,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 }  // namespace
 
-Window::Window(std::uint32_t width, std::uint32_t height,
+Window::Window(Platform& platform, std::uint32_t width, std::uint32_t height,
                std::string_view title)
-    : impl_(std::make_unique<Impl>()) {
+    : platform_(platform), impl_(std::make_unique<Impl>()) {
   if (width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
       height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
     throw std::runtime_error("Window dimensions exceed GLFW's integer range");
@@ -113,11 +116,13 @@ Window::Window(std::uint32_t width, std::uint32_t height,
   glfwSetCursorPosCallback(impl_->handle, cursorPositionCallback);
   glfwSetKeyCallback(impl_->handle, keyCallback);
   glfwSetMouseButtonCallback(impl_->handle, mouseButtonCallback);
+  recordLifecycleEvent("window.created");
 }
 
 Window::~Window() {
   if (impl_ != nullptr && impl_->handle != nullptr) {
     glfwDestroyWindow(impl_->handle);
+    recordLifecycleEvent("window.destroyed");
   }
 }
 
@@ -159,7 +164,7 @@ void Window::minimize() { glfwIconifyWindow(impl_->handle); }
 
 void Window::restore() { glfwRestoreWindow(impl_->handle); }
 
-const InputSnapshot& Window::input() const noexcept {
+const PhysicalInputSnapshot& Window::input() const noexcept {
   return impl_->input.snapshot();
 }
 
@@ -175,25 +180,4 @@ void Window::setCursorCaptured(bool captured) {
 
 bool Window::cursorCaptured() const noexcept { return impl_->cursor_captured; }
 
-std::vector<const char*> Window::requiredVulkanExtensions() const {
-  std::uint32_t count = 0;
-  const char** extensions = glfwGetRequiredInstanceExtensions(&count);
-  if (extensions == nullptr || count == 0) {
-    throw std::runtime_error(
-        "GLFW did not provide the Vulkan instance extensions required for "
-        "surface creation");
-  }
-  return {extensions, extensions + count};
-}
-
-VkSurfaceKHR Window::createVulkanSurface(VkInstance instance) const {
-  VkSurfaceKHR surface = VK_NULL_HANDLE;
-  const VkResult result =
-      glfwCreateWindowSurface(instance, impl_->handle, nullptr, &surface);
-  if (result != VK_SUCCESS) {
-    throw std::runtime_error(
-        "GLFW Vulkan surface creation failed with VkResult " +
-        std::to_string(result));
-  }
-  return surface;
-}
+void* Window::surfaceBridgeHandle() const noexcept { return impl_->handle; }

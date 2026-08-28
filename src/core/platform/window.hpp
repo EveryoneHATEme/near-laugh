@@ -1,30 +1,23 @@
 #ifndef CORE_PLATFORM_WINDOW_HPP
 #define CORE_PLATFORM_WINDOW_HPP
 
-#include <vulkan/vulkan.h>
-
 #include <cstdint>
 #include <memory>
 #include <string_view>
-#include <vector>
 
+#include "core/frame.hpp"
 #include "core/platform/input.hpp"
 
-struct FramebufferExtent {
-  std::uint32_t width{};
-  std::uint32_t height{};
-
-  [[nodiscard]] bool isZero() const noexcept {
-    return width == 0 || height == 0;
-  }
-};
+class Platform;
+class GlfwVulkanBridge;
 
 class Window {
  public:
   // Incomplete implementation type keeps GLFW declarations out of this header.
   struct Impl;
 
-  Window(std::uint32_t width, std::uint32_t height, std::string_view title);
+  Window(Platform& platform, std::uint32_t width, std::uint32_t height,
+         std::string_view title);
   ~Window();
 
   Window(const Window&) = delete;
@@ -41,14 +34,15 @@ class Window {
   void minimize();
   void restore();
 
-  [[nodiscard]] const InputSnapshot& input() const noexcept;
+  [[nodiscard]] const PhysicalInputSnapshot& input() const noexcept;
   void setCursorCaptured(bool captured);
   [[nodiscard]] bool cursorCaptured() const noexcept;
 
-  [[nodiscard]] std::vector<const char*> requiredVulkanExtensions() const;
-  [[nodiscard]] VkSurfaceKHR createVulkanSurface(VkInstance instance) const;
-
  private:
+  friend class GlfwVulkanBridge;
+  [[nodiscard]] void* surfaceBridgeHandle() const noexcept;
+
+  Platform& platform_;
   std::unique_ptr<Impl> impl_;
 };
 

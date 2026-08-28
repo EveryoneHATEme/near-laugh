@@ -36,6 +36,21 @@ On other supported desktop environments:
 
 The executable loads its copied SPIR-V assets from
 `resources/shaders` beneath the runtime output directory.
+The launcher derives and normalizes that executable-relative directory and
+passes it through `RuntimeConfig::resource_root`; changing the process working
+directory does not change asset lookup.
+
+## Build Targets
+
+- `near_laugh_platform` contains GLFW windowing and physical input collection.
+- `near_laugh_render` contains Vulkan and the internal surface bridge.
+- `near_laugh_runtime` contains the public facade, composition, FPS input
+  mapping, and main loop.
+- `fps` is the launcher executable and links through `near_laugh_runtime`.
+
+The deterministic suite includes public-header, target-interface, source, and
+compile-command boundary checks. A deliberately backend-dependent fixture is
+expected to fail the public-header check.
 
 ## Vulkan Smoke Test
 
@@ -48,6 +63,10 @@ ctest --preset vulkan-smoke --output-on-failure
 
 The smoke executable renders fixed frames and forces one swapchain recreation.
 It requires a desktop session and a Vulkan 1.3 presentation-capable device.
+It keeps validation diagnostics alive through renderer teardown and fails after
+cleanup if Vulkan validation recorded an error. The smoke preset also verifies
+the expected failure result for an injected validation error and checks normal
+and partial-construction destruction order.
 
 ## Debug Build Requirements
 

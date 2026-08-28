@@ -6,7 +6,8 @@
 #include "core/resources/shader_provider.hpp"
 
 TEST(ShaderProvider, MissingAssetReportsItsPath) {
-  const std::filesystem::path path = "definitely-missing-shader.spv";
+  const std::filesystem::path path = std::filesystem::absolute(
+      "definitely-missing-shader.spv").lexically_normal();
   try {
     static_cast<void>(readSpirvFile(path));
     FAIL() << "Expected missing shader failure";
@@ -27,7 +28,10 @@ TEST(ShaderProvider, RejectsMalformedSpirvSize) {
 }
 
 TEST(ShaderProvider, LoadsProjectShaders) {
-  EXPECT_FALSE(readSpirvFile("resources/shaders/triangle_vertex.spv").empty());
+  const std::filesystem::path root =
+      std::filesystem::absolute("resources").lexically_normal();
   EXPECT_FALSE(
-      readSpirvFile("resources/shaders/triangle_fragment.spv").empty());
+      readSpirvFile(root / "shaders/triangle_vertex.spv").empty());
+  EXPECT_FALSE(
+      readSpirvFile(root / "shaders/triangle_fragment.spv").empty());
 }

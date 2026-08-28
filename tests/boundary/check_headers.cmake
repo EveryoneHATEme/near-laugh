@@ -1,0 +1,11 @@
+file(GLOB_RECURSE PUBLIC_HEADERS "${ROOT}/*.hpp" "${ROOT}/*.h")
+if(NOT PUBLIC_HEADERS)
+    message(FATAL_ERROR "No public headers found beneath ${ROOT}")
+endif()
+
+foreach(HEADER IN LISTS PUBLIC_HEADERS)
+    file(READ "${HEADER}" CONTENT)
+    if(CONTENT MATCHES "(vulkan[/\\\\]|Vk[A-Z]|GLFW|glfw|core/platform|core/render)")
+        message(FATAL_ERROR "Backend dependency leaked into ${HEADER}")
+    endif()
+endforeach()

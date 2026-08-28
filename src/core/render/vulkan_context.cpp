@@ -1,7 +1,6 @@
 #include "core/render/vulkan_context.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <optional>
@@ -10,53 +9,57 @@
 #include <string>
 #include <vector>
 
+#include "core/platform/glfw_vulkan_bridge.hpp"
 #include "core/platform/window.hpp"
+#include "core/render/validation_diagnostics.hpp"
+#include "core/testing/test_controls.hpp"
 
 namespace {
 constexpr const char* validation_layer = "VK_LAYER_KHRONOS_validation";
 
-bool forceFailureAt(const char* stage) {
-#if defined(_WIN32)
-  char* requested = nullptr;
-  std::size_t size = 0;
-  if (_dupenv_s(&requested, &size, "NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE") !=
-      0) {
-    return false;
-  }
-  const bool matches =
-      requested != nullptr && std::strcmp(requested, stage) == 0;
-  std::free(requested);
-  return matches;
-#else
-  const char* requested = std::getenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE");
-  return requested != nullptr && std::strcmp(requested, stage) == 0;
-#endif
-}
-
 VKAPI_ATTR VkBool32 VKAPI_CALL validationCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity,
     VkDebugUtilsMessageTypeFlagsEXT types,
-    const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void*) {
-  const char* severity_name = "info";
+    const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+    void* user_data) {
+  auto decoded_severity = ValidationSeverity::Info;
   if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0) {
-    severity_name = "error";
+    decoded_severity = ValidationSeverity::Error;
   } else if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) !=
              0) {
-    severity_name = "warning";
+    decoded_severity = ValidationSeverity::Warning;
   } else if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) !=
              0) {
-    severity_name = "verbose";
+    decoded_severity = ValidationSeverity::Verbose;
   }
-  std::cerr << "Vulkan validation [" << severity_name << ", type=" << types
-            << "]: "
-            << (callback_data != nullptr && callback_data->pMessage != nullptr
-                    ? callback_data->pMessage
-                    : "unknown message")
-            << '\n';
+
+  const unsigned category_count =
+      ((types & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) != 0 ? 1U : 0U) +
+      ((types & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) != 0 ? 1U
+                                                                    : 0U) +
+      ((types & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) != 0 ? 1U
+                                                                     : 0U);
+  ValidationCategory category = ValidationCategory::General;
+  if (category_count > 1U) {
+    category = ValidationCategory::Multiple;
+  } else if ((types & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) != 0) {
+    category = ValidationCategory::Validation;
+  } else if ((types & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) != 0) {
+    category = ValidationCategory::Performance;
+  }
+
+  if (user_data != nullptr) {
+    static_cast<ValidationDiagnostics*>(user_data)->record(
+        decoded_severity, category,
+        callback_data != nullptr && callback_data->pMessage != nullptr
+            ? callback_data->pMessage
+            : "unknown message");
+  }
   return VK_FALSE;
 }
 
-VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo() {
+VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo(
+    ValidationDiagnostics& diagnostics) {
   VkDebugUtilsMessengerCreateInfoEXT info{
       VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
   info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -65,6 +68,7 @@ VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo() {
                      VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                      VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
   info.pfnUserCallback = validationCallback;
+  info.pUserData = &diagnostics;
   return info;
 }
 
@@ -186,20 +190,22 @@ std::optional<DeviceCandidate> inspectDevice(VkPhysicalDevice device,
 }
 }  // namespace
 
-VulkanContext::VulkanContext(const Window& window) {
+VulkanContext::VulkanContext(const Window& window,
+                             ValidationDiagnostics& diagnostics)
+    : window_(window), diagnostics_(diagnostics) {
   try {
-    createInstance(window);
+    createInstance();
     createDebugMessenger();
-    if (forceFailureAt("instance")) {
+    if (forcedVulkanFailureAt("instance")) {
       throw std::runtime_error("Forced failure after Vulkan instance creation");
     }
-    surface_ = window.createVulkanSurface(instance_);
-    if (forceFailureAt("surface")) {
+    surface_ = GlfwVulkanBridge::createSurface(instance_, window_);
+    if (forcedVulkanFailureAt("surface")) {
       throw std::runtime_error("Forced failure after Vulkan surface creation");
     }
     selectPhysicalDevice();
     createDevice();
-    if (forceFailureAt("device")) {
+    if (forcedVulkanFailureAt("device")) {
       throw std::runtime_error("Forced failure after Vulkan device creation");
     }
   } catch (...) {
@@ -210,8 +216,9 @@ VulkanContext::VulkanContext(const Window& window) {
 
 VulkanContext::~VulkanContext() { cleanup(); }
 
-void VulkanContext::createInstance(const Window& window) {
-  std::vector<const char*> extensions = window.requiredVulkanExtensions();
+void VulkanContext::createInstance() {
+  std::vector<const char*> extensions =
+      GlfwVulkanBridge::requiredInstanceExtensions();
 
 #if defined(NEAR_LAUGH_ENABLE_VULKAN_VALIDATION)
   if (hasLayer(validation_layer) &&
@@ -232,7 +239,8 @@ void VulkanContext::createInstance(const Window& window) {
   application_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
   application_info.apiVersion = VK_API_VERSION_1_3;
 
-  VkDebugUtilsMessengerCreateInfoEXT debug_info = debugMessengerInfo();
+  VkDebugUtilsMessengerCreateInfoEXT debug_info =
+      debugMessengerInfo(diagnostics_);
   VkInstanceCreateInfo create_info{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
   create_info.pApplicationInfo = &application_info;
   create_info.enabledExtensionCount =
@@ -259,7 +267,7 @@ void VulkanContext::createDebugMessenger() {
     throw std::runtime_error(
         "VK_EXT_debug_utils was enabled but its create function is missing");
   }
-  VkDebugUtilsMessengerCreateInfoEXT info = debugMessengerInfo();
+  VkDebugUtilsMessengerCreateInfoEXT info = debugMessengerInfo(diagnostics_);
   requireVulkan(create(instance_, &info, nullptr, &debug_messenger_),
                 "Create Vulkan debug messenger");
 }

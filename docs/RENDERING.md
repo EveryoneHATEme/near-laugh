@@ -16,6 +16,11 @@ The renderer may assume a modern desktop Vulkan implementation.
 
 There is no rendering backend abstraction.
 
+Vulkan types remain inside `near_laugh_render`. The public runtime facade and
+the normal window API do not include or exchange Vulkan or GLFW types. A narrow
+internal GLFW/Vulkan bridge supplies instance extensions and creates the
+presentation surface.
+
 Do not create interfaces such as:
 
 IRenderDevice
@@ -87,6 +92,20 @@ Resource lifetime must always account for pending GPU work.
 
 Prefer a simple and correct synchronization model over maximizing
 CPU/GPU overlap.
+
+The runtime sends one explicit frame request containing framebuffer extent and
+resize state. A zero extent is skipped before GPU submission. Swapchain
+out-of-date/suboptimal interpretation and recovery remain renderer-owned, and a
+backend-neutral rendered/skipped/recovered outcome is returned to the runtime.
+
+Shader paths are resolved beneath `RuntimeConfig::resource_root` before renderer
+construction. Renderer code never constructs a path relative to the process
+working directory.
+
+The Vulkan debug callback records decoded severity/category messages in a
+thread-safe runtime-owned diagnostics sink and never throws or aborts. The sink
+outlives Vulkan teardown; a smoke process exits unsuccessfully after orderly
+cleanup if any error-severity validation message was counted.
 
 ## Descriptor Strategy
 

@@ -11,8 +11,6 @@ class Platform {
   Platform(Platform&&) = delete;
   Platform& operator=(Platform&&) = delete;
 
-  [[nodiscard]] static bool forcedInitializationFailureRequested() noexcept;
-
  private:
   bool initialized_{};
 };

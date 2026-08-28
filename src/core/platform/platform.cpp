@@ -3,14 +3,13 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 
-namespace {
-bool platform_active = false;
+#include "core/testing/test_controls.hpp"
 
+namespace {
 void reportGlfwError(int code, const char* description) {
   std::cerr << "GLFW error " << code << ": "
             << (description != nullptr ? description : "unknown error") << '\n';
@@ -18,11 +17,7 @@ void reportGlfwError(int code, const char* description) {
 }  // namespace
 
 Platform::Platform() {
-  if (platform_active) {
-    throw std::runtime_error(
-        "Platform initialization failed: GLFW already has an active owner");
-  }
-  if (forcedInitializationFailureRequested()) {
+  if (forcedPlatformInitializationFailure()) {
     throw std::runtime_error(
         "Platform initialization forced to fail by "
         "NEAR_LAUGH_FORCE_GLFW_INIT_FAILURE");
@@ -37,28 +32,12 @@ Platform::Platform() {
         "): " + (description != nullptr ? description : "unknown error"));
   }
   initialized_ = true;
-  platform_active = true;
+  recordLifecycleEvent("platform.created");
 }
 
 Platform::~Platform() {
   if (initialized_) {
     glfwTerminate();
-    platform_active = false;
+    recordLifecycleEvent("platform.destroyed");
   }
-}
-
-bool Platform::forcedInitializationFailureRequested() noexcept {
-#if defined(_WIN32)
-  char* value = nullptr;
-  std::size_t size = 0;
-  if (_dupenv_s(&value, &size, "NEAR_LAUGH_FORCE_GLFW_INIT_FAILURE") != 0) {
-    return false;
-  }
-  const bool requested = value != nullptr && std::string(value) == "1";
-  std::free(value);
-  return requested;
-#else
-  const char* value = std::getenv("NEAR_LAUGH_FORCE_GLFW_INIT_FAILURE");
-  return value != nullptr && std::string(value) == "1";
-#endif
 }

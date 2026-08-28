@@ -7,11 +7,12 @@ constexpr std::size_t indexOf(Enum value) noexcept {
 }
 }  // namespace
 
-bool InputSnapshot::isKeyDown(Key key) const noexcept {
+bool PhysicalInputSnapshot::isKeyDown(PhysicalKey key) const noexcept {
   return keys[indexOf(key)];
 }
 
-bool InputSnapshot::isMouseButtonDown(MouseButton button) const noexcept {
+bool PhysicalInputSnapshot::isMouseButtonDown(
+    PhysicalMouseButton button) const noexcept {
   return mouse_buttons[indexOf(button)];
 }
 
@@ -20,11 +21,12 @@ void InputAccumulator::beginEventBatch() noexcept {
   snapshot_.cursor_delta_y = 0.0;
 }
 
-void InputAccumulator::setKey(Key key, bool down) noexcept {
+void InputAccumulator::setKey(PhysicalKey key, bool down) noexcept {
   snapshot_.keys[indexOf(key)] = down;
 }
 
-void InputAccumulator::setMouseButton(MouseButton button, bool down) noexcept {
+void InputAccumulator::setMouseButton(PhysicalMouseButton button,
+                                      bool down) noexcept {
   snapshot_.mouse_buttons[indexOf(button)] = down;
 }
 
@@ -44,6 +46,6 @@ void InputAccumulator::resetCursorTracking() noexcept {
   snapshot_.cursor_delta_y = 0.0;
 }
 
-const InputSnapshot& InputAccumulator::snapshot() const noexcept {
+const PhysicalInputSnapshot& InputAccumulator::snapshot() const noexcept {
   return snapshot_;
 }
