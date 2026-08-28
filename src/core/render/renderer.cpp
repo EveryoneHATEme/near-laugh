@@ -163,6 +163,10 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
       chooseSurfaceFormat(support.formats);
   const VkExtent2D extent = chooseSwapchainExtent(
       support.capabilities, {framebuffer.width, framebuffer.height});
+  requireColorAttachmentSwapchainUsage(
+      support.capabilities.supportedUsageFlags);
+  const VkCompositeAlphaFlagBitsKHR composite_alpha =
+      chooseCompositeAlpha(support.capabilities.supportedCompositeAlpha);
   std::uint32_t image_count = support.capabilities.minImageCount + 1;
   if (support.capabilities.maxImageCount != 0) {
     image_count = std::min(image_count, support.capabilities.maxImageCount);
@@ -188,7 +192,7 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
     info.pQueueFamilyIndices = family_indices.data();
   }
   info.preTransform = support.capabilities.currentTransform;
-  info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  info.compositeAlpha = composite_alpha;
   info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
   info.clipped = VK_TRUE;
   requireVulkan(

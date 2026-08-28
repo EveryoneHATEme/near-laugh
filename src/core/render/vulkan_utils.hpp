@@ -31,5 +31,9 @@ void requireVulkan(VkResult result, std::string_view operation);
     const std::vector<VkSurfaceFormatKHR>& formats);
 [[nodiscard]] VkExtent2D chooseSwapchainExtent(
     const VkSurfaceCapabilitiesKHR& capabilities, VkExtent2D framebuffer);
+void requireColorAttachmentSwapchainUsage(
+    VkImageUsageFlags supported_usage);
+[[nodiscard]] VkCompositeAlphaFlagBitsKHR chooseCompositeAlpha(
+    VkCompositeAlphaFlagsKHR supported_modes);
 
 #endif

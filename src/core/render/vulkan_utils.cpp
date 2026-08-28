@@ -1,6 +1,7 @@
 #include "core/render/vulkan_utils.hpp"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -117,4 +118,30 @@ VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities,
                      capabilities.maxImageExtent.width),
           std::clamp(framebuffer.height, capabilities.minImageExtent.height,
                      capabilities.maxImageExtent.height)};
+}
+
+void requireColorAttachmentSwapchainUsage(
+    VkImageUsageFlags supported_usage) {
+  if ((supported_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0) {
+    throw std::runtime_error(
+        "Swapchain creation failed: surface does not support required "
+        "color-attachment image usage");
+  }
+}
+
+VkCompositeAlphaFlagBitsKHR chooseCompositeAlpha(
+    VkCompositeAlphaFlagsKHR supported_modes) {
+  constexpr std::array<VkCompositeAlphaFlagBitsKHR, 4> preference = {
+      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+      VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+      VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+      VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR};
+  for (const VkCompositeAlphaFlagBitsKHR mode : preference) {
+    if ((supported_modes & mode) != 0) {
+      return mode;
+    }
+  }
+  throw std::runtime_error(
+      "Swapchain creation failed: surface reports no supported "
+      "composite-alpha mode");
 }

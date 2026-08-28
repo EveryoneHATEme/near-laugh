@@ -1,5 +1,6 @@
 add_executable(engine_tests
     core/test_input.cpp
+    core/test_executable_path.cpp
     core/test_frame.cpp
     core/test_runtime_resources.cpp
     core/test_validation_diagnostics.cpp
@@ -7,6 +8,7 @@ add_executable(engine_tests
     core/test_vertex_layout.cpp
     core/test_vulkan_utils.cpp
     core/test_ownership.cpp
+    ${CMAKE_SOURCE_DIR}/src/launcher/executable_path.cpp
 )
 target_include_directories(engine_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(engine_tests PRIVATE
@@ -90,3 +92,24 @@ add_test(NAME source_boundary_check
             -P ${CMAKE_CURRENT_SOURCE_DIR}/boundary/check_sources.cmake
 )
 set_tests_properties(source_boundary_check PROPERTIES LABELS "boundary")
+
+add_executable(resource_layout_probe
+    process/resource_layout_probe.cpp
+    ${CMAKE_SOURCE_DIR}/src/launcher/executable_path.cpp
+)
+target_include_directories(resource_layout_probe PRIVATE "${CMAKE_SOURCE_DIR}/src")
+near_laugh_enable_warnings(resource_layout_probe)
+set_target_properties(resource_layout_probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+add_custom_command(TARGET resource_layout_probe POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/resources/shaders"
+            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/shaders"
+)
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")
+add_test(NAME executable_relative_resource_layout COMMAND resource_layout_probe)
+set_tests_properties(executable_relative_resource_layout PROPERTIES
+    LABELS "process"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working"
+)

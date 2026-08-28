@@ -1,20 +1,14 @@
 #include <exception>
-#include <filesystem>
 #include <iostream>
-#include <stdexcept>
 #include <utility>
 
+#include "launcher/executable_path.hpp"
 #include "near_laugh/application.hpp"
 
-int main(int argc, char** argv) {
+int main() {
   try {
-    if (argc <= 0 || argv == nullptr || argv[0] == nullptr) {
-      throw std::runtime_error("Executable path is unavailable");
-    }
-    const std::filesystem::path executable =
-        std::filesystem::absolute(argv[0]).lexically_normal();
     near_laugh::RuntimeConfig config;
-    config.resource_root = executable.parent_path() / "resources";
+    config.resource_root = launcher::executableResourceRoot();
     near_laugh::Application application(std::move(config));
     application.run();
     return 0;

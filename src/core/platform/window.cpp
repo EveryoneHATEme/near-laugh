@@ -131,7 +131,10 @@ void Window::pollEvents() {
   glfwPollEvents();
 }
 
-void Window::waitEvents() const { glfwWaitEvents(); }
+void Window::waitEvents() {
+  impl_->input.beginEventBatch();
+  glfwWaitEvents();
+}
 
 bool Window::shouldClose() const {
   return glfwWindowShouldClose(impl_->handle) == GLFW_TRUE;

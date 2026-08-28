@@ -31,10 +31,11 @@ bool Engine::tick() {
       return false;
     case LoopAction::WaitForEvents:
       window_.waitEvents();
+      input_ = input_mapper_.map(window_.input());
       return !window_.shouldClose();
     case LoopAction::Render:
-      static_cast<void>(renderer_.renderFrame(decision.frame));
-      return !window_.shouldClose();
+      const FrameOutcome outcome = renderer_.renderFrame(decision.frame);
+      return runtimeContinuesAfter(outcome) && !window_.shouldClose();
   }
   return false;
 }

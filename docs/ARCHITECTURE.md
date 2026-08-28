@@ -101,14 +101,23 @@ Resource destruction must never depend on already-destroyed subsystems.
 
 The runtime loop owns platform polling, close decisions, input sampling,
 minimized-window waiting, and the decision to issue at most one frame request
-per iteration. The renderer consumes the current framebuffer extent/resize
+per iteration. A blocking wait begins its own input batch, and the runtime maps
+that batch immediately after the wait returns, before a later poll can reset
+its cursor delta. The renderer consumes the current framebuffer extent/resize
 state and reports rendered, skipped, or recovered without controlling events or
-application lifetime.
+application lifetime. The runtime exhaustively consumes each outcome before it
+continues the application-owned loop.
 
 Platform callbacks retain held physical keys/buttons and accumulate cursor
 movement for one event batch. `FpsInputMapper` maps W/A/S/D, Space, Left Shift,
 Left Control, Escape, and the left/right mouse buttons to the single-player FPS
-action snapshot. Look delta resets between batches while held actions persist.
+action snapshot. Look delta resets when the next polling or blocking batch
+begins, while held actions persist across both kinds of event dispatch.
+
+The `fps` launcher uses a private, host-native helper to discover its actual
+executable path and supplies the adjacent `resources` directory through
+`RuntimeConfig`. Invocation text and the process working directory do not
+participate in runtime layout discovery.
 
 ## Threading
 

@@ -101,7 +101,11 @@ if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw")
         "${near_laugh_runtime_interface_links}")
 endif()
 
-add_executable(fps src/main.cpp)
+add_executable(fps
+    src/main.cpp
+    src/launcher/executable_path.cpp
+)
+target_include_directories(fps PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(fps PRIVATE near_laugh_runtime)
 near_laugh_enable_warnings(fps)
 set_target_properties(fps PROPERTIES

@@ -97,6 +97,14 @@ The runtime sends one explicit frame request containing framebuffer extent and
 resize state. A zero extent is skipped before GPU submission. Swapchain
 out-of-date/suboptimal interpretation and recovery remain renderer-owned, and a
 backend-neutral rendered/skipped/recovered outcome is returned to the runtime.
+The runtime handles all three outcomes explicitly and retains ownership of the
+next event-processing and lifetime decision.
+
+Before creating or recreating a swapchain, the renderer verifies that the
+surface supports color-attachment image usage. It prefers opaque composite
+alpha and otherwise selects the first supported pre-multiplied,
+post-multiplied, or inherited mode. Missing required usage or a usable
+composite-alpha mode is reported before `vkCreateSwapchainKHR`.
 
 Shader paths are resolved beneath `RuntimeConfig::resource_root` before renderer
 construction. Renderer code never constructs a path relative to the process

@@ -36,9 +36,12 @@ On other supported desktop environments:
 
 The executable loads its copied SPIR-V assets from
 `resources/shaders` beneath the runtime output directory.
-The launcher derives and normalizes that executable-relative directory and
-passes it through `RuntimeConfig::resource_root`; changing the process working
-directory does not change asset lookup.
+The launcher queries the actual running module through the host's native
+process facility, derives and normalizes that executable-relative directory,
+and passes it through `RuntimeConfig::resource_root`. Changing the process
+working directory or invoking the process through misleading text does not
+change asset lookup. The deterministic process test verifies this without
+initializing GLFW or Vulkan.
 
 ## Build Targets
 
@@ -49,7 +52,9 @@ directory does not change asset lookup.
 - `fps` is the launcher executable and links through `near_laugh_runtime`.
 
 The deterministic suite includes public-header, target-interface, source, and
-compile-command boundary checks. A deliberately backend-dependent fixture is
+compile-command boundary checks. It also verifies waited input-batch sampling,
+exhaustive runtime frame-outcome handling, native executable discovery, and
+swapchain capability selection. A deliberately backend-dependent fixture is
 expected to fail the public-header check.
 
 ## Vulkan Smoke Test
@@ -66,7 +71,9 @@ It requires a desktop session and a Vulkan 1.3 presentation-capable device.
 It keeps validation diagnostics alive through renderer teardown and fails after
 cleanup if Vulkan validation recorded an error. The smoke preset also verifies
 the expected failure result for an injected validation error and checks normal
-and partial-construction destruction order.
+and partial-construction destruction order. Swapchain creation and recreation
+use only color-attachment usage and composite-alpha modes reported by the
+current surface.
 
 ## Debug Build Requirements
 

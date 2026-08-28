@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <stdexcept>
+#include <string>
 
 #include "core/render/vulkan_utils.hpp"
 
@@ -44,4 +46,34 @@ TEST(SwapchainSelection, PrefersSrgbAndClampsVariableExtent) {
   const VkExtent2D extent = chooseSwapchainExtent(capabilities, {2560, 100});
   EXPECT_EQ(extent.width, 1920U);
   EXPECT_EQ(extent.height, 200U);
+}
+
+TEST(SwapchainSelection, RequiresColorAttachmentImageUsage) {
+  EXPECT_NO_THROW(requireColorAttachmentSwapchainUsage(
+      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT));
+  try {
+    requireColorAttachmentSwapchainUsage(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    FAIL() << "Expected missing color-attachment usage to fail";
+  } catch (const std::runtime_error& error) {
+    EXPECT_NE(std::string(error.what()).find("color-attachment"),
+              std::string::npos);
+  }
+}
+
+TEST(SwapchainSelection, PrefersOpaqueCompositeAlpha) {
+  EXPECT_EQ(chooseCompositeAlpha(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR |
+                                 VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR),
+            VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+}
+
+TEST(SwapchainSelection, ChoosesDeterministicSupportedCompositeAlphaFallback) {
+  EXPECT_EQ(chooseCompositeAlpha(VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR |
+                                 VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR),
+            VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR);
+  EXPECT_EQ(chooseCompositeAlpha(VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR |
+                                 VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR),
+            VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR);
+  EXPECT_EQ(chooseCompositeAlpha(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR),
+            VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
+  EXPECT_THROW(chooseCompositeAlpha(0), std::runtime_error);
 }

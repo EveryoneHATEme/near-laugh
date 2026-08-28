@@ -26,7 +26,7 @@ class Window {
   Window& operator=(Window&&) = delete;
 
   void pollEvents();
-  void waitEvents() const;
+  void waitEvents();
   [[nodiscard]] bool shouldClose() const;
   [[nodiscard]] FramebufferExtent framebufferExtent() const;
   [[nodiscard]] bool consumeFramebufferResize() noexcept;

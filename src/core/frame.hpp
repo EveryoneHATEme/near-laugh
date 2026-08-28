@@ -24,8 +24,15 @@ struct FrameRequest {
 
 enum class FrameOutcome { Rendered, Skipped, Recovered };
 
-[[nodiscard]] constexpr bool runtimeContinuesAfter(FrameOutcome) noexcept {
-  return true;
+[[nodiscard]] constexpr bool runtimeContinuesAfter(
+    FrameOutcome outcome) noexcept {
+  switch (outcome) {
+    case FrameOutcome::Rendered:
+    case FrameOutcome::Skipped:
+    case FrameOutcome::Recovered:
+      return true;
+  }
+  return false;
 }
 
 enum class LoopAction { Stop, WaitForEvents, Render };

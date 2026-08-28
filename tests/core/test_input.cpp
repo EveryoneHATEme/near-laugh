@@ -75,6 +75,26 @@ TEST(InputAccumulator, ResetsCursorDeltaPerEventBatch) {
   EXPECT_DOUBLE_EQ(input.snapshot().cursor_delta_y, 1.0);
 }
 
+TEST(InputAccumulator, WaitedBatchIsSampledBeforeTheNextPollBatch) {
+  InputAccumulator input;
+  FpsInputMapper mapper;
+  input.setKey(PhysicalKey::W, true);
+  input.addCursorPosition(10.0, 20.0);
+
+  input.beginEventBatch();
+  input.addCursorPosition(13.0, 18.0);
+  const FpsActionSnapshot waited_actions = mapper.map(input.snapshot());
+  EXPECT_TRUE(waited_actions.move_forward);
+  EXPECT_DOUBLE_EQ(waited_actions.look_delta_x, 3.0);
+  EXPECT_DOUBLE_EQ(waited_actions.look_delta_y, -2.0);
+
+  input.beginEventBatch();
+  const FpsActionSnapshot next_poll_actions = mapper.map(input.snapshot());
+  EXPECT_TRUE(next_poll_actions.move_forward);
+  EXPECT_DOUBLE_EQ(next_poll_actions.look_delta_x, 0.0);
+  EXPECT_DOUBLE_EQ(next_poll_actions.look_delta_y, 0.0);
+}
+
 TEST(InputAccumulator, CaptureResetDiscardsCursorJump) {
   InputAccumulator input;
   input.addCursorPosition(1.0, 2.0);
