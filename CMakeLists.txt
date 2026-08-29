@@ -1,5 +1,22 @@
 cmake_minimum_required(VERSION 3.25)
-project(near_laugh LANGUAGES CXX)
+project(near_laugh LANGUAGES C CXX)
+
+if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" OR
+   NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    message(FATAL_ERROR
+        "near-laugh requires the Clang toolchain for both C and C++; "
+        "configured compiler IDs are C='${CMAKE_C_COMPILER_ID}' "
+        "(${CMAKE_C_COMPILER}) and C++='${CMAKE_CXX_COMPILER_ID}' "
+        "(${CMAKE_CXX_COMPILER}).")
+endif()
+
+if(WIN32 AND (NOT CMAKE_C_SIMULATE_ID STREQUAL "MSVC" OR
+              NOT CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC"))
+    message(FATAL_ERROR
+        "near-laugh requires Clang to target the MSVC-compatible Windows ABI "
+        "for both C and C++; configured simulation IDs are "
+        "C='${CMAKE_C_SIMULATE_ID}' and C++='${CMAKE_CXX_SIMULATE_ID}'.")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

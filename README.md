@@ -46,7 +46,13 @@ scene surface.
 
 ## Build
 
-The project requires CMake, Ninja, a C++20 compiler, and a Vulkan 1.3 SDK.
+The project requires CMake, Ninja, Clang (available as `clang` and `clang++`),
+and a Vulkan 1.3 SDK. The debug preset selects Clang for both C and C++ by
+portable executable name. On Windows, Clang continues to use the
+MSVC-compatible ABI, Microsoft runtime, and Windows SDK; an MSVC compatibility
+label in CMake's compiler metadata describes that target, not the selected
+compiler.
+
 Configure, build, and run the deterministic tests with:
 
 ```sh
@@ -54,6 +60,19 @@ cmake --preset debug
 cmake --build --preset debug
 ctest --preset debug --output-on-failure
 ```
+
+If `build/debug` was configured previously with a non-Clang compiler, replace
+its cached compiler selection with a fresh configuration:
+
+```sh
+cmake --preset debug --fresh
+```
+
+The configure output must identify both compilers as Clang. The generated
+`build/debug/CMakeCache.txt` records the portable selections, while the
+compiler metadata under `build/debug/CMakeFiles` records the resolved paths
+and identities. See `docs/DEVELOPMENT.md` for focused PowerShell and POSIX
+verification commands.
 
 `prototype_scene_vertex.spv` and `prototype_scene_fragment.spv` are copied to
 `build/debug/bin/resources/shaders`; the launcher

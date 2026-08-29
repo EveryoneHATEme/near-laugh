@@ -4,21 +4,72 @@
 
 - CMake
 - Ninja
-- C++ compiler
+- Clang C and C++ compilers, discoverable as `clang` and `clang++`
 - Vulkan SDK 1.3 or newer
 - Git
 
 ## Configure
 
+Confirm that both portable compiler names resolve, then configure the standard
+debug preset:
+
+```sh
+clang --version
+clang++ --version
 cmake --preset debug
+```
+
+The preset selects Clang for both C and C++ before either language is enabled;
+it does not hard-code a local LLVM installation path. If `build/debug` already
+contains a cache created with another compiler, discard the cached selection
+through CMake's fresh-configuration mode:
+
+```sh
+cmake --preset debug --fresh
+```
+
+On Windows, the selected `clang`/`clang++` GNU-style frontends target the
+MSVC-compatible Windows ABI so the build continues to use the Microsoft
+runtime, Windows SDK, Vulkan SDK, and compatible native dependencies. CMake
+therefore records `MSVC` as the compiler simulation ID; this ABI label does not
+mean that the MSVC compiler was selected.
+
+## Verify Compiler Selection
+
+After configuration, PowerShell users can inspect the resolved compiler paths
+and generated compiler identities with:
+
+```powershell
+Select-String -Path build/debug/CMakeCache.txt -Pattern '^CMAKE_(C|CXX)_COMPILER:'
+Get-ChildItem build/debug/CMakeFiles/*/CMakeCCompiler.cmake,
+              build/debug/CMakeFiles/*/CMakeCXXCompiler.cmake |
+    Select-String '^set\(CMAKE_(C|CXX)_COMPILER |COMPILER_ID|COMPILER_FRONTEND_VARIANT|SIMULATE_ID'
+```
+
+On POSIX shells, use:
+
+```sh
+grep -E '^CMAKE_(C|CXX)_COMPILER:' build/debug/CMakeCache.txt
+grep -E '^set\(CMAKE_(C|CXX)_COMPILER |COMPILER_ID|COMPILER_FRONTEND_VARIANT|SIMULATE_ID' \
+    build/debug/CMakeFiles/*/CMakeCCompiler.cmake \
+    build/debug/CMakeFiles/*/CMakeCXXCompiler.cmake
+```
+
+Both compiler IDs must be `Clang` and both frontend variants must be `GNU`.
+Windows builds must additionally report `MSVC` simulation IDs for both
+languages.
 
 ## Build
 
+```sh
 cmake --build --preset debug
+```
 
 ## Test
 
+```sh
 ctest --preset debug --output-on-failure
+```
 
 ## Run
 
