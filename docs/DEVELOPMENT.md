@@ -95,26 +95,32 @@ working directory or invoking the process through misleading text does not
 change asset lookup. The deterministic process test verifies this without
 initializing GLFW or Vulkan.
 
-The prototype begins with the cursor captured. Use the mouse and W/A/S/D to
-look and move, Space/Left Control for vertical motion, and Left Shift to
-sprint. Escape releases the cursor; the left mouse button recaptures it.
-Movement intentionally ignores collision and gravity.
+The prototype begins with the cursor captured. Use the mouse to look, W/A/S/D
+to walk, Left Shift to sprint, Space to jump while grounded, and hold Left
+Control to crouch. Escape releases the cursor; the left mouse button recaptures
+it. Movement uses gravity and static collision, slides along walls, traverses
+the cyan 0.30 m step, and can pass beneath the purple low-clearance roof only
+while crouched.
 
 ## Build Targets
 
 - `near_laugh_platform` contains GLFW windowing and physical input collection.
+- `near_laugh_world` contains immutable prototype solids and the player spawn.
+- `near_laugh_physics` privately links Jolt v5.6.0 and contains its RAII
+  lifetime, single-threaded static world, and virtual character.
 - `near_laugh_render` contains Vulkan and the internal surface bridge.
 - `near_laugh_runtime` contains the public facade, composition, FPS input
-  mapping, and main loop.
+  mapping, player policy, fixed-step accumulation, interpolation, and main loop.
 - `fps` is the launcher executable and links through `near_laugh_runtime`.
 
 The deterministic suite includes public-header, target-interface, source, and
 compile-command boundary checks. It also verifies waited input-batch sampling,
-exhaustive runtime frame-outcome handling, free-fly camera transforms and
-control policy, built-in scene composition, native executable discovery,
-depth/memory selection, push-constant and vertex layouts, and swapchain
-capability selection. A deliberately backend-dependent fixture is expected to
-fail the public-header check.
+exhaustive runtime frame-outcome handling, fixed-step timing, grounded
+player/camera policy, headless Jolt collision, built-in shared scene
+composition, native executable discovery, depth/memory selection,
+push-constant and vertex layouts, and swapchain capability selection.
+Deliberately Vulkan- and Jolt-dependent fixtures are expected to fail the
+public-header check.
 
 ## Vulkan Smoke Test
 

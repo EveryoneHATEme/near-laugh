@@ -16,6 +16,7 @@
 #include "core/render/vulkan_context.hpp"
 #include "core/render/vulkan_utils.hpp"
 #include "core/testing/test_controls.hpp"
+#include "core/world/prototype_level.hpp"
 
 namespace {
 struct SwapchainSupport {
@@ -77,12 +78,12 @@ class Renderer::Impl {
     VkCommandPool command_pool{VK_NULL_HANDLE};
     VkCommandBuffer command_buffer{VK_NULL_HANDLE};
     VkSemaphore image_available{VK_NULL_HANDLE};
-    VkSemaphore render_finished{VK_NULL_HANDLE};
     VkFence completion{VK_NULL_HANDLE};
   };
 
   Impl(const Window& window, FramebufferExtent initial_extent,
-       RendererResources resources, ValidationDiagnostics& diagnostics);
+       const PrototypeLevel& level, RendererResources resources,
+       ValidationDiagnostics& diagnostics);
   ~Impl();
 
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
@@ -101,6 +102,7 @@ class Renderer::Impl {
                    const CameraFrame& camera);
 
   VulkanContext context_;
+  const PrototypeLevel& level_;
   RendererResources resources_{};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
@@ -109,6 +111,7 @@ class Renderer::Impl {
   std::vector<VkImage> swapchain_images_{};
   std::vector<VkImageView> swapchain_views_{};
   std::vector<std::unique_ptr<DepthAttachment>> depth_attachments_{};
+  std::vector<VkSemaphore> render_finished_{};
   std::vector<VkFence> image_fences_{};
   std::vector<bool> image_initialized_{};
   std::unique_ptr<GraphicsPipeline> pipeline_{};
@@ -118,10 +121,10 @@ class Renderer::Impl {
 };
 
 Renderer::Renderer(const Window& window, FramebufferExtent initial_extent,
-                   RendererResources resources,
+                   const PrototypeLevel& level, RendererResources resources,
                    ValidationDiagnostics& diagnostics)
-    : impl_(std::make_unique<Impl>(window, initial_extent, std::move(resources),
-                                   diagnostics)) {}
+    : impl_(std::make_unique<Impl>(window, initial_extent, level,
+                                   std::move(resources), diagnostics)) {}
 
 Renderer::~Renderer() = default;
 
@@ -141,15 +144,18 @@ bool Renderer::validationEnabled() const noexcept {
 }
 
 Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
-                     RendererResources resources,
+                     const PrototypeLevel& level, RendererResources resources,
                      ValidationDiagnostics& diagnostics)
-    : context_(window, diagnostics), resources_(std::move(resources)) {
+    : context_(window, diagnostics),
+      level_(level),
+      resources_(std::move(resources)) {
   try {
     depth_format_ = selectDepthFormat(context_.physicalDevice());
     createSwapchain(initial_extent);
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), context_.physicalDevice(), swapchain_format_,
-        depth_format_, resources_.vertex_shader, resources_.fragment_shader);
+        depth_format_, resources_.vertex_shader, resources_.fragment_shader,
+        level_);
     createFrameSlots();
     recordLifecycleEvent("renderer.created");
   } catch (...) {
@@ -227,6 +233,7 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
                                         &image_count, swapchain_images_.data()),
                 "Get Vulkan swapchain images");
   swapchain_views_.resize(image_count, VK_NULL_HANDLE);
+  render_finished_.resize(image_count, VK_NULL_HANDLE);
   try {
     for (std::size_t index = 0; index < swapchain_images_.size(); ++index) {
       VkImageViewCreateInfo view_info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -242,6 +249,11 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
       requireVulkan(vkCreateImageView(context_.device(), &view_info, nullptr,
                                       &swapchain_views_[index]),
                     "Create Vulkan swapchain image view");
+      VkSemaphoreCreateInfo semaphore_info{
+          VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      requireVulkan(vkCreateSemaphore(context_.device(), &semaphore_info,
+                                      nullptr, &render_finished_[index]),
+                    "Create per-image render-finished semaphore");
     }
     depth_attachments_.reserve(swapchain_images_.size());
     for (std::size_t index = 0; index < swapchain_images_.size(); ++index) {
@@ -263,6 +275,12 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
 
 void Renderer::Impl::cleanupSwapchain() noexcept {
   depth_attachments_.clear();
+  for (const VkSemaphore semaphore : render_finished_) {
+    if (semaphore != VK_NULL_HANDLE) {
+      vkDestroySemaphore(context_.device(), semaphore, nullptr);
+    }
+  }
+  render_finished_.clear();
   for (const VkImageView view : swapchain_views_) {
     if (view != VK_NULL_HANDLE) {
       vkDestroyImageView(context_.device(), view, nullptr);
@@ -290,7 +308,8 @@ void Renderer::Impl::recreateSwapchain(FramebufferExtent framebuffer) {
   if (pipeline_ != nullptr && previous_format != swapchain_format_) {
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), context_.physicalDevice(), swapchain_format_,
-        depth_format_, resources_.vertex_shader, resources_.fragment_shader);
+        depth_format_, resources_.vertex_shader, resources_.fragment_shader,
+        level_);
   }
   recreate_requested_ = false;
 }
@@ -319,9 +338,6 @@ void Renderer::Impl::createFrameSlots() {
       requireVulkan(vkCreateSemaphore(context_.device(), &semaphore_info,
                                       nullptr, &frame.image_available),
                     "Create image-available semaphore");
-      requireVulkan(vkCreateSemaphore(context_.device(), &semaphore_info,
-                                      nullptr, &frame.render_finished),
-                    "Create render-finished semaphore");
       VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
       fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
       requireVulkan(vkCreateFence(context_.device(), &fence_info, nullptr,
@@ -339,10 +355,6 @@ void Renderer::Impl::cleanupFrameSlots() noexcept {
     if (frame.completion != VK_NULL_HANDLE) {
       vkDestroyFence(context_.device(), frame.completion, nullptr);
       frame.completion = VK_NULL_HANDLE;
-    }
-    if (frame.render_finished != VK_NULL_HANDLE) {
-      vkDestroySemaphore(context_.device(), frame.render_finished, nullptr);
-      frame.render_finished = VK_NULL_HANDLE;
     }
     if (frame.image_available != VK_NULL_HANDLE) {
       vkDestroySemaphore(context_.device(), frame.image_available, nullptr);
@@ -511,7 +523,7 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
   command_info.commandBuffer = frame.command_buffer;
   VkSemaphoreSubmitInfo signal_info{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
-  signal_info.semaphore = frame.render_finished;
+  signal_info.semaphore = render_finished_[image_index];
   signal_info.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
   VkSubmitInfo2 submit_info{VK_STRUCTURE_TYPE_SUBMIT_INFO_2};
   submit_info.waitSemaphoreInfoCount = 1;
@@ -529,7 +541,7 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
 
   VkPresentInfoKHR present_info{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
   present_info.waitSemaphoreCount = 1;
-  present_info.pWaitSemaphores = &frame.render_finished;
+  present_info.pWaitSemaphores = &render_finished_[image_index];
   present_info.swapchainCount = 1;
   present_info.pSwapchains = &swapchain_;
   present_info.pImageIndices = &image_index;

@@ -50,6 +50,35 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+set(JPH_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
+set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
+set(OVERRIDE_CXX_FLAGS OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(DEBUG_RENDERER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
+set(DEBUG_RENDERER_IN_DISTRIBUTION OFF CACHE BOOL "" FORCE)
+set(PROFILER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
+set(PROFILER_IN_DISTRIBUTION OFF CACHE BOOL "" FORCE)
+set(JPH_USE_DX12 OFF CACHE BOOL "" FORCE)
+set(JPH_USE_VK OFF CACHE BOOL "" FORCE)
+set(JPH_USE_MTL OFF CACHE BOOL "" FORCE)
+set(JPH_USE_CPU_COMPUTE OFF CACHE BOOL "" FORCE)
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(TARGET_HELLO_WORLD OFF CACHE BOOL "" FORCE)
+set(TARGET_PERFORMANCE_TEST OFF CACHE BOOL "" FORCE)
+set(TARGET_SAMPLES OFF CACHE BOOL "" FORCE)
+set(TARGET_VIEWER OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    JoltPhysics
+    GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+    GIT_TAG v5.6.0
+    GIT_SHALLOW TRUE
+    SOURCE_SUBDIR Build
+)
+FetchContent_MakeAvailable(JoltPhysics)
+
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
@@ -66,6 +95,23 @@ function(near_laugh_enable_warnings target)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
 endfunction()
+
+add_library(near_laugh_world STATIC
+    src/core/world/prototype_level.cpp
+)
+target_include_directories(near_laugh_world PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+near_laugh_enable_warnings(near_laugh_world)
+
+add_library(near_laugh_physics STATIC
+    src/core/physics/physics_world.cpp
+)
+target_include_directories(near_laugh_physics PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+get_target_property(jolt_include_directories Jolt INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(near_laugh_physics SYSTEM PRIVATE
+    ${jolt_include_directories}
+)
+target_link_libraries(near_laugh_physics PRIVATE near_laugh_world Jolt)
+near_laugh_enable_warnings(near_laugh_physics)
 
 add_library(near_laugh_platform STATIC
     src/core/platform/input.cpp
@@ -90,7 +136,7 @@ add_library(near_laugh_render STATIC
 )
 target_include_directories(near_laugh_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_render
-    PRIVATE near_laugh_platform Vulkan::Vulkan glfw
+    PRIVATE near_laugh_platform near_laugh_world Vulkan::Vulkan glfw
 )
 near_laugh_enable_warnings(near_laugh_render)
 
@@ -102,17 +148,19 @@ endif()
 
 add_library(near_laugh_runtime STATIC
     src/core/application.cpp
-    src/core/camera/free_fly_camera.cpp
     src/core/engine.cpp
     src/core/input/fps_input.cpp
+    src/core/player/player_controller.cpp
     src/core/runtime_resources.cpp
+    src/core/simulation/fixed_step.cpp
 )
 target_include_directories(near_laugh_runtime
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${glm_SOURCE_DIR}
 )
 target_link_libraries(near_laugh_runtime
-    PRIVATE near_laugh_platform near_laugh_render
+    PRIVATE near_laugh_platform near_laugh_world near_laugh_physics
+            near_laugh_render
 )
 target_compile_definitions(near_laugh_runtime PRIVATE
     GLM_FORCE_RADIANS
@@ -130,7 +178,7 @@ if(NOT near_laugh_runtime_interface_includes STREQUAL
 endif()
 get_target_property(near_laugh_runtime_interface_links
                     near_laugh_runtime INTERFACE_LINK_LIBRARIES)
-if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw|glm")
+if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw|glm|Jolt")
     message(FATAL_ERROR
         "near_laugh_runtime exposes a backend usage requirement: "
         "${near_laugh_runtime_interface_links}")

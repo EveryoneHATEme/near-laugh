@@ -10,12 +10,14 @@
 #include <thread>
 #include <vector>
 
-#include "core/camera/free_fly_camera.hpp"
+#include "core/physics/physics_world.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
+#include "core/player/player_controller.hpp"
 #include "core/render/renderer.hpp"
 #include "core/render/validation_diagnostics.hpp"
 #include "core/testing/test_controls.hpp"
+#include "core/world/prototype_level.hpp"
 
 namespace {
 RendererResources smokeResources() {
@@ -31,7 +33,7 @@ void requireLifecycle(const std::vector<std::string>& actual,
   if (actual != expected) {
     std::string message = "Unexpected lifecycle order during ";
     message += phase;
-    message += ': ';
+    message += ": ";
     for (const std::string& event : actual) {
       message += event + ' ';
     }
@@ -84,8 +86,9 @@ void runLifecycleSmoke() {
   {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh lifecycle smoke");
-    Renderer renderer(window, window.framebufferExtent(), smokeResources(),
-                      diagnostics);
+    PrototypeLevel level;
+    Renderer renderer(window, window.framebufferExtent(), level,
+                      smokeResources(), diagnostics);
   }
   setLifecycleLog(nullptr);
   requireBalancedDepthLifecycle(events, "normal shutdown");
@@ -102,8 +105,9 @@ void runLifecycleSmoke() {
   try {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh failure smoke");
-    Renderer renderer(window, window.framebufferExtent(), smokeResources(),
-                      diagnostics);
+    PrototypeLevel level;
+    Renderer renderer(window, window.framebufferExtent(), level,
+                      smokeResources(), diagnostics);
   } catch (const std::runtime_error&) {
     renderer_failed = true;
   }
@@ -125,8 +129,9 @@ void runLifecycleSmoke() {
   try {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh depth failure smoke");
-    Renderer renderer(window, window.framebufferExtent(), smokeResources(),
-                      diagnostics);
+    PrototypeLevel level;
+    Renderer renderer(window, window.framebufferExtent(), level,
+                      smokeResources(), diagnostics);
   } catch (const std::runtime_error&) {
     renderer_failed = true;
   }
@@ -164,8 +169,14 @@ int main(int argc, char** argv) {
       if (window.cursorCaptured()) {
         throw std::runtime_error("Cursor capture did not disable");
       }
-      Renderer renderer(window, window.framebufferExtent(), smokeResources(),
-                        diagnostics);
+      PrototypeLevel level;
+      PhysicsWorld physics(level);
+      PlayerController player(physics, level.playerSpawn().yaw_degrees);
+      for (int step = 0; step < 120; ++step) {
+        player.fixedStep(1.0F / 60.0F);
+      }
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
       std::cout << "Smoke validation: "
                 << (renderer.validationEnabled() ? "enabled" : "unavailable")
                 << '\n';
@@ -196,10 +207,11 @@ int main(int argc, char** argv) {
           }
         }
         const FramebufferExtent extent = window.framebufferExtent();
-        const CameraFrame camera = FreeFlyCamera{}.frame(
+        const CameraFrame camera = player.cameraFrame(
             extent.isZero() ? 1.0F
                             : static_cast<float>(extent.width) /
-                                  static_cast<float>(extent.height));
+                                  static_cast<float>(extent.height),
+            1.0F);
         const FrameRequest request{extent, window.consumeFramebufferResize(),
                                    camera};
         static_cast<void>(renderer.renderFrame(request));

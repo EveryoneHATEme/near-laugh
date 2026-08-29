@@ -14,7 +14,8 @@ GraphicsPipeline::GraphicsPipeline(
     VkDevice device, VkPhysicalDevice physical_device,
     VkFormat swapchain_format, VkFormat depth_format,
     const std::filesystem::path& vertex_shader_path,
-    const std::filesystem::path& fragment_shader_path)
+    const std::filesystem::path& fragment_shader_path,
+    const PrototypeLevel& level)
     : device_(device), physical_device_(physical_device) {
   if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
     throw std::runtime_error("GraphicsPipeline requires valid Vulkan handles");
@@ -22,7 +23,7 @@ GraphicsPipeline::GraphicsPipeline(
   try {
     createPipeline(swapchain_format, depth_format, vertex_shader_path,
                    fragment_shader_path);
-    createVertexBuffer();
+    createVertexBuffer(level);
   } catch (...) {
     cleanup();
     throw;
@@ -162,8 +163,9 @@ void GraphicsPipeline::createPipeline(
   vkDestroyShaderModule(device_, vertex_shader, nullptr);
 }
 
-void GraphicsPipeline::createVertexBuffer() {
-  const std::vector<PositionColorVertex>& vertices = prototypeSceneVertices();
+void GraphicsPipeline::createVertexBuffer(const PrototypeLevel& level) {
+  const std::vector<PositionColorVertex> vertices =
+      buildPrototypeSceneVertices(level);
   if (vertices.empty() ||
       vertices.size() >
           static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {

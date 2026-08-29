@@ -4,7 +4,7 @@
 
 namespace {
 using Point = std::array<float, 3>;
-using Color = std::array<std::uint8_t, 4>;
+using Color = WorldColor;
 
 void appendTriangle(std::vector<PositionColorVertex>& vertices, Point first,
                     Point second, Point third, Color color) {
@@ -42,36 +42,20 @@ void appendBox(std::vector<PositionColorVertex>& vertices, Point minimum,
              color);
 }
 
-std::vector<PositionColorVertex> buildPrototypeScene() {
-  constexpr Color floor_color{86, 91, 101, 255};
-  constexpr Color boundary_color{55, 78, 122, 255};
-  constexpr Color red{205, 63, 73, 255};
-  constexpr Color green{66, 176, 111, 255};
-  constexpr Color gold{225, 167, 62, 255};
-  constexpr Color violet{139, 91, 196, 255};
-
-  std::vector<PositionColorVertex> vertices;
-  vertices.reserve(168);
-  appendQuad(vertices, {-10.0F, 0.0F, 4.0F}, {10.0F, 0.0F, 4.0F},
-             {10.0F, 0.0F, -14.0F}, {-10.0F, 0.0F, -14.0F}, floor_color);
-  appendQuad(vertices, {-10.0F, 0.0F, -14.0F}, {10.0F, 0.0F, -14.0F},
-             {10.0F, 5.0F, -14.0F}, {-10.0F, 5.0F, -14.0F}, boundary_color);
-  appendQuad(vertices, {-10.0F, 0.0F, 4.0F}, {-10.0F, 0.0F, -14.0F},
-             {-10.0F, 5.0F, -14.0F}, {-10.0F, 5.0F, 4.0F}, boundary_color);
-  appendQuad(vertices, {10.0F, 0.0F, -14.0F}, {10.0F, 0.0F, 4.0F},
-             {10.0F, 5.0F, 4.0F}, {10.0F, 5.0F, -14.0F}, boundary_color);
-
-  // Two center-line boxes deliberately overlap from the initial camera pose.
-  appendBox(vertices, {-1.2F, 0.0F, -0.8F}, {1.2F, 2.4F, 1.0F}, red);
-  appendBox(vertices, {-1.5F, 0.0F, -6.5F}, {1.5F, 3.0F, -4.5F}, green);
-  appendBox(vertices, {-5.5F, 0.0F, -4.5F}, {-3.5F, 4.0F, -2.5F}, gold);
-  appendBox(vertices, {3.5F, 0.0F, -9.5F}, {5.5F, 2.0F, -7.5F}, violet);
-  return vertices;
-}
 }  // namespace
 
-const std::vector<PositionColorVertex>& prototypeSceneVertices() {
-  static const std::vector<PositionColorVertex> vertices =
-      buildPrototypeScene();
+std::vector<PositionColorVertex> buildPrototypeSceneVertices(
+    const PrototypeLevel& level) {
+  std::vector<PositionColorVertex> vertices;
+  vertices.reserve(level.solids().size() * 36);
+  for (const PrototypeSolid& solid : level.solids()) {
+    const Point minimum{solid.center.x - solid.half_extent.x,
+                        solid.center.y - solid.half_extent.y,
+                        solid.center.z - solid.half_extent.z};
+    const Point maximum{solid.center.x + solid.half_extent.x,
+                        solid.center.y + solid.half_extent.y,
+                        solid.center.z + solid.half_extent.z};
+    appendBox(vertices, minimum, maximum, solid.color);
+  }
   return vertices;
 }

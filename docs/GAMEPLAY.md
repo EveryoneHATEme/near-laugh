@@ -56,17 +56,23 @@ Required capabilities:
 Do not create a generic cinematic camera framework unless a concrete
 game requirement appears.
 
-The current executable uses a temporary concrete free-fly inspection camera to
-exercise the first world-space rendering slice. Mouse controls yaw/pitch;
-W/A/S/D translate relative to horizontal view orientation; Space and Left
-Control move vertically; Left Shift selects sprint speed. Escape releases the
-captured cursor and the primary mouse action recaptures it. Translation is
-frame-rate independent with a 100 ms discontinuity cap.
+The executable uses one grounded, collision-constrained player. Mouse controls
+yaw/pitch; W/A/S/D move relative to horizontal view orientation at 4.0 m/s;
+Left Shift selects the 7.0 m/s sprint speed; Space performs a grounded jump;
+and Left Control is hold-to-crouch. Escape releases the captured cursor and the
+primary mouse action recaptures it.
 
-This prototype camera is not the future physical player controller. It applies
-no gravity, collision, jump impulse, crouch shape, or ground constraint, and it
-may pass through the floor, boundaries, and objects. Those gameplay behaviors
-remain requirements for a later player-controller change.
+Simulation advances on the main thread in fixed 1/60-second steps. Each sampled
+interval contributes at most 100 milliseconds, fractional time is retained for
+the next iteration, and render camera position interpolates the latest two
+valid player poses. Gravity, wall sliding, a 0.30 m walkable step, bounded air
+control, and stand-up clearance are implemented through one Jolt virtual
+character. While the cursor is released, player controls are neutral but
+gravity and collision continue.
+
+The current collision world is static. Dynamic rigid bodies, moving platforms,
+doors, projectiles, reciprocal pushing, and free-fly movement are not part of
+this prototype.
 
 ## Weapons
 

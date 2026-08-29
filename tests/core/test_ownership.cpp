@@ -7,6 +7,8 @@
 
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
+#include "core/physics/physics_world.hpp"
+#include "core/player/player_controller.hpp"
 #include "core/render/depth_attachment.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/renderer.hpp"
@@ -22,6 +24,8 @@ TEST(Ownership, RuntimeAndVulkanOwnersAreNonCopyable) {
   static_assert(!std::is_move_constructible_v<DepthAttachment>);
   static_assert(!std::is_copy_constructible_v<GraphicsPipeline>);
   static_assert(!std::is_copy_constructible_v<Renderer>);
+  static_assert(!std::is_copy_constructible_v<PhysicsWorld>);
+  static_assert(!std::is_copy_constructible_v<PlayerController>);
   static_assert(!std::is_copy_constructible_v<near_laugh::Application>);
   static_assert(std::is_constructible_v<Window, Platform&, std::uint32_t,
                                         std::uint32_t, std::string_view>);

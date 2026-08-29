@@ -30,6 +30,10 @@ only standard-library types. The concrete build modules are:
   configuration, and fixed FPS input mapping;
 - `near_laugh_platform`: GLFW lifetime, the window, event batches, and
   engine-owned physical keyboard/mouse state;
+- `near_laugh_world`: the immutable axis-aligned prototype solids and player
+  spawn shared by rendering and collision;
+- `near_laugh_physics`: the concrete Jolt lifetime, static collision world,
+  and one virtual character;
 - `near_laugh_render`: Vulkan lifetime, presentation, and explicit frame
   requests/outcomes.
 
@@ -90,10 +94,10 @@ Engine
   creates, in order
 Platform
 Window
+PrototypeLevel
+PhysicsWorld
+PlayerController
 Renderer
-
-Physics, Audio, and World will be added only when their FPS requirements are
-implemented.
 
 Shutdown happens in reverse dependency order.
 
@@ -101,11 +105,12 @@ Resource destruction must never depend on already-destroyed subsystems.
 
 The runtime loop owns platform polling, close decisions, input sampling,
 minimized-window waiting, bounded steady-clock sampling, prototype cursor
-capture, free-fly camera updates, and the decision to issue at most one frame
-request per iteration. A blocking wait begins its own input batch, and the
-runtime maps that batch immediately after the wait returns, before a later poll
-can reset its cursor delta. It also resets camera timing across the wait so
-restoration cannot create a movement jump. The renderer consumes the current
+capture, fixed player simulation, interpolated first-person camera state, and
+the decision to issue at most one frame request per iteration. A blocking wait
+begins its own input batch, and the runtime maps that batch immediately after
+the wait returns, before a later poll can reset its cursor delta. It also resets
+both the clock origin and simulation accumulator across the wait so restoration
+cannot create catch-up movement. The renderer consumes the current
 framebuffer extent/resize state and a backend-neutral column-major camera
 matrix, then reports rendered, skipped, or recovered without controlling
 events, input, time, camera state, or application lifetime. The runtime
@@ -123,9 +128,11 @@ executable path and supplies the adjacent `resources` directory through
 `RuntimeConfig`. Invocation text and the process working directory do not
 participate in runtime layout discovery.
 
-The current world-space geometry is one immutable renderer-private vertex
-stream built into the executable for prototype inspection. It is not a World,
-scene hierarchy, asset pipeline, or gameplay player representation.
+The current world is one immutable `PrototypeLevel` containing colored
+axis-aligned solids and a player spawn. Rendering expands each solid into the
+existing position/color triangle stream, while physics creates one matching
+static box body. It is not a scene hierarchy, asset pipeline, ECS, or generic
+level format.
 
 ## Threading
 
@@ -137,6 +144,10 @@ The main thread owns:
 - gameplay update
 - world mutation
 - render submission
+
+Jolt uses its library-provided temporary allocator and
+`JobSystemSingleThreaded`; the initial physics world creates no worker pool
+and requires no engine job system.
 
 Background threads may later be introduced for clearly isolated work
 such as asset loading.

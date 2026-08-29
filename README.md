@@ -14,35 +14,41 @@ Development: `docs/DEVELOPMENT.md`
 ## Runtime boundaries
 
 The `fps` executable links the backend-neutral `near_laugh_runtime` facade.
-Runtime composition owns `Platform -> Window -> Renderer` in that order and
-destroys them in reverse. `near_laugh_platform` confines GLFW and physical
-keyboard/mouse state; `near_laugh_render` confines Vulkan; the runtime maps the
-physical state to the fixed controls for the one local FPS player.
+Runtime composition owns `Platform -> Window -> PrototypeLevel -> PhysicsWorld
+-> PlayerController -> Renderer` in that order and destroys them in reverse.
+`near_laugh_platform` confines GLFW and physical keyboard/mouse state;
+`near_laugh_world` owns immutable prototype solids; `near_laugh_physics`
+confines Jolt Physics; and `near_laugh_render` confines Vulkan. The runtime
+maps physical state to the fixed controls for the one local FPS player.
 Polling and blocking waits each open one input batch; the Engine samples a
 waited batch before another poll can clear its cursor delta, while held actions
 remain active. Each renderer request returns rendered, skipped, or recovered,
 and the Engine exhaustively consumes that outcome while retaining loop and
-application-lifetime control. The Engine also owns the prototype's steady-clock
-sampling, cursor capture transitions, free-fly camera state, and framebuffer
-aspect. Rendering receives only a column-major view-projection matrix and does
-not interpret input or elapsed time.
+application-lifetime control. The Engine also owns a bounded 60 Hz simulation
+accumulator, player input and interpolation, cursor capture transitions, and
+framebuffer aspect. Rendering receives only a column-major view-projection
+matrix and does not interpret input, simulation state, or elapsed time.
 
 ## Prototype scene controls
 
 The executable starts with the cursor captured and shows one built-in,
-vertex-colored 3D room with a floor, boundaries, and several boxes or pillars.
-It requires no model, texture, material, or level files.
+vertex-colored 3D room with a floor, boundaries, several obstacles, a low step,
+and a crouch-only passage. Rendering and static collision derive from the same
+immutable axis-aligned solids. It requires no model, texture, material,
+collision, or level files.
 
 - Mouse: look
 - W/A/S/D: move horizontally relative to the current view
-- Space / Left Control: move up / down
+- Space: jump while grounded
+- Left Control: hold to crouch
 - Left Shift: sprint
 - Escape: release the cursor
 - Left mouse button: recapture the cursor
 
-This is an unconstrained inspection camera. It intentionally has no collision,
-gravity, jumping physics, or ground constraint, so it can pass through every
-scene surface.
+Movement is constrained by static Jolt collision and includes gravity, wall
+sliding, the authored 0.30 m step, bounded air control, and blocked standing
+under low clearance. This prototype does not yet contain dynamic rigid bodies,
+moving platforms, doors, projectiles, or physics-driven objects.
 
 ## Build
 

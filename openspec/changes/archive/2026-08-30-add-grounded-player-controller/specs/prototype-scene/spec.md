@@ -1,10 +1,4 @@
-# prototype-scene Specification
-
-## Purpose
-
-Defines the small built-in 3D environment used to validate static scene rendering and free camera inspection before asset loading or gameplay physics exist.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Built-in static scene
 The executable SHALL present a deterministic built-in scene composed from one immutable prototype-level description whose solid structural dimensions are used to derive both opaque world-space renderer geometry and static physics collision. The description SHALL include a floor, enclosing or boundary geometry, multiple objects with visibly distinct colors and overlapping depth from the initial player pose, one walkable low step, and one low-clearance structure that permits crouched but not standing passage. The scene SHALL start without requiring a model, texture, material, collision, or level file outside the runtime's existing shader resources.
@@ -35,10 +29,3 @@ Every renderable frame SHALL depict the built-in scene from the current collisio
 #### Scenario: Player uses movement-test geometry
 - **WHEN** the player approaches the low step while standing or the low-clearance route while crouched
 - **THEN** the visible environment provides matching collision that permits the intended traversal
-
-### Requirement: Depth-correct opaque visibility
-The prototype scene SHALL render opaque surfaces with depth testing so that the nearest visible surface wins independently of geometry submission order.
-
-#### Scenario: Geometry overlaps in screen space
-- **WHEN** two scene surfaces project onto the same framebuffer region at different depths
-- **THEN** the nearer surface obscures the farther surface

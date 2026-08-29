@@ -5,6 +5,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "core/world/prototype_level.hpp"
+
 struct PositionColorVertex {
   float position[3];
   std::uint8_t color[4];
@@ -13,6 +15,7 @@ struct PositionColorVertex {
 static_assert(std::is_standard_layout_v<PositionColorVertex>);
 static_assert(sizeof(PositionColorVertex) == sizeof(float) * 3 + 4);
 
-[[nodiscard]] const std::vector<PositionColorVertex>& prototypeSceneVertices();
+[[nodiscard]] std::vector<PositionColorVertex> buildPrototypeSceneVertices(
+    const PrototypeLevel& level);
 
 #endif

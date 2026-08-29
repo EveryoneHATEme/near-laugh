@@ -10,12 +10,14 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
     : platform_(),
       window_(platform_, config.window_width, config.window_height,
               config.window_title),
-      renderer_(window_, window_.framebufferExtent(),
+      physics_(level_),
+      player_(physics_, level_.playerSpawn().yaw_degrees),
+      renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources.scene_vertex_shader),
                  std::move(resources.scene_fragment_shader)},
                 diagnostics) {
   window_.setCursorCaptured(true);
-  frame_clock_.reset();
+  fixed_step_.reset();
 }
 
 void Engine::run() {
@@ -35,38 +37,42 @@ bool Engine::tick() {
     case LoopAction::WaitForEvents:
       window_.waitEvents();
       input_ = input_mapper_.map(window_.input());
-      frame_clock_.reset();
+      samplePlayerInput(input_);
+      fixed_step_.reset();
       return !window_.shouldClose();
     case LoopAction::Render: {
-      const bool was_captured = window_.cursorCaptured();
-      const CursorCaptureTransition capture_transition =
-          cursorCaptureTransition(was_captured, input_);
-      switch (capture_transition) {
-        case CursorCaptureTransition::Release:
-          window_.setCursorCaptured(false);
-          frame_clock_.reset();
-          break;
-        case CursorCaptureTransition::Capture:
-          window_.setCursorCaptured(true);
-          frame_clock_.reset();
-          break;
-        case CursorCaptureTransition::None:
-          break;
-      }
-
-      if (freeFlyNavigationActive(was_captured, capture_transition)) {
-        camera_.update(input_, frame_clock_.sample(FrameClock::Clock::now()));
-      } else {
-        frame_clock_.reset();
+      samplePlayerInput(input_);
+      const FixedStepBatch simulation =
+          fixed_step_.sample(FixedStepAccumulator::Clock::now());
+      for (int step = 0; step < simulation.complete_steps; ++step) {
+        player_.fixedStep(
+            static_cast<float>(FixedStepAccumulator::step_seconds));
       }
 
       FrameRequest frame = decision.frame;
       const float aspect = static_cast<float>(framebuffer.width) /
                            static_cast<float>(framebuffer.height);
-      frame.camera = camera_.frame(aspect);
+      frame.camera = player_.cameraFrame(aspect, simulation.interpolation_alpha);
       const FrameOutcome outcome = renderer_.renderFrame(frame);
       return runtimeContinuesAfter(outcome) && !window_.shouldClose();
     }
   }
   return false;
+}
+
+void Engine::samplePlayerInput(const FpsActionSnapshot& input) {
+  const bool was_captured = window_.cursorCaptured();
+  const PlayerCursorCaptureTransition transition =
+      playerCursorTransition(was_captured, input);
+  switch (transition) {
+    case PlayerCursorCaptureTransition::Release:
+      window_.setCursorCaptured(false);
+      break;
+    case PlayerCursorCaptureTransition::Capture:
+      window_.setCursorCaptured(true);
+      break;
+    case PlayerCursorCaptureTransition::None:
+      break;
+  }
+  player_.sampleInput(input, playerControlsActive(was_captured, transition));
 }

@@ -1,20 +1,24 @@
 add_executable(engine_tests
-    core/test_camera.cpp
     core/test_input.cpp
     core/test_executable_path.cpp
     core/test_frame.cpp
+    core/test_fixed_step.cpp
     core/test_runtime_resources.cpp
     core/test_validation_diagnostics.cpp
     core/test_shader_provider.cpp
     core/test_vertex_layout.cpp
+    core/test_world.cpp
     core/test_vulkan_utils.cpp
     core/test_ownership.cpp
+    core/test_physics.cpp
+    core/test_player_controller.cpp
     core/test_prototype_scene.cpp
     ${CMAKE_SOURCE_DIR}/src/launcher/executable_path.cpp
 )
 target_include_directories(engine_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(engine_tests PRIVATE
-    near_laugh_runtime near_laugh_platform near_laugh_render
+    near_laugh_runtime near_laugh_platform near_laugh_world near_laugh_physics
+    near_laugh_render
     Vulkan::Vulkan GTest::gtest_main
 )
 near_laugh_enable_warnings(engine_tests)
@@ -81,6 +85,16 @@ add_test(NAME public_boundary_negative
     COMMAND ${CMAKE_COMMAND}
             -DROOT=${CMAKE_CURRENT_SOURCE_DIR}/boundary/forbidden_fixture
             -P ${CMAKE_CURRENT_SOURCE_DIR}/boundary/check_headers.cmake
+)
+
+add_test(NAME public_boundary_jolt_negative
+    COMMAND ${CMAKE_COMMAND}
+            -DROOT=${CMAKE_CURRENT_SOURCE_DIR}/boundary/jolt_fixture
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/boundary/check_headers.cmake
+)
+set_tests_properties(public_boundary_jolt_negative PROPERTIES
+    LABELS "boundary"
+    WILL_FAIL TRUE
 )
 set_tests_properties(public_boundary_negative PROPERTIES
     LABELS "boundary"

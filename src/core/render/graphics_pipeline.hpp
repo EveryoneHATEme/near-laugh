@@ -39,7 +39,8 @@ class GraphicsPipeline {
   GraphicsPipeline(VkDevice device, VkPhysicalDevice physical_device,
                    VkFormat swapchain_format, VkFormat depth_format,
                    const std::filesystem::path& vertex_shader_path,
-                   const std::filesystem::path& fragment_shader_path);
+                   const std::filesystem::path& fragment_shader_path,
+                   const PrototypeLevel& level);
   ~GraphicsPipeline();
 
   GraphicsPipeline(const GraphicsPipeline&) = delete;
@@ -56,7 +57,7 @@ class GraphicsPipeline {
   void createPipeline(VkFormat swapchain_format, VkFormat depth_format,
                       const std::filesystem::path& vertex_shader_path,
                       const std::filesystem::path& fragment_shader_path);
-  void createVertexBuffer();
+  void createVertexBuffer(const PrototypeLevel& level);
   void cleanup() noexcept;
 
   VkDevice device_{VK_NULL_HANDLE};

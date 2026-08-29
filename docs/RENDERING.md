@@ -112,11 +112,13 @@ construction. Renderer code never constructs a path relative to the process
 working directory.
 
 The current visible smoke output is a single immutable world-space triangle
-stream for the built-in prototype room. The graphics pipeline reads position
-and packed vertex color, and the vertex stage receives the current 4x4 camera
+stream expanded deterministically from the same `PrototypeLevel` solids used
+by static physics collision. Every axis-aligned solid contributes six colored
+faces. The graphics pipeline reads position and packed vertex color, and the
+vertex stage receives the grounded player's current interpolated 4x4 camera
 matrix through a 64-byte push constant. The scene uses one vertex buffer and
 one draw call; it does not introduce model assets, descriptors, per-object
-transforms, or a general scene framework.
+transforms, collision types, or a general scene framework.
 
 The renderer selects the first supported format from its small depth candidate
 list and owns one device-local depth image, allocation, and view for every

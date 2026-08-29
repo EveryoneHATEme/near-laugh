@@ -8,6 +8,7 @@
 
 class Window;
 class ValidationDiagnostics;
+class PrototypeLevel;
 
 struct RendererResources {
   std::filesystem::path vertex_shader{};
@@ -17,7 +18,7 @@ struct RendererResources {
 class Renderer {
  public:
   Renderer(const Window& window, FramebufferExtent initial_extent,
-           RendererResources resources,
+           const PrototypeLevel& level, RendererResources resources,
            ValidationDiagnostics& diagnostics);
   ~Renderer();
 
