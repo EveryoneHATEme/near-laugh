@@ -12,6 +12,7 @@ constexpr WorldColor gold{225, 167, 62, 255};
 constexpr WorldColor violet{139, 91, 196, 255};
 constexpr WorldColor step_color{70, 184, 190, 255};
 constexpr WorldColor passage_color{190, 118, 197, 255};
+constexpr float normalized_direction_tolerance = 0.0001F;
 
 bool overlaps(float first_min, float first_max, float second_min,
               float second_max) noexcept {
@@ -44,10 +45,30 @@ PrototypeLevel::PrototypeLevel()
           {{6.0F, 1.55F, 1.5F}, {1.75F, 0.15F, 3.0F}, passage_color,
            PrototypeSolidKind::LowClearance},
       },
-      player_spawn_{{0.0F, 0.05F, 7.0F}, -90.0F} {}
+      player_spawn_{{0.0F, 0.05F, 7.0F}, -90.0F},
+      environment_light_{{0.4082483F, 0.8164966F, 0.4082483F}, 0.75F, 0.25F} {}
+
+bool prototypeEnvironmentLightIsValid(
+    const PrototypeEnvironmentLight& light) noexcept {
+  const float direction_length_squared =
+      light.direction_to_light[0] * light.direction_to_light[0] +
+      light.direction_to_light[1] * light.direction_to_light[1] +
+      light.direction_to_light[2] * light.direction_to_light[2];
+  return std::isfinite(light.direction_to_light[0]) &&
+         std::isfinite(light.direction_to_light[1]) &&
+         std::isfinite(light.direction_to_light[2]) &&
+         std::abs(direction_length_squared - 1.0F) <=
+             normalized_direction_tolerance &&
+         std::isfinite(light.directional_intensity) &&
+         light.directional_intensity >= 0.0F &&
+         light.directional_intensity <= 1.0F &&
+         std::isfinite(light.ambient_intensity) &&
+         light.ambient_intensity >= 0.0F && light.ambient_intensity <= 1.0F;
+}
 
 bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
-  if (level.solids().empty()) {
+  if (level.solids().empty() ||
+      !prototypeEnvironmentLightIsValid(level.environmentLight())) {
     return false;
   }
   return std::all_of(level.solids().begin(), level.solids().end(),

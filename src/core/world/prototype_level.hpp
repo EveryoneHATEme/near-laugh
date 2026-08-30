@@ -39,6 +39,12 @@ struct PrototypePlayerSpawn {
   float yaw_degrees{};
 };
 
+struct PrototypeEnvironmentLight {
+  std::array<float, 3> direction_to_light{};
+  float directional_intensity{};
+  float ambient_intensity{};
+};
+
 class PrototypeLevel {
  public:
   PrototypeLevel();
@@ -49,12 +55,19 @@ class PrototypeLevel {
   [[nodiscard]] const PrototypePlayerSpawn& playerSpawn() const noexcept {
     return player_spawn_;
   }
+  [[nodiscard]] const PrototypeEnvironmentLight& environmentLight()
+      const noexcept {
+    return environment_light_;
+  }
 
  private:
   std::vector<PrototypeSolid> solids_;
   PrototypePlayerSpawn player_spawn_;
+  PrototypeEnvironmentLight environment_light_;
 };
 
+[[nodiscard]] bool prototypeEnvironmentLightIsValid(
+    const PrototypeEnvironmentLight& light) noexcept;
 [[nodiscard]] bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept;
 [[nodiscard]] bool prototypeSpawnIsClear(const PrototypeLevel& level,
                                          float player_radius,

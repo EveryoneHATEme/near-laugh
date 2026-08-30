@@ -65,3 +65,49 @@ TEST(PrototypeScene, ExpandsEverySolidFaceAtItsAuthoredBoundsAndColor) {
     EXPECT_TRUE(hasColor(vertices, solid.color));
   }
 }
+
+TEST(PrototypeScene, GivesEveryFaceAConsistentOutwardUnitNormal) {
+  const PrototypeLevel level;
+  const auto vertices = buildPrototypeSceneVertices(level);
+  constexpr std::size_t vertices_per_solid = 36;
+  constexpr std::size_t vertices_per_face = 6;
+
+  for (std::size_t solid_index = 0; solid_index < level.solids().size();
+       ++solid_index) {
+    const PrototypeSolid& solid = level.solids()[solid_index];
+    for (std::size_t face_index = 0; face_index < 6; ++face_index) {
+      const std::size_t first_index =
+          solid_index * vertices_per_solid + face_index * vertices_per_face;
+      const PositionColorVertex& first = vertices[first_index];
+      const float length_squared = first.normal[0] * first.normal[0] +
+                                   first.normal[1] * first.normal[1] +
+                                   first.normal[2] * first.normal[2];
+      EXPECT_FLOAT_EQ(length_squared, 1.0F);
+
+      std::array<float, 3> face_center{};
+      for (std::size_t vertex_index = 0; vertex_index < vertices_per_face;
+           ++vertex_index) {
+        const PositionColorVertex& vertex =
+            vertices[first_index + vertex_index];
+        EXPECT_FLOAT_EQ(vertex.normal[0], first.normal[0]);
+        EXPECT_FLOAT_EQ(vertex.normal[1], first.normal[1]);
+        EXPECT_FLOAT_EQ(vertex.normal[2], first.normal[2]);
+        for (std::size_t axis = 0; axis < face_center.size(); ++axis) {
+          face_center[axis] +=
+              vertex.position[axis] / static_cast<float>(vertices_per_face);
+        }
+      }
+
+      const float outward_dot =
+          first.normal[0] * (face_center[0] - solid.center.x) +
+          first.normal[1] * (face_center[1] - solid.center.y) +
+          first.normal[2] * (face_center[2] - solid.center.z);
+      EXPECT_GT(outward_dot, 0.0F);
+      const float expected_distance =
+          std::abs(first.normal[0]) * solid.half_extent.x +
+          std::abs(first.normal[1]) * solid.half_extent.y +
+          std::abs(first.normal[2]) * solid.half_extent.z;
+      EXPECT_NEAR(outward_dot, expected_distance, 0.00001F);
+    }
+  }
+}

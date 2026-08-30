@@ -118,8 +118,7 @@ void GraphicsPipeline::createPipeline(
 
     VkPipelineLayoutCreateInfo layout_info{
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-    const VkPushConstantRange camera_push_constant =
-        sceneCameraPushConstantRange();
+    const VkPushConstantRange camera_push_constant = scenePushConstantRange();
     layout_info.pushConstantRangeCount = 1;
     layout_info.pPushConstantRanges = &camera_push_constant;
     requireVulkan(
@@ -206,11 +205,15 @@ void GraphicsPipeline::createVertexBuffer(const PrototypeLevel& level) {
   vertex_count_ = static_cast<std::uint32_t>(vertices.size());
 }
 
-void GraphicsPipeline::bindAndDraw(VkCommandBuffer command_buffer,
-                                   const CameraFrame& camera) const {
+void GraphicsPipeline::bindAndDraw(
+    VkCommandBuffer command_buffer, const CameraFrame& camera,
+    const PrototypeEnvironmentLight& environment_light) const {
+  const ScenePushConstant push_constant =
+      makeScenePushConstant(camera, environment_light);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-  vkCmdPushConstants(command_buffer, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0,
-                     sizeof(CameraFrame), camera.view_projection.data());
+  vkCmdPushConstants(command_buffer, layout_,
+                     scenePushConstantRange().stageFlags, 0,
+                     sizeof(ScenePushConstant), &push_constant);
   const VkDeviceSize offset = 0;
   vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer_, &offset);
   vkCmdDraw(command_buffer, vertex_count_, 1, 0, 0);

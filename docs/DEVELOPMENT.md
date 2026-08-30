@@ -100,7 +100,10 @@ to walk, Left Shift to sprint, Space to jump while grounded, and hold Left
 Control to crouch. Escape releases the cursor; the left mouse button recaptures
 it. Movement uses gravity and static collision, slides along walls, traverses
 the cyan 0.30 m step, and can pass beneath the purple low-clearance roof only
-while crouched.
+while crouched. The opaque scene uses outward world-space face normals and the
+level's immutable directional and ambient light to make solid orientation
+readable. This lighting milestone deliberately has no shadows, textures,
+general materials, additional lights, fog, or HDR post-processing.
 
 ## Build Targets
 
@@ -131,8 +134,8 @@ window/GPU-dependent smoke test. Run the smoke path explicitly with:
 ctest --preset vulkan-smoke --output-on-failure
 ```
 
-The smoke executable renders the depth-buffered prototype scene for fixed
-frames and forces one swapchain recreation.
+The smoke executable renders the depth-buffered, directionally lit prototype
+scene for fixed frames and forces one swapchain recreation.
 It requires a desktop session and a Vulkan 1.3 presentation-capable device.
 It keeps validation diagnostics alive through renderer teardown and fails after
 cleanup if Vulkan validation recorded an error. The smoke preset also verifies
@@ -141,6 +144,11 @@ and partial-construction destruction order, including an injected failure after
 a depth attachment is created. Swapchain creation and recreation use only
 color-attachment usage and composite-alpha modes reported by the current
 surface, and own one depth target per swapchain image.
+
+When running the FPS or smoke executable interactively, inspect differently
+oriented faces for readable brightness variation and confirm no face appears
+lit from the inward normal. Treat every error-severity Vulkan validation
+message as a failure.
 
 ## Debug Build Requirements
 

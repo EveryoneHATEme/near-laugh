@@ -14,24 +14,60 @@
 
 static_assert(offsetof(PositionColorVertex, position) == 0);
 static_assert(offsetof(PositionColorVertex, color) == sizeof(float) * 3);
+static_assert(offsetof(PositionColorVertex, normal) == sizeof(float) * 3 + 4);
 
 [[nodiscard]] constexpr VkVertexInputBindingDescription
 sceneVertexBindingDescription() noexcept {
   return {0, sizeof(PositionColorVertex), VK_VERTEX_INPUT_RATE_VERTEX};
 }
+static_assert(sceneVertexBindingDescription().stride ==
+              sizeof(PositionColorVertex));
 
-[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 2>
+[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 3>
 sceneVertexAttributeDescriptions() noexcept {
   return {
       {{0, 0, VK_FORMAT_R32G32B32_SFLOAT,
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, position))},
        {1, 0, VK_FORMAT_R8G8B8A8_UNORM,
-        static_cast<std::uint32_t>(offsetof(PositionColorVertex, color))}}};
+        static_cast<std::uint32_t>(offsetof(PositionColorVertex, color))},
+       {2, 0, VK_FORMAT_R32G32B32_SFLOAT,
+        static_cast<std::uint32_t>(offsetof(PositionColorVertex, normal))}}};
 }
 
-[[nodiscard]] constexpr VkPushConstantRange
-sceneCameraPushConstantRange() noexcept {
-  return {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(CameraFrame)};
+struct alignas(16) ScenePushConstant {
+  CameraFrame camera{};
+  alignas(16) std::array<float, 4> direction_and_directional_intensity{};
+  alignas(16) std::array<float, 4> ambient_intensity{};
+};
+
+inline constexpr std::size_t vulkan_minimum_push_constant_size = 128;
+static_assert(std::is_standard_layout_v<ScenePushConstant>);
+static_assert(offsetof(ScenePushConstant, camera) == 0);
+static_assert(offsetof(ScenePushConstant,
+                       direction_and_directional_intensity) ==
+              sizeof(CameraFrame));
+static_assert(offsetof(ScenePushConstant, ambient_intensity) ==
+              sizeof(CameraFrame) + sizeof(float) * 4);
+static_assert(sizeof(ScenePushConstant) == sizeof(float) * 24);
+static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
+
+[[nodiscard]] constexpr ScenePushConstant makeScenePushConstant(
+    const CameraFrame& camera,
+    const PrototypeEnvironmentLight& environment_light) noexcept {
+  ScenePushConstant push_constant{};
+  push_constant.camera = camera;
+  push_constant.direction_and_directional_intensity = {
+      environment_light.direction_to_light[0],
+      environment_light.direction_to_light[1],
+      environment_light.direction_to_light[2],
+      environment_light.directional_intensity};
+  push_constant.ambient_intensity[0] = environment_light.ambient_intensity;
+  return push_constant;
+}
+
+[[nodiscard]] constexpr VkPushConstantRange scenePushConstantRange() noexcept {
+  return {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+          sizeof(ScenePushConstant)};
 }
 
 class GraphicsPipeline {
@@ -48,8 +84,8 @@ class GraphicsPipeline {
   GraphicsPipeline(GraphicsPipeline&&) = delete;
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
-  void bindAndDraw(VkCommandBuffer command_buffer,
-                   const CameraFrame& camera) const;
+  void bindAndDraw(VkCommandBuffer command_buffer, const CameraFrame& camera,
+                   const PrototypeEnvironmentLight& environment_light) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(

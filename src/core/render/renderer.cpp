@@ -455,7 +455,7 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   const VkRect2D scissor{{0, 0}, swapchain_extent_};
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-  pipeline_->bindAndDraw(command_buffer, camera);
+  pipeline_->bindAndDraw(command_buffer, camera, level_.environmentLight());
   vkCmdEndRendering(command_buffer);
 
   VkImageMemoryBarrier2 to_present{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};

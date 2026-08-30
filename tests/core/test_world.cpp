@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <limits>
 
 #include "core/physics/physics_world.hpp"
 #include "core/world/prototype_level.hpp"
@@ -38,6 +39,43 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
       passage->center.y - passage->half_extent.y;
   EXPECT_GT(passage_clearance, player_crouched_height);
   EXPECT_LT(passage_clearance, player_standing_height);
+}
+
+TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
+  const PrototypeLevel level;
+  const PrototypeEnvironmentLight& light = level.environmentLight();
+  EXPECT_TRUE(prototypeEnvironmentLightIsValid(light));
+  EXPECT_GT(light.direction_to_light[1], 0.0F);
+  EXPECT_GT(light.directional_intensity, 0.0F);
+  EXPECT_GT(light.ambient_intensity, 0.0F);
+}
+
+TEST(PrototypeLevel, RejectsInvalidEnvironmentLightFixtures) {
+  const PrototypeEnvironmentLight valid = PrototypeLevel{}.environmentLight();
+
+  auto invalid = valid;
+  invalid.direction_to_light = {0.0F, 0.0F, 0.0F};
+  EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
+
+  invalid = valid;
+  invalid.direction_to_light[0] = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
+
+  invalid = valid;
+  invalid.directional_intensity = -0.01F;
+  EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
+
+  invalid = valid;
+  invalid.directional_intensity = 1.01F;
+  EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
+
+  invalid = valid;
+  invalid.ambient_intensity = std::numeric_limits<float>::infinity();
+  EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
+
+  invalid = valid;
+  invalid.ambient_intensity = 1.01F;
+  EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
 }
 
 TEST(PrototypeLevel, SpawnFacesSceneAndClearsEverySolid) {

@@ -114,11 +114,16 @@ working directory.
 The current visible smoke output is a single immutable world-space triangle
 stream expanded deterministically from the same `PrototypeLevel` solids used
 by static physics collision. Every axis-aligned solid contributes six colored
-faces. The graphics pipeline reads position and packed vertex color, and the
-vertex stage receives the grounded player's current interpolated 4x4 camera
-matrix through a 64-byte push constant. The scene uses one vertex buffer and
-one draw call; it does not introduce model assets, descriptors, per-object
-transforms, collision types, or a general scene framework.
+faces with explicit outward world-space normals. The graphics pipeline reads
+position, packed vertex color, and a floating-point normal. A 96-byte shared
+push constant carries the grounded player's current interpolated 4x4 camera
+matrix and the level's immutable direction-to-light, directional intensity,
+and ambient intensity. The fragment stage applies bounded Lambert diffuse
+lighting plus ambient fill to the base color, keeping away-facing surfaces
+visible while making face orientation readable. The scene remains one vertex
+buffer and one draw call; it does not introduce shadows, textures, general
+materials, multiple lights, model assets, descriptors, per-object transforms,
+fog, HDR post-processing, collision types, or a general scene framework.
 
 The renderer selects the first supported format from its small depth candidate
 list and owns one device-local depth image, allocation, and view for every

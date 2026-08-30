@@ -4,20 +4,23 @@
 
 namespace {
 using Point = std::array<float, 3>;
+using Normal = std::array<float, 3>;
 using Color = WorldColor;
 
 void appendTriangle(std::vector<PositionColorVertex>& vertices, Point first,
-                    Point second, Point third, Color color) {
+                    Point second, Point third, Color color, Normal normal) {
   for (const Point point : {first, second, third}) {
     vertices.push_back({{point[0], point[1], point[2]},
-                        {color[0], color[1], color[2], color[3]}});
+                        {color[0], color[1], color[2], color[3]},
+                        {normal[0], normal[1], normal[2]}});
   }
 }
 
 void appendQuad(std::vector<PositionColorVertex>& vertices, Point first,
-                Point second, Point third, Point fourth, Color color) {
-  appendTriangle(vertices, first, second, third, color);
-  appendTriangle(vertices, first, third, fourth, color);
+                Point second, Point third, Point fourth, Color color,
+                Normal normal) {
+  appendTriangle(vertices, first, second, third, color, normal);
+  appendTriangle(vertices, first, third, fourth, color, normal);
 }
 
 void appendBox(std::vector<PositionColorVertex>& vertices, Point minimum,
@@ -29,17 +32,17 @@ void appendBox(std::vector<PositionColorVertex>& vertices, Point minimum,
   const float y1 = maximum[1];
   const float z1 = maximum[2];
   appendQuad(vertices, {x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1},
-             color);
+             color, {0.0F, 0.0F, 1.0F});
   appendQuad(vertices, {x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0},
-             color);
+             color, {0.0F, 0.0F, -1.0F});
   appendQuad(vertices, {x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0},
-             color);
+             color, {-1.0F, 0.0F, 0.0F});
   appendQuad(vertices, {x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1},
-             color);
+             color, {1.0F, 0.0F, 0.0F});
   appendQuad(vertices, {x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0},
-             color);
+             color, {0.0F, 1.0F, 0.0F});
   appendQuad(vertices, {x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1},
-             color);
+             color, {0.0F, -1.0F, 0.0F});
 }
 
 }  // namespace
