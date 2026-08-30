@@ -98,12 +98,20 @@ initializing GLFW or Vulkan.
 The prototype begins with the cursor captured. Use the mouse to look, W/A/S/D
 to walk, Left Shift to sprint, Space to jump while grounded, and hold Left
 Control to crouch. Escape releases the cursor; the left mouse button recaptures
-it. Movement uses gravity and static collision, slides along walls, traverses
+it while released and fires the automatic prototype rifle while captured. A
+recapture click is suppressed until the button is released. Movement uses
+gravity and static collision, slides along walls, traverses
 the cyan 0.30 m step, and can pass beneath the purple low-clearance roof only
 while crouched. The opaque scene uses outward world-space face normals and the
 level's immutable directional and ambient light to make solid orientation
-readable. This lighting milestone deliberately has no shadows, textures,
-general materials, additional lights, fog, or HDR post-processing.
+readable. Three orange target plates form the shooting range: hits flash with
+a bright orange highlight, four damaging hits destroy a plate, and destroyed
+plates remain visibly dimmed and collidable. Rifle recoil is bounded and
+recovers through fixed simulation. This milestone deliberately has no
+finite ammunition or ammo tracking, reloads, switching, spread, projectiles,
+weapon model, crosshair, audio, particles, enemies/AI, physical target
+destruction, shadows, textures, general materials, descriptors, additional
+lights, fog, or HDR post-processing.
 
 ## Build Targets
 
@@ -113,15 +121,17 @@ general materials, additional lights, fog, or HDR post-processing.
   lifetime, single-threaded static world, and virtual character.
 - `near_laugh_render` contains Vulkan and the internal surface bridge.
 - `near_laugh_runtime` contains the public facade, composition, FPS input
-  mapping, player policy, fixed-step accumulation, interpolation, and main loop.
+  mapping, player policy, the concrete rifle/target gameplay, fixed-step
+  shooting coordination, interpolation, and main loop.
 - `fps` is the launcher executable and links through `near_laugh_runtime`.
 
 The deterministic suite includes public-header, target-interface, source, and
 compile-command boundary checks. It also verifies waited input-batch sampling,
 exhaustive runtime frame-outcome handling, fixed-step timing, grounded
 player/camera policy, headless Jolt collision, built-in shared scene
-composition, native executable discovery, depth/memory selection,
-push-constant and vertex layouts, and swapchain capability selection.
+composition, static ray queries, rifle/target determinism, native executable
+discovery, depth/memory selection, push-constant and vertex layouts, and
+swapchain capability selection.
 Deliberately Vulkan- and Jolt-dependent fixtures are expected to fail the
 public-header check.
 
@@ -147,8 +157,10 @@ surface, and own one depth target per swapchain image.
 
 When running the FPS or smoke executable interactively, inspect differently
 oriented faces for readable brightness variation and confirm no face appears
-lit from the inward normal. Treat every error-severity Vulkan validation
-message as a failure.
+lit from the inward normal. Also confirm target hits highlight immediately,
+destroyed plates remain dim after the final highlight, recoil stays bounded
+and recovers, a recapture click does not fire, and held fire respects its
+cadence. Treat every error-severity Vulkan validation message as a failure.
 
 ## Debug Build Requirements
 

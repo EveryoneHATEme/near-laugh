@@ -99,7 +99,8 @@ class Renderer::Impl {
   void createFrameSlots();
   void cleanupFrameSlots() noexcept;
   void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index,
-                   const CameraFrame& camera);
+                   const CameraFrame& camera,
+                   PrototypeScenePresentation presentation);
 
   VulkanContext context_;
   const PrototypeLevel& level_;
@@ -370,7 +371,8 @@ void Renderer::Impl::cleanupFrameSlots() noexcept {
 
 void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
                                  std::uint32_t image_index,
-                                 const CameraFrame& camera) {
+                                 const CameraFrame& camera,
+                                 PrototypeScenePresentation presentation) {
   VkCommandBufferBeginInfo begin_info{
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -455,7 +457,8 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   const VkRect2D scissor{{0, 0}, swapchain_extent_};
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-  pipeline_->bindAndDraw(command_buffer, camera, level_.environmentLight());
+  pipeline_->bindAndDraw(command_buffer, camera, level_.environmentLight(),
+                         presentation);
   vkCmdEndRendering(command_buffer);
 
   VkImageMemoryBarrier2 to_present{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -512,7 +515,8 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
 
   requireVulkan(vkResetCommandPool(context_.device(), frame.command_pool, 0),
                 "Reset per-frame Vulkan command pool");
-  recordFrame(frame.command_buffer, image_index, request.camera);
+  recordFrame(frame.command_buffer, image_index, request.camera,
+              request.scene_presentation);
   requireVulkan(vkResetFences(context_.device(), 1, &frame.completion),
                 "Reset Vulkan frame completion fence");
 

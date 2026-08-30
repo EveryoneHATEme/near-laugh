@@ -12,11 +12,17 @@ inline constexpr float player_sprint_speed = 7.0F;
 inline constexpr float player_gravity = 18.0F;
 inline constexpr float player_jump_speed = 6.5F;
 inline constexpr float player_air_control = 8.0F;
+inline constexpr float player_pitch_limit_degrees = 89.0F;
 
 struct PlayerCameraPosition {
   float x{};
   float y{};
   float z{};
+};
+
+struct PlayerAim {
+  PhysicsVector eye_position{};
+  PhysicsVector direction{};
 };
 
 struct PlayerPresentationState {
@@ -58,7 +64,10 @@ class PlayerController {
   void collapsePresentationState() noexcept;
 
   [[nodiscard]] CameraFrame cameraFrame(float framebuffer_aspect,
-                                        float interpolation_alpha) const;
+                                        float interpolation_alpha,
+                                        float recoil_pitch_degrees = 0.0F) const;
+  [[nodiscard]] PlayerAim currentAim(
+      float recoil_pitch_degrees = 0.0F) const;
   [[nodiscard]] PlayerCameraPosition interpolatedCameraPosition(
       float interpolation_alpha) const noexcept;
   [[nodiscard]] const PhysicsCharacterState& state() const noexcept {

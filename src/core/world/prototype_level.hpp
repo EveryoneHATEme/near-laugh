@@ -2,8 +2,13 @@
 #define CORE_WORLD_PROTOTYPE_LEVEL_HPP
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
+
+inline constexpr std::size_t prototype_target_count = 3;
+inline constexpr std::size_t prototype_solid_mask_bit_count = 32;
 
 struct WorldPosition {
   float x{};
@@ -25,6 +30,7 @@ enum class PrototypeSolidKind {
   Obstacle,
   WalkableStep,
   LowClearance,
+  ShootingTarget,
 };
 
 struct PrototypeSolid {
@@ -45,6 +51,10 @@ struct PrototypeEnvironmentLight {
   float ambient_intensity{};
 };
 
+struct PrototypeTargetDescription {
+  std::size_t solid_index{};
+};
+
 class PrototypeLevel {
  public:
   PrototypeLevel();
@@ -59,16 +69,31 @@ class PrototypeLevel {
       const noexcept {
     return environment_light_;
   }
+  [[nodiscard]] const std::array<PrototypeTargetDescription,
+                                 prototype_target_count>&
+  targetDescriptions() const noexcept {
+    return target_descriptions_;
+  }
+  [[nodiscard]] int targetStartingHealth() const noexcept {
+    return target_starting_health_;
+  }
 
  private:
   std::vector<PrototypeSolid> solids_;
   PrototypePlayerSpawn player_spawn_;
   PrototypeEnvironmentLight environment_light_;
+  std::array<PrototypeTargetDescription, prototype_target_count>
+      target_descriptions_{};
+  int target_starting_health_{};
 };
 
 [[nodiscard]] bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept;
 [[nodiscard]] bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept;
+[[nodiscard]] bool prototypeTargetDescriptionsAreValid(
+    const std::vector<PrototypeSolid>& solids,
+    std::span<const PrototypeTargetDescription> target_descriptions,
+    int target_starting_health) noexcept;
 [[nodiscard]] bool prototypeSpawnIsClear(const PrototypeLevel& level,
                                          float player_radius,
                                          float player_height) noexcept;

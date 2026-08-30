@@ -21,7 +21,10 @@ TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   EXPECT_EQ(attributes[2].location, 2U);
   EXPECT_EQ(attributes[2].format, VK_FORMAT_R32G32B32_SFLOAT);
   EXPECT_EQ(attributes[2].offset, offsetof(PositionColorVertex, normal));
-  EXPECT_EQ(sizeof(PositionColorVertex), sizeof(float) * 6 + 4);
+  EXPECT_EQ(attributes[3].location, 3U);
+  EXPECT_EQ(attributes[3].format, VK_FORMAT_R32_UINT);
+  EXPECT_EQ(attributes[3].offset, offsetof(PositionColorVertex, solid_mask));
+  EXPECT_EQ(sizeof(PositionColorVertex), sizeof(float) * 6 + 8);
 }
 
 TEST(ScenePipeline, SceneDataFitsTheSharedPushConstantRange) {
@@ -36,6 +39,9 @@ TEST(ScenePipeline, SceneDataFitsTheSharedPushConstantRange) {
             sizeof(CameraFrame));
   EXPECT_EQ(offsetof(ScenePushConstant, ambient_intensity),
             sizeof(CameraFrame) + sizeof(float) * 4);
+  EXPECT_EQ(offsetof(ScenePushConstant, presentation_masks),
+            sizeof(CameraFrame) + sizeof(float) * 8);
+  EXPECT_EQ(sizeof(ScenePushConstant), 112U);
   EXPECT_LE(sizeof(ScenePushConstant), vulkan_minimum_push_constant_size);
 }
 
@@ -43,7 +49,9 @@ TEST(ScenePipeline, PushConstantCarriesCameraAndImmutableLevelLight) {
   CameraFrame camera;
   camera.view_projection[12] = 3.5F;
   const PrototypeEnvironmentLight light = PrototypeLevel{}.environmentLight();
-  const ScenePushConstant push_constant = makeScenePushConstant(camera, light);
+  const PrototypeScenePresentation presentation{0x12U, 0x24U};
+  const ScenePushConstant push_constant =
+      makeScenePushConstant(camera, light, presentation);
 
   EXPECT_FLOAT_EQ(push_constant.camera.view_projection[12], 3.5F);
   EXPECT_FLOAT_EQ(push_constant.direction_and_directional_intensity[0],
@@ -58,4 +66,8 @@ TEST(ScenePipeline, PushConstantCarriesCameraAndImmutableLevelLight) {
   EXPECT_FLOAT_EQ(push_constant.ambient_intensity[1], 0.0F);
   EXPECT_FLOAT_EQ(push_constant.ambient_intensity[2], 0.0F);
   EXPECT_FLOAT_EQ(push_constant.ambient_intensity[3], 0.0F);
+  EXPECT_EQ(push_constant.presentation_masks[0], 0x12U);
+  EXPECT_EQ(push_constant.presentation_masks[1], 0x24U);
+  EXPECT_EQ(push_constant.presentation_masks[2], 0U);
+  EXPECT_EQ(push_constant.presentation_masks[3], 0U);
 }

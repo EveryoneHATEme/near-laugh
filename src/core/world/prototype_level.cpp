@@ -12,6 +12,7 @@ constexpr WorldColor gold{225, 167, 62, 255};
 constexpr WorldColor violet{139, 91, 196, 255};
 constexpr WorldColor step_color{70, 184, 190, 255};
 constexpr WorldColor passage_color{190, 118, 197, 255};
+constexpr WorldColor target_color{222, 122, 58, 255};
 constexpr float normalized_direction_tolerance = 0.0001F;
 
 bool overlaps(float first_min, float first_max, float second_min,
@@ -44,9 +45,17 @@ PrototypeLevel::PrototypeLevel()
            PrototypeSolidKind::WalkableStep},
           {{6.0F, 1.55F, 1.5F}, {1.75F, 0.15F, 3.0F}, passage_color,
            PrototypeSolidKind::LowClearance},
+          {{-9.0F, 1.75F, -7.0F}, {0.75F, 0.75F, 0.12F}, target_color,
+           PrototypeSolidKind::ShootingTarget},
+          {{0.0F, 4.0F, -12.5F}, {0.75F, 0.75F, 0.12F}, target_color,
+           PrototypeSolidKind::ShootingTarget},
+          {{9.0F, 1.75F, -7.0F}, {0.75F, 0.75F, 0.12F}, target_color,
+           PrototypeSolidKind::ShootingTarget},
       },
       player_spawn_{{0.0F, 0.05F, 7.0F}, -90.0F},
-      environment_light_{{0.4082483F, 0.8164966F, 0.4082483F}, 0.75F, 0.25F} {}
+      environment_light_{{0.4082483F, 0.8164966F, 0.4082483F}, 0.75F, 0.25F},
+      target_descriptions_{{{11}, {12}, {13}}},
+      target_starting_health_(100) {}
 
 bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept {
@@ -68,7 +77,10 @@ bool prototypeEnvironmentLightIsValid(
 
 bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
   if (level.solids().empty() ||
-      !prototypeEnvironmentLightIsValid(level.environmentLight())) {
+      !prototypeEnvironmentLightIsValid(level.environmentLight()) ||
+      !prototypeTargetDescriptionsAreValid(
+          level.solids(), level.targetDescriptions(),
+          level.targetStartingHealth())) {
     return false;
   }
   return std::all_of(level.solids().begin(), level.solids().end(),
@@ -83,6 +95,28 @@ bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
                               solid.half_extent.y > 0.0F &&
                               solid.half_extent.z > 0.0F;
                      });
+}
+
+bool prototypeTargetDescriptionsAreValid(
+    const std::vector<PrototypeSolid>& solids,
+    std::span<const PrototypeTargetDescription> target_descriptions,
+    int target_starting_health) noexcept {
+  if (target_descriptions.size() != prototype_target_count ||
+      target_starting_health <= 0 ||
+      solids.size() > prototype_solid_mask_bit_count) {
+    return false;
+  }
+  std::array<bool, prototype_solid_mask_bit_count> described{};
+  for (const PrototypeTargetDescription& target : target_descriptions) {
+    if (target.solid_index >= solids.size() ||
+        target.solid_index >= prototype_solid_mask_bit_count ||
+        described[target.solid_index] ||
+        solids[target.solid_index].kind != PrototypeSolidKind::ShootingTarget) {
+      return false;
+    }
+    described[target.solid_index] = true;
+  }
+  return true;
 }
 
 bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,

@@ -207,9 +207,10 @@ void GraphicsPipeline::createVertexBuffer(const PrototypeLevel& level) {
 
 void GraphicsPipeline::bindAndDraw(
     VkCommandBuffer command_buffer, const CameraFrame& camera,
-    const PrototypeEnvironmentLight& environment_light) const {
+    const PrototypeEnvironmentLight& environment_light,
+    PrototypeScenePresentation presentation) const {
   const ScenePushConstant push_constant =
-      makeScenePushConstant(camera, environment_light);
+      makeScenePushConstant(camera, environment_light, presentation);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
   vkCmdPushConstants(command_buffer, layout_,
                      scenePushConstantRange().stageFlags, 0,

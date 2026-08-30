@@ -95,7 +95,8 @@ CPU/GPU overlap.
 
 The runtime sends one explicit frame request containing framebuffer extent and
 resize state plus a standard-layout, column-major camera view-projection
-matrix. A zero extent is skipped before GPU submission. Swapchain
+matrix and highlighted/dimmed prototype-solid masks. A zero extent is skipped
+before GPU submission. Swapchain
 out-of-date/suboptimal interpretation and recovery remain renderer-owned, and a
 backend-neutral rendered/skipped/recovered outcome is returned to the runtime.
 The runtime handles all three outcomes explicitly and retains ownership of the
@@ -115,15 +116,18 @@ The current visible smoke output is a single immutable world-space triangle
 stream expanded deterministically from the same `PrototypeLevel` solids used
 by static physics collision. Every axis-aligned solid contributes six colored
 faces with explicit outward world-space normals. The graphics pipeline reads
-position, packed vertex color, and a floating-point normal. A 96-byte shared
+position, packed vertex color, a floating-point normal, and the source solid's
+one-bit mask. A 112-byte shared
 push constant carries the grounded player's current interpolated 4x4 camera
 matrix and the level's immutable direction-to-light, directional intensity,
-and ambient intensity. The fragment stage applies bounded Lambert diffuse
-lighting plus ambient fill to the base color, keeping away-facing surfaces
-visible while making face orientation readable. The scene remains one vertex
-buffer and one draw call; it does not introduce shadows, textures, general
-materials, multiple lights, model assets, descriptors, per-object transforms,
-fog, HDR post-processing, collision types, or a general scene framework.
+ambient intensity, and per-frame highlighted/dimmed masks. A flat solid mask
+selects highlight before dimming, then the fragment stage applies the existing
+bounded Lambert diffuse lighting plus ambient fill so orientation remains
+readable. The scene remains one immutable vertex buffer and one draw call; it
+does not introduce rewrites after hits, shadows, textures, general materials,
+multiple lights, model assets, descriptors, per-object transforms, extra
+target draws, fog, HDR post-processing, collision/gameplay types, or a general
+scene framework.
 
 The renderer selects the first supported format from its small depth candidate
 list and owns one device-local depth image, allocation, and view for every

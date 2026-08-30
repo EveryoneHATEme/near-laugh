@@ -15,6 +15,8 @@
 static_assert(offsetof(PositionColorVertex, position) == 0);
 static_assert(offsetof(PositionColorVertex, color) == sizeof(float) * 3);
 static_assert(offsetof(PositionColorVertex, normal) == sizeof(float) * 3 + 4);
+static_assert(offsetof(PositionColorVertex, solid_mask) ==
+              sizeof(float) * 6 + 4);
 
 [[nodiscard]] constexpr VkVertexInputBindingDescription
 sceneVertexBindingDescription() noexcept {
@@ -23,7 +25,7 @@ sceneVertexBindingDescription() noexcept {
 static_assert(sceneVertexBindingDescription().stride ==
               sizeof(PositionColorVertex));
 
-[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 3>
+[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 4>
 sceneVertexAttributeDescriptions() noexcept {
   return {
       {{0, 0, VK_FORMAT_R32G32B32_SFLOAT,
@@ -31,13 +33,17 @@ sceneVertexAttributeDescriptions() noexcept {
        {1, 0, VK_FORMAT_R8G8B8A8_UNORM,
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, color))},
        {2, 0, VK_FORMAT_R32G32B32_SFLOAT,
-        static_cast<std::uint32_t>(offsetof(PositionColorVertex, normal))}}};
+        static_cast<std::uint32_t>(offsetof(PositionColorVertex, normal))},
+       {3, 0, VK_FORMAT_R32_UINT,
+        static_cast<std::uint32_t>(offsetof(PositionColorVertex,
+                                            solid_mask))}}};
 }
 
 struct alignas(16) ScenePushConstant {
   CameraFrame camera{};
   alignas(16) std::array<float, 4> direction_and_directional_intensity{};
   alignas(16) std::array<float, 4> ambient_intensity{};
+  alignas(16) std::array<std::uint32_t, 4> presentation_masks{};
 };
 
 inline constexpr std::size_t vulkan_minimum_push_constant_size = 128;
@@ -48,12 +54,15 @@ static_assert(offsetof(ScenePushConstant,
               sizeof(CameraFrame));
 static_assert(offsetof(ScenePushConstant, ambient_intensity) ==
               sizeof(CameraFrame) + sizeof(float) * 4);
-static_assert(sizeof(ScenePushConstant) == sizeof(float) * 24);
+static_assert(offsetof(ScenePushConstant, presentation_masks) ==
+              sizeof(CameraFrame) + sizeof(float) * 8);
+static_assert(sizeof(ScenePushConstant) == 112);
 static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
 
 [[nodiscard]] constexpr ScenePushConstant makeScenePushConstant(
     const CameraFrame& camera,
-    const PrototypeEnvironmentLight& environment_light) noexcept {
+    const PrototypeEnvironmentLight& environment_light,
+    PrototypeScenePresentation presentation = {}) noexcept {
   ScenePushConstant push_constant{};
   push_constant.camera = camera;
   push_constant.direction_and_directional_intensity = {
@@ -62,6 +71,9 @@ static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
       environment_light.direction_to_light[2],
       environment_light.directional_intensity};
   push_constant.ambient_intensity[0] = environment_light.ambient_intensity;
+  push_constant.presentation_masks[0] =
+      presentation.highlighted_solid_mask;
+  push_constant.presentation_masks[1] = presentation.dimmed_solid_mask;
   return push_constant;
 }
 
@@ -85,7 +97,8 @@ class GraphicsPipeline {
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
   void bindAndDraw(VkCommandBuffer command_buffer, const CameraFrame& camera,
-                   const PrototypeEnvironmentLight& environment_light) const;
+                   const PrototypeEnvironmentLight& environment_light,
+                   PrototypeScenePresentation presentation) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(

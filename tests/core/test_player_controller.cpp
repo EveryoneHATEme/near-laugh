@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
 
 #include "core/player/player_controller.hpp"
 #include "core/world/prototype_level.hpp"
@@ -254,6 +255,61 @@ TEST(PlayerCamera, UsesActualStanceEyeHeight) {
   EXPECT_NEAR(crouched.y, player.state().foot_position.y +
                               player_crouched_eye_height,
               0.0001F);
+}
+
+TEST(PlayerAim, UsesCurrentStandingAndCrouchedSimulatedEye) {
+  const PrototypeLevel level;
+  PhysicsWorld physics(level);
+  PlayerController player(physics, level.playerSpawn().yaw_degrees);
+  settle(player);
+  PlayerAim aim = player.currentAim();
+  EXPECT_NEAR(aim.eye_position.y,
+              player.state().foot_position.y + player_standing_eye_height,
+              0.0001F);
+
+  FpsActionSnapshot crouch;
+  crouch.crouch = true;
+  player.sampleInput(crouch, true);
+  player.fixedStep(fixed_delta);
+  aim = player.currentAim();
+  EXPECT_NEAR(aim.eye_position.y,
+              player.state().foot_position.y + player_crouched_eye_height,
+              0.0001F);
+}
+
+TEST(PlayerAim, AppliesPartialAndClampedMaximumRecoilToAimAndCamera) {
+  const PrototypeLevel level;
+  PhysicsWorld physics(level);
+  PlayerController player(physics, level.playerSpawn().yaw_degrees);
+
+  const PlayerAim zero = player.currentAim();
+  EXPECT_NEAR(zero.direction.x, 0.0F, 0.0001F);
+  EXPECT_NEAR(zero.direction.y, 0.0F, 0.0001F);
+  EXPECT_NEAR(zero.direction.z, -1.0F, 0.0001F);
+
+  const PlayerAim partial = player.currentAim(4.0F);
+  EXPECT_GT(partial.direction.y, 0.0F);
+  EXPECT_GT(partial.direction.z, zero.direction.z + 0.001F);
+  const CameraFrame partial_camera = player.cameraFrame(1.0F, 1.0F, 4.0F);
+  const HomogeneousPoint centered = transform(
+      partial_camera,
+      {partial.eye_position.x + partial.direction.x,
+       partial.eye_position.y + partial.direction.y,
+       partial.eye_position.z + partial.direction.z});
+  EXPECT_NEAR(centered.x / centered.w, 0.0F, 0.0001F);
+  EXPECT_NEAR(centered.y / centered.w, 0.0F, 0.0001F);
+
+  FpsActionSnapshot almost_up;
+  almost_up.look_delta_y = -880.0;
+  player.sampleInput(almost_up, true);
+  const PlayerAim maximum = player.currentAim(8.0F);
+  EXPECT_NEAR(maximum.direction.y,
+              std::sin(player_pitch_limit_degrees *
+                       3.14159265358979323846F / 180.0F),
+              0.0001F);
+  EXPECT_THROW(static_cast<void>(player.currentAim(
+                   std::numeric_limits<float>::quiet_NaN())),
+               std::invalid_argument);
 }
 
 TEST(PlayerCursor, ReleasePrecedesRecaptureAndTransitionsNeutralizeControls) {

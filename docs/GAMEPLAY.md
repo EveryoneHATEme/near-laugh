@@ -59,8 +59,9 @@ game requirement appears.
 The executable uses one grounded, collision-constrained player. Mouse controls
 yaw/pitch; W/A/S/D move relative to horizontal view orientation at 4.0 m/s;
 Left Shift selects the 7.0 m/s sprint speed; Space performs a grounded jump;
-and Left Control is hold-to-crouch. Escape releases the captured cursor and the
-primary mouse action recaptures it.
+and Left Control is hold-to-crouch. Escape releases the captured cursor. The
+primary mouse action recaptures it while released and fires the rifle while
+captured; a recapture click never fires.
 
 Simulation advances on the main thread in fixed 1/60-second steps. Each sampled
 interval contributes at most 100 milliseconds, fractional time is retained for
@@ -88,6 +89,22 @@ The game may contain:
 
 The weapon system should favor explicit FPS concepts over a generic
 item/equipment framework.
+
+The current prototype contains exactly one automatic hitscan rifle with
+unlimited ammunition, a fixed fire interval and range, and bounded upward
+camera recoil that recovers during later fixed steps. Shots originate from the
+non-interpolated simulated eye and use base look plus already accumulated
+recoil; a shot is emitted before its new recoil kick affects aim. The rifle
+queries only the closest static collision surface.
+
+The built-in range has exactly three fixed, collidable target plates with
+equal starting health. A damaging hit briefly highlights only the affected
+plate; the final hit still highlights it before persistent destroyed dimming
+takes over. Destroyed plates remain visible and collidable and continue to
+stop hitscan rays. Finite ammunition or ammo tracking, reloads, switching,
+spread, projectiles, weapon models, crosshairs, audio, particles, enemies, AI,
+physical target destruction, and generic health/damage/entity systems are not
+implemented by this prototype.
 
 ## World
 

@@ -9,7 +9,10 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
+#include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
@@ -251,13 +254,16 @@ class PhysicsWorld::Impl {
     static_solids_.reserve(level.solids().size());
     static_body_ids_.reserve(level.solids().size());
     try {
-      for (const PrototypeSolid& solid : level.solids()) {
-        const JPH::BodyCreationSettings settings(
+      for (std::size_t solid_index = 0; solid_index < level.solids().size();
+           ++solid_index) {
+        const PrototypeSolid& solid = level.solids()[solid_index];
+        JPH::BodyCreationSettings settings(
             new JPH::BoxShape({solid.half_extent.x, solid.half_extent.y,
                                solid.half_extent.z}),
             {solid.center.x, solid.center.y, solid.center.z},
             JPH::Quat::sIdentity(), JPH::EMotionType::Static,
             layers::non_moving);
+        settings.mUserData = static_cast<JPH::uint64>(solid_index);
         const JPH::BodyID id = physics_system_.GetBodyInterface()
                                    .CreateAndAddBody(
                                        settings, JPH::EActivation::DontActivate);
@@ -339,6 +345,50 @@ class PhysicsWorld::Impl {
                       : PhysicsPlayerStance::Standing};
   }
 
+  std::optional<PhysicsStaticRayHit> closestStaticHit(
+      const PhysicsStaticRay& ray) const {
+    const float direction_length_squared =
+        ray.direction.x * ray.direction.x +
+        ray.direction.y * ray.direction.y +
+        ray.direction.z * ray.direction.z;
+    if (!std::isfinite(ray.origin.x) || !std::isfinite(ray.origin.y) ||
+        !std::isfinite(ray.origin.z) || !std::isfinite(ray.direction.x) ||
+        !std::isfinite(ray.direction.y) || !std::isfinite(ray.direction.z) ||
+        !std::isfinite(direction_length_squared) ||
+        !(direction_length_squared > 0.0F) ||
+        !std::isfinite(ray.maximum_distance) ||
+        !(ray.maximum_distance > 0.0F)) {
+      throw std::invalid_argument(
+          "Static ray requires finite origin, finite non-zero direction, and "
+          "finite positive maximum distance");
+    }
+
+    const float direction_scale =
+        ray.maximum_distance / std::sqrt(direction_length_squared);
+    const JPH::RRayCast query(
+        {ray.origin.x, ray.origin.y, ray.origin.z},
+        {ray.direction.x * direction_scale,
+         ray.direction.y * direction_scale,
+         ray.direction.z * direction_scale});
+    JPH::RayCastResult result;
+    const JPH::SpecifiedBroadPhaseLayerFilter broad_phase_filter(
+        broad_phase_layers::non_moving);
+    const JPH::SpecifiedObjectLayerFilter object_filter(layers::non_moving);
+    if (!physics_system_.GetNarrowPhaseQuery().CastRay(
+            query, result, broad_phase_filter, object_filter)) {
+      return std::nullopt;
+    }
+
+    const JPH::uint64 solid_index =
+        physics_system_.GetBodyInterface().GetUserData(result.mBodyID);
+    if (solid_index >= static_solids_.size()) {
+      throw std::runtime_error(
+          "Static ray hit has an invalid prototype solid index");
+    }
+    return PhysicsStaticRayHit{static_cast<std::size_t>(solid_index),
+                               result.mFraction * ray.maximum_distance};
+  }
+
   void applyRequestedStance(bool crouch_requested) {
     if (crouch_requested == crouched_) {
       return;
@@ -405,6 +455,11 @@ PhysicsStaticSolid PhysicsWorld::staticBody(std::size_t index) const {
     throw std::out_of_range("Physics static body index is out of range");
   }
   return impl_->static_solids_[index];
+}
+
+std::optional<PhysicsStaticRayHit> PhysicsWorld::closestStaticHit(
+    const PhysicsStaticRay& ray) const {
+  return impl_->closestStaticHit(ray);
 }
 
 bool PhysicsWorld::usesSingleThreadedJobs() const noexcept {

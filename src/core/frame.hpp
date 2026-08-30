@@ -25,10 +25,19 @@ struct CameraFrame {
 static_assert(std::is_standard_layout_v<CameraFrame>);
 static_assert(sizeof(CameraFrame) == sizeof(float) * 16);
 
+struct PrototypeScenePresentation {
+  std::uint32_t highlighted_solid_mask{};
+  std::uint32_t dimmed_solid_mask{};
+};
+
+static_assert(std::is_standard_layout_v<PrototypeScenePresentation>);
+static_assert(sizeof(PrototypeScenePresentation) == sizeof(std::uint32_t) * 2);
+
 struct FrameRequest {
   FramebufferExtent framebuffer{};
   bool framebuffer_resized{};
   CameraFrame camera{};
+  PrototypeScenePresentation scene_presentation{};
 };
 
 [[nodiscard]] constexpr bool frameRequestCanSubmit(
@@ -58,15 +67,17 @@ struct LoopDecision {
 
 [[nodiscard]] constexpr LoopDecision decideLoopAction(
     bool close_requested, FramebufferExtent framebuffer,
-    bool framebuffer_resized, CameraFrame camera = {}) noexcept {
+    bool framebuffer_resized, CameraFrame camera = {},
+    PrototypeScenePresentation scene_presentation = {}) noexcept {
   if (close_requested) {
     return {};
   }
   if (framebuffer.isZero()) {
     return {LoopAction::WaitForEvents,
-            {framebuffer, framebuffer_resized, camera}};
+            {framebuffer, framebuffer_resized, camera, scene_presentation}};
   }
-  return {LoopAction::Render, {framebuffer, framebuffer_resized, camera}};
+  return {LoopAction::Render,
+          {framebuffer, framebuffer_resized, camera, scene_presentation}};
 }
 
 #endif

@@ -16,7 +16,6 @@ constexpr float vertical_field_of_view_degrees = 75.0F;
 constexpr float near_plane = 0.1F;
 constexpr float far_plane = 100.0F;
 constexpr float mouse_sensitivity_degrees = 0.1F;
-constexpr float pitch_limit_degrees = 89.0F;
 
 PhysicsVector horizontalForward(float yaw_degrees) noexcept {
   const float yaw = glm::radians(yaw_degrees);
@@ -71,7 +70,7 @@ void PlayerController::sampleInput(const FpsActionSnapshot& actions,
         std::clamp(pitch_degrees_ -
                        static_cast<float>(actions.look_delta_y) *
                            mouse_sensitivity_degrees,
-                   -pitch_limit_degrees, pitch_limit_degrees);
+                   -player_pitch_limit_degrees, player_pitch_limit_degrees);
   }
 
   const bool jump_down = controls_active && actions.jump;
@@ -168,7 +167,8 @@ PlayerCameraPosition PlayerController::interpolatedCameraPosition(
 }
 
 CameraFrame PlayerController::cameraFrame(float framebuffer_aspect,
-                                          float interpolation_alpha) const {
+                                          float interpolation_alpha,
+                                          float recoil_pitch_degrees) const {
   if (!std::isfinite(framebuffer_aspect) || framebuffer_aspect <= 0.0F) {
     throw std::invalid_argument(
         "Player camera requires a finite positive framebuffer aspect");
@@ -176,9 +176,15 @@ CameraFrame PlayerController::cameraFrame(float framebuffer_aspect,
 
   const PlayerCameraPosition camera =
       interpolatedCameraPosition(interpolation_alpha);
+  if (!std::isfinite(recoil_pitch_degrees)) {
+    throw std::invalid_argument("Player camera recoil must be finite");
+  }
+  const float effective_pitch =
+      std::clamp(pitch_degrees_ + recoil_pitch_degrees,
+                 -player_pitch_limit_degrees, player_pitch_limit_degrees);
   const glm::vec3 position{camera.x, camera.y, camera.z};
   const glm::mat4 view = glm::lookAtRH(
-      position, position + viewForward(yaw_degrees_, pitch_degrees_),
+      position, position + viewForward(yaw_degrees_, effective_pitch),
       glm::vec3{0.0F, 1.0F, 0.0F});
   glm::mat4 projection =
       glm::perspectiveRH_ZO(glm::radians(vertical_field_of_view_degrees),
@@ -190,4 +196,19 @@ CameraFrame PlayerController::cameraFrame(float framebuffer_aspect,
   std::memcpy(result.view_projection.data(), glm::value_ptr(view_projection),
               sizeof(view_projection));
   return result;
+}
+
+PlayerAim PlayerController::currentAim(float recoil_pitch_degrees) const {
+  if (!std::isfinite(recoil_pitch_degrees)) {
+    throw std::invalid_argument("Player aim recoil must be finite");
+  }
+  const float effective_pitch =
+      std::clamp(pitch_degrees_ + recoil_pitch_degrees,
+                 -player_pitch_limit_degrees, player_pitch_limit_degrees);
+  const glm::vec3 direction = viewForward(yaw_degrees_, effective_pitch);
+  return {{current_presentation_.foot_position.x,
+           current_presentation_.foot_position.y +
+               current_presentation_.eye_height,
+           current_presentation_.foot_position.z},
+          {direction.x, direction.y, direction.z}};
 }

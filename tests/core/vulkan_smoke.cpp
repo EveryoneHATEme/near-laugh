@@ -212,8 +212,19 @@ int main(int argc, char** argv) {
                             : static_cast<float>(extent.width) /
                                   static_cast<float>(extent.height),
             1.0F);
+        PrototypeScenePresentation presentation{};
+        const std::uint32_t target_mask =
+            std::uint32_t{1} << level.targetDescriptions()[0].solid_index;
+        if (frame >= 30 && frame < 60) {
+          presentation.highlighted_solid_mask = target_mask;
+        } else if (frame >= 60 && frame < 90) {
+          presentation.dimmed_solid_mask = target_mask;
+        } else if (frame >= 90) {
+          presentation.highlighted_solid_mask = target_mask;
+          presentation.dimmed_solid_mask = target_mask;
+        }
         const FrameRequest request{extent, window.consumeFramebufferResize(),
-                                   camera};
+                                   camera, presentation};
         static_cast<void>(renderer.renderFrame(request));
       }
       if (inject_validation_error) {

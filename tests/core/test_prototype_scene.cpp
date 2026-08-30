@@ -111,3 +111,18 @@ TEST(PrototypeScene, GivesEveryFaceAConsistentOutwardUnitNormal) {
     }
   }
 }
+
+TEST(PrototypeScene, GivesEveryVertexItsOneBitSourceSolidMask) {
+  const PrototypeLevel level;
+  const auto vertices = buildPrototypeSceneVertices(level);
+  constexpr std::size_t vertices_per_solid = 36;
+  ASSERT_LE(level.solids().size(), prototype_solid_mask_bit_count);
+  for (std::size_t solid_index = 0; solid_index < level.solids().size();
+       ++solid_index) {
+    const std::uint32_t expected_mask = std::uint32_t{1} << solid_index;
+    for (std::size_t vertex = 0; vertex < vertices_per_solid; ++vertex) {
+      EXPECT_EQ(vertices[solid_index * vertices_per_solid + vertex].solid_mask,
+                expected_mask);
+    }
+  }
+}

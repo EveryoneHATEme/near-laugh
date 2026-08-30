@@ -15,7 +15,8 @@ Development: `docs/DEVELOPMENT.md`
 
 The `fps` executable links the backend-neutral `near_laugh_runtime` facade.
 Runtime composition owns `Platform -> Window -> PrototypeLevel -> PhysicsWorld
--> PlayerController -> Renderer` in that order and destroys them in reverse.
+-> PlayerController -> PrototypeRifle -> ShootingTargets -> Renderer` in that
+order and destroys them in reverse.
 `near_laugh_platform` confines GLFW and physical keyboard/mouse state;
 `near_laugh_world` owns immutable prototype solids; `near_laugh_physics`
 confines Jolt Physics; and `near_laugh_render` confines Vulkan. The runtime
@@ -25,17 +26,20 @@ waited batch before another poll can clear its cursor delta, while held actions
 remain active. Each renderer request returns rendered, skipped, or recovered,
 and the Engine exhaustively consumes that outcome while retaining loop and
 application-lifetime control. The Engine also owns a bounded 60 Hz simulation
-accumulator, player input and interpolation, cursor capture transitions, and
-framebuffer aspect. Rendering receives only a column-major view-projection
-matrix and does not interpret input, simulation state, or elapsed time.
+accumulator, player/rifle input, hitscan resolution, target feedback,
+interpolation, cursor capture transitions, and framebuffer aspect. Physics
+exposes backend-neutral closest-static-hit results while retaining Jolt body
+data privately. Rendering receives only a column-major view-projection matrix
+and highlighted/dimmed solid masks; it does not interpret weapon, health,
+damage, input, simulation state, or elapsed time.
 
 ## Prototype scene controls
 
 The executable starts with the cursor captured and shows one built-in,
 vertex-colored 3D room with a floor, boundaries, several obstacles, a low step,
-and a crouch-only passage. Rendering and static collision derive from the same
-immutable axis-aligned solids. It requires no model, texture, material,
-collision, or level files.
+and a crouch-only passage, plus three orange shooting-range target plates.
+Rendering and static collision derive from the same immutable axis-aligned
+solids. It requires no model, texture, material, collision, or level files.
 
 - Mouse: look
 - W/A/S/D: move horizontally relative to the current view
@@ -43,12 +47,18 @@ collision, or level files.
 - Left Control: hold to crouch
 - Left Shift: sprint
 - Escape: release the cursor
-- Left mouse button: recapture the cursor
+- Left mouse button: hold to fire while captured; recapture while released
 
 Movement is constrained by static Jolt collision and includes gravity, wall
 sliding, the authored 0.30 m step, bounded air control, and blocked standing
 under low clearance. This prototype does not yet contain dynamic rigid bodies,
-moving platforms, doors, projectiles, or physics-driven objects.
+moving platforms, doors, projectiles, or physics-driven objects. The one
+automatic hitscan rifle has unlimited ammunition, fixed cadence/range, and
+bounded recovering recoil. Hits briefly highlight a target; four hits destroy
+and persistently dim it without removing its visible/static collision. There
+are no finite ammunition or ammo tracking, reloads, weapon switching, spread,
+models, crosshairs, audio, particles, enemies/AI, physical target destruction,
+or generic entity/damage framework.
 
 ## Build
 

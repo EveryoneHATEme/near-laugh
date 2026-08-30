@@ -97,6 +97,8 @@ Window
 PrototypeLevel
 PhysicsWorld
 PlayerController
+PrototypeRifle
+ShootingTargets
 Renderer
 
 Shutdown happens in reverse dependency order.
@@ -117,6 +119,15 @@ events, input, time, camera state, or application lifetime. The runtime
 exhaustively consumes each outcome before it continues the application-owned
 loop.
 
+Each complete fixed step advances player movement, rifle cooldown/recoil,
+closest-static-hit resolution, target health, and target feedback on the main
+thread. `PrototypeRifle` and `ShootingTargets` are concrete Engine-owned
+gameplay values between `PlayerController` and `Renderer`; they are not a
+weapon hierarchy, entity registry, or generic damage system. Physics retains
+prototype-solid indices privately on Jolt bodies and exposes only an
+engine-owned static ray and optional closest-hit result. Rendering receives
+only the resulting camera plus highlighted/dimmed prototype-solid masks.
+
 Platform callbacks retain held physical keys/buttons and accumulate cursor
 movement for one event batch. `FpsInputMapper` maps W/A/S/D, Space, Left Shift,
 Left Control, Escape, and the left/right mouse buttons to the single-player FPS
@@ -129,10 +140,11 @@ executable path and supplies the adjacent `resources` directory through
 participate in runtime layout discovery.
 
 The current world is one immutable `PrototypeLevel` containing colored
-axis-aligned solids and a player spawn. Rendering expands each solid into the
-existing position/color triangle stream, while physics creates one matching
-static box body. It is not a scene hierarchy, asset pipeline, ECS, or generic
-level format.
+axis-aligned solids, a player spawn, and three stable shooting-target
+descriptions. Rendering expands each solid into the existing triangle stream,
+while physics creates one matching static box body. Mutable target health and
+feedback remain outside the level. It is not a scene hierarchy, asset
+pipeline, ECS, or generic level format.
 
 ## Threading
 

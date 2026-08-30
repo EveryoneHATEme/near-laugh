@@ -66,6 +66,7 @@ endforeach()
 
 file(GLOB_RECURSE RUNTIME_HEADERS
      "${SOURCE_ROOT}/include/*.hpp"
+     "${SOURCE_ROOT}/src/core/gameplay/*.hpp"
      "${SOURCE_ROOT}/src/core/player/*.hpp"
      "${SOURCE_ROOT}/src/core/physics/*.hpp"
      "${SOURCE_ROOT}/src/core/simulation/*.hpp"
@@ -82,6 +83,8 @@ endforeach()
 
 file(READ "${SOURCE_ROOT}/src/core/render/graphics_pipeline.cpp"
      PIPELINE_CONTENT)
+file(READ "${SOURCE_ROOT}/src/core/render/graphics_pipeline.hpp"
+     PIPELINE_HEADER_CONTENT)
 foreach(REQUIRED_PIPELINE_TOKEN IN ITEMS
         "depthTestEnable"
         "depthWriteEnable"
@@ -92,6 +95,28 @@ foreach(REQUIRED_PIPELINE_TOKEN IN ITEMS
             "Graphics pipeline is missing: ${REQUIRED_PIPELINE_TOKEN}")
     endif()
 endforeach()
+foreach(REQUIRED_PRESENTATION_TOKEN IN ITEMS
+        "request.scene_presentation"
+        "presentation_masks"
+        "solid_mask")
+    string(FIND "${RENDERER_CONTENT}${PIPELINE_CONTENT}${PIPELINE_HEADER_CONTENT}"
+           "${REQUIRED_PRESENTATION_TOKEN}" PRESENTATION_TOKEN_POSITION)
+    if(PRESENTATION_TOKEN_POSITION LESS 0)
+        message(FATAL_ERROR
+            "Renderer is missing solid-mask presentation flow: "
+            "${REQUIRED_PRESENTATION_TOKEN}")
+    endif()
+endforeach()
+if(RENDERER_CONTENT MATCHES
+   "vkCmdDrawIndexed|vkCmdBindDescriptorSets|vkUpdateDescriptorSets")
+    message(FATAL_ERROR
+        "Prototype solid presentation introduced extra geometry or descriptors")
+endif()
+string(REGEX MATCHALL "vkCmdDraw\\(" SCENE_DRAW_CALLS "${PIPELINE_CONTENT}")
+list(LENGTH SCENE_DRAW_CALLS SCENE_DRAW_CALL_COUNT)
+if(NOT SCENE_DRAW_CALL_COUNT EQUAL 1)
+    message(FATAL_ERROR "Prototype scene must retain exactly one draw command")
+endif()
 
 foreach(RUNTIME_SOURCE IN ITEMS
         "${SOURCE_ROOT}/src/core/application.cpp"
@@ -132,6 +157,8 @@ foreach(LIFETIME_MEMBER IN ITEMS
         "PrototypeLevel level_"
         "PhysicsWorld physics_"
         "PlayerController player_"
+        "PrototypeRifle rifle_"
+        "ShootingTargets targets_"
         "Renderer renderer_")
     string(FIND "${ENGINE_HEADER_CONTENT}" "${LIFETIME_MEMBER}"
            LIFETIME_POSITION)
@@ -162,7 +189,7 @@ foreach(REQUIRED_RUNTIME_CAMERA_TOKEN IN ITEMS
         "playerCursorTransition"
         "FixedStepAccumulator::Clock::now"
         "player_.sampleInput"
-        "player_.fixedStep"
+        "coordinateShootingRangeFixedStep"
         "frame.camera = player_.cameraFrame")
     string(FIND "${ENGINE_CONTENT}"
            "${REQUIRED_RUNTIME_CAMERA_TOKEN}" CAMERA_TOKEN_POSITION)
