@@ -18,7 +18,8 @@ Runtime composition owns `Platform -> Window -> PrototypeLevel -> PhysicsWorld
 -> PlayerController -> PrototypeRifle -> ShootingTargets -> Renderer` in that
 order and destroys them in reverse.
 `near_laugh_platform` confines GLFW and physical keyboard/mouse state;
-`near_laugh_world` owns immutable prototype solids; `near_laugh_physics`
+`near_laugh_world` owns immutable prototype solids and two authored point
+lights; `near_laugh_physics`
 confines Jolt Physics; and `near_laugh_render` confines Vulkan. The runtime
 maps physical state to the fixed controls for the one local FPS player.
 Polling and blocking waits each open one input batch; the Engine samples a
@@ -35,11 +36,15 @@ damage, input, simulation state, or elapsed time.
 
 ## Prototype scene controls
 
-The executable starts with the cursor captured and shows one built-in,
-vertex-colored 3D room with a floor, boundaries, several obstacles, a low step,
-and a crouch-only passage, plus three orange shooting-range target plates.
-Rendering and static collision derive from the same immutable axis-aligned
-solids. It requires no model, texture, material, collision, or level files.
+The executable starts with the cursor captured and shows one built-in textured
+3D room with a floor, boundaries, several obstacles, a low step, and a
+crouch-only passage, plus three shooting-range target plates. Every immutable
+axis-aligned solid carries one fixed floor, boundary, obstacle, or
+shooting-target surface role; rendering and static collision derive from those
+same solids. It requires no model, general material, collision, or level file.
+One restrained cool point light surrounds the spawn and one stronger warm
+point light marks the destination. Their finite, non-overlapping radii leave
+an intentionally dark transition between them over a near-black ambient floor.
 
 - Mouse: look
 - W/A/S/D: move horizontally relative to the current view
@@ -91,12 +96,23 @@ and identities. See `docs/DEVELOPMENT.md` for focused PowerShell and POSIX
 verification commands.
 
 `prototype_scene_vertex.spv` and `prototype_scene_fragment.spv` are copied to
-`build/debug/bin/resources/shaders`; the launcher
+`build/debug/bin/resources/shaders`. The four fixed textures
+`prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
+`prototype_shooting_target.png` are copied to
+`build/debug/bin/resources/textures`; the launcher
 uses the host's native process facility to discover the actual executable and
 passes its adjacent resource root explicitly to the runtime. Asset loading is
 therefore independent of both the current working directory and the spelling
 of the invocation. Swapchain creation also validates color-attachment usage
 and selects a supported composite-alpha mode from the queried surface
-capabilities before calling Vulkan. Opaque visibility uses one device-local
-depth attachment per swapchain image. See
+capabilities before calling Vulkan. One swapchain-independent, four-layer sRGB
+texture array owns a complete GPU-generated mip chain, repeat/linear sampler,
+and one immutable combined image-sampler descriptor. It remains one opaque
+scene draw and is not a general material, asset streaming, descriptor-indexing,
+or bindless system. A separate swapchain-independent RAII owner uploads the two
+validated level lights once to an 80-byte uniform buffer and exposes one
+immutable set-1 descriptor; the texture remains set 0. Opaque visibility uses
+one device-local depth attachment per swapchain image. There are no shadows,
+flashlight, dynamic or file-loaded lights, fog, HDR, exposure adaptation, or
+general lighting framework in this milestone. See
 `docs/DEVELOPMENT.md` for run commands and the optional Vulkan smoke preset.

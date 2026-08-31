@@ -56,8 +56,8 @@ opaque dynamic meshes
 depth buffering
 textures
 basic materials
-directional lighting
-point/spot lights as required by the game
+authored local lighting
+additional point/spot lights as required by the game
 basic shadow mapping
 first-person weapon rendering
 simple transparency where required
@@ -114,20 +114,48 @@ working directory.
 
 The current visible smoke output is a single immutable world-space triangle
 stream expanded deterministically from the same `PrototypeLevel` solids used
-by static physics collision. Every axis-aligned solid contributes six colored
-faces with explicit outward world-space normals. The graphics pipeline reads
-position, packed vertex color, a floating-point normal, and the source solid's
-one-bit mask. A 112-byte shared
-push constant carries the grounded player's current interpolated 4x4 camera
-matrix and the level's immutable direction-to-light, directional intensity,
-ambient intensity, and per-frame highlighted/dimmed masks. A flat solid mask
-selects highlight before dimming, then the fragment stage applies the existing
-bounded Lambert diffuse lighting plus ambient fill so orientation remains
-readable. The scene remains one immutable vertex buffer and one draw call; it
-does not introduce rewrites after hits, shadows, textures, general materials,
-multiple lights, model assets, descriptors, per-object transforms, extra
-target draws, fog, HDR post-processing, collision/gameplay types, or a general
-scene framework.
+by static physics collision. Every axis-aligned solid contributes six tinted
+faces with explicit outward world-space normals, continuous local face UVs at
+one repeat per metre, and one stable floor/boundary/obstacle/shooting-target
+texture-array layer. The graphics pipeline reads position, packed vertex tint,
+a floating-point normal, the source solid's one-bit mask, UVs, and an unsigned
+texture layer. The existing world position also passes from the vertex stage to
+the fragment stage. An 80-byte shared push constant carries only the grounded
+player's current interpolated 4x4 camera matrix and per-frame
+highlighted/dimmed masks. A flat solid mask selects highlight before dimming.
+The fragment stage samples one repeat/linear `sampler2DArray`, multiplies the
+sampled sRGB color by the authored tint, applies highlight before dimming, and
+accumulates radius-bounded Lambert diffuse illumination from exactly two
+immutable level-authored point lights over a near-black ambient floor. Smooth
+falloff reaches zero at each radius, accumulated RGB is clamped, and alpha
+remains opaque. The cool spawn pool and warmer destination pool leave an
+intentionally dark region between their non-overlapping influences. The scene
+remains one immutable vertex buffer and one draw call. It does not introduce
+rewrites after hits, shadows, general or file-defined materials, arbitrary or
+mutable lights, model assets, per-object transforms, extra target draws, fog,
+HDR post-processing, collision/gameplay types, or a general scene framework.
+
+The renderer decodes `prototype_floor.png`, `prototype_boundary.png`,
+`prototype_obstacle.png`, and `prototype_shooting_target.png` during startup.
+One concrete renderer-private RAII owner uploads their contiguous RGBA data to
+a four-layer device-local `VK_FORMAT_R8G8B8A8_SRGB` image, generates the full
+mip chain on the graphics queue with Synchronization 2 and `vkQueueSubmit2`,
+and owns the array view, repeat/linear sampler, one-set descriptor layout,
+pool, and immutable descriptor. The graphics pipeline borrows only the layout
+and set handles. The texture owner is created after the Vulkan context, is not
+rebuilt during swapchain recreation, and is destroyed after every pipeline but
+before the logical device. There is no texture cache, streaming uploader,
+asset discovery, bindless path, descriptor indexing, compression, anisotropy,
+or hot reload.
+
+A separate renderer-private RAII owner validates the level lighting and uploads
+two `std140` point-light records plus the ambient scalar once to an 80-byte
+host-visible, host-coherent uniform buffer. It owns one fragment-stage uniform
+descriptor layout, one-set pool, and immutable descriptor. The owner is created
+beside the sampled texture, survives swapchain recreation, is destroyed after
+all dependent pipelines and before the logical device, and has explicit
+partial-construction cleanup. It is not a light registry or per-frame lighting
+path.
 
 The renderer selects the first supported format from its small depth candidate
 list and owns one device-local depth image, allocation, and view for every
@@ -153,3 +181,8 @@ Descriptor indexing may be introduced only when a concrete renderer
 requirement makes ordinary descriptor management significantly worse.
 
 Descriptor updates must respect GPU lifetime and frame-in-flight rules.
+
+The prototype binds two immutable descriptors once for the single scene draw:
+the combined image sampler is set 0 binding 0, and the lighting uniform buffer
+is set 1 binding 0. Each descriptor is updated once during renderer startup;
+neither is rewritten per frame or recreated during swapchain recovery.

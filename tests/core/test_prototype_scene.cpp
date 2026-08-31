@@ -24,6 +24,15 @@ bool hasPosition(const std::vector<PositionColorVertex>& vertices, float x,
            std::abs(vertex.position[2] - z) < 0.0001F;
   });
 }
+
+bool samePositionAndUv(const PositionColorVertex& first,
+                       const PositionColorVertex& second) {
+  return std::equal(std::begin(first.position), std::end(first.position),
+                    std::begin(second.position)) &&
+         std::equal(std::begin(first.texture_coordinates),
+                    std::end(first.texture_coordinates),
+                    std::begin(second.texture_coordinates));
+}
 }  // namespace
 
 TEST(PrototypeScene, ContainsFloorBoundariesAndMultipleColoredObjects) {
@@ -123,6 +132,98 @@ TEST(PrototypeScene, GivesEveryVertexItsOneBitSourceSolidMask) {
     for (std::size_t vertex = 0; vertex < vertices_per_solid; ++vertex) {
       EXPECT_EQ(vertices[solid_index * vertices_per_solid + vertex].solid_mask,
                 expected_mask);
+    }
+  }
+}
+
+TEST(PrototypeScene, GivesEveryFaceFiniteContinuousWorldScaledCoordinates) {
+  const PrototypeLevel level;
+  const auto vertices = buildPrototypeSceneVertices(level);
+  constexpr std::size_t vertices_per_solid = 36;
+  constexpr std::size_t vertices_per_face = 6;
+
+  for (std::size_t solid_index = 0; solid_index < level.solids().size();
+       ++solid_index) {
+    const PrototypeSolid& solid = level.solids()[solid_index];
+    const std::array<std::array<float, 2>, 6> face_extents = {{
+        {solid.half_extent.x * 2.0F, solid.half_extent.y * 2.0F},
+        {solid.half_extent.x * 2.0F, solid.half_extent.y * 2.0F},
+        {solid.half_extent.z * 2.0F, solid.half_extent.y * 2.0F},
+        {solid.half_extent.z * 2.0F, solid.half_extent.y * 2.0F},
+        {solid.half_extent.x * 2.0F, solid.half_extent.z * 2.0F},
+        {solid.half_extent.x * 2.0F, solid.half_extent.z * 2.0F},
+    }};
+    for (std::size_t face = 0; face < face_extents.size(); ++face) {
+      const std::size_t base = solid_index * vertices_per_solid +
+                               face * vertices_per_face;
+      for (std::size_t vertex = 0; vertex < vertices_per_face; ++vertex) {
+        EXPECT_TRUE(std::isfinite(vertices[base + vertex].texture_coordinates[0]));
+        EXPECT_TRUE(std::isfinite(vertices[base + vertex].texture_coordinates[1]));
+      }
+      EXPECT_TRUE(samePositionAndUv(vertices[base], vertices[base + 3]));
+      EXPECT_TRUE(samePositionAndUv(vertices[base + 2], vertices[base + 4]));
+      EXPECT_FLOAT_EQ(vertices[base].texture_coordinates[0], 0.0F);
+      EXPECT_FLOAT_EQ(vertices[base].texture_coordinates[1], 0.0F);
+      EXPECT_NEAR(vertices[base + 1].texture_coordinates[0],
+                  face_extents[face][0], 0.000001F);
+      EXPECT_FLOAT_EQ(vertices[base + 1].texture_coordinates[1], 0.0F);
+      EXPECT_NEAR(vertices[base + 2].texture_coordinates[0],
+                  face_extents[face][0], 0.000001F);
+      EXPECT_NEAR(vertices[base + 2].texture_coordinates[1],
+                  face_extents[face][1], 0.000001F);
+      EXPECT_FLOAT_EQ(vertices[base + 5].texture_coordinates[0], 0.0F);
+      EXPECT_NEAR(vertices[base + 5].texture_coordinates[1],
+                  face_extents[face][1], 0.000001F);
+    }
+  }
+}
+
+TEST(PrototypeScene, FaceTextureAxesFollowEachOutwardNormal) {
+  const auto vertices = buildPrototypeSceneVertices(PrototypeLevel{});
+  constexpr std::size_t vertices_per_face = 6;
+  for (std::size_t face = 0; face < 6; ++face) {
+    const PositionColorVertex& origin = vertices[face * vertices_per_face];
+    const PositionColorVertex& along_u =
+        vertices[face * vertices_per_face + 1];
+    const PositionColorVertex& along_uv =
+        vertices[face * vertices_per_face + 2];
+    const std::array<float, 3> u_axis = {
+        along_u.position[0] - origin.position[0],
+        along_u.position[1] - origin.position[1],
+        along_u.position[2] - origin.position[2]};
+    const std::array<float, 3> v_axis = {
+        along_uv.position[0] - along_u.position[0],
+        along_uv.position[1] - along_u.position[1],
+        along_uv.position[2] - along_u.position[2]};
+    const std::array<float, 3> cross = {
+        u_axis[1] * v_axis[2] - u_axis[2] * v_axis[1],
+        u_axis[2] * v_axis[0] - u_axis[0] * v_axis[2],
+        u_axis[0] * v_axis[1] - u_axis[1] * v_axis[0]};
+    const float orientation = cross[0] * origin.normal[0] +
+                              cross[1] * origin.normal[1] +
+                              cross[2] * origin.normal[2];
+    EXPECT_GT(orientation, 0.0F);
+  }
+}
+
+TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
+  const PrototypeLevel level;
+  const auto vertices = buildPrototypeSceneVertices(level);
+  constexpr std::size_t vertices_per_solid = 36;
+  constexpr std::size_t floor_top_face_first_vertex = 4 * 6;
+  EXPECT_GT(vertices[floor_top_face_first_vertex + 1].texture_coordinates[0],
+            1.0F);
+  EXPECT_GT(vertices[floor_top_face_first_vertex + 2].texture_coordinates[1],
+            1.0F);
+
+  for (std::size_t solid_index = 0; solid_index < level.solids().size();
+       ++solid_index) {
+    const std::uint32_t expected_layer =
+        static_cast<std::uint32_t>(level.solids()[solid_index].surface);
+    for (std::size_t vertex = 0; vertex < vertices_per_solid; ++vertex) {
+      EXPECT_EQ(vertices[solid_index * vertices_per_solid + vertex]
+                    .texture_layer,
+                expected_layer);
     }
   }
 }

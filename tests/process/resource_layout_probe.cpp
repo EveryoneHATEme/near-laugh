@@ -1,3 +1,4 @@
+#include <array>
 #include <filesystem>
 #include <iostream>
 
@@ -15,11 +16,23 @@ int main(int argc, char** argv) {
         root / "shaders" / "prototype_scene_vertex.spv";
     const std::filesystem::path fragment =
         root / "shaders" / "prototype_scene_fragment.spv";
+    const std::array<std::filesystem::path, 4> textures = {
+        root / "textures" / "prototype_floor.png",
+        root / "textures" / "prototype_boundary.png",
+        root / "textures" / "prototype_obstacle.png",
+        root / "textures" / "prototype_shooting_target.png"};
     if (!std::filesystem::is_regular_file(vertex) ||
         !std::filesystem::is_regular_file(fragment)) {
       std::cerr << "Executable-relative shader resources are missing beneath: "
                 << root << '\n';
       return 1;
+    }
+    for (const std::filesystem::path& texture : textures) {
+      if (!std::filesystem::is_regular_file(texture)) {
+        std::cerr << "Executable-relative texture resource is missing: "
+                  << texture << '\n';
+        return 1;
+      }
     }
     return 0;
   } catch (const std::exception& error) {

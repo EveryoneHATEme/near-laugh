@@ -53,6 +53,7 @@ class VulkanContext {
   const Window& window_;
   ValidationDiagnostics& diagnostics_;
   bool validation_enabled_{};
+  bool device_lifecycle_recorded_{};
 };
 
 #endif

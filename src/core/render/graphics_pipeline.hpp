@@ -17,6 +17,10 @@ static_assert(offsetof(PositionColorVertex, color) == sizeof(float) * 3);
 static_assert(offsetof(PositionColorVertex, normal) == sizeof(float) * 3 + 4);
 static_assert(offsetof(PositionColorVertex, solid_mask) ==
               sizeof(float) * 6 + 4);
+static_assert(offsetof(PositionColorVertex, texture_coordinates) ==
+              sizeof(float) * 6 + 8);
+static_assert(offsetof(PositionColorVertex, texture_layer) ==
+              sizeof(float) * 8 + 8);
 
 [[nodiscard]] constexpr VkVertexInputBindingDescription
 sceneVertexBindingDescription() noexcept {
@@ -25,7 +29,7 @@ sceneVertexBindingDescription() noexcept {
 static_assert(sceneVertexBindingDescription().stride ==
               sizeof(PositionColorVertex));
 
-[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 4>
+[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 6>
 sceneVertexAttributeDescriptions() noexcept {
   return {
       {{0, 0, VK_FORMAT_R32G32B32_SFLOAT,
@@ -35,46 +39,59 @@ sceneVertexAttributeDescriptions() noexcept {
        {2, 0, VK_FORMAT_R32G32B32_SFLOAT,
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, normal))},
        {3, 0, VK_FORMAT_R32_UINT,
-        static_cast<std::uint32_t>(offsetof(PositionColorVertex,
-                                            solid_mask))}}};
+        static_cast<std::uint32_t>(offsetof(PositionColorVertex, solid_mask))},
+       {4, 0, VK_FORMAT_R32G32_SFLOAT,
+        static_cast<std::uint32_t>(
+            offsetof(PositionColorVertex, texture_coordinates))},
+       {5, 0, VK_FORMAT_R32_UINT,
+        static_cast<std::uint32_t>(
+            offsetof(PositionColorVertex, texture_layer))}}};
 }
 
 struct alignas(16) ScenePushConstant {
   CameraFrame camera{};
-  alignas(16) std::array<float, 4> direction_and_directional_intensity{};
-  alignas(16) std::array<float, 4> ambient_intensity{};
   alignas(16) std::array<std::uint32_t, 4> presentation_masks{};
 };
 
 inline constexpr std::size_t vulkan_minimum_push_constant_size = 128;
 static_assert(std::is_standard_layout_v<ScenePushConstant>);
 static_assert(offsetof(ScenePushConstant, camera) == 0);
-static_assert(offsetof(ScenePushConstant,
-                       direction_and_directional_intensity) ==
-              sizeof(CameraFrame));
-static_assert(offsetof(ScenePushConstant, ambient_intensity) ==
-              sizeof(CameraFrame) + sizeof(float) * 4);
 static_assert(offsetof(ScenePushConstant, presentation_masks) ==
-              sizeof(CameraFrame) + sizeof(float) * 8);
-static_assert(sizeof(ScenePushConstant) == 112);
+              sizeof(CameraFrame));
+static_assert(sizeof(ScenePushConstant) == 80);
 static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
 
 [[nodiscard]] constexpr ScenePushConstant makeScenePushConstant(
     const CameraFrame& camera,
-    const PrototypeEnvironmentLight& environment_light,
     PrototypeScenePresentation presentation = {}) noexcept {
   ScenePushConstant push_constant{};
   push_constant.camera = camera;
-  push_constant.direction_and_directional_intensity = {
-      environment_light.direction_to_light[0],
-      environment_light.direction_to_light[1],
-      environment_light.direction_to_light[2],
-      environment_light.directional_intensity};
-  push_constant.ambient_intensity[0] = environment_light.ambient_intensity;
-  push_constant.presentation_masks[0] =
-      presentation.highlighted_solid_mask;
+  push_constant.presentation_masks[0] = presentation.highlighted_solid_mask;
   push_constant.presentation_masks[1] = presentation.dimmed_solid_mask;
   return push_constant;
+}
+
+inline constexpr std::uint32_t scene_texture_descriptor_set = 0;
+inline constexpr std::uint32_t scene_lighting_descriptor_set = 1;
+inline constexpr std::uint32_t scene_descriptor_set_count = 2;
+
+[[nodiscard]] inline std::array<VkDescriptorSetLayout,
+                                scene_descriptor_set_count>
+sceneDescriptorSetLayouts(VkDescriptorSetLayout texture,
+                          VkDescriptorSetLayout lighting) noexcept {
+  std::array<VkDescriptorSetLayout, scene_descriptor_set_count> layouts{};
+  layouts[scene_texture_descriptor_set] = texture;
+  layouts[scene_lighting_descriptor_set] = lighting;
+  return layouts;
+}
+
+[[nodiscard]] inline std::array<VkDescriptorSet, scene_descriptor_set_count>
+sceneDescriptorSets(VkDescriptorSet texture,
+                    VkDescriptorSet lighting) noexcept {
+  std::array<VkDescriptorSet, scene_descriptor_set_count> sets{};
+  sets[scene_texture_descriptor_set] = texture;
+  sets[scene_lighting_descriptor_set] = lighting;
+  return sets;
 }
 
 [[nodiscard]] constexpr VkPushConstantRange scenePushConstantRange() noexcept {
@@ -86,6 +103,10 @@ class GraphicsPipeline {
  public:
   GraphicsPipeline(VkDevice device, VkPhysicalDevice physical_device,
                    VkFormat swapchain_format, VkFormat depth_format,
+                   VkDescriptorSetLayout texture_descriptor_layout,
+                   VkDescriptorSet texture_descriptor_set,
+                   VkDescriptorSetLayout lighting_descriptor_layout,
+                   VkDescriptorSet lighting_descriptor_set,
                    const std::filesystem::path& vertex_shader_path,
                    const std::filesystem::path& fragment_shader_path,
                    const PrototypeLevel& level);
@@ -97,7 +118,6 @@ class GraphicsPipeline {
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
   void bindAndDraw(VkCommandBuffer command_buffer, const CameraFrame& camera,
-                   const PrototypeEnvironmentLight& environment_light,
                    PrototypeScenePresentation presentation) const;
 
  private:
@@ -111,11 +131,16 @@ class GraphicsPipeline {
 
   VkDevice device_{VK_NULL_HANDLE};
   VkPhysicalDevice physical_device_{VK_NULL_HANDLE};
+  VkDescriptorSetLayout texture_descriptor_layout_{VK_NULL_HANDLE};
+  VkDescriptorSet texture_descriptor_set_{VK_NULL_HANDLE};
+  VkDescriptorSetLayout lighting_descriptor_layout_{VK_NULL_HANDLE};
+  VkDescriptorSet lighting_descriptor_set_{VK_NULL_HANDLE};
   VkPipelineLayout layout_{VK_NULL_HANDLE};
   VkPipeline pipeline_{VK_NULL_HANDLE};
   VkBuffer vertex_buffer_{VK_NULL_HANDLE};
   VkDeviceMemory vertex_memory_{VK_NULL_HANDLE};
   std::uint32_t vertex_count_{};
+  bool lifecycle_recorded_{};
 };
 
 #endif

@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "core/render/vulkan_utils.hpp"
 
@@ -75,7 +77,8 @@ TEST(SwapchainSelection, ChoosesDeterministicSupportedCompositeAlphaFallback) {
             VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR);
   EXPECT_EQ(chooseCompositeAlpha(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR),
             VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
-  EXPECT_THROW(chooseCompositeAlpha(0), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(chooseCompositeAlpha(0)),
+               std::runtime_error);
 }
 
 TEST(DepthSelection, PrefersFirstSupportedCandidateAndFallsBack) {
@@ -94,6 +97,45 @@ TEST(DepthSelection, PrefersFirstSupportedCandidateAndFallsBack) {
   } catch (const std::runtime_error& error) {
     EXPECT_NE(std::string(error.what()).find("depth format"),
               std::string::npos);
+  }
+}
+
+TEST(TextureMipLevels, CoversEveryLevelDownToOneTexel) {
+  EXPECT_EQ(fullMipLevelCount(1, 1), 1U);
+  EXPECT_EQ(fullMipLevelCount(2, 1), 2U);
+  EXPECT_EQ(fullMipLevelCount(3, 5), 3U);
+  EXPECT_EQ(fullMipLevelCount(256, 256), 9U);
+  EXPECT_EQ(fullMipLevelCount(1024, 256), 11U);
+  EXPECT_THROW(static_cast<void>(fullMipLevelCount(0, 256)),
+               std::invalid_argument);
+  EXPECT_THROW(static_cast<void>(fullMipLevelCount(256, 0)),
+               std::invalid_argument);
+}
+
+TEST(TextureFormatSupport, RequiresSamplingFilteringBlittingAndTransfer) {
+  const VkFormatFeatureFlags required =
+      requiredPrototypeTextureFormatFeatures();
+  EXPECT_NO_THROW(requirePrototypeTextureFormatFeatures(required));
+
+  const std::array<std::pair<VkFormatFeatureFlagBits, std::string>, 6>
+      missing_cases = {{
+          {VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT, "sampling"},
+          {VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT,
+           "linear filtering"},
+          {VK_FORMAT_FEATURE_BLIT_SRC_BIT, "blit source"},
+          {VK_FORMAT_FEATURE_BLIT_DST_BIT, "blit destination"},
+          {VK_FORMAT_FEATURE_TRANSFER_SRC_BIT, "transfer source"},
+          {VK_FORMAT_FEATURE_TRANSFER_DST_BIT, "transfer destination"},
+      }};
+  for (const auto& [feature, description] : missing_cases) {
+    try {
+      requirePrototypeTextureFormatFeatures(required & ~feature);
+      FAIL() << "Expected missing " << description << " support to fail";
+    } catch (const std::runtime_error& error) {
+      EXPECT_NE(std::string(error.what()).find(description), std::string::npos);
+      EXPECT_NE(std::string(error.what()).find("VK_FORMAT_R8G8B8A8_SRGB"),
+                std::string::npos);
+    }
   }
 }
 

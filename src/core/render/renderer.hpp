@@ -1,6 +1,7 @@
 #ifndef CORE_RENDER_RENDERER_H
 #define CORE_RENDER_RENDERER_H
 
+#include <array>
 #include <filesystem>
 #include <memory>
 
@@ -13,6 +14,7 @@ class PrototypeLevel;
 struct RendererResources {
   std::filesystem::path vertex_shader{};
   std::filesystem::path fragment_shader{};
+  std::array<std::filesystem::path, 4> surface_textures{};
 };
 
 class Renderer {

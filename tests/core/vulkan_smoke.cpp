@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -24,7 +25,11 @@ RendererResources smokeResources() {
   const std::filesystem::path resources =
       std::filesystem::absolute("resources").lexically_normal();
   return {resources / "shaders/prototype_scene_vertex.spv",
-          resources / "shaders/prototype_scene_fragment.spv"};
+          resources / "shaders/prototype_scene_fragment.spv",
+          {resources / "textures/prototype_floor.png",
+           resources / "textures/prototype_boundary.png",
+           resources / "textures/prototype_obstacle.png",
+           resources / "textures/prototype_shooting_target.png"}};
 }
 
 void requireLifecycle(const std::vector<std::string>& actual,
@@ -41,14 +46,63 @@ void requireLifecycle(const std::vector<std::string>& actual,
   }
 }
 
-std::vector<std::string> withoutDepthEvents(
-    const std::vector<std::string>& events) {
-  std::vector<std::string> filtered;
-  std::copy_if(events.begin(), events.end(), std::back_inserter(filtered),
-               [](const std::string& event) {
-                 return event != "depth.created" && event != "depth.destroyed";
-               });
-  return filtered;
+std::size_t eventCount(const std::vector<std::string>& events,
+                       std::string_view event) {
+  return static_cast<std::size_t>(
+      std::count(events.begin(), events.end(), std::string(event)));
+}
+
+void requireBalancedEvent(const std::vector<std::string>& events,
+                          std::string_view created, std::string_view destroyed,
+                          std::string_view phase) {
+  if (eventCount(events, created) != eventCount(events, destroyed)) {
+    throw std::runtime_error("Unbalanced " + std::string(created) +
+                             " lifetime during " + std::string(phase));
+  }
+}
+
+void requireBefore(const std::vector<std::string>& events,
+                   std::string_view first, std::string_view second,
+                   std::string_view phase) {
+  const auto first_position =
+      std::find(events.begin(), events.end(), std::string(first));
+  const auto second_position =
+      std::find(events.begin(), events.end(), std::string(second));
+  if (first_position == events.end() || second_position == events.end() ||
+      first_position >= second_position) {
+    throw std::runtime_error(
+        "Invalid lifecycle order between " + std::string(first) + " and " +
+        std::string(second) + " during " + std::string(phase));
+  }
+}
+
+void requireBalancedTextureLifecycle(const std::vector<std::string>& events,
+                                     std::string_view phase) {
+  requireBalancedEvent(events, "device.created", "device.destroyed", phase);
+  requireBalancedEvent(events, "texture.image.created",
+                       "texture.image.destroyed", phase);
+  requireBalancedEvent(events, "texture.view.created", "texture.view.destroyed",
+                       phase);
+  requireBalancedEvent(events, "texture.sampler.created",
+                       "texture.sampler.destroyed", phase);
+  requireBalancedEvent(events, "texture.descriptor_layout.created",
+                       "texture.descriptor_layout.destroyed", phase);
+  requireBalancedEvent(events, "texture.descriptor_pool.created",
+                       "texture.descriptor_pool.destroyed", phase);
+  requireBalancedEvent(events, "texture.created", "texture.destroyed", phase);
+}
+
+void requireBalancedLightingLifecycle(const std::vector<std::string>& events,
+                                      std::string_view phase) {
+  requireBalancedEvent(events, "lighting.buffer.created",
+                       "lighting.buffer.destroyed", phase);
+  requireBalancedEvent(events, "lighting.memory.allocated",
+                       "lighting.memory.freed", phase);
+  requireBalancedEvent(events, "lighting.descriptor_layout.created",
+                       "lighting.descriptor_layout.destroyed", phase);
+  requireBalancedEvent(events, "lighting.descriptor_pool.created",
+                       "lighting.descriptor_pool.destroyed", phase);
+  requireBalancedEvent(events, "lighting.created", "lighting.destroyed", phase);
 }
 
 void requireBalancedDepthLifecycle(const std::vector<std::string>& events,
@@ -89,14 +143,45 @@ void runLifecycleSmoke() {
     PrototypeLevel level;
     Renderer renderer(window, window.framebufferExtent(), level,
                       smokeResources(), diagnostics);
+    renderer.requestSwapchainRecreation();
+    const FrameRequest recovery_request{window.framebufferExtent(), false};
+    if (renderer.renderFrame(recovery_request) != FrameOutcome::Recovered) {
+      throw std::runtime_error(
+          "Forced swapchain recreation did not report recovery");
+    }
   }
   setLifecycleLog(nullptr);
   requireBalancedDepthLifecycle(events, "normal shutdown");
-  requireLifecycle(
-      withoutDepthEvents(events),
-      {"platform.created", "window.created", "renderer.created",
-       "renderer.destroyed", "window.destroyed", "platform.destroyed"},
-      "normal shutdown");
+  requireBalancedTextureLifecycle(events, "normal shutdown");
+  requireBalancedLightingLifecycle(events, "normal shutdown");
+  if (eventCount(events, "texture.image.created") != 1 ||
+      eventCount(events, "texture.sampler.created") != 1 ||
+      eventCount(events, "texture.descriptor_layout.created") != 1 ||
+      eventCount(events, "texture.descriptor_pool.created") != 1 ||
+      eventCount(events, "texture.descriptor.updated") != 1 ||
+      eventCount(events, "texture.uploaded.shader_read_only") != 1) {
+    throw std::runtime_error(
+        "Swapchain recreation rebuilt or incompletely initialized the "
+        "prototype texture");
+  }
+  if (eventCount(events, "lighting.buffer.created") != 1 ||
+      eventCount(events, "lighting.memory.allocated") != 1 ||
+      eventCount(events, "lighting.descriptor_layout.created") != 1 ||
+      eventCount(events, "lighting.descriptor_pool.created") != 1 ||
+      eventCount(events, "lighting.uploaded") != 1 ||
+      eventCount(events, "lighting.descriptor.updated") != 1) {
+    throw std::runtime_error(
+        "Swapchain recreation rebuilt or rewrote immutable prototype "
+        "lighting");
+  }
+  requireBefore(events, "pipeline.destroyed",
+                "texture.descriptor_pool.destroyed", "normal shutdown");
+  requireBefore(events, "pipeline.destroyed",
+                "lighting.descriptor_pool.destroyed", "normal shutdown");
+  requireBefore(events, "lighting.destroyed", "device.destroyed",
+                "normal shutdown");
+  requireBefore(events, "texture.destroyed", "device.destroyed",
+                "normal shutdown");
 
   events.clear();
   setForcedVulkanStage("instance");
@@ -142,10 +227,81 @@ void runLifecycleSmoke() {
         "Forced depth attachment construction failure did not occur");
   }
   requireBalancedDepthLifecycle(events, "depth construction failure");
-  requireLifecycle(withoutDepthEvents(events),
-                   {"platform.created", "window.created", "window.destroyed",
-                    "platform.destroyed"},
-                   "depth construction failure");
+  requireBalancedTextureLifecycle(events, "depth construction failure");
+  requireBalancedLightingLifecycle(events, "depth construction failure");
+
+  constexpr std::array<const char*, 8> texture_failure_stages = {
+      "texture_staging",         "texture_image",
+      "texture_upload",          "texture_view",
+      "texture_sampler",         "texture_descriptor_layout",
+      "texture_descriptor_pool", "texture_descriptor_set"};
+  for (const char* stage : texture_failure_stages) {
+    events.clear();
+    setForcedVulkanStage(stage);
+    setLifecycleLog(&events);
+    renderer_failed = false;
+    try {
+      Platform platform;
+      Window window(platform, 320, 240, "near-laugh texture failure smoke");
+      PrototypeLevel level;
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
+    } catch (const std::runtime_error&) {
+      renderer_failed = true;
+    }
+    setLifecycleLog(nullptr);
+    setForcedVulkanStage("");
+    if (!renderer_failed) {
+      throw std::runtime_error(
+          "Forced texture construction failure did not occur at " +
+          std::string(stage));
+    }
+    requireBalancedTextureLifecycle(events, stage);
+    if (eventCount(events, "texture.created") != 0) {
+      throw std::runtime_error(
+          "Partially constructed texture reported complete ownership at " +
+          std::string(stage));
+    }
+  }
+
+  constexpr std::array<const char*, 6> lighting_failure_stages = {
+      "lighting_buffer",          "lighting_memory",
+      "lighting_upload",          "lighting_descriptor_layout",
+      "lighting_descriptor_pool", "lighting_descriptor_set"};
+  for (const char* stage : lighting_failure_stages) {
+    events.clear();
+    setForcedVulkanStage(stage);
+    setLifecycleLog(&events);
+    renderer_failed = false;
+    try {
+      Platform platform;
+      Window window(platform, 320, 240, "near-laugh lighting failure smoke");
+      PrototypeLevel level;
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
+    } catch (const std::runtime_error&) {
+      renderer_failed = true;
+    }
+    setLifecycleLog(nullptr);
+    setForcedVulkanStage("");
+    if (!renderer_failed) {
+      throw std::runtime_error(
+          "Forced lighting construction failure did not occur at " +
+          std::string(stage));
+    }
+    requireBalancedTextureLifecycle(events, stage);
+    requireBalancedLightingLifecycle(events, stage);
+    if (eventCount(events, "lighting.created") != 0) {
+      throw std::runtime_error(
+          "Partially constructed lighting reported complete ownership at " +
+          std::string(stage));
+    }
+  }
+
+  if (diagnostics.errorCount() != 0) {
+    throw std::runtime_error(
+        "Lifecycle smoke recorded Vulkan validation errors");
+  }
 }
 }  // namespace
 

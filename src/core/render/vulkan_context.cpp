@@ -341,6 +341,8 @@ void VulkanContext::createDevice() {
   requireVulkan(
       vkCreateDevice(physical_device_, &create_info, nullptr, &device_),
       "Create Vulkan logical device");
+  recordLifecycleEvent("device.created");
+  device_lifecycle_recorded_ = true;
   vkGetDeviceQueue(device_, queue_families_.graphics, 0, &graphics_queue_);
   vkGetDeviceQueue(device_, queue_families_.present, 0, &present_queue_);
 }
@@ -349,6 +351,10 @@ void VulkanContext::cleanup() noexcept {
   if (device_ != VK_NULL_HANDLE) {
     vkDestroyDevice(device_, nullptr);
     device_ = VK_NULL_HANDLE;
+    if (device_lifecycle_recorded_) {
+      recordLifecycleEvent("device.destroyed");
+      device_lifecycle_recorded_ = false;
+    }
   }
   if (surface_ != VK_NULL_HANDLE && instance_ != VK_NULL_HANDLE) {
     vkDestroySurfaceKHR(instance_, surface_, nullptr);

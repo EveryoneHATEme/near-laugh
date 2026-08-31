@@ -98,10 +98,13 @@ recoil; a shot is emitted before its new recoil kick affects aim. The rifle
 queries only the closest static collision surface.
 
 The built-in range has exactly three fixed, collidable target plates with
-equal starting health. A damaging hit briefly highlights only the affected
-plate; the final hit still highlights it before persistent destroyed dimming
-takes over. Destroyed plates remain visible and collidable and continue to
-stop hitscan rays. Finite ammunition or ammo tracking, reloads, switching,
+equal starting health. Every plate uses the fixed shooting-target surface
+texture while floor, boundaries, ordinary obstacles, the walkable step, and
+the low-clearance structure use their corresponding immutable surface roles.
+A damaging hit briefly highlights only the affected plate; the final hit still
+highlights its textured appearance before persistent destroyed dimming takes
+over. Destroyed plates remain visible and collidable and continue to stop
+hitscan rays. Finite ammunition or ammo tracking, reloads, switching,
 spread, projectiles, weapon models, crosshairs, audio, particles, enemies, AI,
 physical target destruction, and generic health/damage/entity systems are not
 implemented by this prototype.
@@ -120,6 +123,14 @@ Levels consist primarily of:
 - visual effects
 
 The project does not require an arbitrary hierarchical scene editor.
+
+The built-in prototype level currently authors exactly two fixed world-space
+point lights: a dim cool pool around the player spawn and a warmer destination
+pool deeper along the route. Their bounded radii do not overlap, leaving an
+intentional dark transition over a small near-black ambient floor. The lights
+do not follow the camera and are not loaded, animated, triggered, or controlled
+by gameplay. Flashlights, shadows, fog, exposure adaptation, and a general
+lighting system are outside this milestone.
 
 ## Enemies
 

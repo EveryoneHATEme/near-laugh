@@ -158,6 +158,45 @@ VkFormat chooseDepthFormat(
       "renderer candidate list");
 }
 
+std::uint32_t fullMipLevelCount(std::uint32_t width, std::uint32_t height) {
+  if (width == 0 || height == 0) {
+    throw std::invalid_argument(
+        "Texture mip calculation requires non-zero dimensions");
+  }
+  std::uint32_t largest_dimension = std::max(width, height);
+  std::uint32_t level_count = 1;
+  while (largest_dimension > 1) {
+    largest_dimension /= 2;
+    ++level_count;
+  }
+  return level_count;
+}
+
+void requirePrototypeTextureFormatFeatures(
+    VkFormatFeatureFlags optimal_tiling_features) {
+  struct RequiredFeature {
+    VkFormatFeatureFlagBits bit;
+    const char* description;
+  };
+  constexpr std::array<RequiredFeature, 6> required = {{
+      {VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT, "sampling"},
+      {VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT,
+       "linear filtering"},
+      {VK_FORMAT_FEATURE_BLIT_SRC_BIT, "blit source"},
+      {VK_FORMAT_FEATURE_BLIT_DST_BIT, "blit destination"},
+      {VK_FORMAT_FEATURE_TRANSFER_SRC_BIT, "transfer source"},
+      {VK_FORMAT_FEATURE_TRANSFER_DST_BIT, "transfer destination"},
+  }};
+  for (const RequiredFeature feature : required) {
+    if ((optimal_tiling_features & feature.bit) == 0) {
+      throw std::runtime_error(
+          "Prototype texture format VK_FORMAT_R8G8B8A8_SRGB lacks required "
+          "optimal-tiling " +
+          std::string(feature.description) + " support");
+    }
+  }
+}
+
 std::uint32_t chooseMemoryType(
     std::uint32_t type_bits,
     const VkPhysicalDeviceMemoryProperties& memory_properties,

@@ -24,10 +24,18 @@ RuntimeResources resolveRuntimeResources(
                              root.string());
   }
 
-  RuntimeResources resources{root,
-                             root / "shaders" / "prototype_scene_vertex.spv",
-                             root / "shaders" / "prototype_scene_fragment.spv"};
+  RuntimeResources resources{
+      root,
+      root / "shaders" / "prototype_scene_vertex.spv",
+      root / "shaders" / "prototype_scene_fragment.spv",
+      {root / "textures" / "prototype_floor.png",
+       root / "textures" / "prototype_boundary.png",
+       root / "textures" / "prototype_obstacle.png",
+       root / "textures" / "prototype_shooting_target.png"}};
   requireFile(resources.scene_vertex_shader);
   requireFile(resources.scene_fragment_shader);
+  for (const std::filesystem::path& texture : resources.scene_textures) {
+    requireFile(texture);
+  }
   return resources;
 }

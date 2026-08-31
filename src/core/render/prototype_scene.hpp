@@ -12,10 +12,12 @@ struct PositionColorVertex {
   std::uint8_t color[4];
   float normal[3];
   std::uint32_t solid_mask;
+  float texture_coordinates[2];
+  std::uint32_t texture_layer;
 };
 
 static_assert(std::is_standard_layout_v<PositionColorVertex>);
-static_assert(sizeof(PositionColorVertex) == sizeof(float) * 6 + 8);
+static_assert(sizeof(PositionColorVertex) == sizeof(float) * 8 + 12);
 
 [[nodiscard]] std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const PrototypeLevel& level);

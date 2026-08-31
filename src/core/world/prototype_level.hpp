@@ -9,6 +9,9 @@
 
 inline constexpr std::size_t prototype_target_count = 3;
 inline constexpr std::size_t prototype_solid_mask_bit_count = 32;
+inline constexpr std::size_t prototype_surface_count = 4;
+inline constexpr std::size_t prototype_point_light_count = 2;
+inline constexpr float prototype_maximum_ambient_intensity = 0.08F;
 
 struct WorldPosition {
   float x{};
@@ -33,11 +36,19 @@ enum class PrototypeSolidKind {
   ShootingTarget,
 };
 
+enum class PrototypeSurface : std::uint32_t {
+  Floor = 0,
+  Boundary = 1,
+  Obstacle = 2,
+  ShootingTarget = 3,
+};
+
 struct PrototypeSolid {
   WorldPosition center{};
   WorldExtent half_extent{};
   WorldColor color{};
   PrototypeSolidKind kind{PrototypeSolidKind::Obstacle};
+  PrototypeSurface surface{PrototypeSurface::Obstacle};
 };
 
 struct PrototypePlayerSpawn {
@@ -45,9 +56,15 @@ struct PrototypePlayerSpawn {
   float yaw_degrees{};
 };
 
+struct PrototypePointLight {
+  WorldPosition position{};
+  std::array<float, 3> color{};
+  float intensity{};
+  float radius{};
+};
+
 struct PrototypeEnvironmentLight {
-  std::array<float, 3> direction_to_light{};
-  float directional_intensity{};
+  std::array<PrototypePointLight, prototype_point_light_count> point_lights{};
   float ambient_intensity{};
 };
 
@@ -89,6 +106,8 @@ class PrototypeLevel {
 
 [[nodiscard]] bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept;
+[[nodiscard]] bool prototypeSurfaceIsValid(PrototypeSurface surface) noexcept;
+[[nodiscard]] bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept;
 [[nodiscard]] bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept;
 [[nodiscard]] bool prototypeTargetDescriptionsAreValid(
     const std::vector<PrototypeSolid>& solids,

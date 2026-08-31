@@ -9,21 +9,39 @@
 
 #include "core/render/vulkan_utils.hpp"
 #include "core/resources/shader_provider.hpp"
+#include "core/testing/test_controls.hpp"
 
 GraphicsPipeline::GraphicsPipeline(
     VkDevice device, VkPhysicalDevice physical_device,
     VkFormat swapchain_format, VkFormat depth_format,
+    VkDescriptorSetLayout texture_descriptor_layout,
+    VkDescriptorSet texture_descriptor_set,
+    VkDescriptorSetLayout lighting_descriptor_layout,
+    VkDescriptorSet lighting_descriptor_set,
     const std::filesystem::path& vertex_shader_path,
     const std::filesystem::path& fragment_shader_path,
     const PrototypeLevel& level)
-    : device_(device), physical_device_(physical_device) {
-  if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
-    throw std::runtime_error("GraphicsPipeline requires valid Vulkan handles");
+    : device_(device),
+      physical_device_(physical_device),
+      texture_descriptor_layout_(texture_descriptor_layout),
+      texture_descriptor_set_(texture_descriptor_set),
+      lighting_descriptor_layout_(lighting_descriptor_layout),
+      lighting_descriptor_set_(lighting_descriptor_set) {
+  if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE ||
+      texture_descriptor_layout_ == VK_NULL_HANDLE ||
+      texture_descriptor_set_ == VK_NULL_HANDLE ||
+      lighting_descriptor_layout_ == VK_NULL_HANDLE ||
+      lighting_descriptor_set_ == VK_NULL_HANDLE) {
+    throw std::runtime_error(
+        "GraphicsPipeline requires valid Vulkan, texture, and lighting "
+        "descriptor handles");
   }
   try {
     createPipeline(swapchain_format, depth_format, vertex_shader_path,
                    fragment_shader_path);
     createVertexBuffer(level);
+    recordLifecycleEvent("pipeline.created");
+    lifecycle_recorded_ = true;
   } catch (...) {
     cleanup();
     throw;
@@ -119,6 +137,11 @@ void GraphicsPipeline::createPipeline(
     VkPipelineLayoutCreateInfo layout_info{
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     const VkPushConstantRange camera_push_constant = scenePushConstantRange();
+    const auto descriptor_layouts = sceneDescriptorSetLayouts(
+        texture_descriptor_layout_, lighting_descriptor_layout_);
+    layout_info.setLayoutCount =
+        static_cast<std::uint32_t>(descriptor_layouts.size());
+    layout_info.pSetLayouts = descriptor_layouts.data();
     layout_info.pushConstantRangeCount = 1;
     layout_info.pPushConstantRanges = &camera_push_constant;
     requireVulkan(
@@ -207,11 +230,16 @@ void GraphicsPipeline::createVertexBuffer(const PrototypeLevel& level) {
 
 void GraphicsPipeline::bindAndDraw(
     VkCommandBuffer command_buffer, const CameraFrame& camera,
-    const PrototypeEnvironmentLight& environment_light,
     PrototypeScenePresentation presentation) const {
   const ScenePushConstant push_constant =
-      makeScenePushConstant(camera, environment_light, presentation);
+      makeScenePushConstant(camera, presentation);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+  const auto descriptor_sets =
+      sceneDescriptorSets(texture_descriptor_set_, lighting_descriptor_set_);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          layout_, scene_texture_descriptor_set,
+                          static_cast<std::uint32_t>(descriptor_sets.size()),
+                          descriptor_sets.data(), 0, nullptr);
   vkCmdPushConstants(command_buffer, layout_,
                      scenePushConstantRange().stageFlags, 0,
                      sizeof(ScenePushConstant), &push_constant);
@@ -236,5 +264,9 @@ void GraphicsPipeline::cleanup() noexcept {
   if (layout_ != VK_NULL_HANDLE) {
     vkDestroyPipelineLayout(device_, layout_, nullptr);
     layout_ = VK_NULL_HANDLE;
+  }
+  if (lifecycle_recorded_) {
+    recordLifecycleEvent("pipeline.destroyed");
+    lifecycle_recorded_ = false;
   }
 }

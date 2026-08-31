@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "core/render/graphics_pipeline.hpp"
+#include "core/render/lighting_resources.hpp"
 
 TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   constexpr VkVertexInputBindingDescription binding =
@@ -24,7 +25,14 @@ TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   EXPECT_EQ(attributes[3].location, 3U);
   EXPECT_EQ(attributes[3].format, VK_FORMAT_R32_UINT);
   EXPECT_EQ(attributes[3].offset, offsetof(PositionColorVertex, solid_mask));
-  EXPECT_EQ(sizeof(PositionColorVertex), sizeof(float) * 6 + 8);
+  EXPECT_EQ(attributes[4].location, 4U);
+  EXPECT_EQ(attributes[4].format, VK_FORMAT_R32G32_SFLOAT);
+  EXPECT_EQ(attributes[4].offset,
+            offsetof(PositionColorVertex, texture_coordinates));
+  EXPECT_EQ(attributes[5].location, 5U);
+  EXPECT_EQ(attributes[5].format, VK_FORMAT_R32_UINT);
+  EXPECT_EQ(attributes[5].offset, offsetof(PositionColorVertex, texture_layer));
+  EXPECT_EQ(sizeof(PositionColorVertex), sizeof(float) * 8 + 12);
 }
 
 TEST(ScenePipeline, SceneDataFitsTheSharedPushConstantRange) {
@@ -35,39 +43,87 @@ TEST(ScenePipeline, SceneDataFitsTheSharedPushConstantRange) {
   EXPECT_EQ(range.offset, 0U);
   EXPECT_EQ(range.size, sizeof(ScenePushConstant));
   EXPECT_EQ(offsetof(ScenePushConstant, camera), 0U);
-  EXPECT_EQ(offsetof(ScenePushConstant, direction_and_directional_intensity),
-            sizeof(CameraFrame));
-  EXPECT_EQ(offsetof(ScenePushConstant, ambient_intensity),
-            sizeof(CameraFrame) + sizeof(float) * 4);
   EXPECT_EQ(offsetof(ScenePushConstant, presentation_masks),
-            sizeof(CameraFrame) + sizeof(float) * 8);
-  EXPECT_EQ(sizeof(ScenePushConstant), 112U);
+            sizeof(CameraFrame));
+  EXPECT_EQ(sizeof(ScenePushConstant), 80U);
   EXPECT_LE(sizeof(ScenePushConstant), vulkan_minimum_push_constant_size);
 }
 
-TEST(ScenePipeline, PushConstantCarriesCameraAndImmutableLevelLight) {
+TEST(ScenePipeline, PushConstantCarriesOnlyCameraAndPresentation) {
   CameraFrame camera;
   camera.view_projection[12] = 3.5F;
-  const PrototypeEnvironmentLight light = PrototypeLevel{}.environmentLight();
   const PrototypeScenePresentation presentation{0x12U, 0x24U};
   const ScenePushConstant push_constant =
-      makeScenePushConstant(camera, light, presentation);
+      makeScenePushConstant(camera, presentation);
 
   EXPECT_FLOAT_EQ(push_constant.camera.view_projection[12], 3.5F);
-  EXPECT_FLOAT_EQ(push_constant.direction_and_directional_intensity[0],
-                  light.direction_to_light[0]);
-  EXPECT_FLOAT_EQ(push_constant.direction_and_directional_intensity[1],
-                  light.direction_to_light[1]);
-  EXPECT_FLOAT_EQ(push_constant.direction_and_directional_intensity[2],
-                  light.direction_to_light[2]);
-  EXPECT_FLOAT_EQ(push_constant.direction_and_directional_intensity[3],
-                  light.directional_intensity);
-  EXPECT_FLOAT_EQ(push_constant.ambient_intensity[0], light.ambient_intensity);
-  EXPECT_FLOAT_EQ(push_constant.ambient_intensity[1], 0.0F);
-  EXPECT_FLOAT_EQ(push_constant.ambient_intensity[2], 0.0F);
-  EXPECT_FLOAT_EQ(push_constant.ambient_intensity[3], 0.0F);
   EXPECT_EQ(push_constant.presentation_masks[0], 0x12U);
   EXPECT_EQ(push_constant.presentation_masks[1], 0x24U);
   EXPECT_EQ(push_constant.presentation_masks[2], 0U);
   EXPECT_EQ(push_constant.presentation_masks[3], 0U);
+}
+
+TEST(SceneLighting, MatchesStd140UploadAndDescriptorContract) {
+  static_assert(prototype_point_light_count == 2U);
+  EXPECT_EQ(alignof(PrototypePointLightUpload), 16U);
+  EXPECT_EQ(sizeof(PrototypePointLightUpload), 32U);
+  EXPECT_EQ(offsetof(PrototypePointLightUpload, position_and_radius), 0U);
+  EXPECT_EQ(offsetof(PrototypePointLightUpload, color_and_intensity), 16U);
+  EXPECT_EQ(alignof(PrototypeLightingUpload), 16U);
+  EXPECT_EQ(offsetof(PrototypeLightingUpload, point_lights), 0U);
+  EXPECT_EQ(offsetof(PrototypeLightingUpload, ambient_intensity), 64U);
+  EXPECT_EQ(sizeof(PrototypeLightingUpload), 80U);
+
+  constexpr VkDescriptorSetLayoutBinding binding =
+      prototypeLightingDescriptorBinding();
+  EXPECT_EQ(binding.binding, 0U);
+  EXPECT_EQ(binding.descriptorType, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+  EXPECT_EQ(binding.descriptorCount, 1U);
+  EXPECT_EQ(binding.stageFlags, VK_SHADER_STAGE_FRAGMENT_BIT);
+  EXPECT_EQ(binding.pImmutableSamplers, nullptr);
+
+  const PrototypeEnvironmentLight environment =
+      PrototypeLevel{}.environmentLight();
+  const PrototypeLightingUpload upload =
+      makePrototypeLightingUpload(environment);
+  for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
+    EXPECT_FLOAT_EQ(upload.point_lights[index].position_and_radius[0],
+                    environment.point_lights[index].position.x);
+    EXPECT_FLOAT_EQ(upload.point_lights[index].position_and_radius[1],
+                    environment.point_lights[index].position.y);
+    EXPECT_FLOAT_EQ(upload.point_lights[index].position_and_radius[2],
+                    environment.point_lights[index].position.z);
+    EXPECT_FLOAT_EQ(upload.point_lights[index].position_and_radius[3],
+                    environment.point_lights[index].radius);
+    EXPECT_EQ(
+        upload.point_lights[index].color_and_intensity,
+        (std::array<float, 4>{environment.point_lights[index].color[0],
+                              environment.point_lights[index].color[1],
+                              environment.point_lights[index].color[2],
+                              environment.point_lights[index].intensity}));
+  }
+  EXPECT_FLOAT_EQ(upload.ambient_intensity[0], environment.ambient_intensity);
+  EXPECT_FLOAT_EQ(upload.ambient_intensity[1], 0.0F);
+  EXPECT_FLOAT_EQ(upload.ambient_intensity[2], 0.0F);
+  EXPECT_FLOAT_EQ(upload.ambient_intensity[3], 0.0F);
+}
+
+TEST(SceneLighting, RadiusBoundedFalloffIsExactAndBounded) {
+  constexpr float radius = 4.0F;
+  EXPECT_FLOAT_EQ(prototypePointLightFalloff(0.0F, radius), 1.0F);
+  EXPECT_GT(prototypePointLightFalloff(radius * 0.5F, radius), 0.0F);
+  EXPECT_LT(prototypePointLightFalloff(radius * 0.5F, radius), 1.0F);
+  EXPECT_FLOAT_EQ(prototypePointLightFalloff(radius, radius), 0.0F);
+  EXPECT_FLOAT_EQ(prototypePointLightFalloff(radius + 1.0F, radius), 0.0F);
+}
+
+TEST(ScenePipeline, ReservesTwoImmutableDescriptorSets) {
+  static_assert(scene_texture_descriptor_set == 0U);
+  static_assert(scene_lighting_descriptor_set == 1U);
+  static_assert(scene_descriptor_set_count == 2U);
+  const auto layouts =
+      sceneDescriptorSetLayouts(VK_NULL_HANDLE, VK_NULL_HANDLE);
+  const auto sets = sceneDescriptorSets(VK_NULL_HANDLE, VK_NULL_HANDLE);
+  EXPECT_EQ(layouts.size(), 2U);
+  EXPECT_EQ(sets.size(), 2U);
 }

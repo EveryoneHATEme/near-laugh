@@ -15,7 +15,8 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
       targets_(level_),
       renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources.scene_vertex_shader),
-                 std::move(resources.scene_fragment_shader)},
+                 std::move(resources.scene_fragment_shader),
+                 std::move(resources.scene_textures)},
                 diagnostics) {
   window_.setCursorCaptured(true);
   fixed_step_.reset();

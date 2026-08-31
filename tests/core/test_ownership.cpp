@@ -5,13 +5,15 @@
 #include <string_view>
 #include <type_traits>
 
+#include "core/physics/physics_world.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
-#include "core/physics/physics_world.hpp"
 #include "core/player/player_controller.hpp"
 #include "core/render/depth_attachment.hpp"
 #include "core/render/graphics_pipeline.hpp"
+#include "core/render/lighting_resources.hpp"
 #include "core/render/renderer.hpp"
+#include "core/render/sampled_texture.hpp"
 #include "core/render/vulkan_context.hpp"
 #include "core/testing/test_controls.hpp"
 #include "near_laugh/application.hpp"
@@ -23,6 +25,10 @@ TEST(Ownership, RuntimeAndVulkanOwnersAreNonCopyable) {
   static_assert(!std::is_copy_constructible_v<DepthAttachment>);
   static_assert(!std::is_move_constructible_v<DepthAttachment>);
   static_assert(!std::is_copy_constructible_v<GraphicsPipeline>);
+  static_assert(!std::is_copy_constructible_v<LightingResources>);
+  static_assert(!std::is_move_constructible_v<LightingResources>);
+  static_assert(!std::is_copy_constructible_v<SampledTexture>);
+  static_assert(!std::is_move_constructible_v<SampledTexture>);
   static_assert(!std::is_copy_constructible_v<Renderer>);
   static_assert(!std::is_copy_constructible_v<PhysicsWorld>);
   static_assert(!std::is_copy_constructible_v<PlayerController>);

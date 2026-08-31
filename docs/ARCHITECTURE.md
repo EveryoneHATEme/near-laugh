@@ -30,8 +30,9 @@ only standard-library types. The concrete build modules are:
   configuration, and fixed FPS input mapping;
 - `near_laugh_platform`: GLFW lifetime, the window, event batches, and
   engine-owned physical keyboard/mouse state;
-- `near_laugh_world`: the immutable axis-aligned prototype solids and player
-  spawn shared by rendering and collision;
+- `near_laugh_world`: the immutable axis-aligned prototype solids, player
+  spawn, and two validated world-space point lights shared with the concrete
+  consumers that need them;
 - `near_laugh_physics`: the concrete Jolt lifetime, static collision world,
   and one virtual character;
 - `near_laugh_render`: Vulkan lifetime, presentation, and explicit frame
@@ -136,15 +137,29 @@ begins, while held actions persist across both kinds of event dispatch.
 
 The `fps` launcher uses a private, host-native helper to discover its actual
 executable path and supplies the adjacent `resources` directory through
-`RuntimeConfig`. Invocation text and the process working directory do not
-participate in runtime layout discovery.
+`RuntimeConfig`. The packaged prototype shaders and the four fixed textures
+`prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
+`prototype_shooting_target.png` are resolved beneath that explicit root.
+Invocation text and the process working directory do not participate in
+runtime layout discovery.
 
-The current world is one immutable `PrototypeLevel` containing colored
-axis-aligned solids, a player spawn, and three stable shooting-target
-descriptions. Rendering expands each solid into the existing triangle stream,
-while physics creates one matching static box body. Mutable target health and
-feedback remain outside the level. It is not a scene hierarchy, asset
+The current world is one immutable `PrototypeLevel` containing tinted
+axis-aligned solids, a player spawn, exactly two world-space point lights, a
+near-black ambient scalar, and three stable shooting-target descriptions. Each
+solid independently carries exactly one fixed surface role: floor, boundary,
+obstacle, or shooting target. Rendering expands each solid into the existing
+UV/layer-bearing triangle stream, while physics creates one matching static box
+body. The renderer validates and uploads the level lights once; they do not
+follow the camera or become mutable frame state. Mutable target health and
+feedback remain outside the level. The four roles are not a material system,
+the lights are not a registry, and the level is not a scene hierarchy, asset
 pipeline, ECS, or generic level format.
+
+Renderer lifetime owns the sampled texture and immutable lighting resources
+after the Vulkan context and before the format-dependent graphics pipeline.
+Pipelines borrow their descriptor layouts and sets, are destroyed first, and
+may be recreated without rebuilding either owner. Both owners are released
+before the logical device.
 
 ## Threading
 

@@ -16,6 +16,26 @@ foreach(RENDER_SOURCE IN LISTS RENDER_SOURCES)
     endif()
 endforeach()
 
+file(GLOB_RECURSE DECODER_BOUNDARY_SOURCES
+     "${SOURCE_ROOT}/include/*.hpp"
+     "${SOURCE_ROOT}/include/*.h"
+     "${SOURCE_ROOT}/src/*.cpp"
+     "${SOURCE_ROOT}/src/*.hpp"
+     "${SOURCE_ROOT}/tests/*.cpp"
+     "${SOURCE_ROOT}/tests/*.hpp")
+foreach(DECODER_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    if(DECODER_SOURCE MATCHES
+       "[/\\]src[/\\]core[/\\]resources[/\\]image_decoder[.]cpp$")
+        continue()
+    endif()
+    file(READ "${DECODER_SOURCE}" DECODER_SOURCE_CONTENT)
+    if(DECODER_SOURCE_CONTENT MATCHES "stb_image|stbi_")
+        message(FATAL_ERROR
+            "stb_image detail escaped the private decoder implementation: "
+            "${DECODER_SOURCE}")
+    endif()
+endforeach()
+
 file(GLOB_RECURSE PROJECT_BACKEND_SOURCES
      "${SOURCE_ROOT}/src/core/*.cpp"
      "${SOURCE_ROOT}/src/core/*.hpp")
@@ -85,6 +105,10 @@ file(READ "${SOURCE_ROOT}/src/core/render/graphics_pipeline.cpp"
      PIPELINE_CONTENT)
 file(READ "${SOURCE_ROOT}/src/core/render/graphics_pipeline.hpp"
      PIPELINE_HEADER_CONTENT)
+file(READ "${SOURCE_ROOT}/src/core/render/sampled_texture.cpp"
+     SAMPLED_TEXTURE_CONTENT)
+file(READ "${SOURCE_ROOT}/src/core/render/lighting_resources.cpp"
+     LIGHTING_RESOURCES_CONTENT)
 foreach(REQUIRED_PIPELINE_TOKEN IN ITEMS
         "depthTestEnable"
         "depthWriteEnable"
@@ -107,11 +131,69 @@ foreach(REQUIRED_PRESENTATION_TOKEN IN ITEMS
             "${REQUIRED_PRESENTATION_TOKEN}")
     endif()
 endforeach()
-if(RENDERER_CONTENT MATCHES
-   "vkCmdDrawIndexed|vkCmdBindDescriptorSets|vkUpdateDescriptorSets")
+if(RENDERER_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets" OR
+   PIPELINE_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets")
     message(FATAL_ERROR
-        "Prototype solid presentation introduced extra geometry or descriptors")
+        "Prototype scene introduced indexed geometry or mutable frame descriptors")
 endif()
+string(REGEX MATCHALL "vkCmdBindDescriptorSets\\(" DESCRIPTOR_BINDS
+       "${PIPELINE_CONTENT}")
+list(LENGTH DESCRIPTOR_BINDS DESCRIPTOR_BIND_COUNT)
+if(NOT DESCRIPTOR_BIND_COUNT EQUAL 1)
+    message(FATAL_ERROR
+        "Prototype scene must bind its immutable descriptor sets once")
+endif()
+string(REGEX MATCHALL "vkUpdateDescriptorSets\\(" DESCRIPTOR_UPDATES
+       "${SAMPLED_TEXTURE_CONTENT}")
+list(LENGTH DESCRIPTOR_UPDATES DESCRIPTOR_UPDATE_COUNT)
+if(NOT DESCRIPTOR_UPDATE_COUNT EQUAL 1)
+    message(FATAL_ERROR
+        "Prototype texture descriptor must be updated exactly once at startup")
+endif()
+string(REGEX MATCHALL "vkUpdateDescriptorSets\\(" LIGHTING_DESCRIPTOR_UPDATES
+       "${LIGHTING_RESOURCES_CONTENT}")
+list(LENGTH LIGHTING_DESCRIPTOR_UPDATES LIGHTING_DESCRIPTOR_UPDATE_COUNT)
+if(NOT LIGHTING_DESCRIPTOR_UPDATE_COUNT EQUAL 1)
+    message(FATAL_ERROR
+        "Prototype lighting descriptor must be updated exactly once at startup")
+endif()
+foreach(REQUIRED_LIGHTING_TOKEN IN ITEMS
+        "VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT"
+        "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT"
+        "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT"
+        "VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER"
+        "vkMapMemory"
+        "vkUnmapMemory")
+    if(NOT LIGHTING_RESOURCES_CONTENT MATCHES "${REQUIRED_LIGHTING_TOKEN}")
+        message(FATAL_ERROR
+            "Prototype lighting owner is missing: ${REQUIRED_LIGHTING_TOKEN}")
+    endif()
+endforeach()
+foreach(OBSOLETE_LIGHTING_TOKEN IN ITEMS
+        "direction_to_light"
+        "directional_intensity")
+    string(FIND
+           "${RENDERER_CONTENT}${PIPELINE_CONTENT}${PIPELINE_HEADER_CONTENT}"
+           "${OBSOLETE_LIGHTING_TOKEN}" OBSOLETE_LIGHTING_POSITION)
+    if(NOT OBSOLETE_LIGHTING_POSITION LESS 0)
+        message(FATAL_ERROR
+            "Per-frame directional lighting survived in the renderer: "
+            "${OBSOLETE_LIGHTING_TOKEN}")
+    endif()
+endforeach()
+foreach(REQUIRED_TEXTURE_TOKEN IN ITEMS
+        "VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER"
+        "descriptorCount = 1"
+        "VK_IMAGE_VIEW_TYPE_2D_ARRAY"
+        "VK_SAMPLER_ADDRESS_MODE_REPEAT"
+        "VK_SAMPLER_MIPMAP_MODE_LINEAR"
+        "vkQueueSubmit2"
+        "VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL")
+    if(NOT SAMPLED_TEXTURE_CONTENT MATCHES "${REQUIRED_TEXTURE_TOKEN}")
+        message(FATAL_ERROR
+            "Sampled texture owner is missing: ${REQUIRED_TEXTURE_TOKEN}")
+    endif()
+endforeach()
 string(REGEX MATCHALL "vkCmdDraw\\(" SCENE_DRAW_CALLS "${PIPELINE_CONTENT}")
 list(LENGTH SCENE_DRAW_CALLS SCENE_DRAW_CALL_COUNT)
 if(NOT SCENE_DRAW_CALL_COUNT EQUAL 1)

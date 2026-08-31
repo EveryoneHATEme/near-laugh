@@ -50,6 +50,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG f58f558c120e9b32c217290b80bad1a0729fbb2c
+)
+FetchContent_MakeAvailable(stb)
+add_library(near_laugh_stb_image INTERFACE)
+target_include_directories(near_laugh_stb_image SYSTEM INTERFACE
+    "${stb_SOURCE_DIR}"
+)
+
 set(JPH_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
 set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
@@ -127,16 +138,20 @@ add_library(near_laugh_render STATIC
     src/core/platform/glfw_vulkan_bridge.cpp
     src/core/render/depth_attachment.cpp
     src/core/render/graphics_pipeline.cpp
+    src/core/render/lighting_resources.cpp
     src/core/render/prototype_scene.cpp
     src/core/render/renderer.cpp
+    src/core/render/sampled_texture.cpp
     src/core/render/validation_diagnostics.cpp
     src/core/render/vulkan_context.cpp
     src/core/render/vulkan_utils.cpp
+    src/core/resources/image_decoder.cpp
     src/core/resources/shader_provider.cpp
 )
 target_include_directories(near_laugh_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_render
     PRIVATE near_laugh_platform near_laugh_world Vulkan::Vulkan glfw
+            near_laugh_stb_image
 )
 near_laugh_enable_warnings(near_laugh_render)
 
@@ -208,6 +223,9 @@ add_custom_command(TARGET fps POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
             "$<TARGET_FILE_DIR:fps>/resources/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
+            "$<TARGET_FILE_DIR:fps>/resources/textures"
 )
 
 if(BUILD_TESTING)
