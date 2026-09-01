@@ -1,49 +1,43 @@
-#include "application.hpp"
+#include "near_laugh/application.hpp"
 
-#include <SDL3/SDL.h>
-
-#include <filesystem>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
-Application::Application() {
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_Log("ERROR: Failed to initialize SDL: %s", SDL_GetError());
-  } else {
-    SDL_Log("SDL initialized successfully");
+#include "core/engine.hpp"
+#include "core/render/validation_diagnostics.hpp"
+#include "core/runtime_resources.hpp"
+
+namespace near_laugh {
+
+class Application::Impl {
+ public:
+  explicit Impl(RuntimeConfig config) {
+    RuntimeResources resources = resolveRuntimeResources(config.resource_root);
+    engine = std::make_unique<Engine>(config, std::move(resources), diagnostics);
   }
 
-  SDL_Window* _window = SDL_CreateWindow("window", 1024, 768, 0);
-  if (_window == nullptr) {
-    throw std::runtime_error("APPLICATION: CreateWindow failed");
+  ValidationDiagnostics diagnostics{};
+  std::unique_ptr<Engine> engine{};
+};
+
+Application::Application(RuntimeConfig config)
+    : impl_(std::make_unique<Impl>(std::move(config))) {}
+
+Application::~Application() = default;
+
+void Application::run() {
+  if (impl_->engine == nullptr) {
+    throw std::logic_error("Application runtime has already stopped");
   }
-  window.reset(_window);
-
-  renderer = std::make_unique<Renderer>(window.get());
-  graphics_pipeline = std::make_unique<GraphicsPipeline>(
-      renderer->getDevice(), renderer->getSwapchainFormat(),
-      std::filesystem::path("resources/shaders/triangle_vertex.spv"),
-      std::filesystem::path("resources/shaders/triangle_fragment.spv"));
-}
-
-Application::~Application() {}
-
-void Application::GameLoop() {
-  bool run = true;
-
-  while (run) {
-    auto& frame_context = renderer->beginFrame();
-    SDL_GPURenderPass* render_pass =
-        renderer->beginRenderPass(frame_context, 0, 0, 0, 1);
-    graphics_pipeline->draw(render_pass);
-    renderer->endRenderPass(render_pass);
-    renderer->endFrame(frame_context);
-
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_EVENT_QUIT) {
-        run = false;
-        break;
-      }
-    }
+  impl_->engine->run();
+  impl_->engine.reset();
+  if (impl_->diagnostics.errorCount() != 0) {
+    throw std::runtime_error(
+        "Vulkan validation reported " +
+        std::to_string(impl_->diagnostics.errorCount()) +
+        " error message(s) during runtime or teardown");
   }
 }
+
+}  // namespace near_laugh

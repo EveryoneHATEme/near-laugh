@@ -1,146 +1,211 @@
 #include "graphics_pipeline.hpp"
 
 #include <array>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
-#include "../resources/shader_provider.hpp"
-
-struct PositionColorVertex {
-  float position[3];
-  uint8_t color[4];
-};
-
-SDL_GPUShader* GraphicsPipeline::createShader(
-    const std::vector<uint8_t>& shader_source, ShaderType shader_type) const {
-  const SDL_GPUShaderStage shader_stage =
-      shader_type == ShaderType::VERTEX_SHADER ? SDL_GPU_SHADERSTAGE_VERTEX
-                                               : SDL_GPU_SHADERSTAGE_FRAGMENT;
-
-  SDL_GPUShaderCreateInfo shader_create_info = {
-      .code_size = shader_source.size(),
-      .code = shader_source.data(),
-      .entrypoint = "main",
-      .format = SDL_GPU_SHADERFORMAT_SPIRV,
-      .stage = shader_stage};
-
-  SDL_GPUShader* shader = SDL_CreateGPUShader(device, &shader_create_info);
-  if (shader == nullptr) {
-    throw std::runtime_error("GraphicsPipeline: CreateGPUShader failed");
-  }
-  return shader;
-}
+#include "core/render/vulkan_utils.hpp"
+#include "core/resources/shader_provider.hpp"
+#include "core/testing/test_controls.hpp"
 
 GraphicsPipeline::GraphicsPipeline(
-    SDL_GPUDevice* device, SDL_GPUTextureFormat swapchain_format,
+    VkDevice device, VkFormat swapchain_format, VkFormat depth_format,
+    VkDescriptorSetLayout texture_descriptor_layout,
+    VkDescriptorSet texture_descriptor_set,
+    VkDescriptorSetLayout lighting_descriptor_layout,
+    VkDescriptorSet lighting_descriptor_set,
     const std::filesystem::path& vertex_shader_path,
     const std::filesystem::path& fragment_shader_path)
-    : device(device) {
-  const ShaderProvider& shader_provider = ShaderProvider::get();
-  const std::vector<uint8_t>& vertex_shader_source =
-      shader_provider.readShader(vertex_shader_path);
-  const std::vector<uint8_t>& fragment_shader_source =
-      shader_provider.readShader(fragment_shader_path);
-
-  SDL_GPUShader* vertex_shader =
-      createShader(vertex_shader_source, ShaderType::VERTEX_SHADER);
-  SDL_GPUShader* fragment_shader =
-      createShader(fragment_shader_source, ShaderType::FRAGMENT_SHADER);
-
-  std::array<SDL_GPUVertexBufferDescription, 1> vertex_buffer_descriptions{
-      {{.slot = 0,
-        .pitch = sizeof(PositionColorVertex),
-        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-        .instance_step_rate = 0}}};
-  std::array<SDL_GPUVertexAttribute, 2> vertex_attributes{
-      {{.location = 0,
-        .buffer_slot = 0,
-        .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-        .offset = 0},
-       {.location = 1,
-        .buffer_slot = 0,
-        .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
-        .offset = sizeof(float) * 3}}};
-  std::array<SDL_GPUColorTargetDescription, 1> color_target_descriptions = {
-      {{.format = swapchain_format}}};
-
-  SDL_GPUGraphicsPipelineCreateInfo pipeline_create_info = {
-      .vertex_shader = vertex_shader,
-      .fragment_shader = fragment_shader,
-      .vertex_input_state = {.vertex_buffer_descriptions =
-                                 vertex_buffer_descriptions.data(),
-                             .num_vertex_buffers =
-                                 vertex_buffer_descriptions.size(),
-                             .vertex_attributes = vertex_attributes.data(),
-                             .num_vertex_attributes = vertex_attributes.size()},
-      .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST};
-  pipeline_create_info.target_info = {
-      .color_target_descriptions = color_target_descriptions.data(),
-      .num_color_targets = color_target_descriptions.size()};
-
-  graphicsPipeline =
-      SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
-  if (graphicsPipeline == nullptr) {
+    : device_(device),
+      texture_descriptor_layout_(texture_descriptor_layout),
+      texture_descriptor_set_(texture_descriptor_set),
+      lighting_descriptor_layout_(lighting_descriptor_layout),
+      lighting_descriptor_set_(lighting_descriptor_set) {
+  if (device_ == VK_NULL_HANDLE || texture_descriptor_layout_ == VK_NULL_HANDLE ||
+      texture_descriptor_set_ == VK_NULL_HANDLE ||
+      lighting_descriptor_layout_ == VK_NULL_HANDLE ||
+      lighting_descriptor_set_ == VK_NULL_HANDLE) {
     throw std::runtime_error(
-        "GraphicsPipeline: CreateGPUGraphicsPipeline failed");
+        "GraphicsPipeline requires valid Vulkan, texture, and lighting "
+        "descriptor handles");
   }
-
-  SDL_ReleaseGPUShader(device, vertex_shader);
-  SDL_ReleaseGPUShader(device, fragment_shader);
-
-  SDL_GPUBufferCreateInfo buffer_create_info{
-      .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-      .size = sizeof(PositionColorVertex) * 3};
-  vertexBuffer = SDL_CreateGPUBuffer(device, &buffer_create_info);
-
-  SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info{
-      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-      .size = sizeof(PositionColorVertex) * 3};
-  SDL_GPUTransferBuffer* transfer_buffer =
-      SDL_CreateGPUTransferBuffer(device, &transfer_buffer_create_info);
-
-  PositionColorVertex* transfer_data = static_cast<PositionColorVertex*>(
-      SDL_MapGPUTransferBuffer(device, transfer_buffer, false));
-  transfer_data[0] = {.position = {-1, -1, 0}, .color = {255, 0, 0, 255}};
-  transfer_data[1] = {.position = {1, -1, 0}, .color = {0, 255, 0, 255}};
-  transfer_data[2] = {.position = {0, 1, 0}, .color = {0, 0, 255, 255}};
-  SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
-
-  SDL_GPUCommandBuffer* upload_command_buffer =
-      SDL_AcquireGPUCommandBuffer(device);
-  if (upload_command_buffer == nullptr) {
-    throw std::runtime_error(
-        "GraphicsPipeline: AcquireGPUCommandBuffer failed");
+  try {
+    createPipeline(swapchain_format, depth_format, vertex_shader_path,
+                   fragment_shader_path);
+    recordLifecycleEvent("pipeline.created");
+    lifecycle_recorded_ = true;
+  } catch (...) {
+    cleanup();
+    throw;
   }
-
-  SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_command_buffer);
-  SDL_GPUTransferBufferLocation transfer_buffer_location{
-      .transfer_buffer = transfer_buffer, .offset = 0};
-  SDL_GPUBufferRegion buffer_region{.buffer = vertexBuffer,
-                                    .offset = 0,
-                                    .size = sizeof(PositionColorVertex) * 3};
-  SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &buffer_region,
-                        false);
-  SDL_EndGPUCopyPass(copy_pass);
-
-  SDL_GPUFence* fence =
-      SDL_SubmitGPUCommandBufferAndAcquireFence(upload_command_buffer);
-  if (fence == nullptr) {
-    throw std::runtime_error(
-        "GraphicsPipeline: SubmitGPUCommandBufferAndAcquireFence failed");
-  }
-  SDL_WaitForGPUFences(device, true, &fence, 1);
-  SDL_ReleaseGPUFence(device, fence);
-
-  SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
 }
 
-void GraphicsPipeline::draw(SDL_GPURenderPass* render_pass) const {
-  SDL_BindGPUGraphicsPipeline(render_pass, graphicsPipeline);
-  SDL_GPUBufferBinding buffer_binding{vertexBuffer, 0};
-  SDL_BindGPUVertexBuffers(render_pass, 0, &buffer_binding, 1);
-  SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0);
+GraphicsPipeline::~GraphicsPipeline() { cleanup(); }
+
+VkShaderModule GraphicsPipeline::createShaderModule(
+    const std::filesystem::path& path) const {
+  const std::vector<std::uint32_t> words = readSpirvFile(path);
+  VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+  info.codeSize = words.size() * sizeof(std::uint32_t);
+  info.pCode = words.data();
+  VkShaderModule module = VK_NULL_HANDLE;
+  const VkResult result =
+      vkCreateShaderModule(device_, &info, nullptr, &module);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Create shader module for " + path.string() +
+                             " failed: " + vulkanResultName(result));
+  }
+  return module;
 }
 
-GraphicsPipeline::~GraphicsPipeline() {
-  SDL_ReleaseGPUGraphicsPipeline(device, graphicsPipeline);
-  SDL_ReleaseGPUBuffer(device, vertexBuffer);
+void GraphicsPipeline::createPipeline(
+    VkFormat swapchain_format, VkFormat depth_format,
+    const std::filesystem::path& vertex_shader_path,
+    const std::filesystem::path& fragment_shader_path) {
+  VkShaderModule vertex_shader = VK_NULL_HANDLE;
+  VkShaderModule fragment_shader = VK_NULL_HANDLE;
+  try {
+    vertex_shader = createShaderModule(vertex_shader_path);
+    fragment_shader = createShaderModule(fragment_shader_path);
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> stages{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertex_shader;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragment_shader;
+    stages[1].pName = "main";
+
+    const VkVertexInputBindingDescription binding =
+        sceneVertexBindingDescription();
+    const auto attributes = sceneVertexAttributeDescriptions();
+    VkPipelineVertexInputStateCreateInfo vertex_input{
+        VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+    vertex_input.vertexBindingDescriptionCount = 1;
+    vertex_input.pVertexBindingDescriptions = &binding;
+    vertex_input.vertexAttributeDescriptionCount =
+        static_cast<std::uint32_t>(attributes.size());
+    vertex_input.pVertexAttributeDescriptions = attributes.data();
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly{
+        VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineViewportStateCreateInfo viewport_state{
+        VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+    viewport_state.viewportCount = 1;
+    viewport_state.scissorCount = 1;
+    VkPipelineRasterizationStateCreateInfo rasterization{
+        VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterization.cullMode = VK_CULL_MODE_NONE;
+    rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterization.lineWidth = 1.0F;
+    VkPipelineMultisampleStateCreateInfo multisample{
+        VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo depth_stencil{
+        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+    depth_stencil.depthTestEnable = VK_TRUE;
+    depth_stencil.depthWriteEnable = VK_TRUE;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    VkPipelineColorBlendAttachmentState blend_attachment{};
+    blend_attachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo blend{
+        VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    blend.attachmentCount = 1;
+    blend.pAttachments = &blend_attachment;
+    const std::array<VkDynamicState, 2> dynamic_states = {
+        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamic{
+        VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+    dynamic.dynamicStateCount =
+        static_cast<std::uint32_t>(dynamic_states.size());
+    dynamic.pDynamicStates = dynamic_states.data();
+
+    VkPipelineLayoutCreateInfo layout_info{
+        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    const VkPushConstantRange camera_push_constant = scenePushConstantRange();
+    const auto descriptor_layouts = sceneDescriptorSetLayouts(
+        texture_descriptor_layout_, lighting_descriptor_layout_);
+    layout_info.setLayoutCount =
+        static_cast<std::uint32_t>(descriptor_layouts.size());
+    layout_info.pSetLayouts = descriptor_layouts.data();
+    layout_info.pushConstantRangeCount = 1;
+    layout_info.pPushConstantRanges = &camera_push_constant;
+    requireVulkan(
+        vkCreatePipelineLayout(device_, &layout_info, nullptr, &layout_),
+        "Create Vulkan pipeline layout");
+
+    VkPipelineRenderingCreateInfo rendering_info{
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+    rendering_info.colorAttachmentCount = 1;
+    rendering_info.pColorAttachmentFormats = &swapchain_format;
+    rendering_info.depthAttachmentFormat = depth_format;
+    VkGraphicsPipelineCreateInfo pipeline_info{
+        VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+    pipeline_info.pNext = &rendering_info;
+    pipeline_info.stageCount = static_cast<std::uint32_t>(stages.size());
+    pipeline_info.pStages = stages.data();
+    pipeline_info.pVertexInputState = &vertex_input;
+    pipeline_info.pInputAssemblyState = &input_assembly;
+    pipeline_info.pViewportState = &viewport_state;
+    pipeline_info.pRasterizationState = &rasterization;
+    pipeline_info.pMultisampleState = &multisample;
+    pipeline_info.pDepthStencilState = &depth_stencil;
+    pipeline_info.pColorBlendState = &blend;
+    pipeline_info.pDynamicState = &dynamic;
+    pipeline_info.layout = layout_;
+    pipeline_info.renderPass = VK_NULL_HANDLE;
+    requireVulkan(
+        vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info,
+                                  nullptr, &pipeline_),
+        "Create Dynamic Rendering graphics pipeline");
+  } catch (...) {
+    if (fragment_shader != VK_NULL_HANDLE) {
+      vkDestroyShaderModule(device_, fragment_shader, nullptr);
+    }
+    if (vertex_shader != VK_NULL_HANDLE) {
+      vkDestroyShaderModule(device_, vertex_shader, nullptr);
+    }
+    throw;
+  }
+  vkDestroyShaderModule(device_, fragment_shader, nullptr);
+  vkDestroyShaderModule(device_, vertex_shader, nullptr);
+}
+
+void GraphicsPipeline::bindSceneState(VkCommandBuffer command_buffer,
+                                      const CameraFrame& camera,
+                                      SpotLightFrame spot_light) const {
+  const ScenePushConstant push_constant =
+      makeScenePushConstant(camera, spot_light);
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+  const auto descriptor_sets =
+      sceneDescriptorSets(texture_descriptor_set_, lighting_descriptor_set_);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          layout_, scene_texture_descriptor_set,
+                          static_cast<std::uint32_t>(descriptor_sets.size()),
+                          descriptor_sets.data(), 0, nullptr);
+  vkCmdPushConstants(command_buffer, layout_,
+                     scenePushConstantRange().stageFlags, 0,
+                     sizeof(ScenePushConstant), &push_constant);
+}
+
+void GraphicsPipeline::cleanup() noexcept {
+  if (pipeline_ != VK_NULL_HANDLE) {
+    vkDestroyPipeline(device_, pipeline_, nullptr);
+    pipeline_ = VK_NULL_HANDLE;
+  }
+  if (layout_ != VK_NULL_HANDLE) {
+    vkDestroyPipelineLayout(device_, layout_, nullptr);
+    layout_ = VK_NULL_HANDLE;
+  }
+  if (lifecycle_recorded_) {
+    recordLifecycleEvent("pipeline.destroyed");
+    lifecycle_recorded_ = false;
+  }
 }

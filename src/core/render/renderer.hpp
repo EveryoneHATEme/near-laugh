@@ -1,52 +1,42 @@
 #ifndef CORE_RENDER_RENDERER_H
 #define CORE_RENDER_RENDERER_H
 
-#include <SDL3/SDL.h>
-
+#include <array>
+#include <filesystem>
 #include <memory>
-#include <vector>
 
-const size_t FRAMES_IN_FLIGHT = 4;
+#include "core/frame.hpp"
 
-struct GPUDeviceDeleter {
-  void operator()(SDL_GPUDevice* device) const noexcept {
-    if (device != nullptr) {
-      SDL_DestroyGPUDevice(device);
-    }
-  }
-};
-using GPUDevicePtr = std::unique_ptr<SDL_GPUDevice, GPUDeviceDeleter>;
+class Window;
+class ValidationDiagnostics;
+class PrototypeLevel;
 
-struct FrameContext {
-  SDL_GPUCommandBuffer* commandBuffer = nullptr;
-  SDL_GPUTexture* swapchainTexture = nullptr;
+struct RendererResources {
+  std::filesystem::path vertex_shader{};
+  std::filesystem::path fragment_shader{};
+  std::array<std::filesystem::path, 4> surface_textures{};
+  std::filesystem::path prototype_chair_model{};
 };
 
 class Renderer {
- private:
-  SDL_Window* window{nullptr};
-  GPUDevicePtr device{nullptr};
-
-  size_t currentFrame{};
-  std::vector<FrameContext> frames{};
-
  public:
-  Renderer(SDL_Window* window);
+  Renderer(const Window& window, FramebufferExtent initial_extent,
+           const PrototypeLevel& level, RendererResources resources,
+           ValidationDiagnostics& diagnostics);
   ~Renderer();
 
-  SDL_GPURenderPass* beginRenderPass(FrameContext& frame, float r, float g,
-                                     float b, float a);
-  void endRenderPass(SDL_GPURenderPass* render_pass);
+  Renderer(const Renderer&) = delete;
+  Renderer& operator=(const Renderer&) = delete;
+  Renderer(Renderer&&) = delete;
+  Renderer& operator=(Renderer&&) = delete;
 
-  FrameContext& beginFrame();
-  void endFrame(FrameContext& frame);
+  [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
+  void requestSwapchainRecreation() noexcept;
+  [[nodiscard]] bool validationEnabled() const noexcept;
 
-  SDL_GPUTextureFormat getSwapchainFormat() const {
-    return SDL_GetGPUSwapchainTextureFormat(device.get(), window);
-  }
-  SDL_GPUDevice* getDevice() const {
-    return device.get();
-  }
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 #endif
