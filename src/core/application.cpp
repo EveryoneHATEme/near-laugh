@@ -6,15 +6,13 @@
 
 #include "core/engine.hpp"
 #include "core/render/validation_diagnostics.hpp"
-#include "core/runtime_resources.hpp"
 
 namespace near_laugh {
 
 class Application::Impl {
  public:
   explicit Impl(RuntimeConfig config) {
-    RuntimeResources resources = resolveRuntimeResources(config.resource_root);
-    engine = std::make_unique<Engine>(config, std::move(resources), diagnostics);
+    engine = std::make_unique<Engine>(config, diagnostics);
   }
 
   ValidationDiagnostics diagnostics{};
@@ -33,10 +31,9 @@ void Application::run() {
   impl_->engine->run();
   impl_->engine.reset();
   if (impl_->diagnostics.errorCount() != 0) {
-    throw std::runtime_error(
-        "Vulkan validation reported " +
-        std::to_string(impl_->diagnostics.errorCount()) +
-        " error message(s) during runtime or teardown");
+    throw std::runtime_error("Vulkan validation reported " +
+                             std::to_string(impl_->diagnostics.errorCount()) +
+                             " error message(s) during runtime or teardown");
   }
 }
 

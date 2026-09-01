@@ -1,0 +1,342 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <locale>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "core/world/level_document.hpp"
+#include "prototype_level_fixture.hpp"
+
+namespace {
+std::filesystem::path testDirectory(std::string_view name) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() /
+      ("near_laugh_level_document_" + std::string(name));
+  std::filesystem::remove_all(path);
+  std::filesystem::create_directories(path);
+  return path;
+}
+
+std::string readBytes(const std::filesystem::path& path) {
+  std::ifstream input(path, std::ios::binary);
+  return {std::istreambuf_iterator<char>(input),
+          std::istreambuf_iterator<char>()};
+}
+
+void writeBytes(const std::filesystem::path& path, std::string_view bytes) {
+  std::ofstream output(path, std::ios::binary | std::ios::trunc);
+  output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+}
+
+void replaceOnce(std::string& text, std::string_view from,
+                 std::string_view to) {
+  const std::size_t position = text.find(from);
+  ASSERT_NE(position, std::string::npos);
+  text.replace(position, from.size(), to);
+}
+
+bool hasField(const std::vector<LevelDiagnostic>& diagnostics,
+              std::string_view field) {
+  return std::any_of(diagnostics.begin(), diagnostics.end(),
+                     [field](const LevelDiagnostic& diagnostic) {
+                       return diagnostic.document_path.find(field) !=
+                              std::string::npos;
+                     });
+}
+
+void expectPositionEqual(const WorldPosition& actual,
+                         const WorldPosition& expected) {
+  EXPECT_FLOAT_EQ(actual.x, expected.x);
+  EXPECT_FLOAT_EQ(actual.y, expected.y);
+  EXPECT_FLOAT_EQ(actual.z, expected.z);
+}
+
+void expectDocumentEqual(const LevelDocument& actual,
+                         const LevelDocument& expected) {
+  EXPECT_EQ(actual.version, expected.version);
+  expectPositionEqual(actual.terrain.origin, expected.terrain.origin);
+  EXPECT_FLOAT_EQ(actual.terrain.sample_spacing,
+                  expected.terrain.sample_spacing);
+  EXPECT_EQ(actual.terrain.heights, expected.terrain.heights);
+  ASSERT_EQ(actual.solids.size(), expected.solids.size());
+  for (std::size_t index = 0; index < actual.solids.size(); ++index) {
+    const PrototypeSolid& left = actual.solids[index];
+    const PrototypeSolid& right = expected.solids[index];
+    expectPositionEqual(left.center, right.center);
+    EXPECT_FLOAT_EQ(left.half_extent.x, right.half_extent.x);
+    EXPECT_FLOAT_EQ(left.half_extent.y, right.half_extent.y);
+    EXPECT_FLOAT_EQ(left.half_extent.z, right.half_extent.z);
+    EXPECT_EQ(left.color, right.color);
+    EXPECT_EQ(left.kind, right.kind);
+    EXPECT_EQ(left.surface, right.surface);
+  }
+  expectPositionEqual(actual.player_spawn.foot_position,
+                      expected.player_spawn.foot_position);
+  EXPECT_FLOAT_EQ(actual.player_spawn.yaw_degrees,
+                  expected.player_spawn.yaw_degrees);
+  for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
+    const PrototypePointLight& left =
+        actual.environment_light.point_lights[index];
+    const PrototypePointLight& right =
+        expected.environment_light.point_lights[index];
+    expectPositionEqual(left.position, right.position);
+    EXPECT_EQ(left.color, right.color);
+    EXPECT_FLOAT_EQ(left.intensity, right.intensity);
+    EXPECT_FLOAT_EQ(left.radius, right.radius);
+  }
+  EXPECT_FLOAT_EQ(actual.environment_light.ambient_intensity,
+                  expected.environment_light.ambient_intensity);
+  expectPositionEqual(actual.static_prop.translation,
+                      expected.static_prop.translation);
+  EXPECT_FLOAT_EQ(actual.static_prop.yaw_degrees,
+                  expected.static_prop.yaw_degrees);
+  EXPECT_FLOAT_EQ(actual.static_prop.uniform_scale,
+                  expected.static_prop.uniform_scale);
+  EXPECT_EQ(actual.static_prop.surface, expected.static_prop.surface);
+  expectPositionEqual(actual.static_prop.box_proxy_center,
+                      expected.static_prop.box_proxy_center);
+  EXPECT_FLOAT_EQ(actual.static_prop.box_proxy_half_extent.x,
+                  expected.static_prop.box_proxy_half_extent.x);
+  EXPECT_FLOAT_EQ(actual.static_prop.box_proxy_half_extent.y,
+                  expected.static_prop.box_proxy_half_extent.y);
+  EXPECT_FLOAT_EQ(actual.static_prop.box_proxy_half_extent.z,
+                  expected.static_prop.box_proxy_half_extent.z);
+}
+
+class CommaDecimalPoint final : public std::numpunct<char> {
+ protected:
+  char do_decimal_point() const override { return ','; }
+};
+}  // namespace
+
+TEST(LevelDocument, FixedProfileAndPackagedAssetMatchLegacySceneExactly) {
+  static_assert(level_format_version == 1);
+  static_assert(prototype_terrain_sample_count == 97);
+  static_assert(level_maximum_solid_count == 240);
+  static_assert(prototype_point_light_count == 2);
+  const LevelDocumentLoadResult loaded =
+      loadLevelDocument(packagedPrototypeLevelPath());
+  ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
+  expectDocumentEqual(*loaded.document, legacyPrototypeLevelDocument());
+  const std::filesystem::path root = testDirectory("packaged_canonical");
+  const std::filesystem::path resaved = root / "prototype.level.json";
+  ASSERT_TRUE(saveLevelDocument(resaved, *loaded.document));
+  EXPECT_EQ(readBytes(resaved), readBytes(packagedPrototypeLevelPath()));
+  std::filesystem::remove_all(root);
+
+  const PrototypeLevel runtime = loadPackagedPrototypeLevel();
+  EXPECT_EQ(runtime.terrain().heights, loaded.document->terrain.heights);
+  EXPECT_EQ(runtime.solids().size(), loaded.document->solids.size());
+  EXPECT_EQ(runtime.environmentLight().point_lights.size(), 2U);
+  EXPECT_TRUE(prototypeLevelIsValid(runtime));
+}
+
+TEST(LevelDocument, ValidationIsFieldAwareAndAuthoritative) {
+  LevelDocument document = legacyPrototypeLevelDocument();
+  document.terrain.heights[1] = 100.0F;
+  document.solids[0].half_extent.x = 0.0F;
+  document.player_spawn.foot_position = document.solids[4].center;
+  document.environment_light.point_lights[0].radius = 0.0F;
+  document.static_prop.box_proxy_half_extent.z = 0.0F;
+  const std::vector<LevelDiagnostic> diagnostics =
+      validateLevelDocument(document, "invalid.level.json");
+  EXPECT_TRUE(hasField(diagnostics, "terrain.cells"));
+  EXPECT_TRUE(hasField(diagnostics, "solids[0].half_extent"));
+  EXPECT_TRUE(hasField(diagnostics, "player_spawn"));
+  EXPECT_TRUE(
+      hasField(diagnostics, "environment_light.point_lights[0].radius"));
+  EXPECT_TRUE(hasField(diagnostics, "static_prop.box_proxy.half_extent"));
+  EXPECT_THROW(static_cast<void>(makePrototypeLevel(document)),
+               std::invalid_argument);
+}
+
+TEST(LevelDocument, EnforcesSolidCapAndFiniteSupportedValues) {
+  LevelDocument document = legacyPrototypeLevelDocument();
+  while (document.solids.size() < level_maximum_solid_count) {
+    document.solids.push_back(document.solids[4]);
+  }
+  EXPECT_TRUE(validateLevelDocument(document).empty());
+  document.solids.push_back(document.solids[4]);
+  EXPECT_TRUE(hasField(validateLevelDocument(document), "solids"));
+
+  document = legacyPrototypeLevelDocument();
+  document.player_spawn.yaw_degrees = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_TRUE(
+      hasField(validateLevelDocument(document), "player_spawn.yaw_degrees"));
+  document = legacyPrototypeLevelDocument();
+  document.static_prop.translation.x = 1000.0F;
+  EXPECT_TRUE(hasField(validateLevelDocument(document),
+                       "static_prop.box_proxy.center"));
+}
+
+TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
+  const std::string canonical = readBytes(packagedPrototypeLevelPath());
+  const std::filesystem::path root = testDirectory("strict_parse");
+  struct Case {
+    const char* name;
+    std::string bytes;
+    std::string expected_field;
+  };
+  std::vector<Case> cases;
+  cases.push_back({"malformed", "{", "byte"});
+
+  std::string unsupported = canonical;
+  replaceOnce(unsupported, "\"version\": 1", "\"version\": 2");
+  cases.push_back({"unsupported", std::move(unsupported), "version"});
+
+  std::string unknown = canonical;
+  replaceOnce(unknown, "{\n  \"version\"",
+              "{\n  \"model_path\": \"chair.glb\",\n  \"version\"");
+  cases.push_back({"path", std::move(unknown), "model_path"});
+
+  std::string missing = canonical;
+  replaceOnce(missing, "  \"version\": 1,\n", "");
+  cases.push_back({"missing", std::move(missing), "version"});
+
+  std::string invalid_heights = canonical;
+  const std::size_t heights = invalid_heights.find("    \"heights\": [\n");
+  ASSERT_NE(heights, std::string::npos);
+  const std::size_t first_line = invalid_heights.find('\n', heights) + 1;
+  const std::size_t second_line = invalid_heights.find('\n', first_line) + 1;
+  invalid_heights.erase(first_line, second_line - first_line);
+  cases.push_back(
+      {"height_count", std::move(invalid_heights), "terrain.heights"});
+
+  std::string invalid_enum = canonical;
+  replaceOnce(invalid_enum, "\"kind\": \"boundary\"", "\"kind\": \"door\"");
+  cases.push_back({"enum", std::move(invalid_enum), "solids[0].kind"});
+
+  std::string excessive = canonical;
+  const std::size_t solids_member = excessive.find("  \"solids\": [");
+  ASSERT_NE(solids_member, std::string::npos);
+  const std::size_t array_begin = excessive.find('[', solids_member);
+  const std::size_t array_end =
+      excessive.find("\n  ],\n  \"player_spawn\"", array_begin);
+  ASSERT_NE(array_end, std::string::npos);
+  std::string too_many = "\n";
+  for (std::size_t index = 0; index <= level_maximum_solid_count; ++index) {
+    too_many += index == level_maximum_solid_count ? "    null" : "    null,\n";
+  }
+  excessive.replace(array_begin + 1, array_end - array_begin - 1, too_many);
+  cases.push_back({"solid_limit", std::move(excessive), "solids"});
+
+  for (const Case& test_case : cases) {
+    const std::filesystem::path path =
+        root / (test_case.name + std::string(".json"));
+    writeBytes(path, test_case.bytes);
+    const LevelDocumentLoadResult result = loadLevelDocument(path);
+    ASSERT_FALSE(result) << test_case.name;
+    ASSERT_FALSE(result.diagnostics.empty());
+    EXPECT_NE(formatLevelDiagnostics(result.diagnostics).find(path.string()),
+              std::string::npos);
+    EXPECT_TRUE(hasField(result.diagnostics, test_case.expected_field))
+        << formatLevelDiagnostics(result.diagnostics);
+  }
+  std::filesystem::remove_all(root);
+}
+
+TEST(LevelDocument, RuntimeLoaderRejectsMissingParseAndValidationFailures) {
+  const std::filesystem::path root = testDirectory("runtime_failures");
+  const std::filesystem::path missing = root / "missing.level.json";
+  try {
+    static_cast<void>(loadPrototypeLevel(missing));
+    FAIL() << "Expected missing level failure";
+  } catch (const std::runtime_error& error) {
+    EXPECT_NE(std::string(error.what()).find(missing.string()),
+              std::string::npos);
+  }
+
+  const std::filesystem::path malformed = root / "malformed.level.json";
+  writeBytes(malformed, "{");
+  EXPECT_THROW(static_cast<void>(loadPrototypeLevel(malformed)),
+               std::runtime_error);
+
+  std::string unsupported_spawn = readBytes(packagedPrototypeLevelPath());
+  const std::size_t spawn_member =
+      unsupported_spawn.find("  \"player_spawn\": {");
+  ASSERT_NE(spawn_member, std::string::npos);
+  const std::size_t spawn_x =
+      unsupported_spawn.find("\"x\": 0.0", spawn_member);
+  ASSERT_NE(spawn_x, std::string::npos);
+  unsupported_spawn.replace(spawn_x, std::string("\"x\": 0.0").size(),
+                            "\"x\": 1000.0");
+  const std::filesystem::path invalid = root / "invalid.level.json";
+  writeBytes(invalid, unsupported_spawn);
+  const LevelDocumentLoadResult editable = loadLevelDocument(invalid);
+  ASSERT_TRUE(editable) << formatLevelDiagnostics(editable.diagnostics);
+  EXPECT_TRUE(hasField(validateLevelDocument(*editable.document, invalid),
+                       "player_spawn.foot_position"));
+  EXPECT_THROW(static_cast<void>(loadPrototypeLevel(invalid)),
+               std::runtime_error);
+  std::filesystem::remove_all(root);
+}
+
+TEST(LevelDocument, CanonicalSaveRoundTripsBytesUnderNonClassicGlobalLocale) {
+  LevelDocument original = legacyPrototypeLevelDocument();
+  original.terrain.heights[0] = -0.0F;
+  original.static_prop.yaw_degrees =
+      std::nextafter(original.static_prop.yaw_degrees, 0.0F);
+  const std::filesystem::path root = testDirectory("round_trip");
+  const std::filesystem::path first = root / "first.level.json";
+  const std::filesystem::path second = root / "second.level.json";
+  const std::filesystem::path localized = root / "localized.level.json";
+
+  ASSERT_TRUE(saveLevelDocument(first, original));
+  const LevelDocumentLoadResult loaded = loadLevelDocument(first);
+  ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
+  expectDocumentEqual(*loaded.document, original);
+  ASSERT_TRUE(saveLevelDocument(second, *loaded.document));
+  EXPECT_EQ(readBytes(first), readBytes(second));
+
+  const std::locale previous = std::locale();
+  std::locale::global(std::locale(previous, new CommaDecimalPoint));
+  const LevelDocumentSaveResult localized_result =
+      saveLevelDocument(localized, original);
+  std::locale::global(previous);
+  ASSERT_TRUE(localized_result)
+      << formatLevelDiagnostics(localized_result.diagnostics);
+  EXPECT_EQ(readBytes(first), readBytes(localized));
+  const std::string bytes = readBytes(localized);
+  ASSERT_FALSE(bytes.empty());
+  EXPECT_EQ(bytes.back(), '\n');
+  EXPECT_EQ(bytes.find('\r'), std::string::npos);
+  EXPECT_NE(bytes.find("0.5"), std::string::npos);
+  std::filesystem::remove_all(root);
+}
+
+TEST(LevelDocument, InvalidAndFilesystemFailuresDoNotReplacePriorData) {
+  const std::filesystem::path root = testDirectory("atomic_failures");
+  const std::filesystem::path destination = root / "level.json";
+  writeBytes(destination, "prior bytes\n");
+
+  LevelDocument invalid = legacyPrototypeLevelDocument();
+  invalid.solids[0].half_extent.x = 0.0F;
+  const LevelDocumentSaveResult invalid_result =
+      saveLevelDocument(destination, invalid);
+  ASSERT_FALSE(invalid_result);
+  EXPECT_EQ(readBytes(destination), "prior bytes\n");
+  EXPECT_TRUE(hasField(invalid_result.diagnostics, "solids[0].half_extent"));
+
+  const std::filesystem::path missing_parent = root / "missing" / "level.json";
+  const LevelDocumentSaveResult unwritable =
+      saveLevelDocument(missing_parent, legacyPrototypeLevelDocument());
+  ASSERT_FALSE(unwritable);
+  EXPECT_EQ(unwritable.diagnostics.front().category,
+            LevelDiagnosticCategory::Filesystem);
+
+  const std::filesystem::path directory_destination = root / "directory.json";
+  std::filesystem::create_directory(directory_destination);
+  const LevelDocumentSaveResult replacement =
+      saveLevelDocument(directory_destination, legacyPrototypeLevelDocument());
+  ASSERT_FALSE(replacement);
+  EXPECT_EQ(replacement.diagnostics.front().category,
+            LevelDiagnosticCategory::Filesystem);
+  EXPECT_TRUE(std::filesystem::is_directory(directory_destination));
+  std::filesystem::remove_all(root);
+}

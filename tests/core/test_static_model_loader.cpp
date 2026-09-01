@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "core/render/static_model_loader.hpp"
+#include "prototype_level_fixture.hpp"
 
 namespace {
 struct FixtureOptions {
@@ -77,17 +78,17 @@ std::string vec3(const std::array<float, 3>& value) {
 std::vector<std::uint8_t> makeGlb(const FixtureOptions& options = {}) {
   using Vec3 = std::array<float, 3>;
   using Vec2 = std::array<float, 2>;
-  std::vector<Vec3> positions =
-      {{{0.0F, 0.0F, 0.0F}}, {{1.0F, 0.0F, 0.0F}}, {{0.0F, 1.0F, 0.0F}}};
+  std::vector<Vec3> positions = {
+      {{0.0F, 0.0F, 0.0F}}, {{1.0F, 0.0F, 0.0F}}, {{0.0F, 1.0F, 0.0F}}};
   if (options.non_finite_position) {
     positions[1][0] = std::numeric_limits<float>::infinity();
   }
   const float diagonal = std::sqrt(0.5F);
   const Vec3 normal = options.diagonal_normals ? Vec3{diagonal, diagonal, 0.0F}
-                                                : Vec3{0.0F, 0.0F, 1.0F};
+                                               : Vec3{0.0F, 0.0F, 1.0F};
   const std::vector<Vec3> normals(3, normal);
-  const std::vector<Vec2> uvs =
-      {{{0.25F, 0.5F}}, {{1.25F, -0.5F}}, {{0.0F, 2.0F}}};
+  const std::vector<Vec2> uvs = {
+      {{0.25F, 0.5F}}, {{1.25F, -0.5F}}, {{0.0F, 2.0F}}};
   const std::vector<std::uint16_t> indices =
       options.out_of_range_index ? std::vector<std::uint16_t>{4, 0, 1}
                                  : std::vector<std::uint16_t>{2, 0, 1};
@@ -182,11 +183,10 @@ std::vector<std::uint8_t> makeGlb(const FixtureOptions& options = {}) {
          << ",\"componentType\":5121},\"values\":{\"bufferView\":"
          << sparse_values_view << "}}";
   }
-  json << "},{\"bufferView\":1,\"componentType\":5126,\"count\":"
-       << count << ",\"type\":\"VEC3\"},"
+  json << "},{\"bufferView\":1,\"componentType\":5126,\"count\":" << count
+       << ",\"type\":\"VEC3\"},"
        << "{\"bufferView\":2,\"componentType\":5126,\"count\":"
-       << (options.mismatched_uv_count ? "2" : count)
-       << ",\"type\":\"VEC2\"}";
+       << (options.mismatched_uv_count ? "2" : count) << ",\"type\":\"VEC2\"}";
   if (options.indexed) {
     json << ",{\"bufferView\":3,\"componentType\":5123,\"count\":3,"
             "\"type\":\"SCALAR\"}";
@@ -249,7 +249,7 @@ class FixtureFile {
 };
 
 PrototypeStaticProp identityPlacement() {
-  PrototypeStaticProp placement = PrototypeLevel{}.staticProp();
+  PrototypeStaticProp placement = loadPackagedPrototypeLevel().staticProp();
   placement.translation = {};
   placement.yaw_degrees = 0.0F;
   placement.uniform_scale = 1.0F;
@@ -259,8 +259,8 @@ PrototypeStaticProp identityPlacement() {
 void expectFailure(const FixtureOptions& options, const std::string& reason) {
   const FixtureFile fixture(makeGlb(options));
   try {
-    static_cast<void>(loadStaticModelVertices(fixture.path(),
-                                              identityPlacement()));
+    static_cast<void>(
+        loadStaticModelVertices(fixture.path(), identityPlacement()));
     FAIL() << "Expected static model failure containing: " << reason;
   } catch (const std::runtime_error& error) {
     const std::string message = error.what();
@@ -401,17 +401,16 @@ TEST(StaticModelLoader, LoadsPackagedPrototypeChairThroughProductionPath) {
       std::filesystem::absolute("resources/models/prototype_chair.glb")
           .lexically_normal();
   const auto vertices =
-      loadStaticModelVertices(path, PrototypeLevel{}.staticProp());
+      loadStaticModelVertices(path, loadPackagedPrototypeLevel().staticProp());
   ASSERT_FALSE(vertices.empty());
   EXPECT_EQ(vertices.size() % 3, 0U);
   for (const PositionColorVertex& vertex : vertices) {
     for (float component : vertex.position) {
       EXPECT_TRUE(std::isfinite(component));
     }
-    const float normal_length =
-        std::sqrt(vertex.normal[0] * vertex.normal[0] +
-                  vertex.normal[1] * vertex.normal[1] +
-                  vertex.normal[2] * vertex.normal[2]);
+    const float normal_length = std::sqrt(vertex.normal[0] * vertex.normal[0] +
+                                          vertex.normal[1] * vertex.normal[1] +
+                                          vertex.normal[2] * vertex.normal[2]);
     EXPECT_NEAR(normal_length, 1.0F, 0.0001F);
     EXPECT_TRUE(std::isfinite(vertex.texture_coordinates[0]));
     EXPECT_TRUE(std::isfinite(vertex.texture_coordinates[1]));

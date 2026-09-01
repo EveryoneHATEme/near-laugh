@@ -1,95 +1,16 @@
 #ifndef CORE_WORLD_PROTOTYPE_LEVEL_HPP
 #define CORE_WORLD_PROTOTYPE_LEVEL_HPP
 
-#include <array>
-#include <cstddef>
-#include <cstdint>
 #include <vector>
 
-inline constexpr std::size_t prototype_plate_count = 3;
-inline constexpr std::size_t prototype_surface_count = 4;
-inline constexpr std::size_t prototype_point_light_count = 2;
-inline constexpr std::size_t prototype_terrain_sample_count = 97;
-inline constexpr std::size_t prototype_terrain_cell_count =
-    prototype_terrain_sample_count - 1;
-inline constexpr float prototype_terrain_sample_spacing = 0.5F;
-inline constexpr float prototype_terrain_maximum_slope_degrees = 50.0F;
-inline constexpr float prototype_maximum_ambient_intensity = 0.20F;
-
-struct WorldPosition {
-  float x{};
-  float y{};
-  float z{};
-};
-
-struct WorldExtent {
-  float x{};
-  float y{};
-  float z{};
-};
-
-using WorldColor = std::array<std::uint8_t, 4>;
-
-enum class PrototypeSolidKind {
-  Floor,
-  Boundary,
-  Obstacle,
-  WalkableStep,
-  LowClearance,
-  ShootingTarget,
-};
-
-enum class PrototypeSurface : std::uint32_t {
-  Floor = 0,
-  Boundary = 1,
-  Obstacle = 2,
-  ShootingTarget = 3,
-};
-
-struct PrototypeSolid {
-  WorldPosition center{};
-  WorldExtent half_extent{};
-  WorldColor color{};
-  PrototypeSolidKind kind{PrototypeSolidKind::Obstacle};
-  PrototypeSurface surface{PrototypeSurface::Obstacle};
-};
-
-struct PrototypeTerrain {
-  WorldPosition origin{};
-  float sample_spacing{};
-  std::array<float, prototype_terrain_sample_count * prototype_terrain_sample_count>
-      heights{};
-};
-
-struct PrototypePlayerSpawn {
-  WorldPosition foot_position{};
-  float yaw_degrees{};
-};
-
-struct PrototypePointLight {
-  WorldPosition position{};
-  std::array<float, 3> color{};
-  float intensity{};
-  float radius{};
-};
-
-struct PrototypeEnvironmentLight {
-  std::array<PrototypePointLight, prototype_point_light_count> point_lights{};
-  float ambient_intensity{};
-};
-
-struct PrototypeStaticProp {
-  WorldPosition translation{};
-  float yaw_degrees{};
-  float uniform_scale{1.0F};
-  PrototypeSurface surface{PrototypeSurface::Obstacle};
-  WorldPosition box_proxy_center{};
-  WorldExtent box_proxy_half_extent{};
-};
+#include "core/world/level_document.hpp"
 
 class PrototypeLevel {
  public:
-  PrototypeLevel();
+  PrototypeLevel(const PrototypeLevel&) = default;
+  PrototypeLevel(PrototypeLevel&&) noexcept = default;
+  PrototypeLevel& operator=(const PrototypeLevel&) = delete;
+  PrototypeLevel& operator=(PrototypeLevel&&) = delete;
 
   [[nodiscard]] const std::vector<PrototypeSolid>& solids() const noexcept {
     return solids_;
@@ -109,12 +30,20 @@ class PrototypeLevel {
   }
 
  private:
+  explicit PrototypeLevel(LevelDocument document);
+
+  friend PrototypeLevel makePrototypeLevel(const LevelDocument& document);
+
   PrototypeTerrain terrain_;
   std::vector<PrototypeSolid> solids_;
   PrototypePlayerSpawn player_spawn_;
   PrototypeEnvironmentLight environment_light_;
   PrototypeStaticProp static_prop_;
 };
+
+[[nodiscard]] PrototypeLevel makePrototypeLevel(const LevelDocument& document);
+[[nodiscard]] PrototypeLevel loadPrototypeLevel(
+    const std::filesystem::path& path);
 
 [[nodiscard]] bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept;

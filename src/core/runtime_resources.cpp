@@ -32,12 +32,14 @@ RuntimeResources resolveRuntimeResources(
        root / "textures" / "prototype_boundary.png",
        root / "textures" / "prototype_obstacle.png",
        root / "textures" / "prototype_shooting_target.png"},
-      root / "models" / "prototype_chair.glb"};
+      root / "models" / "prototype_chair.glb",
+      root / "levels" / "prototype.level.json"};
   requireFile(resources.scene_vertex_shader);
   requireFile(resources.scene_fragment_shader);
   for (const std::filesystem::path& texture : resources.scene_textures) {
     requireFile(texture);
   }
   requireFile(resources.prototype_chair_model);
+  requireFile(resources.prototype_level);
   return resources;
 }

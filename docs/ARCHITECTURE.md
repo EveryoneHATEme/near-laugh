@@ -30,9 +30,10 @@ only standard-library types. The concrete build modules are:
   configuration, and fixed FPS input mapping;
 - `near_laugh_platform`: GLFW lifetime, the window, event batches, and
   engine-owned physical keyboard/mouse state;
-- `near_laugh_world`: the immutable axis-aligned prototype solids, player
-  spawn, and two validated world-space point lights shared with the concrete
-  consumers that need them;
+- `near_laugh_world`: the bounded version-1 level document and private JSON
+  codec, field-aware validation, and the immutable terrain, solids, spawn,
+  two world-space point lights, and static-prop placement shared with concrete
+  consumers;
 - `near_laugh_physics`: the concrete Jolt lifetime, static collision world,
   and one virtual character;
 - `near_laugh_render`: Vulkan lifetime, presentation, explicit frame
@@ -96,6 +97,7 @@ Engine
   creates, in order
 Platform
 Window
+RuntimeResources
 PrototypeLevel
 PhysicsWorld
 PlayerController
@@ -139,14 +141,29 @@ begins, while held actions persist across both kinds of event dispatch.
 
 The `fps` launcher uses a private, host-native helper to discover its actual
 executable path and supplies the adjacent `resources` directory through
-`RuntimeConfig`. The packaged prototype shaders, the four fixed textures
+`RuntimeConfig`. The packaged prototype level `levels/prototype.level.json`,
+the shaders, the four fixed textures
 `prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
 `prototype_shooting_target.png`, plus `models/prototype_chair.glb`, are resolved
 beneath that explicit root.
 Invocation text and the process working directory do not participate in
 runtime layout discovery.
 
-The current world is one immutable `PrototypeLevel` containing tinted
+After the window exists, runtime composition resolves the fixed resource set,
+strictly parses and validates `levels/prototype.level.json`, and only then
+constructs physics, player, and renderer owners. Missing, malformed,
+unsupported, or invalid level data therefore cannot reach a dependent
+subsystem or the frame loop. Destruction remains the reverse of member order.
+
+The version-1 document contains exactly one 97-by-97 heightfield, no more than
+240 axis-aligned solids, one player spawn, exactly two point lights and one
+ambient value, and one placement of the packaged chair with a box proxy. It
+contains no resource paths. The private `nlohmann/json` codec rejects unknown
+or missing fields and emits canonical locale-independent JSON. The editable
+`LevelDocument` may hold invalid work, while saving and construction of an
+immutable `PrototypeLevel` both use the same field-aware validation.
+
+The current world is one immutable loaded `PrototypeLevel` containing tinted
 axis-aligned solids, a player spawn, exactly two world-space point lights, a
 near-black ambient scalar, three inert plate solids, and one fixed chair
 placement with an obstacle surface role and an independently authored box
@@ -162,7 +179,8 @@ follow the camera or become mutable frame state. The chair and inert plates
 carry no gameplay identity, health, damage, interaction, or feedback state.
 The four roles are not a material system, the one model is not an asset
 registry, the dynamic spot-light frame is not a registry, and the level is not
-a scene hierarchy, asset pipeline, ECS, or generic level format.
+a scene hierarchy, asset pipeline, ECS, or generic level format. The running
+game does not mutate, save, discover, or hot-reload level documents.
 
 Renderer lifetime owns the sampled texture and immutable lighting resources
 plus separate immutable generated-world and imported-chair vertex buffers after

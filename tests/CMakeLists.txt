@@ -1,5 +1,6 @@
 add_executable(engine_tests
     core/test_input.cpp
+    core/test_level_document.cpp
     core/test_executable_path.cpp
     core/test_frame.cpp
     core/test_fixed_step.cpp
@@ -53,6 +54,9 @@ add_custom_command(TARGET vulkan_smoke POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/models"
             "$<TARGET_FILE_DIR:vulkan_smoke>/resources/models"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/resources/levels"
+            "$<TARGET_FILE_DIR:vulkan_smoke>/resources/levels"
 )
 add_test(NAME vulkan_smoke COMMAND vulkan_smoke)
 set_tests_properties(vulkan_smoke PROPERTIES
@@ -137,6 +141,9 @@ add_custom_command(TARGET resource_layout_probe POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/models"
             "$<TARGET_FILE_DIR:resource_layout_probe>/resources/models"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/resources/levels"
+            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/levels"
 )
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")
 add_test(NAME executable_relative_resource_layout COMMAND resource_layout_probe)

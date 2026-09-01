@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "core/render/prototype_scene.hpp"
+#include "prototype_level_fixture.hpp"
 
 namespace {
 bool hasColor(const std::vector<PositionColorVertex>& vertices,
@@ -36,14 +37,13 @@ bool samePositionAndUv(const PositionColorVertex& first,
 }  // namespace
 
 TEST(PrototypeScene, ContainsTerrainBoundariesAndMultipleColoredObjects) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const auto vertices = buildPrototypeSceneVertices(level);
   EXPECT_FALSE(vertices.empty());
   EXPECT_EQ(vertices.size() % 3, 0U);
-  EXPECT_EQ(vertices.size(),
-            level.solids().size() * 36U +
-                prototype_terrain_cell_count * prototype_terrain_cell_count *
-                    6U);
+  EXPECT_EQ(vertices.size(), level.solids().size() * 36U +
+                                 prototype_terrain_cell_count *
+                                     prototype_terrain_cell_count * 6U);
   EXPECT_TRUE(hasColor(vertices, {86, 91, 101, 255}));
   EXPECT_TRUE(hasColor(vertices, {55, 78, 122, 255}));
   EXPECT_TRUE(hasColor(vertices, {205, 63, 73, 255}));
@@ -55,7 +55,7 @@ TEST(PrototypeScene, ContainsTerrainBoundariesAndMultipleColoredObjects) {
 }
 
 TEST(PrototypeScene, AppendsContinuousWorldScaledTerrainTriangles) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const PrototypeTerrain& terrain = level.terrain();
   const auto vertices = buildPrototypeSceneVertices(level);
   const std::size_t terrain_first_vertex = level.solids().size() * 36U;
@@ -63,8 +63,7 @@ TEST(PrototypeScene, AppendsContinuousWorldScaledTerrainTriangles) {
   const WorldPosition p01 = prototypeTerrainSamplePosition(terrain, 0, 1);
   const WorldPosition p11 = prototypeTerrainSamplePosition(terrain, 1, 1);
   const WorldPosition p10 = prototypeTerrainSamplePosition(terrain, 1, 0);
-  const std::array<WorldPosition, 6> expected = {p00, p01, p11,
-                                                  p00, p11, p10};
+  const std::array<WorldPosition, 6> expected = {p00, p01, p11, p00, p11, p10};
   for (std::size_t index = 0; index < expected.size(); ++index) {
     const PositionColorVertex& vertex = vertices[terrain_first_vertex + index];
     EXPECT_FLOAT_EQ(vertex.position[0], expected[index].x);
@@ -91,7 +90,8 @@ TEST(PrototypeScene, AppendsContinuousWorldScaledTerrainTriangles) {
 }
 
 TEST(PrototypeScene, CenterObjectsOverlapInDepthFromInitialPose) {
-  const auto vertices = buildPrototypeSceneVertices(PrototypeLevel{});
+  const auto vertices =
+      buildPrototypeSceneVertices(loadPackagedPrototypeLevel());
   EXPECT_TRUE(hasPosition(vertices, -1.2F, 0.0F, 1.0F));
   EXPECT_TRUE(hasPosition(vertices, -1.5F, 0.0F, -4.5F));
   EXPECT_TRUE(hasPosition(vertices, 1.2F, 2.4F, -0.8F));
@@ -99,7 +99,7 @@ TEST(PrototypeScene, CenterObjectsOverlapInDepthFromInitialPose) {
 }
 
 TEST(PrototypeScene, ExpandsEverySolidFaceAtItsAuthoredBoundsAndColor) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const auto vertices = buildPrototypeSceneVertices(level);
   for (const PrototypeSolid& solid : level.solids()) {
     const float minimum_x = solid.center.x - solid.half_extent.x;
@@ -115,7 +115,7 @@ TEST(PrototypeScene, ExpandsEverySolidFaceAtItsAuthoredBoundsAndColor) {
 }
 
 TEST(PrototypeScene, GivesEveryFaceAConsistentOutwardUnitNormal) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const auto vertices = buildPrototypeSceneVertices(level);
   constexpr std::size_t vertices_per_solid = 36;
   constexpr std::size_t vertices_per_face = 6;
@@ -161,7 +161,7 @@ TEST(PrototypeScene, GivesEveryFaceAConsistentOutwardUnitNormal) {
 }
 
 TEST(PrototypeScene, GivesEveryFaceFiniteContinuousWorldScaledCoordinates) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const auto vertices = buildPrototypeSceneVertices(level);
   constexpr std::size_t vertices_per_solid = 36;
   constexpr std::size_t vertices_per_face = 6;
@@ -205,7 +205,8 @@ TEST(PrototypeScene, GivesEveryFaceFiniteContinuousWorldScaledCoordinates) {
 }
 
 TEST(PrototypeScene, FaceTextureAxesFollowEachOutwardNormal) {
-  const auto vertices = buildPrototypeSceneVertices(PrototypeLevel{});
+  const auto vertices =
+      buildPrototypeSceneVertices(loadPackagedPrototypeLevel());
   constexpr std::size_t vertices_per_face = 6;
   for (std::size_t face = 0; face < 6; ++face) {
     const PositionColorVertex& origin = vertices[face * vertices_per_face];
@@ -232,7 +233,7 @@ TEST(PrototypeScene, FaceTextureAxesFollowEachOutwardNormal) {
 }
 
 TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const auto vertices = buildPrototypeSceneVertices(level);
   constexpr std::size_t vertices_per_solid = 36;
   const std::size_t terrain_first_vertex = level.solids().size() * 36U;

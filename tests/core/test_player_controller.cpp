@@ -6,6 +6,7 @@
 
 #include "core/player/player_controller.hpp"
 #include "core/world/prototype_level.hpp"
+#include "prototype_level_fixture.hpp"
 
 namespace {
 constexpr float fixed_delta = 1.0F / 60.0F;
@@ -23,7 +24,7 @@ float horizontalSpeed(PhysicsVector velocity) {
 }
 
 PhysicsVector groundedRequest(FpsActionSnapshot actions) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -90,7 +91,7 @@ TEST(PlayerMovement, DiagonalIsNormalizedAndSprintUsesSevenMetersPerSecond) {
 }
 
 TEST(PlayerMovement, GravityAndGroundedMotionUseDifferentPolicies) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   player.sampleInput({}, true);
@@ -107,7 +108,7 @@ TEST(PlayerMovement, GravityAndGroundedMotionUseDifferentPolicies) {
 }
 
 TEST(PlayerMovement, AirControlApproachesRequestAtBoundedAcceleration) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -130,7 +131,7 @@ TEST(PlayerMovement, AirControlApproachesRequestAtBoundedAcceleration) {
 }
 
 TEST(PlayerJump, LatchSurvivesAZeroStepRenderIteration) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -146,7 +147,7 @@ TEST(PlayerJump, LatchSurvivesAZeroStepRenderIteration) {
 }
 
 TEST(PlayerJump, HeldJumpIsConsumedExactlyOnceAcrossCatchUpSteps) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -169,7 +170,7 @@ TEST(PlayerJump, HeldJumpIsConsumedExactlyOnceAcrossCatchUpSteps) {
 }
 
 TEST(PlayerJump, AirbornePressWaitsForFirstEligibleGroundedStep) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -194,7 +195,7 @@ TEST(PlayerJump, AirbornePressWaitsForFirstEligibleGroundedStep) {
 }
 
 TEST(PlayerCamera, RetainsVulkanProjectionStorageAndAspectBehavior) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   const float camera_y =
@@ -217,7 +218,7 @@ TEST(PlayerCamera, RetainsVulkanProjectionStorageAndAspectBehavior) {
 }
 
 TEST(PlayerCamera, AppliesLookOncePerSampleAndClampsPitch) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   FpsActionSnapshot actions;
@@ -237,7 +238,7 @@ TEST(PlayerCamera, AppliesLookOncePerSampleAndClampsPitch) {
 }
 
 TEST(PlayerCamera, UsesActualStanceEyeHeight) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -257,7 +258,7 @@ TEST(PlayerCamera, UsesActualStanceEyeHeight) {
 }
 
 TEST(PlayerView, UsesInterpolatedStandingAndCrouchedEye) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
@@ -277,7 +278,7 @@ TEST(PlayerView, UsesInterpolatedStandingAndCrouchedEye) {
 }
 
 TEST(PlayerView, DirectionMatchesLookAndSharedCameraPose) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
 
@@ -332,7 +333,7 @@ TEST(PlayerCursor, ReleasePrecedesRecaptureAndTransitionsNeutralizeControls) {
 }
 
 TEST(PlayerCursor, ReleasedControlsAreNeutralWhileAirbornePhysicsContinues) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   FpsActionSnapshot actions;

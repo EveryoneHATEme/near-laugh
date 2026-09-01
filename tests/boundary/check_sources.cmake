@@ -48,6 +48,18 @@ foreach(CGLTF_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     endif()
 endforeach()
 
+foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    if(JSON_SOURCE MATCHES
+       "[/\\\\]src[/\\\\]core[/\\\\]world[/\\\\]level_codec[.]cpp$")
+        continue()
+    endif()
+    file(READ "${JSON_SOURCE}" JSON_SOURCE_CONTENT)
+    if(JSON_SOURCE_CONTENT MATCHES "nlohmann[/\\\\]json")
+        message(FATAL_ERROR
+            "JSON dependency escaped the private level codec: ${JSON_SOURCE}")
+    endif()
+endforeach()
+
 file(GLOB_RECURSE PROJECT_BACKEND_SOURCES
      "${SOURCE_ROOT}/src/core/*.cpp"
      "${SOURCE_ROOT}/src/core/*.hpp")
@@ -239,6 +251,19 @@ foreach(RUNTIME_SOURCE IN ITEMS
 endforeach()
 
 file(READ "${SOURCE_ROOT}/CMakeLists.txt" ROOT_CMAKE_CONTENT)
+if(NOT ROOT_CMAKE_CONTENT MATCHES
+   "target_link_libraries\\(near_laugh_world PRIVATE nlohmann_json::nlohmann_json\\)")
+    message(FATAL_ERROR
+        "nlohmann/json must be linked privately by near_laugh_world")
+endif()
+string(REGEX MATCHALL
+       "target_link_libraries\\([^)]*nlohmann_json::nlohmann_json[^)]*\\)"
+       JSON_LINK_BLOCKS "${ROOT_CMAKE_CONTENT}")
+list(LENGTH JSON_LINK_BLOCKS JSON_LINK_BLOCK_COUNT)
+if(NOT JSON_LINK_BLOCK_COUNT EQUAL 1)
+    message(FATAL_ERROR
+        "nlohmann/json is linked by a target other than near_laugh_world")
+endif()
 if(NOT ROOT_CMAKE_CONTENT MATCHES
    "target_link_libraries\\(near_laugh_physics PRIVATE near_laugh_world Jolt\\)")
     message(FATAL_ERROR

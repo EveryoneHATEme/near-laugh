@@ -72,6 +72,16 @@ target_include_directories(near_laugh_cgltf SYSTEM INTERFACE
     "${cgltf_SOURCE_DIR}"
 )
 
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+set(JSON_Install OFF CACHE INTERNAL "")
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 set(JPH_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
 set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
@@ -119,10 +129,19 @@ function(near_laugh_enable_warnings target)
 endfunction()
 
 add_library(near_laugh_world STATIC
+    src/core/world/level_codec.cpp
     src/core/world/prototype_level.cpp
 )
 target_include_directories(near_laugh_world PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh_world PRIVATE nlohmann_json::nlohmann_json)
 near_laugh_enable_warnings(near_laugh_world)
+
+get_target_property(near_laugh_world_interface_includes
+                    near_laugh_world INTERFACE_INCLUDE_DIRECTORIES)
+if(near_laugh_world_interface_includes MATCHES "nlohmann")
+    message(FATAL_ERROR
+        "near_laugh_world exposes JSON include directories")
+endif()
 
 add_library(near_laugh_physics STATIC
     src/core/physics/physics_world.cpp
@@ -209,7 +228,7 @@ endif()
 get_target_property(near_laugh_runtime_interface_links
                     near_laugh_runtime INTERFACE_LINK_LIBRARIES)
 if(near_laugh_runtime_interface_links MATCHES
-   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf")
+   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf|nlohmann")
     message(FATAL_ERROR
         "near_laugh_runtime exposes a backend usage requirement: "
         "${near_laugh_runtime_interface_links}")
@@ -242,6 +261,9 @@ add_custom_command(TARGET fps POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
             "$<TARGET_FILE_DIR:fps>/resources/models"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/levels"
+            "$<TARGET_FILE_DIR:fps>/resources/levels"
 )
 
 if(BUILD_TESTING)

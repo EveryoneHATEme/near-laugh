@@ -6,17 +6,19 @@
 #include "core/render/validation_diagnostics.hpp"
 
 Engine::Engine(const near_laugh::RuntimeConfig& config,
-               RuntimeResources resources, ValidationDiagnostics& diagnostics)
+               ValidationDiagnostics& diagnostics)
     : platform_(),
       window_(platform_, config.window_width, config.window_height,
               config.window_title),
+      resources_(resolveRuntimeResources(config.resource_root)),
+      level_(loadPrototypeLevel(resources_.prototype_level)),
       physics_(level_),
       player_(physics_, level_.playerSpawn().yaw_degrees),
       renderer_(window_, window_.framebufferExtent(), level_,
-                {std::move(resources.scene_vertex_shader),
-                 std::move(resources.scene_fragment_shader),
-                 std::move(resources.scene_textures),
-                 std::move(resources.prototype_chair_model)},
+                {std::move(resources_.scene_vertex_shader),
+                 std::move(resources_.scene_fragment_shader),
+                 std::move(resources_.scene_textures),
+                 std::move(resources_.prototype_chair_model)},
                 diagnostics) {
   window_.setCursorCaptured(true);
   fixed_step_.reset();

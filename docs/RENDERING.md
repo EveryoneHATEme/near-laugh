@@ -112,6 +112,12 @@ Shader paths are resolved beneath `RuntimeConfig::resource_root` before renderer
 construction. Renderer code never constructs a path relative to the process
 working directory.
 
+Runtime composition also resolves and validates
+`resources/levels/prototype.level.json` before renderer construction. The
+renderer receives only the resulting immutable `PrototypeLevel`; it does not
+parse JSON, save or hot-reload levels, retain editable documents, or select
+resource paths from level data.
+
 The current visible smoke output uses two immutable world-space triangle
 streams. The generated-world stream is expanded deterministically from the
 same `PrototypeLevel` solids used by static physics collision. Every

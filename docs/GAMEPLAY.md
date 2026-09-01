@@ -112,12 +112,12 @@ Levels consist primarily of:
 
 The project does not require an arbitrary hierarchical scene editor.
 
-The built-in prototype level currently authors exactly two fixed world-space
-point lights: a dim cool pool around the player spawn and a warmer destination
-pool deeper along the route. Their bounded radii do not overlap, leaving an
-intentional dark transition over a small near-black ambient floor. The lights
-do not follow the camera and are not loaded, animated, triggered, or controlled
-by gameplay.
+The packaged prototype level authors exactly two fixed world-space point
+lights: a dim cool pool around the player spawn and a warmer destination pool
+deeper along the route. They are loaded and validated once before gameplay.
+Their bounded radii do not overlap, leaving an intentional dark transition
+over a small near-black ambient floor. The lights do not follow the camera and
+are not animated, triggered, or controlled by gameplay.
 
 The player owns one initially disabled camera-mounted flashlight. While
 enabled it supplies a finite-range spot light from the interpolated rendered
@@ -129,7 +129,9 @@ model, batteries, flicker, volumetric beams, fog, exposure adaptation, and a
 general lighting registry are outside this milestone. Without shadow mapping,
 the spot light does not account for occluding geometry.
 
-One fixed low-poly chair stands beside the initial route. It uses the existing
+One fixed low-poly chair placement and box proxy are loaded from the packaged
+level and stand beside the initial route. The fixed chair model itself remains
+an implicit packaged resource rather than a path in level data. It uses the existing
 obstacle texture, responds to the same ambient, point, and flashlight lighting
 as generated geometry, and blocks the player with a deliberately simple
 authored box proxy. The chair cannot move, animate, take damage, be used, or be

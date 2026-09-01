@@ -92,7 +92,11 @@ output directory. The required shader files are
 files are `resources/textures/prototype_floor.png`,
 `prototype_boundary.png`, `prototype_obstacle.png`, and
 `prototype_shooting_target.png`. The required static model is
-`resources/models/prototype_chair.glb`.
+`resources/models/prototype_chair.glb`. The required level is
+`resources/levels/prototype.level.json`. Version 1 fixes one 97-by-97 terrain,
+at most 240 solids, one spawn, exactly two point lights and one ambient
+intensity, and one chair placement with a box proxy. The level contains no
+resource paths and is loaded once before physics and renderer construction.
 The launcher queries the actual running module through the host's native
 process facility, derives and normalizes that executable-relative directory,
 and passes it through `RuntimeConfig::resource_root`. Changing the process
@@ -132,7 +136,9 @@ or HDR post-processing.
 ## Build Targets
 
 - `near_laugh_platform` contains GLFW windowing and physical input collection.
-- `near_laugh_world` contains immutable prototype solids and the player spawn.
+- `near_laugh_world` contains the bounded level document, private pinned
+  `nlohmann/json` codec, shared field-aware validation, and immutable validated
+  prototype-level handoff.
 - `near_laugh_physics` privately links Jolt v5.6.0 and contains its RAII
   lifetime, single-threaded static world, and virtual character.
 - `near_laugh_render` contains Vulkan, the internal surface bridge, the private
@@ -154,7 +160,9 @@ texture mip counts and format requirements, the five-location CPU/GPU vertex
 contract, the 128-byte camera-plus-spot push constant, source-independent spot
 data and bounded cone math, two-light `std140` upload layout, ordered
 texture/lighting descriptors, the bounded GLB profile and transforms, the
-executable-relative chair resource, and two-draw immutable mesh ownership.
+executable-relative chair and level resources, strict level parsing, canonical
+locale-independent round trips, atomic save failure preservation, exact
+packaged-level parity, and two-draw immutable mesh ownership.
 Deliberately Vulkan- and Jolt-dependent fixtures are expected to fail the
 public-header check.
 

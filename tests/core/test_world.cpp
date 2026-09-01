@@ -10,6 +10,7 @@
 
 #include "core/physics/physics_world.hpp"
 #include "core/world/prototype_level.hpp"
+#include "prototype_level_fixture.hpp"
 
 namespace {
 std::size_t countKind(const PrototypeLevel& level, PrototypeSolidKind kind) {
@@ -43,7 +44,7 @@ float distance(const WorldPosition& first, const WorldPosition& second) {
 }  // namespace
 
 TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   EXPECT_TRUE(prototypeLevelIsValid(level));
   EXPECT_EQ(countKind(level, PrototypeSolidKind::Floor), 0U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::Boundary), 4U);
@@ -71,17 +72,18 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
 }
 
 TEST(PrototypeLevel, HasValidBoundedSculptableTerrain) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const PrototypeTerrain& terrain = level.terrain();
   EXPECT_TRUE(prototypeTerrainIsValid(terrain));
   EXPECT_EQ(terrain.sample_spacing, prototype_terrain_sample_spacing);
-  EXPECT_TRUE(prototypeTerrainContains(terrain, terrain.origin.x, terrain.origin.z));
+  EXPECT_TRUE(
+      prototypeTerrainContains(terrain, terrain.origin.x, terrain.origin.z));
   EXPECT_TRUE(prototypeTerrainContains(
-      terrain, terrain.origin.x +
-                   static_cast<float>(prototype_terrain_cell_count) *
-                       terrain.sample_spacing,
-      terrain.origin.z +
-          static_cast<float>(prototype_terrain_cell_count) * terrain.sample_spacing));
+      terrain,
+      terrain.origin.x + static_cast<float>(prototype_terrain_cell_count) *
+                             terrain.sample_spacing,
+      terrain.origin.z + static_cast<float>(prototype_terrain_cell_count) *
+                             terrain.sample_spacing));
   EXPECT_FALSE(prototypeTerrainContains(terrain, terrain.origin.x - 0.01F,
                                         terrain.origin.z));
   EXPECT_FALSE(prototypeTerrainContains(terrain, terrain.origin.x,
@@ -100,7 +102,7 @@ TEST(PrototypeLevel, HasValidBoundedSculptableTerrain) {
 }
 
 TEST(PrototypeLevel, RejectsInvalidTerrainFixtures) {
-  const PrototypeTerrain valid = PrototypeLevel{}.terrain();
+  const PrototypeTerrain valid = loadPackagedPrototypeLevel().terrain();
   auto invalid = valid;
   invalid.sample_spacing = 0.0F;
   EXPECT_FALSE(prototypeTerrainIsValid(invalid));
@@ -115,7 +117,7 @@ TEST(PrototypeLevel, RejectsInvalidTerrainFixtures) {
 }
 
 TEST(PrototypeLevel, HasThreeDistinctInertTexturedPlates) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   std::size_t plate_count = 0;
   float previous_x = -1000.0F;
   for (const PrototypeSolid& solid : level.solids()) {
@@ -133,7 +135,7 @@ TEST(PrototypeLevel, HasThreeDistinctInertTexturedPlates) {
 }
 
 TEST(PrototypeLevel, AssignsOneFixedSurfaceRoleToEveryBuiltInSolid) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   static_assert(static_cast<std::uint32_t>(PrototypeSurface::Floor) == 0U);
   static_assert(static_cast<std::uint32_t>(PrototypeSurface::Boundary) == 1U);
   static_assert(static_cast<std::uint32_t>(PrototypeSurface::Obstacle) == 2U);
@@ -148,18 +150,26 @@ TEST(PrototypeLevel, AssignsOneFixedSurfaceRoleToEveryBuiltInSolid) {
 }
 
 TEST(PrototypeLevel, RejectsInvalidSurfaceRoles) {
-  PrototypeSolid solid = PrototypeLevel{}.solids().front();
+  PrototypeSolid solid = loadPackagedPrototypeLevel().solids().front();
   solid.surface = static_cast<PrototypeSurface>(prototype_surface_count);
   EXPECT_FALSE(prototypeSurfaceIsValid(solid.surface));
+  EXPECT_FALSE(prototypeSolidIsValid(solid));
+
+  solid = loadPackagedPrototypeLevel().solids().front();
+  solid.kind = static_cast<PrototypeSolidKind>(100);
+  EXPECT_FALSE(prototypeSolidIsValid(solid));
+
+  solid = loadPackagedPrototypeLevel().solids().front();
+  solid.surface = PrototypeSurface::Obstacle;
   EXPECT_FALSE(prototypeSolidIsValid(solid));
 }
 
 TEST(PrototypeLevel, HasOneValidFilesystemFreeStaticChairDescription) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const PrototypeStaticProp& chair = level.staticProp();
-  static_assert(std::is_same_v<decltype(std::declval<const PrototypeLevel&>()
-                                            .staticProp()),
-                               const PrototypeStaticProp&>);
+  static_assert(std::is_same_v<
+                decltype(std::declval<const PrototypeLevel&>().staticProp()),
+                const PrototypeStaticProp&>);
   EXPECT_TRUE(prototypeStaticPropIsValid(chair));
   EXPECT_TRUE(std::isfinite(chair.translation.x));
   EXPECT_TRUE(std::isfinite(chair.translation.y));
@@ -179,7 +189,7 @@ TEST(PrototypeLevel, HasOneValidFilesystemFreeStaticChairDescription) {
 }
 
 TEST(PrototypeLevel, RejectsInvalidStaticChairFixtures) {
-  const PrototypeStaticProp valid = PrototypeLevel{}.staticProp();
+  const PrototypeStaticProp valid = loadPackagedPrototypeLevel().staticProp();
 
   auto invalid = valid;
   invalid.translation.x = std::numeric_limits<float>::quiet_NaN();
@@ -211,7 +221,7 @@ TEST(PrototypeLevel, RejectsInvalidStaticChairFixtures) {
 }
 
 TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   static_assert(std::is_same_v<decltype(std::declval<const PrototypeLevel&>()
                                             .environmentLight()),
                                const PrototypeEnvironmentLight&>);
@@ -242,7 +252,8 @@ TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
   EXPECT_GE(distance(dark_route_sample, destination_light.position),
             destination_light.radius);
 
-  const PrototypeLevel independently_constructed_level;
+  const PrototypeLevel independently_constructed_level =
+      loadPackagedPrototypeLevel();
   for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
     const WorldPosition& first = light.point_lights[index].position;
     const WorldPosition& second =
@@ -257,7 +268,8 @@ TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
 }
 
 TEST(PrototypeLevel, RejectsInvalidEnvironmentLightFixtures) {
-  const PrototypeEnvironmentLight valid = PrototypeLevel{}.environmentLight();
+  const PrototypeEnvironmentLight valid =
+      loadPackagedPrototypeLevel().environmentLight();
 
   auto invalid = valid;
   invalid.point_lights[0].position.x = std::numeric_limits<float>::quiet_NaN();
@@ -305,7 +317,7 @@ TEST(PrototypeLevel, RejectsInvalidEnvironmentLightFixtures) {
 }
 
 TEST(PrototypeLevel, SpawnFacesSceneAndClearsEverySolid) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   EXPECT_FLOAT_EQ(level.playerSpawn().yaw_degrees, -90.0F);
   EXPECT_TRUE(prototypeSpawnIsClear(level, player_capsule_radius,
                                     player_standing_height));
@@ -314,13 +326,13 @@ TEST(PrototypeLevel, SpawnFacesSceneAndClearsEverySolid) {
   EXPECT_GT(level.playerSpawn().foot_position.x, -10.0F);
   EXPECT_LT(level.playerSpawn().foot_position.x, 10.0F);
   EXPECT_FLOAT_EQ(level.playerSpawn().foot_position.y,
-                  prototypeTerrainHeightAt(level.terrain(),
-                                           level.playerSpawn().foot_position.x,
-                                           level.playerSpawn().foot_position.z));
+                  prototypeTerrainHeightAt(
+                      level.terrain(), level.playerSpawn().foot_position.x,
+                      level.playerSpawn().foot_position.z));
 }
 
 TEST(PrototypeLevel, RenderingAndPhysicsDeriveFromMatchingSolids) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   const PhysicsWorld physics(level);
   EXPECT_TRUE(physics.hasTerrainCollision());
   ASSERT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);

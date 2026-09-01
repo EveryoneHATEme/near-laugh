@@ -5,6 +5,7 @@
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/immutable_mesh_buffer.hpp"
 #include "core/render/lighting_resources.hpp"
+#include "prototype_level_fixture.hpp"
 
 TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   constexpr VkVertexInputBindingDescription binding =
@@ -97,7 +98,7 @@ TEST(SceneLighting, MatchesStd140UploadAndDescriptorContract) {
   EXPECT_EQ(binding.pImmutableSamplers, nullptr);
 
   const PrototypeEnvironmentLight environment =
-      PrototypeLevel{}.environmentLight();
+      loadPackagedPrototypeLevel().environmentLight();
   const PrototypeLightingUpload upload =
       makePrototypeLightingUpload(environment);
   for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
