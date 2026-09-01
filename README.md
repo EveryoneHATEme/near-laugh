@@ -15,7 +15,7 @@ Development: `docs/DEVELOPMENT.md`
 
 The `fps` executable links the backend-neutral `near_laugh_runtime` facade.
 Runtime composition owns `Platform -> Window -> PrototypeLevel -> PhysicsWorld
--> PlayerController -> PrototypeRifle -> ShootingTargets -> Renderer` in that
+-> PlayerController -> PlayerFlashlight -> Renderer` in that
 order and destroys them in reverse.
 `near_laugh_platform` confines GLFW and physical keyboard/mouse state;
 `near_laugh_world` owns immutable prototype solids and two authored point
@@ -27,18 +27,17 @@ waited batch before another poll can clear its cursor delta, while held actions
 remain active. Each renderer request returns rendered, skipped, or recovered,
 and the Engine exhaustively consumes that outcome while retaining loop and
 application-lifetime control. The Engine also owns a bounded 60 Hz simulation
-accumulator, player/rifle input, hitscan resolution, target feedback,
-interpolation, cursor capture transitions, and framebuffer aspect. Physics
-exposes backend-neutral closest-static-hit results while retaining Jolt body
-data privately. Rendering receives only a column-major view-projection matrix
-and highlighted/dimmed solid masks; it does not interpret weapon, health,
-damage, input, simulation state, or elapsed time.
+accumulator, player/flashlight input, interpolation, cursor capture transitions,
+and framebuffer aspect. Physics retains Jolt body data privately. Rendering
+receives only a column-major view-projection matrix and one optional
+source-independent spot-light frame; it does not interpret player, flashlight,
+input, simulation state, or elapsed time.
 
 ## Prototype scene controls
 
 The executable starts with the cursor captured and shows one built-in textured
 3D room with a floor, boundaries, several obstacles, a low step, and a
-crouch-only passage, plus three shooting-range target plates. Every immutable
+crouch-only passage, plus three inert textured and collidable plates. Every immutable
 axis-aligned solid carries one fixed floor, boundary, obstacle, or
 shooting-target surface role; rendering and static collision derive from those
 same solids. It requires no model, general material, collision, or level file.
@@ -52,18 +51,17 @@ an intentionally dark transition between them over a near-black ambient floor.
 - Left Control: hold to crouch
 - Left Shift: sprint
 - Escape: release the cursor
-- Left mouse button: hold to fire while captured; recapture while released
+- Left mouse button: toggle the flashlight while captured; recapture while released
 
 Movement is constrained by static Jolt collision and includes gravity, wall
 sliding, the authored 0.30 m step, bounded air control, and blocked standing
 under low clearance. This prototype does not yet contain dynamic rigid bodies,
-moving platforms, doors, projectiles, or physics-driven objects. The one
-automatic hitscan rifle has unlimited ammunition, fixed cadence/range, and
-bounded recovering recoil. Hits briefly highlight a target; four hits destroy
-and persistently dim it without removing its visible/static collision. There
-are no finite ammunition or ammo tracking, reloads, weapon switching, spread,
-models, crosshairs, audio, particles, enemies/AI, physical target destruction,
-or generic entity/damage framework.
+moving platforms, doors, projectiles, or physics-driven objects. The initially
+disabled flashlight follows the interpolated camera and adds one finite-range
+spot light with smooth cone falloff. Its render-frame type is independent of
+the player, so another concrete object can supply the same one dynamic slot.
+There is no weapon, damage, target state, visible flashlight model, battery,
+shadow map, volumetric beam, audio, particles, or general light registry.
 
 ## Build
 
@@ -112,7 +110,9 @@ scene draw and is not a general material, asset streaming, descriptor-indexing,
 or bindless system. A separate swapchain-independent RAII owner uploads the two
 validated level lights once to an 80-byte uniform buffer and exposes one
 immutable set-1 descriptor; the texture remains set 0. Opaque visibility uses
-one device-local depth attachment per swapchain image. There are no shadows,
-flashlight, dynamic or file-loaded lights, fog, HDR, exposure adaptation, or
-general lighting framework in this milestone. See
+one device-local depth attachment per swapchain image. A 128-byte per-draw
+push constant carries the camera plus the optional source-independent spot
+light without mutable descriptor updates. There are no shadows, multiple
+dynamic lights, file-loaded lights, fog, HDR, exposure adaptation, or general
+lighting framework in this milestone. See
 `docs/DEVELOPMENT.md` for run commands and the optional Vulkan smoke preset.

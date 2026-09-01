@@ -51,7 +51,7 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
   EXPECT_GE(countKind(level, PrototypeSolidKind::WalkableStep), 1U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::LowClearance), 1U);
   EXPECT_EQ(countKind(level, PrototypeSolidKind::ShootingTarget),
-            prototype_target_count);
+            prototype_plate_count);
 
   const auto step = std::find_if(
       level.solids().begin(), level.solids().end(), [](const auto& solid) {
@@ -70,26 +70,22 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
   EXPECT_LT(passage_clearance, player_standing_height);
 }
 
-TEST(PrototypeLevel, HasThreeDistinctMaskableShootingTargets) {
+TEST(PrototypeLevel, HasThreeDistinctInertTexturedPlates) {
   const PrototypeLevel level;
-  const auto& targets = level.targetDescriptions();
-  ASSERT_EQ(targets.size(), prototype_target_count);
-  EXPECT_GT(level.targetStartingHealth(), 0);
-  EXPECT_TRUE(prototypeTargetDescriptionsAreValid(
-      level.solids(), targets, level.targetStartingHealth()));
-
-  std::array<bool, prototype_solid_mask_bit_count> seen{};
+  std::size_t plate_count = 0;
   float previous_x = -1000.0F;
-  for (const PrototypeTargetDescription& target : targets) {
-    ASSERT_LT(target.solid_index, level.solids().size());
-    ASSERT_LT(target.solid_index, prototype_solid_mask_bit_count);
-    EXPECT_FALSE(seen[target.solid_index]);
-    seen[target.solid_index] = true;
-    const PrototypeSolid& solid = level.solids()[target.solid_index];
+  for (const PrototypeSolid& solid : level.solids()) {
+    if (solid.kind != PrototypeSolidKind::ShootingTarget) {
+      continue;
+    }
+    ++plate_count;
     EXPECT_EQ(solid.kind, PrototypeSolidKind::ShootingTarget);
+    EXPECT_EQ(solid.surface, PrototypeSurface::ShootingTarget);
     EXPECT_GT(solid.center.x, previous_x);
     previous_x = solid.center.x;
   }
+  EXPECT_EQ(plate_count, prototype_plate_count);
+  EXPECT_TRUE(prototypeLevelIsValid(level));
 }
 
 TEST(PrototypeLevel, AssignsOneFixedSurfaceRoleToEveryBuiltInSolid) {
@@ -112,33 +108,6 @@ TEST(PrototypeLevel, RejectsInvalidSurfaceRoles) {
   solid.surface = static_cast<PrototypeSurface>(prototype_surface_count);
   EXPECT_FALSE(prototypeSurfaceIsValid(solid.surface));
   EXPECT_FALSE(prototypeSolidIsValid(solid));
-}
-
-TEST(PrototypeLevel, RejectsInvalidShootingTargetDescriptions) {
-  const PrototypeLevel level;
-  std::vector<PrototypeSolid> solids = level.solids();
-  auto targets = level.targetDescriptions();
-
-  EXPECT_FALSE(prototypeTargetDescriptionsAreValid(solids, targets, 0));
-
-  auto duplicate = targets;
-  duplicate[2].solid_index = duplicate[0].solid_index;
-  EXPECT_FALSE(prototypeTargetDescriptionsAreValid(
-      solids, duplicate, level.targetStartingHealth()));
-
-  auto out_of_range = targets;
-  out_of_range[0].solid_index = solids.size();
-  EXPECT_FALSE(prototypeTargetDescriptionsAreValid(
-      solids, out_of_range, level.targetStartingHealth()));
-
-  auto wrong_kind_solids = solids;
-  wrong_kind_solids[targets[1].solid_index].kind = PrototypeSolidKind::Obstacle;
-  EXPECT_FALSE(prototypeTargetDescriptionsAreValid(
-      wrong_kind_solids, targets, level.targetStartingHealth()));
-
-  EXPECT_FALSE(prototypeTargetDescriptionsAreValid(
-      solids, std::span<const PrototypeTargetDescription>{targets}.first(2),
-      level.targetStartingHealth()));
 }
 
 TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {

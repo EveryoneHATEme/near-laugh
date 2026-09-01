@@ -3,9 +3,7 @@
 
 #include <utility>
 
-#include "core/gameplay/prototype_rifle.hpp"
-#include "core/gameplay/shooting_range.hpp"
-#include "core/gameplay/shooting_targets.hpp"
+#include "core/gameplay/player_flashlight.hpp"
 #include "core/input/fps_input.hpp"
 #include "core/physics/physics_world.hpp"
 #include "core/platform/platform.hpp"
@@ -41,8 +39,7 @@ class Engine {
   PrototypeLevel level_{};
   PhysicsWorld physics_;
   PlayerController player_;
-  PrototypeRifle rifle_{};
-  ShootingTargets targets_;
+  PlayerFlashlight flashlight_{};
   Renderer renderer_;
   FpsInputMapper input_mapper_{};
   FpsActionSnapshot input_{};

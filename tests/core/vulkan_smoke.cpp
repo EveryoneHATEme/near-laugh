@@ -363,24 +363,30 @@ int main(int argc, char** argv) {
           }
         }
         const FramebufferExtent extent = window.framebufferExtent();
+        const PlayerViewPose view = player.viewPose(1.0F);
         const CameraFrame camera = player.cameraFrame(
             extent.isZero() ? 1.0F
                             : static_cast<float>(extent.width) /
                                   static_cast<float>(extent.height),
-            1.0F);
-        PrototypeScenePresentation presentation{};
-        const std::uint32_t target_mask =
-            std::uint32_t{1} << level.targetDescriptions()[0].solid_index;
+            view);
+        SpotLightFrame spot_light{};
         if (frame >= 30 && frame < 60) {
-          presentation.highlighted_solid_mask = target_mask;
-        } else if (frame >= 60 && frame < 90) {
-          presentation.dimmed_solid_mask = target_mask;
+          spot_light = {
+              {view.position.x, view.position.y, view.position.z, 16.0F},
+              {view.direction.x, view.direction.y, view.direction.z, 0.97F},
+              {0.92F, 0.96F, 1.0F, 1.35F},
+              {0.90F, 1.0F, 0.0F, 0.0F}};
         } else if (frame >= 90) {
-          presentation.highlighted_solid_mask = target_mask;
-          presentation.dimmed_solid_mask = target_mask;
+          spot_light = {{-4.0F, 2.0F, -3.0F, 8.0F},
+                        {1.0F, 0.0F, 0.0F, 0.95F},
+                        {1.0F, 0.35F, 0.15F, 1.0F},
+                        {0.85F, 1.0F, 0.0F, 0.0F}};
+        }
+        if (!spotLightFrameIsValid(spot_light)) {
+          throw std::runtime_error("Smoke generated an invalid spot light");
         }
         const FrameRequest request{extent, window.consumeFramebufferResize(),
-                                   camera, presentation};
+                                   camera, spot_light};
         static_cast<void>(renderer.renderFrame(request));
       }
       if (inject_validation_error) {

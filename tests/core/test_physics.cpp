@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 
-#include <cstdlib>
 #include <cmath>
-#include <limits>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -48,25 +47,15 @@ PhysicsCharacterState simulate(PhysicsWorld& world, PhysicsVector horizontal,
       vertical_velocity = 0.0F;
     }
     vertical_velocity -= 18.0F * delta;
-    state = world.stepCharacter(
-        {{horizontal.x, vertical_velocity, horizontal.z},
-         {0.0F, -18.0F, 0.0F}, crouch_requested},
-        delta);
+    state =
+        world.stepCharacter({{horizontal.x, vertical_velocity, horizontal.z},
+                             {0.0F, -18.0F, 0.0F},
+                             crouch_requested},
+                            delta);
   }
   return state;
 }
 
-void expectSameCharacterState(const PhysicsCharacterState& first,
-                              const PhysicsCharacterState& second) {
-  EXPECT_FLOAT_EQ(first.foot_position.x, second.foot_position.x);
-  EXPECT_FLOAT_EQ(first.foot_position.y, second.foot_position.y);
-  EXPECT_FLOAT_EQ(first.foot_position.z, second.foot_position.z);
-  EXPECT_FLOAT_EQ(first.linear_velocity.x, second.linear_velocity.x);
-  EXPECT_FLOAT_EQ(first.linear_velocity.y, second.linear_velocity.y);
-  EXPECT_FLOAT_EQ(first.linear_velocity.z, second.linear_velocity.z);
-  EXPECT_EQ(first.ground_state, second.ground_state);
-  EXPECT_EQ(first.stance, second.stance);
-}
 }  // namespace
 
 TEST(PhysicsLifetime, RepeatedCreateDestroyLeavesNoGlobalOwner) {
@@ -102,10 +91,8 @@ TEST(PhysicsWorld, AdvancesOnTheCallingThreadWithSingleThreadedJobs) {
   PhysicsWorld physics(level);
   const std::thread::id caller = std::this_thread::get_id();
   EXPECT_TRUE(physics.usesSingleThreadedJobs());
-  const PhysicsCharacterState state =
-      physics.stepCharacter({{0.0F, -0.3F, 0.0F},
-                            {0.0F, -18.0F, 0.0F}, false},
-                            1.0F / 60.0F);
+  const PhysicsCharacterState state = physics.stepCharacter(
+      {{0.0F, -0.3F, 0.0F}, {0.0F, -18.0F, 0.0F}, false}, 1.0F / 60.0F);
   EXPECT_EQ(std::this_thread::get_id(), caller);
   EXPECT_LT(state.foot_position.y, level.playerSpawn().foot_position.y);
 }
@@ -139,69 +126,13 @@ TEST(PhysicsWorld, StaticObstacleRejectsForwardMovement) {
   EXPECT_LT(state.foot_position.z, 2.0F);
 }
 
-TEST(PhysicsStaticRay, RejectsInvalidInputWithoutChangingCharacter) {
-  const PrototypeLevel level;
-  PhysicsWorld physics(level);
-  const PhysicsCharacterState before = physics.characterState();
-  const float nan = std::numeric_limits<float>::quiet_NaN();
-  const float infinity = std::numeric_limits<float>::infinity();
-
-  EXPECT_THROW(static_cast<void>(physics.closestStaticHit(
-                   {{nan, 1.0F, 1.0F}, {0, 0, -1}, 1})),
-               std::invalid_argument);
-  EXPECT_THROW(static_cast<void>(physics.closestStaticHit(
-                   {{0, 1, 1}, {infinity, 0, -1}, 1})),
-               std::invalid_argument);
-  EXPECT_THROW(static_cast<void>(
-                   physics.closestStaticHit({{0, 1, 1}, {}, 1})),
-               std::invalid_argument);
-  EXPECT_THROW(static_cast<void>(physics.closestStaticHit(
-                   {{0, 1, 1}, {0, 0, -1}, 0})),
-               std::invalid_argument);
-  EXPECT_THROW(static_cast<void>(physics.closestStaticHit(
-                   {{0, 1, 1}, {0, 0, -1}, infinity})),
-               std::invalid_argument);
-  expectSameCharacterState(before, physics.characterState());
-}
-
-TEST(PhysicsStaticRay, ReportsMissAndClosestEnvironmentSolid) {
-  const PrototypeLevel level;
-  PhysicsWorld physics(level);
-  EXPECT_FALSE(
-      physics.closestStaticHit({{0.0F, 2.0F, 7.0F}, {0, 0, 1}, 1.0F}));
-
-  const auto hit =
-      physics.closestStaticHit({{0.0F, 1.0F, 7.0F}, {0, 0, -2}, 30.0F});
-  ASSERT_TRUE(hit);
-  EXPECT_EQ(hit->solid_index, 5U);
-  EXPECT_NEAR(hit->distance, 6.0F, 0.001F);
-}
-
-TEST(PhysicsStaticRay, ReportsEveryAuthoredTargetSolid) {
-  const PrototypeLevel level;
-  PhysicsWorld physics(level);
-  const PhysicsCharacterState before = physics.characterState();
-  for (const PrototypeTargetDescription& target : level.targetDescriptions()) {
-    const PrototypeSolid& solid = level.solids()[target.solid_index];
-    const auto hit = physics.closestStaticHit(
-        {{solid.center.x, solid.center.y, solid.center.z + 2.5F}, {0, 0, -1},
-         5.0F});
-    ASSERT_TRUE(hit);
-    EXPECT_EQ(hit->solid_index, target.solid_index);
-    EXPECT_NEAR(hit->distance, 2.38F, 0.001F);
-  }
-  expectSameCharacterState(before, physics.characterState());
-}
-
 TEST(PhysicsCharacter, SpawnsUnsupportedThenSettlesStably) {
   const PrototypeLevel level;
   PhysicsWorld physics(level);
   const PhysicsCharacterState initial = physics.characterState();
   EXPECT_EQ(initial.ground_state, PhysicsGroundState::InAir);
-  EXPECT_FLOAT_EQ(initial.foot_position.x,
-                  level.playerSpawn().foot_position.x);
-  EXPECT_FLOAT_EQ(initial.foot_position.z,
-                  level.playerSpawn().foot_position.z);
+  EXPECT_FLOAT_EQ(initial.foot_position.x, level.playerSpawn().foot_position.x);
+  EXPECT_FLOAT_EQ(initial.foot_position.z, level.playerSpawn().foot_position.z);
 
   const PhysicsCharacterState settled = simulate(physics, {}, 120);
   ASSERT_TRUE(settled.supported());

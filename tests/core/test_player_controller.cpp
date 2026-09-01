@@ -197,11 +197,10 @@ TEST(PlayerCamera, RetainsVulkanProjectionStorageAndAspectBehavior) {
   const PrototypeLevel level;
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
-  const float camera_y = level.playerSpawn().foot_position.y +
-                         player_standing_eye_height;
+  const float camera_y =
+      level.playerSpawn().foot_position.y + player_standing_eye_height;
   const CameraFrame square = player.cameraFrame(1.0F, 1.0F);
-  const HomogeneousPoint near_point =
-      transform(square, {0.0F, camera_y, 6.9F});
+  const HomogeneousPoint near_point = transform(square, {0.0F, camera_y, 6.9F});
   const HomogeneousPoint far_point =
       transform(square, {0.0F, camera_y, -93.0F});
   EXPECT_NEAR(near_point.z / near_point.w, 0.0F, 0.0001F);
@@ -243,27 +242,7 @@ TEST(PlayerCamera, UsesActualStanceEyeHeight) {
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
   const PlayerCameraPosition standing = player.interpolatedCameraPosition(1.0F);
-  EXPECT_NEAR(standing.y, player.state().foot_position.y +
-                              player_standing_eye_height,
-              0.0001F);
-
-  FpsActionSnapshot crouch;
-  crouch.crouch = true;
-  player.sampleInput(crouch, true);
-  player.fixedStep(fixed_delta);
-  const PlayerCameraPosition crouched = player.interpolatedCameraPosition(1.0F);
-  EXPECT_NEAR(crouched.y, player.state().foot_position.y +
-                              player_crouched_eye_height,
-              0.0001F);
-}
-
-TEST(PlayerAim, UsesCurrentStandingAndCrouchedSimulatedEye) {
-  const PrototypeLevel level;
-  PhysicsWorld physics(level);
-  PlayerController player(physics, level.playerSpawn().yaw_degrees);
-  settle(player);
-  PlayerAim aim = player.currentAim();
-  EXPECT_NEAR(aim.eye_position.y,
+  EXPECT_NEAR(standing.y,
               player.state().foot_position.y + player_standing_eye_height,
               0.0001F);
 
@@ -271,45 +250,65 @@ TEST(PlayerAim, UsesCurrentStandingAndCrouchedSimulatedEye) {
   crouch.crouch = true;
   player.sampleInput(crouch, true);
   player.fixedStep(fixed_delta);
-  aim = player.currentAim();
-  EXPECT_NEAR(aim.eye_position.y,
+  const PlayerCameraPosition crouched = player.interpolatedCameraPosition(1.0F);
+  EXPECT_NEAR(crouched.y,
               player.state().foot_position.y + player_crouched_eye_height,
               0.0001F);
 }
 
-TEST(PlayerAim, AppliesPartialAndClampedMaximumRecoilToAimAndCamera) {
+TEST(PlayerView, UsesInterpolatedStandingAndCrouchedEye) {
+  const PrototypeLevel level;
+  PhysicsWorld physics(level);
+  PlayerController player(physics, level.playerSpawn().yaw_degrees);
+  settle(player);
+  PlayerViewPose view = player.viewPose(1.0F);
+  EXPECT_NEAR(view.position.y,
+              player.state().foot_position.y + player_standing_eye_height,
+              0.0001F);
+
+  FpsActionSnapshot crouch;
+  crouch.crouch = true;
+  player.sampleInput(crouch, true);
+  player.fixedStep(fixed_delta);
+  view = player.viewPose(1.0F);
+  EXPECT_NEAR(view.position.y,
+              player.state().foot_position.y + player_crouched_eye_height,
+              0.0001F);
+}
+
+TEST(PlayerView, DirectionMatchesLookAndSharedCameraPose) {
   const PrototypeLevel level;
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
 
-  const PlayerAim zero = player.currentAim();
-  EXPECT_NEAR(zero.direction.x, 0.0F, 0.0001F);
-  EXPECT_NEAR(zero.direction.y, 0.0F, 0.0001F);
-  EXPECT_NEAR(zero.direction.z, -1.0F, 0.0001F);
+  const PlayerViewPose initial = player.viewPose(1.0F);
+  EXPECT_NEAR(initial.direction.x, 0.0F, 0.0001F);
+  EXPECT_NEAR(initial.direction.y, 0.0F, 0.0001F);
+  EXPECT_NEAR(initial.direction.z, -1.0F, 0.0001F);
 
-  const PlayerAim partial = player.currentAim(4.0F);
-  EXPECT_GT(partial.direction.y, 0.0F);
-  EXPECT_GT(partial.direction.z, zero.direction.z + 0.001F);
-  const CameraFrame partial_camera = player.cameraFrame(1.0F, 1.0F, 4.0F);
-  const HomogeneousPoint centered = transform(
-      partial_camera,
-      {partial.eye_position.x + partial.direction.x,
-       partial.eye_position.y + partial.direction.y,
-       partial.eye_position.z + partial.direction.z});
+  FpsActionSnapshot look;
+  look.look_delta_x = 150.0;
+  look.look_delta_y = -200.0;
+  player.sampleInput(look, true);
+  const PlayerViewPose changed = player.viewPose(0.5F);
+  EXPECT_GT(changed.direction.x, initial.direction.x);
+  EXPECT_GT(changed.direction.y, initial.direction.y);
+  const CameraFrame changed_camera = player.cameraFrame(1.0F, changed);
+  const HomogeneousPoint centered =
+      transform(changed_camera, {changed.position.x + changed.direction.x,
+                                 changed.position.y + changed.direction.y,
+                                 changed.position.z + changed.direction.z});
   EXPECT_NEAR(centered.x / centered.w, 0.0F, 0.0001F);
   EXPECT_NEAR(centered.y / centered.w, 0.0F, 0.0001F);
 
   FpsActionSnapshot almost_up;
   almost_up.look_delta_y = -880.0;
   player.sampleInput(almost_up, true);
-  const PlayerAim maximum = player.currentAim(8.0F);
-  EXPECT_NEAR(maximum.direction.y,
-              std::sin(player_pitch_limit_degrees *
-                       3.14159265358979323846F / 180.0F),
-              0.0001F);
-  EXPECT_THROW(static_cast<void>(player.currentAim(
-                   std::numeric_limits<float>::quiet_NaN())),
-               std::invalid_argument);
+  const PlayerViewPose maximum = player.viewPose(1.0F);
+  EXPECT_NEAR(
+      maximum.direction.y,
+      std::sin(player_pitch_limit_degrees * 3.14159265358979323846F / 180.0F),
+      0.0001F);
 }
 
 TEST(PlayerCursor, ReleasePrecedesRecaptureAndTransitionsNeutralizeControls) {
@@ -318,18 +317,18 @@ TEST(PlayerCursor, ReleasePrecedesRecaptureAndTransitionsNeutralizeControls) {
   actions.primary_action = true;
   EXPECT_EQ(playerCursorTransition(true, actions),
             PlayerCursorCaptureTransition::Release);
-  EXPECT_FALSE(playerControlsActive(
-      true, playerCursorTransition(true, actions)));
+  EXPECT_FALSE(
+      playerControlsActive(true, playerCursorTransition(true, actions)));
   EXPECT_EQ(playerCursorTransition(false, actions),
             PlayerCursorCaptureTransition::None);
 
   actions.menu = false;
   EXPECT_EQ(playerCursorTransition(false, actions),
             PlayerCursorCaptureTransition::Capture);
-  EXPECT_FALSE(playerControlsActive(
-      false, playerCursorTransition(false, actions)));
-  EXPECT_TRUE(playerControlsActive(
-      true, playerCursorTransition(true, actions)));
+  EXPECT_FALSE(
+      playerControlsActive(false, playerCursorTransition(false, actions)));
+  EXPECT_TRUE(
+      playerControlsActive(true, playerCursorTransition(true, actions)));
 }
 
 TEST(PlayerCursor, ReleasedControlsAreNeutralWhileAirbornePhysicsContinues) {

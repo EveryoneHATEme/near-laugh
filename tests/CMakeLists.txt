@@ -3,9 +3,7 @@ add_executable(engine_tests
     core/test_executable_path.cpp
     core/test_frame.cpp
     core/test_fixed_step.cpp
-    core/test_prototype_rifle.cpp
-    core/test_shooting_targets.cpp
-    core/test_shooting_range.cpp
+    core/test_player_flashlight.cpp
     core/test_runtime_resources.cpp
     core/test_validation_diagnostics.cpp
     core/test_shader_provider.cpp

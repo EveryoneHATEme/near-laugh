@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
 
 #include "core/world/prototype_level.hpp"
 
@@ -45,17 +44,6 @@ struct PhysicsStaticSolid {
   PrototypeSolidKind kind{PrototypeSolidKind::Obstacle};
 };
 
-struct PhysicsStaticRay {
-  PhysicsVector origin{};
-  PhysicsVector direction{};
-  float maximum_distance{};
-};
-
-struct PhysicsStaticRayHit {
-  std::size_t solid_index{};
-  float distance{};
-};
-
 class PhysicsWorld {
  public:
   explicit PhysicsWorld(const PrototypeLevel& level);
@@ -71,8 +59,6 @@ class PhysicsWorld {
   [[nodiscard]] PhysicsCharacterState characterState() const noexcept;
   [[nodiscard]] std::size_t staticBodyCount() const noexcept;
   [[nodiscard]] PhysicsStaticSolid staticBody(std::size_t index) const;
-  [[nodiscard]] std::optional<PhysicsStaticRayHit> closestStaticHit(
-      const PhysicsStaticRay& ray) const;
   [[nodiscard]] bool usesSingleThreadedJobs() const noexcept;
 
  private:

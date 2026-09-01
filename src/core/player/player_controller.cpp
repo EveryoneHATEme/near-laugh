@@ -64,12 +64,11 @@ void PlayerController::sampleInput(const FpsActionSnapshot& actions,
                                    bool controls_active) {
   controls_ = controls_active ? actions : FpsActionSnapshot{};
   if (controls_active) {
-    yaw_degrees_ += static_cast<float>(actions.look_delta_x) *
-                    mouse_sensitivity_degrees;
+    yaw_degrees_ +=
+        static_cast<float>(actions.look_delta_x) * mouse_sensitivity_degrees;
     pitch_degrees_ =
-        std::clamp(pitch_degrees_ -
-                       static_cast<float>(actions.look_delta_y) *
-                           mouse_sensitivity_degrees,
+        std::clamp(pitch_degrees_ - static_cast<float>(actions.look_delta_y) *
+                                        mouse_sensitivity_degrees,
                    -player_pitch_limit_degrees, player_pitch_limit_degrees);
   }
 
@@ -89,8 +88,7 @@ PhysicsVector PlayerController::desiredHorizontalVelocity() const noexcept {
   const float right_axis =
       static_cast<float>(static_cast<int>(controls_.move_right) -
                          static_cast<int>(controls_.move_left));
-  PhysicsVector direction{forward.x * forward_axis + right.x * right_axis,
-                          0.0F,
+  PhysicsVector direction{forward.x * forward_axis + right.x * right_axis, 0.0F,
                           forward.z * forward_axis + right.z * right_axis};
   const float length = horizontalLength(direction);
   if (length == 0.0F) {
@@ -98,7 +96,8 @@ PhysicsVector PlayerController::desiredHorizontalVelocity() const noexcept {
   }
   direction.x /= length;
   direction.z /= length;
-  const float speed = controls_.sprint ? player_sprint_speed : player_walk_speed;
+  const float speed =
+      controls_.sprint ? player_sprint_speed : player_walk_speed;
   direction.x *= speed;
   direction.z *= speed;
   return direction;
@@ -135,15 +134,15 @@ void PlayerController::fixedStep(float delta_seconds) {
   state_ = physics_.stepCharacter(
       {{requested_horizontal_velocity_.x, vertical_velocity,
         requested_horizontal_velocity_.z},
-       {0.0F, -player_gravity, 0.0F}, controls_.crouch},
+       {0.0F, -player_gravity, 0.0F},
+       controls_.crouch},
       delta_seconds);
   current_presentation_ = {state_.foot_position, eyeHeight(state_.stance)};
 }
 
 float PlayerController::eyeHeight(PhysicsPlayerStance stance) noexcept {
-  return stance == PhysicsPlayerStance::Crouched
-             ? player_crouched_eye_height
-             : player_standing_eye_height;
+  return stance == PhysicsPlayerStance::Crouched ? player_crouched_eye_height
+                                                 : player_standing_eye_height;
 }
 
 void PlayerController::collapsePresentationState() noexcept {
@@ -167,25 +166,23 @@ PlayerCameraPosition PlayerController::interpolatedCameraPosition(
 }
 
 CameraFrame PlayerController::cameraFrame(float framebuffer_aspect,
-                                          float interpolation_alpha,
-                                          float recoil_pitch_degrees) const {
+                                          float interpolation_alpha) const {
+  return cameraFrame(framebuffer_aspect, viewPose(interpolation_alpha));
+}
+
+CameraFrame PlayerController::cameraFrame(
+    float framebuffer_aspect, const PlayerViewPose& view_pose) const {
   if (!std::isfinite(framebuffer_aspect) || framebuffer_aspect <= 0.0F) {
     throw std::invalid_argument(
         "Player camera requires a finite positive framebuffer aspect");
   }
 
-  const PlayerCameraPosition camera =
-      interpolatedCameraPosition(interpolation_alpha);
-  if (!std::isfinite(recoil_pitch_degrees)) {
-    throw std::invalid_argument("Player camera recoil must be finite");
-  }
-  const float effective_pitch =
-      std::clamp(pitch_degrees_ + recoil_pitch_degrees,
-                 -player_pitch_limit_degrees, player_pitch_limit_degrees);
-  const glm::vec3 position{camera.x, camera.y, camera.z};
-  const glm::mat4 view = glm::lookAtRH(
-      position, position + viewForward(yaw_degrees_, effective_pitch),
-      glm::vec3{0.0F, 1.0F, 0.0F});
+  const glm::vec3 position{view_pose.position.x, view_pose.position.y,
+                           view_pose.position.z};
+  const glm::vec3 direction{view_pose.direction.x, view_pose.direction.y,
+                            view_pose.direction.z};
+  const glm::mat4 view = glm::lookAtRH(position, position + direction,
+                                       glm::vec3{0.0F, 1.0F, 0.0F});
   glm::mat4 projection =
       glm::perspectiveRH_ZO(glm::radians(vertical_field_of_view_degrees),
                             framebuffer_aspect, near_plane, far_plane);
@@ -198,17 +195,10 @@ CameraFrame PlayerController::cameraFrame(float framebuffer_aspect,
   return result;
 }
 
-PlayerAim PlayerController::currentAim(float recoil_pitch_degrees) const {
-  if (!std::isfinite(recoil_pitch_degrees)) {
-    throw std::invalid_argument("Player aim recoil must be finite");
-  }
-  const float effective_pitch =
-      std::clamp(pitch_degrees_ + recoil_pitch_degrees,
-                 -player_pitch_limit_degrees, player_pitch_limit_degrees);
-  const glm::vec3 direction = viewForward(yaw_degrees_, effective_pitch);
-  return {{current_presentation_.foot_position.x,
-           current_presentation_.foot_position.y +
-               current_presentation_.eye_height,
-           current_presentation_.foot_position.z},
-          {direction.x, direction.y, direction.z}};
+PlayerViewPose PlayerController::viewPose(
+    float interpolation_alpha) const noexcept {
+  const PlayerCameraPosition position =
+      interpolatedCameraPosition(interpolation_alpha);
+  const glm::vec3 direction = viewForward(yaw_degrees_, pitch_degrees_);
+  return {position, {direction.x, direction.y, direction.z}};
 }

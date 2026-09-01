@@ -3,6 +3,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -15,12 +16,10 @@
 static_assert(offsetof(PositionColorVertex, position) == 0);
 static_assert(offsetof(PositionColorVertex, color) == sizeof(float) * 3);
 static_assert(offsetof(PositionColorVertex, normal) == sizeof(float) * 3 + 4);
-static_assert(offsetof(PositionColorVertex, solid_mask) ==
-              sizeof(float) * 6 + 4);
 static_assert(offsetof(PositionColorVertex, texture_coordinates) ==
-              sizeof(float) * 6 + 8);
+              sizeof(float) * 6 + 4);
 static_assert(offsetof(PositionColorVertex, texture_layer) ==
-              sizeof(float) * 8 + 8);
+              sizeof(float) * 8 + 4);
 
 [[nodiscard]] constexpr VkVertexInputBindingDescription
 sceneVertexBindingDescription() noexcept {
@@ -29,7 +28,7 @@ sceneVertexBindingDescription() noexcept {
 static_assert(sceneVertexBindingDescription().stride ==
               sizeof(PositionColorVertex));
 
-[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 6>
+[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 5>
 sceneVertexAttributeDescriptions() noexcept {
   return {
       {{0, 0, VK_FORMAT_R32G32B32_SFLOAT,
@@ -38,37 +37,57 @@ sceneVertexAttributeDescriptions() noexcept {
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, color))},
        {2, 0, VK_FORMAT_R32G32B32_SFLOAT,
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, normal))},
-       {3, 0, VK_FORMAT_R32_UINT,
-        static_cast<std::uint32_t>(offsetof(PositionColorVertex, solid_mask))},
-       {4, 0, VK_FORMAT_R32G32_SFLOAT,
+       {3, 0, VK_FORMAT_R32G32_SFLOAT,
         static_cast<std::uint32_t>(
             offsetof(PositionColorVertex, texture_coordinates))},
-       {5, 0, VK_FORMAT_R32_UINT,
+       {4, 0, VK_FORMAT_R32_UINT,
         static_cast<std::uint32_t>(
             offsetof(PositionColorVertex, texture_layer))}}};
 }
 
 struct alignas(16) ScenePushConstant {
   CameraFrame camera{};
-  alignas(16) std::array<std::uint32_t, 4> presentation_masks{};
+  SpotLightFrame spot_light{};
 };
 
 inline constexpr std::size_t vulkan_minimum_push_constant_size = 128;
 static_assert(std::is_standard_layout_v<ScenePushConstant>);
 static_assert(offsetof(ScenePushConstant, camera) == 0);
-static_assert(offsetof(ScenePushConstant, presentation_masks) ==
-              sizeof(CameraFrame));
-static_assert(sizeof(ScenePushConstant) == 80);
+static_assert(offsetof(ScenePushConstant, spot_light) == sizeof(CameraFrame));
+static_assert(sizeof(ScenePushConstant) == 128);
 static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
 
 [[nodiscard]] constexpr ScenePushConstant makeScenePushConstant(
-    const CameraFrame& camera,
-    PrototypeScenePresentation presentation = {}) noexcept {
-  ScenePushConstant push_constant{};
-  push_constant.camera = camera;
-  push_constant.presentation_masks[0] = presentation.highlighted_solid_mask;
-  push_constant.presentation_masks[1] = presentation.dimmed_solid_mask;
-  return push_constant;
+    const CameraFrame& camera, SpotLightFrame spot_light = {}) noexcept {
+  return {camera, spot_light};
+}
+
+[[nodiscard]] constexpr float spotLightDistanceFalloff(float distance,
+                                                       float range) noexcept {
+  const float normalized = std::clamp(distance / range, 0.0F, 1.0F);
+  const float edge = 1.0F - normalized * normalized;
+  return edge * edge;
+}
+
+[[nodiscard]] constexpr float spotLightAngularFalloff(
+    float direction_cosine, float inner_cosine, float outer_cosine) noexcept {
+  const float transition = std::clamp(
+      (direction_cosine - outer_cosine) / (inner_cosine - outer_cosine), 0.0F,
+      1.0F);
+  return transition * transition * (3.0F - 2.0F * transition);
+}
+
+[[nodiscard]] constexpr float spotLightDiffuseFactor(
+    float normal_dot_to_light, float distance, float range,
+    float direction_cosine, float inner_cosine, float outer_cosine,
+    bool enabled) noexcept {
+  if (!enabled || normal_dot_to_light <= 0.0F || distance >= range ||
+      direction_cosine <= outer_cosine) {
+    return 0.0F;
+  }
+  return std::clamp(normal_dot_to_light, 0.0F, 1.0F) *
+         spotLightDistanceFalloff(distance, range) *
+         spotLightAngularFalloff(direction_cosine, inner_cosine, outer_cosine);
 }
 
 inline constexpr std::uint32_t scene_texture_descriptor_set = 0;
@@ -118,7 +137,7 @@ class GraphicsPipeline {
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
   void bindAndDraw(VkCommandBuffer command_buffer, const CameraFrame& camera,
-                   PrototypeScenePresentation presentation) const;
+                   SpotLightFrame spot_light) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(

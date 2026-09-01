@@ -12,7 +12,6 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
               config.window_title),
       physics_(level_),
       player_(physics_, level_.playerSpawn().yaw_degrees),
-      targets_(level_),
       renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources.scene_vertex_shader),
                  std::move(resources.scene_fragment_shader),
@@ -47,17 +46,17 @@ bool Engine::tick() {
       const FixedStepBatch simulation =
           fixed_step_.sample(FixedStepAccumulator::Clock::now());
       for (int step = 0; step < simulation.complete_steps; ++step) {
-        static_cast<void>(coordinateShootingRangeFixedStep(
-            player_, rifle_, physics_, targets_,
-            static_cast<float>(FixedStepAccumulator::step_seconds)));
+        player_.fixedStep(
+            static_cast<float>(FixedStepAccumulator::step_seconds));
       }
 
       FrameRequest frame = decision.frame;
       const float aspect = static_cast<float>(framebuffer.width) /
                            static_cast<float>(framebuffer.height);
-      frame.camera = player_.cameraFrame(aspect, simulation.interpolation_alpha,
-                                         rifle_.recoilPitchDegrees());
-      frame.scene_presentation = targets_.presentation();
+      const PlayerViewPose view =
+          player_.viewPose(simulation.interpolation_alpha);
+      frame.camera = player_.cameraFrame(aspect, view);
+      frame.spot_light = flashlight_.spotLight(view);
       const FrameOutcome outcome = renderer_.renderFrame(frame);
       return runtimeContinuesAfter(outcome) && !window_.shouldClose();
     }
@@ -79,8 +78,7 @@ void Engine::samplePlayerInput(const FpsActionSnapshot& input) {
     case PlayerCursorCaptureTransition::None:
       break;
   }
-  const bool controls_active =
-      playerControlsActive(was_captured, transition);
+  const bool controls_active = playerControlsActive(was_captured, transition);
   player_.sampleInput(input, controls_active);
-  rifle_.sampleTrigger(input.primary_action, controls_active);
+  flashlight_.samplePrimaryAction(input.primary_action, controls_active);
 }

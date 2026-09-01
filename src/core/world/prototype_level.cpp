@@ -22,35 +22,74 @@ bool overlaps(float first_min, float first_max, float second_min,
 
 PrototypeLevel::PrototypeLevel()
     : solids_{
-          {{0.0F, -0.25F, -2.0F}, {10.0F, 0.25F, 12.0F}, floor_color,
-           PrototypeSolidKind::Floor, PrototypeSurface::Floor},
-          {{-10.25F, 2.5F, -2.0F}, {0.25F, 2.5F, 12.0F}, boundary_color,
-           PrototypeSolidKind::Boundary, PrototypeSurface::Boundary},
-          {{10.25F, 2.5F, -2.0F}, {0.25F, 2.5F, 12.0F}, boundary_color,
-           PrototypeSolidKind::Boundary, PrototypeSurface::Boundary},
-          {{0.0F, 2.5F, -14.25F}, {10.5F, 2.5F, 0.25F}, boundary_color,
-           PrototypeSolidKind::Boundary, PrototypeSurface::Boundary},
-          {{0.0F, 2.5F, 10.25F}, {10.5F, 2.5F, 0.25F}, boundary_color,
-           PrototypeSolidKind::Boundary, PrototypeSurface::Boundary},
-          {{0.0F, 1.2F, 0.1F}, {1.2F, 1.2F, 0.9F}, red,
-           PrototypeSolidKind::Obstacle, PrototypeSurface::Obstacle},
-          {{0.0F, 1.5F, -5.5F}, {1.5F, 1.5F, 1.0F}, green,
-           PrototypeSolidKind::Obstacle, PrototypeSurface::Obstacle},
-          {{-4.5F, 2.0F, -3.5F}, {1.0F, 2.0F, 1.0F}, gold,
-           PrototypeSolidKind::Obstacle, PrototypeSurface::Obstacle},
-          {{4.5F, 1.0F, -8.5F}, {1.0F, 1.0F, 1.0F}, violet,
-           PrototypeSolidKind::Obstacle, PrototypeSurface::Obstacle},
-          {{-6.5F, 0.15F, 4.0F}, {1.5F, 0.15F, 1.5F}, step_color,
-           PrototypeSolidKind::WalkableStep, PrototypeSurface::Obstacle},
-          {{6.0F, 1.55F, 1.5F}, {1.75F, 0.15F, 3.0F}, passage_color,
-           PrototypeSolidKind::LowClearance, PrototypeSurface::Obstacle},
-          {{-9.0F, 1.75F, -7.0F}, {0.75F, 0.75F, 0.12F}, target_color,
+          {{0.0F, -0.25F, -2.0F},
+           {10.0F, 0.25F, 12.0F},
+           floor_color,
+           PrototypeSolidKind::Floor,
+           PrototypeSurface::Floor},
+          {{-10.25F, 2.5F, -2.0F},
+           {0.25F, 2.5F, 12.0F},
+           boundary_color,
+           PrototypeSolidKind::Boundary,
+           PrototypeSurface::Boundary},
+          {{10.25F, 2.5F, -2.0F},
+           {0.25F, 2.5F, 12.0F},
+           boundary_color,
+           PrototypeSolidKind::Boundary,
+           PrototypeSurface::Boundary},
+          {{0.0F, 2.5F, -14.25F},
+           {10.5F, 2.5F, 0.25F},
+           boundary_color,
+           PrototypeSolidKind::Boundary,
+           PrototypeSurface::Boundary},
+          {{0.0F, 2.5F, 10.25F},
+           {10.5F, 2.5F, 0.25F},
+           boundary_color,
+           PrototypeSolidKind::Boundary,
+           PrototypeSurface::Boundary},
+          {{0.0F, 1.2F, 0.1F},
+           {1.2F, 1.2F, 0.9F},
+           red,
+           PrototypeSolidKind::Obstacle,
+           PrototypeSurface::Obstacle},
+          {{0.0F, 1.5F, -5.5F},
+           {1.5F, 1.5F, 1.0F},
+           green,
+           PrototypeSolidKind::Obstacle,
+           PrototypeSurface::Obstacle},
+          {{-4.5F, 2.0F, -3.5F},
+           {1.0F, 2.0F, 1.0F},
+           gold,
+           PrototypeSolidKind::Obstacle,
+           PrototypeSurface::Obstacle},
+          {{4.5F, 1.0F, -8.5F},
+           {1.0F, 1.0F, 1.0F},
+           violet,
+           PrototypeSolidKind::Obstacle,
+           PrototypeSurface::Obstacle},
+          {{-6.5F, 0.15F, 4.0F},
+           {1.5F, 0.15F, 1.5F},
+           step_color,
+           PrototypeSolidKind::WalkableStep,
+           PrototypeSurface::Obstacle},
+          {{6.0F, 1.55F, 1.5F},
+           {1.75F, 0.15F, 3.0F},
+           passage_color,
+           PrototypeSolidKind::LowClearance,
+           PrototypeSurface::Obstacle},
+          {{-9.0F, 1.75F, -7.0F},
+           {0.75F, 0.75F, 0.12F},
+           target_color,
            PrototypeSolidKind::ShootingTarget,
            PrototypeSurface::ShootingTarget},
-          {{0.0F, 4.0F, -12.5F}, {0.75F, 0.75F, 0.12F}, target_color,
+          {{0.0F, 4.0F, -12.5F},
+           {0.75F, 0.75F, 0.12F},
+           target_color,
            PrototypeSolidKind::ShootingTarget,
            PrototypeSurface::ShootingTarget},
-          {{9.0F, 1.75F, -7.0F}, {0.75F, 0.75F, 0.12F}, target_color,
+          {{9.0F, 1.75F, -7.0F},
+           {0.75F, 0.75F, 0.12F},
+           target_color,
            PrototypeSolidKind::ShootingTarget,
            PrototypeSurface::ShootingTarget},
       },
@@ -58,9 +97,7 @@ PrototypeLevel::PrototypeLevel()
       environment_light_{
           {{{{0.0F, 2.4F, 6.0F}, {0.30F, 0.50F, 0.90F}, 0.65F, 4.0F},
             {{0.0F, 4.0F, -9.0F}, {1.00F, 0.48F, 0.20F}, 0.95F, 10.0F}}},
-          0.03F},
-      target_descriptions_{{{11}, {12}, {13}}},
-      target_starting_health_(100) {}
+          0.03F} {}
 
 bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept {
@@ -106,36 +143,17 @@ bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept {
 
 bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
   if (level.solids().empty() ||
-      !prototypeEnvironmentLightIsValid(level.environmentLight()) ||
-      !prototypeTargetDescriptionsAreValid(
-          level.solids(), level.targetDescriptions(),
-          level.targetStartingHealth())) {
+      !prototypeEnvironmentLightIsValid(level.environmentLight())) {
     return false;
   }
-  return std::all_of(level.solids().begin(), level.solids().end(),
-                     prototypeSolidIsValid);
-}
-
-bool prototypeTargetDescriptionsAreValid(
-    const std::vector<PrototypeSolid>& solids,
-    std::span<const PrototypeTargetDescription> target_descriptions,
-    int target_starting_health) noexcept {
-  if (target_descriptions.size() != prototype_target_count ||
-      target_starting_health <= 0 ||
-      solids.size() > prototype_solid_mask_bit_count) {
-    return false;
-  }
-  std::array<bool, prototype_solid_mask_bit_count> described{};
-  for (const PrototypeTargetDescription& target : target_descriptions) {
-    if (target.solid_index >= solids.size() ||
-        target.solid_index >= prototype_solid_mask_bit_count ||
-        described[target.solid_index] ||
-        solids[target.solid_index].kind != PrototypeSolidKind::ShootingTarget) {
-      return false;
-    }
-    described[target.solid_index] = true;
-  }
-  return true;
+  const bool solids_are_valid = std::all_of(
+      level.solids().begin(), level.solids().end(), prototypeSolidIsValid);
+  const std::size_t plate_count = static_cast<std::size_t>(std::count_if(
+      level.solids().begin(), level.solids().end(), [](const auto& solid) {
+        return solid.kind == PrototypeSolidKind::ShootingTarget &&
+               solid.surface == PrototypeSurface::ShootingTarget;
+      }));
+  return solids_are_valid && plate_count == prototype_plate_count;
 }
 
 bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,
@@ -153,11 +171,11 @@ bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,
     const float solid_max_y = solid.center.y + solid.half_extent.y;
     const float solid_min_z = solid.center.z - solid.half_extent.z;
     const float solid_max_z = solid.center.z + solid.half_extent.z;
-    if (overlaps(spawn.x - player_radius, spawn.x + player_radius,
-                 solid_min_x, solid_max_x) &&
+    if (overlaps(spawn.x - player_radius, spawn.x + player_radius, solid_min_x,
+                 solid_max_x) &&
         overlaps(player_min_y, player_max_y, solid_min_y, solid_max_y) &&
-        overlaps(spawn.z - player_radius, spawn.z + player_radius,
-                 solid_min_z, solid_max_z)) {
+        overlaps(spawn.z - player_radius, spawn.z + player_radius, solid_min_z,
+                 solid_max_z)) {
       return false;
     }
   }

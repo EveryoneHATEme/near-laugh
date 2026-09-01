@@ -98,8 +98,7 @@ Window
 PrototypeLevel
 PhysicsWorld
 PlayerController
-PrototypeRifle
-ShootingTargets
+PlayerFlashlight
 Renderer
 
 Shutdown happens in reverse dependency order.
@@ -114,20 +113,22 @@ begins its own input batch, and the runtime maps that batch immediately after
 the wait returns, before a later poll can reset its cursor delta. It also resets
 both the clock origin and simulation accumulator across the wait so restoration
 cannot create catch-up movement. The renderer consumes the current
-framebuffer extent/resize state and a backend-neutral column-major camera
-matrix, then reports rendered, skipped, or recovered without controlling
-events, input, time, camera state, or application lifetime. The runtime
+framebuffer extent/resize state, a backend-neutral column-major camera matrix,
+and at most one source-independent spot-light description, then reports
+rendered, skipped, or recovered without controlling events, input, time,
+camera state, light-source gameplay, or application lifetime. The runtime
 exhaustively consumes each outcome before it continues the application-owned
 loop.
 
-Each complete fixed step advances player movement, rifle cooldown/recoil,
-closest-static-hit resolution, target health, and target feedback on the main
-thread. `PrototypeRifle` and `ShootingTargets` are concrete Engine-owned
-gameplay values between `PlayerController` and `Renderer`; they are not a
-weapon hierarchy, entity registry, or generic damage system. Physics retains
-prototype-solid indices privately on Jolt bodies and exposes only an
-engine-owned static ray and optional closest-hit result. Rendering receives
-only the resulting camera plus highlighted/dimmed prototype-solid masks.
+Each complete fixed step advances player movement on the main thread. A
+concrete Engine-owned `PlayerFlashlight` samples primary-action edges once per
+event batch, independently of fixed simulation timing, and produces the one
+generic `SpotLightFrame` from the same interpolated view pose used to build the
+render camera. Its recapture suppression consumes an inactive press until the
+button is released. The renderer receives only source-independent scalar light
+data; it does not depend on player or flashlight types. The current frame
+contract deliberately has one dynamic spot-light slot rather than a light
+registry or arbitrary light collection.
 
 Platform callbacks retain held physical keys/buttons and accumulate cursor
 movement for one event batch. `FpsInputMapper` maps W/A/S/D, Space, Left Shift,
@@ -145,15 +146,15 @@ runtime layout discovery.
 
 The current world is one immutable `PrototypeLevel` containing tinted
 axis-aligned solids, a player spawn, exactly two world-space point lights, a
-near-black ambient scalar, and three stable shooting-target descriptions. Each
+near-black ambient scalar, and three inert plate solids. Each
 solid independently carries exactly one fixed surface role: floor, boundary,
 obstacle, or shooting target. Rendering expands each solid into the existing
 UV/layer-bearing triangle stream, while physics creates one matching static box
-body. The renderer validates and uploads the level lights once; they do not
-follow the camera or become mutable frame state. Mutable target health and
-feedback remain outside the level. The four roles are not a material system,
-the lights are not a registry, and the level is not a scene hierarchy, asset
-pipeline, ECS, or generic level format.
+body. The renderer validates and uploads the level point lights once; they do
+not follow the camera or become mutable frame state. The inert plates carry no
+target descriptions, health, damage, or feedback state. The four roles are not
+a material system, the dynamic spot-light frame is not a registry, and the
+level is not a scene hierarchy, asset pipeline, ECS, or generic level format.
 
 Renderer lifetime owns the sampled texture and immutable lighting resources
 after the Vulkan context and before the format-dependent graphics pipeline.

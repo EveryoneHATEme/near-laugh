@@ -164,9 +164,7 @@ endif()
 add_library(near_laugh_runtime STATIC
     src/core/application.cpp
     src/core/engine.cpp
-    src/core/gameplay/prototype_rifle.cpp
-    src/core/gameplay/shooting_range.cpp
-    src/core/gameplay/shooting_targets.cpp
+    src/core/gameplay/player_flashlight.cpp
     src/core/input/fps_input.cpp
     src/core/player/player_controller.cpp
     src/core/runtime_resources.cpp

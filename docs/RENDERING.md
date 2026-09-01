@@ -95,8 +95,8 @@ CPU/GPU overlap.
 
 The runtime sends one explicit frame request containing framebuffer extent and
 resize state plus a standard-layout, column-major camera view-projection
-matrix and highlighted/dimmed prototype-solid masks. A zero extent is skipped
-before GPU submission. Swapchain
+matrix and at most one source-independent dynamic spot-light value. A zero
+extent is skipped before GPU submission. Swapchain
 out-of-date/suboptimal interpretation and recovery remain renderer-owned, and a
 backend-neutral rendered/skipped/recovered outcome is returned to the runtime.
 The runtime handles all three outcomes explicitly and retains ownership of the
@@ -118,22 +118,28 @@ by static physics collision. Every axis-aligned solid contributes six tinted
 faces with explicit outward world-space normals, continuous local face UVs at
 one repeat per metre, and one stable floor/boundary/obstacle/shooting-target
 texture-array layer. The graphics pipeline reads position, packed vertex tint,
-a floating-point normal, the source solid's one-bit mask, UVs, and an unsigned
-texture layer. The existing world position also passes from the vertex stage to
-the fragment stage. An 80-byte shared push constant carries only the grounded
-player's current interpolated 4x4 camera matrix and per-frame
-highlighted/dimmed masks. A flat solid mask selects highlight before dimming.
+a floating-point normal, UVs, and an unsigned texture layer. The existing world
+position also passes from the vertex stage to the fragment stage. A 128-byte
+shared push constant carries the grounded player's current interpolated 4x4
+camera matrix plus four aligned vectors describing one optional dynamic spot
+light: position/range, direction/inner-cone cosine, color/intensity, and
+outer-cone cosine/enabled state. The spot-light data contains no player or
+flashlight type and can be supplied by another concrete runtime object.
+
 The fragment stage samples one repeat/linear `sampler2DArray`, multiplies the
-sampled sRGB color by the authored tint, applies highlight before dimming, and
-accumulates radius-bounded Lambert diffuse illumination from exactly two
-immutable level-authored point lights over a near-black ambient floor. Smooth
-falloff reaches zero at each radius, accumulated RGB is clamped, and alpha
-remains opaque. The cool spawn pool and warmer destination pool leave an
-intentionally dark region between their non-overlapping influences. The scene
-remains one immutable vertex buffer and one draw call. It does not introduce
-rewrites after hits, shadows, general or file-defined materials, arbitrary or
-mutable lights, model assets, per-object transforms, extra target draws, fog,
-HDR post-processing, collision/gameplay types, or a general scene framework.
+sampled sRGB color by the authored tint, and accumulates radius-bounded Lambert
+diffuse illumination from exactly two immutable level-authored point lights
+plus the optional finite-range spot light over a near-black ambient floor.
+Spot lighting uses smooth distance falloff and a smooth inner-to-outer cone
+transition. Accumulated RGB is clamped and alpha remains opaque. The cool spawn
+pool and warmer destination pool leave an intentionally dark region between
+their non-overlapping influences, which the flashlight can illuminate locally.
+The scene remains one immutable vertex buffer and one draw call. It does not
+introduce shadows, a visible or volumetric beam, a light registry, multiple
+dynamic spot lights, general or file-defined materials, model assets,
+per-object transforms, extra plate draws, fog, HDR post-processing,
+collision/gameplay types, or a general scene framework. Without a shadow map,
+the spot contribution does not account for occluding geometry.
 
 The renderer decodes `prototype_floor.png`, `prototype_boundary.png`,
 `prototype_obstacle.png`, and `prototype_shooting_target.png` during startup.
@@ -155,7 +161,7 @@ descriptor layout, one-set pool, and immutable descriptor. The owner is created
 beside the sampled texture, survives swapchain recreation, is destroyed after
 all dependent pipelines and before the logical device, and has explicit
 partial-construction cleanup. It is not a light registry or per-frame lighting
-path.
+path; dynamic spot-light data uses the existing per-draw push constant instead.
 
 The renderer selects the first supported format from its small depth candidate
 list and owns one device-local depth image, allocation, and view for every

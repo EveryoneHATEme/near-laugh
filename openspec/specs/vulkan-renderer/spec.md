@@ -168,25 +168,17 @@ The renderer SHALL decode the fixed prototype texture set before entering the fr
 - **WHEN** the selected physical device cannot sample, transfer, or generate the required mip chain for the fixed texture format
 - **THEN** renderer startup fails with an actionable message identifying the missing texture-format capability
 
-### Requirement: Prototype solid-state presentation
-The renderer SHALL accept backend-neutral highlighted-solid and dimmed-solid masks with each frame request and SHALL apply those states only to the corresponding authored prototype surfaces. Highlighting SHALL take visible precedence while active, dimming SHALL remain visible after highlighting ends, and unaffected surfaces SHALL retain their sampled texture, authored tint, and authored local-point-light-plus-near-black-ambient shading. Updating these masks SHALL NOT recreate or rewrite immutable scene geometry or lighting data, update or recreate sampled texture resources or their descriptor, recreate the graphics pipeline or swapchain, add a per-frame descriptor update, or add another scene draw.
+### Requirement: Per-frame spot-light presentation
+The renderer SHALL accept at most one valid optional source-independent spot-light description with each frame request and SHALL apply changes in its pose, parameters, or enabled state to the next submitted opaque scene draw. Updating the spot light SHALL NOT recreate the graphics pipeline, swapchain, immutable scene geometry, sampled textures, or immutable point-light resources; SHALL NOT add another scene draw; and SHALL remain safe for the current frames-in-flight model.
 
-#### Scenario: Solid is highlighted
-- **WHEN** a renderable frame identifies a textured prototype solid in the highlighted mask
-- **THEN** the opaque scene draw presents that solid with the fixed visible highlight treatment under the authored local lighting
+#### Scenario: Spot light changes between frames
+- **WHEN** a later frame supplies a different valid spot-light pose, parameters, or enabled state
+- **THEN** the next submitted scene draw uses the new value without recreating renderer-lifetime or swapchain resources
 
-#### Scenario: Solid is dimmed
-- **WHEN** a renderable frame identifies a textured prototype solid only in the dimmed mask
-- **THEN** the opaque scene draw presents that solid with the fixed destroyed treatment under the authored local lighting
+#### Scenario: Spot light is disabled
+- **WHEN** a frame supplies no enabled dynamic spot light
+- **THEN** the existing immutable point-light and ambient scene shading is rendered without a dynamic cone contribution
 
-#### Scenario: Solid is highlighted and dimmed
-- **WHEN** the same textured solid is present in both masks during its final-hit feedback interval
-- **THEN** the highlight treatment takes precedence for that frame
-
-#### Scenario: Presentation changes between frames
-- **WHEN** highlighted or dimmed masks change in a later frame request
-- **THEN** the next submitted scene draw uses the new presentation without changing immutable vertex data, immutable lighting data, texture resources, descriptors, or renderer-lifetime resources
-
-#### Scenario: Target presentation uses opaque depth and lighting
-- **WHEN** highlighted, dimmed, and unaffected textured target surfaces are rendered
-- **THEN** they remain in the existing depth-tested opaque scene draw and preserve the authored local-lighting response
+#### Scenario: Spot-light source is not the player
+- **WHEN** a valid frame supplies a spot-light pose produced by another runtime object
+- **THEN** the renderer shades from that supplied pose without requiring a camera-mounted or flashlight-specific path

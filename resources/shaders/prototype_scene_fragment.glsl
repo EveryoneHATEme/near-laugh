@@ -2,10 +2,9 @@
 
 layout(location = 0) in vec4 fragColor;
 layout(location = 1) in vec3 fragWorldNormal;
-layout(location = 2) flat in uint fragSolidMask;
-layout(location = 3) in vec2 fragTextureCoordinates;
-layout(location = 4) flat in uint fragTextureLayer;
-layout(location = 5) in vec3 fragWorldPosition;
+layout(location = 2) in vec2 fragTextureCoordinates;
+layout(location = 3) flat in uint fragTextureLayer;
+layout(location = 4) in vec3 fragWorldPosition;
 layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform sampler2DArray surfaceTextures;
@@ -25,7 +24,10 @@ layout(std140, set = 1, binding = 0) uniform PrototypeLighting
 layout(push_constant) uniform ScenePushConstant
 {
     mat4 viewProjection;
-    uvec4 presentationMasks;
+    vec4 spotPositionAndRange;
+    vec4 spotDirectionAndInnerCosine;
+    vec4 spotColorAndIntensity;
+    vec4 spotOuterCosineAndEnabled;
 } scene;
 
 void main()
@@ -34,14 +36,6 @@ void main()
         surfaceTextures, vec3(fragTextureCoordinates, float(fragTextureLayer)))
                             .rgb;
     vec3 presentedColor = sampledColor * fragColor.rgb;
-    if ((scene.presentationMasks.x & fragSolidMask) != 0)
-    {
-        presentedColor = mix(presentedColor, vec3(1.0, 0.42, 0.05), 0.75);
-    }
-    else if ((scene.presentationMasks.y & fragSolidMask) != 0)
-    {
-        presentedColor *= 0.25;
-    }
     vec3 normal = normalize(fragWorldNormal);
     vec3 accumulatedLighting = vec3(environmentLighting.ambientIntensity.x);
     for (int lightIndex = 0; lightIndex < 2; ++lightIndex)
@@ -57,6 +51,26 @@ void main()
         falloff *= falloff;
         accumulatedLighting += light.colorAndIntensity.rgb *
             light.colorAndIntensity.w * lambert * falloff;
+    }
+    if (scene.spotOuterCosineAndEnabled.y > 0.5)
+    {
+        vec3 vectorFromLight = fragWorldPosition - scene.spotPositionAndRange.xyz;
+        float distanceToLight = length(vectorFromLight);
+        vec3 directionFromLight = vectorFromLight / max(distanceToLight, 0.0001);
+        vec3 spotDirection = normalize(scene.spotDirectionAndInnerCosine.xyz);
+        float directionCosine = dot(directionFromLight, spotDirection);
+        float angularFalloff = smoothstep(
+            scene.spotOuterCosineAndEnabled.x,
+            scene.spotDirectionAndInnerCosine.w,
+            directionCosine);
+        float normalizedDistance = clamp(
+            distanceToLight / scene.spotPositionAndRange.w, 0.0, 1.0);
+        float distanceFalloff = 1.0 - normalizedDistance * normalizedDistance;
+        distanceFalloff *= distanceFalloff;
+        float lambert = max(dot(normal, -directionFromLight), 0.0);
+        accumulatedLighting += scene.spotColorAndIntensity.rgb *
+            scene.spotColorAndIntensity.w * lambert * distanceFalloff *
+            angularFalloff;
     }
     outColor = vec4(
         presentedColor * clamp(accumulatedLighting, vec3(0.0), vec3(1.0)),

@@ -228,11 +228,11 @@ void GraphicsPipeline::createVertexBuffer(const PrototypeLevel& level) {
   vertex_count_ = static_cast<std::uint32_t>(vertices.size());
 }
 
-void GraphicsPipeline::bindAndDraw(
-    VkCommandBuffer command_buffer, const CameraFrame& camera,
-    PrototypeScenePresentation presentation) const {
+void GraphicsPipeline::bindAndDraw(VkCommandBuffer command_buffer,
+                                   const CameraFrame& camera,
+                                   SpotLightFrame spot_light) const {
   const ScenePushConstant push_constant =
-      makeScenePushConstant(camera, presentation);
+      makeScenePushConstant(camera, spot_light);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
   const auto descriptor_sets =
       sceneDescriptorSets(texture_descriptor_set_, lighting_descriptor_set_);

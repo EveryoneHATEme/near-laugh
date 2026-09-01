@@ -120,14 +120,14 @@ foreach(REQUIRED_PIPELINE_TOKEN IN ITEMS
     endif()
 endforeach()
 foreach(REQUIRED_PRESENTATION_TOKEN IN ITEMS
-        "request.scene_presentation"
-        "presentation_masks"
-        "solid_mask")
+        "request.spot_light"
+        "SpotLightFrame"
+        "spot_light")
     string(FIND "${RENDERER_CONTENT}${PIPELINE_CONTENT}${PIPELINE_HEADER_CONTENT}"
            "${REQUIRED_PRESENTATION_TOKEN}" PRESENTATION_TOKEN_POSITION)
     if(PRESENTATION_TOKEN_POSITION LESS 0)
         message(FATAL_ERROR
-            "Renderer is missing solid-mask presentation flow: "
+            "Renderer is missing source-independent spot-light flow: "
             "${REQUIRED_PRESENTATION_TOKEN}")
     endif()
 endforeach()
@@ -171,13 +171,15 @@ foreach(REQUIRED_LIGHTING_TOKEN IN ITEMS
 endforeach()
 foreach(OBSOLETE_LIGHTING_TOKEN IN ITEMS
         "direction_to_light"
-        "directional_intensity")
+        "directional_intensity"
+        "presentation_masks"
+        "solid_mask")
     string(FIND
            "${RENDERER_CONTENT}${PIPELINE_CONTENT}${PIPELINE_HEADER_CONTENT}"
            "${OBSOLETE_LIGHTING_TOKEN}" OBSOLETE_LIGHTING_POSITION)
     if(NOT OBSOLETE_LIGHTING_POSITION LESS 0)
         message(FATAL_ERROR
-            "Per-frame directional lighting survived in the renderer: "
+            "Obsolete lighting or target presentation survived: "
             "${OBSOLETE_LIGHTING_TOKEN}")
     endif()
 endforeach()
@@ -239,8 +241,7 @@ foreach(LIFETIME_MEMBER IN ITEMS
         "PrototypeLevel level_"
         "PhysicsWorld physics_"
         "PlayerController player_"
-        "PrototypeRifle rifle_"
-        "ShootingTargets targets_"
+        "PlayerFlashlight flashlight_"
         "Renderer renderer_")
     string(FIND "${ENGINE_HEADER_CONTENT}" "${LIFETIME_MEMBER}"
            LIFETIME_POSITION)
@@ -271,7 +272,8 @@ foreach(REQUIRED_RUNTIME_CAMERA_TOKEN IN ITEMS
         "playerCursorTransition"
         "FixedStepAccumulator::Clock::now"
         "player_.sampleInput"
-        "coordinateShootingRangeFixedStep"
+        "flashlight_.samplePrimaryAction"
+        "player_.fixedStep"
         "frame.camera = player_.cameraFrame")
     string(FIND "${ENGINE_CONTENT}"
            "${REQUIRED_RUNTIME_CAMERA_TOKEN}" CAMERA_TOKEN_POSITION)

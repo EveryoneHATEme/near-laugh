@@ -121,21 +121,6 @@ TEST(PrototypeScene, GivesEveryFaceAConsistentOutwardUnitNormal) {
   }
 }
 
-TEST(PrototypeScene, GivesEveryVertexItsOneBitSourceSolidMask) {
-  const PrototypeLevel level;
-  const auto vertices = buildPrototypeSceneVertices(level);
-  constexpr std::size_t vertices_per_solid = 36;
-  ASSERT_LE(level.solids().size(), prototype_solid_mask_bit_count);
-  for (std::size_t solid_index = 0; solid_index < level.solids().size();
-       ++solid_index) {
-    const std::uint32_t expected_mask = std::uint32_t{1} << solid_index;
-    for (std::size_t vertex = 0; vertex < vertices_per_solid; ++vertex) {
-      EXPECT_EQ(vertices[solid_index * vertices_per_solid + vertex].solid_mask,
-                expected_mask);
-    }
-  }
-}
-
 TEST(PrototypeScene, GivesEveryFaceFiniteContinuousWorldScaledCoordinates) {
   const PrototypeLevel level;
   const auto vertices = buildPrototypeSceneVertices(level);
@@ -154,11 +139,13 @@ TEST(PrototypeScene, GivesEveryFaceFiniteContinuousWorldScaledCoordinates) {
         {solid.half_extent.x * 2.0F, solid.half_extent.z * 2.0F},
     }};
     for (std::size_t face = 0; face < face_extents.size(); ++face) {
-      const std::size_t base = solid_index * vertices_per_solid +
-                               face * vertices_per_face;
+      const std::size_t base =
+          solid_index * vertices_per_solid + face * vertices_per_face;
       for (std::size_t vertex = 0; vertex < vertices_per_face; ++vertex) {
-        EXPECT_TRUE(std::isfinite(vertices[base + vertex].texture_coordinates[0]));
-        EXPECT_TRUE(std::isfinite(vertices[base + vertex].texture_coordinates[1]));
+        EXPECT_TRUE(
+            std::isfinite(vertices[base + vertex].texture_coordinates[0]));
+        EXPECT_TRUE(
+            std::isfinite(vertices[base + vertex].texture_coordinates[1]));
       }
       EXPECT_TRUE(samePositionAndUv(vertices[base], vertices[base + 3]));
       EXPECT_TRUE(samePositionAndUv(vertices[base + 2], vertices[base + 4]));
@@ -183,8 +170,7 @@ TEST(PrototypeScene, FaceTextureAxesFollowEachOutwardNormal) {
   constexpr std::size_t vertices_per_face = 6;
   for (std::size_t face = 0; face < 6; ++face) {
     const PositionColorVertex& origin = vertices[face * vertices_per_face];
-    const PositionColorVertex& along_u =
-        vertices[face * vertices_per_face + 1];
+    const PositionColorVertex& along_u = vertices[face * vertices_per_face + 1];
     const PositionColorVertex& along_uv =
         vertices[face * vertices_per_face + 2];
     const std::array<float, 3> u_axis = {
@@ -221,9 +207,9 @@ TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
     const std::uint32_t expected_layer =
         static_cast<std::uint32_t>(level.solids()[solid_index].surface);
     for (std::size_t vertex = 0; vertex < vertices_per_solid; ++vertex) {
-      EXPECT_EQ(vertices[solid_index * vertices_per_solid + vertex]
-                    .texture_layer,
-                expected_layer);
+      EXPECT_EQ(
+          vertices[solid_index * vertices_per_solid + vertex].texture_layer,
+          expected_layer);
     }
   }
 }

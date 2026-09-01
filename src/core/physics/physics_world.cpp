@@ -1,7 +1,6 @@
 #include "core/physics/physics_world.hpp"
 
 #include <Jolt/Jolt.h>
-
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/IssueReporting.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
@@ -9,10 +8,7 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
-#include <Jolt/Physics/Collision/CastResult.h>
-#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
-#include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
@@ -152,8 +148,7 @@ class ObjectLayerPairFilter final : public JPH::ObjectLayerPairFilter {
 class BroadPhaseLayerInterface final : public JPH::BroadPhaseLayerInterface {
  public:
   BroadPhaseLayerInterface() {
-    object_to_broad_phase_[layers::non_moving] =
-        broad_phase_layers::non_moving;
+    object_to_broad_phase_[layers::non_moving] = broad_phase_layers::non_moving;
     object_to_broad_phase_[layers::moving] = broad_phase_layers::moving;
   }
 
@@ -264,18 +259,16 @@ class PhysicsWorld::Impl {
             JPH::Quat::sIdentity(), JPH::EMotionType::Static,
             layers::non_moving);
         settings.mUserData = static_cast<JPH::uint64>(solid_index);
-        const JPH::BodyID id = physics_system_.GetBodyInterface()
-                                   .CreateAndAddBody(
-                                       settings, JPH::EActivation::DontActivate);
+        const JPH::BodyID id =
+            physics_system_.GetBodyInterface().CreateAndAddBody(
+                settings, JPH::EActivation::DontActivate);
         if (id.IsInvalid()) {
           throw std::runtime_error(
               "Create static prototype collision body failed");
         }
         static_body_ids_.push_back(id);
-        static_solids_.push_back(
-            {solid.center, solid.half_extent, solid.kind});
-        if (forcedFailureAt("static-bodies") &&
-            static_body_ids_.size() == 1) {
+        static_solids_.push_back({solid.center, solid.half_extent, solid.kind});
+        if (forcedFailureAt("static-bodies") && static_body_ids_.size() == 1) {
           throw std::runtime_error(
               "Physics initialization forced to fail during static collision "
               "creation");
@@ -287,9 +280,9 @@ class PhysicsWorld::Impl {
       character_settings.mShape = standing_shape_;
       character_settings.mMaxSlopeAngle =
           JPH::DegreesToRadians(player_maximum_slope_degrees);
-      character_settings.mSupportingVolume = JPH::Plane(
-          JPH::Vec3::sAxisY(),
-          -(player_standing_height - player_capsule_radius));
+      character_settings.mSupportingVolume =
+          JPH::Plane(JPH::Vec3::sAxisY(),
+                     -(player_standing_height - player_capsule_radius));
       character_ = new JPH::CharacterVirtual(
           &character_settings,
           toJoltFootPosition(level.playerSpawn().foot_position),
@@ -325,10 +318,8 @@ class PhysicsWorld::Impl {
                                    motion.linear_velocity.y,
                                    motion.linear_velocity.z});
     JPH::CharacterVirtual::ExtendedUpdateSettings settings;
-    settings.mWalkStairsStepUp =
-        {0.0F, player_maximum_step_height, 0.0F};
-    settings.mStickToFloorStepDown =
-        {0.0F, -player_maximum_step_height, 0.0F};
+    settings.mWalkStairsStepUp = {0.0F, player_maximum_step_height, 0.0F};
+    settings.mStickToFloorStepDown = {0.0F, -player_maximum_step_height, 0.0F};
     character_->ExtendedUpdate(
         delta_seconds, gravity, settings,
         physics_system_.GetDefaultBroadPhaseLayerFilter(layers::moving),
@@ -343,50 +334,6 @@ class PhysicsWorld::Impl {
             fromJoltGroundState(character_->GetGroundState()),
             crouched_ ? PhysicsPlayerStance::Crouched
                       : PhysicsPlayerStance::Standing};
-  }
-
-  std::optional<PhysicsStaticRayHit> closestStaticHit(
-      const PhysicsStaticRay& ray) const {
-    const float direction_length_squared =
-        ray.direction.x * ray.direction.x +
-        ray.direction.y * ray.direction.y +
-        ray.direction.z * ray.direction.z;
-    if (!std::isfinite(ray.origin.x) || !std::isfinite(ray.origin.y) ||
-        !std::isfinite(ray.origin.z) || !std::isfinite(ray.direction.x) ||
-        !std::isfinite(ray.direction.y) || !std::isfinite(ray.direction.z) ||
-        !std::isfinite(direction_length_squared) ||
-        !(direction_length_squared > 0.0F) ||
-        !std::isfinite(ray.maximum_distance) ||
-        !(ray.maximum_distance > 0.0F)) {
-      throw std::invalid_argument(
-          "Static ray requires finite origin, finite non-zero direction, and "
-          "finite positive maximum distance");
-    }
-
-    const float direction_scale =
-        ray.maximum_distance / std::sqrt(direction_length_squared);
-    const JPH::RRayCast query(
-        {ray.origin.x, ray.origin.y, ray.origin.z},
-        {ray.direction.x * direction_scale,
-         ray.direction.y * direction_scale,
-         ray.direction.z * direction_scale});
-    JPH::RayCastResult result;
-    const JPH::SpecifiedBroadPhaseLayerFilter broad_phase_filter(
-        broad_phase_layers::non_moving);
-    const JPH::SpecifiedObjectLayerFilter object_filter(layers::non_moving);
-    if (!physics_system_.GetNarrowPhaseQuery().CastRay(
-            query, result, broad_phase_filter, object_filter)) {
-      return std::nullopt;
-    }
-
-    const JPH::uint64 solid_index =
-        physics_system_.GetBodyInterface().GetUserData(result.mBodyID);
-    if (solid_index >= static_solids_.size()) {
-      throw std::runtime_error(
-          "Static ray hit has an invalid prototype solid index");
-    }
-    return PhysicsStaticRayHit{static_cast<std::size_t>(solid_index),
-                               result.mFraction * ray.maximum_distance};
   }
 
   void applyRequestedStance(bool crouch_requested) {
@@ -455,11 +402,6 @@ PhysicsStaticSolid PhysicsWorld::staticBody(std::size_t index) const {
     throw std::out_of_range("Physics static body index is out of range");
   }
   return impl_->static_solids_[index];
-}
-
-std::optional<PhysicsStaticRayHit> PhysicsWorld::closestStaticHit(
-    const PhysicsStaticRay& ray) const {
-  return impl_->closestStaticHit(ray);
 }
 
 bool PhysicsWorld::usesSingleThreadedJobs() const noexcept {

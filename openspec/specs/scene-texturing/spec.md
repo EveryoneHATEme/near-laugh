@@ -39,13 +39,13 @@ Prototype textures SHALL repeat outside normalized coordinates, SHALL provide a 
 - **WHEN** generated texture coordinates extend outside the normalized texture range
 - **THEN** the selected surface texture repeats across the face
 
-### Requirement: Textured prototype appearance
-Each unaffected prototype surface SHALL combine its sampled texture color with its authored tint and the existing environment lighting. Target highlight and destroyed-dim presentation SHALL remain visibly dominant when active without changing the selected texture role or texture coordinates.
+### Requirement: Textured spot-lit prototype appearance
+Every prototype surface SHALL combine its sampled texture color with its authored tint, the immutable point-light and ambient environment, and any active dynamic spot-light contribution. Inert target plates SHALL use the same ordinary textured-lighting path as other prototype solids without per-target highlight or dimming state.
 
-#### Scenario: Unaffected surface is rendered
-- **WHEN** a textured prototype solid is absent from the highlighted and dimmed masks
-- **THEN** it displays its fixed texture modulated by its authored tint and directional-plus-ambient lighting
+#### Scenario: Prototype surface is rendered
+- **WHEN** a textured prototype solid is visible in a renderable frame
+- **THEN** it displays its fixed texture modulated by its authored tint and the bounded point-plus-optional-spot lighting
 
-#### Scenario: Textured target presentation changes
-- **WHEN** a target becomes highlighted or persistently dimmed
-- **THEN** the existing presentation treatment is applied to its textured appearance without changing immutable geometry or surface assignment
+#### Scenario: Inert plate is rendered
+- **WHEN** one of the three textured plates is visible
+- **THEN** it retains its authored appearance without requiring mutable target presentation masks

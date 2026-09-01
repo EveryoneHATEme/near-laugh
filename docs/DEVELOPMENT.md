@@ -102,8 +102,8 @@ initializing GLFW or Vulkan.
 The prototype begins with the cursor captured. Use the mouse to look, W/A/S/D
 to walk, Left Shift to sprint, Space to jump while grounded, and hold Left
 Control to crouch. Escape releases the cursor; the left mouse button recaptures
-it while released and fires the automatic prototype rifle while captured. A
-recapture click is suppressed until the button is released. Movement uses
+it while released and toggles the initially disabled flashlight while captured.
+A recapture click is suppressed until the button is released. Movement uses
 gravity and static collision, slides along walls, traverses
 the cyan 0.30 m step, and can pass beneath the purple low-clearance roof only
 while crouched. The opaque scene tiles its fixed floor, boundary, obstacle, and
@@ -112,15 +112,16 @@ face UVs. A complete GPU-generated mip chain stabilizes distant floor and wall
 sampling. A dim cool point light surrounds the spawn and a warmer point light
 marks the destination; their finite non-overlapping radii leave a deliberately
 dark transition over a near-black ambient floor. Three target plates form the
-shooting range: hits
-flash with a bright orange highlight, four damaging hits destroy a plate, and
-destroyed plates remain visibly dimmed and collidable. Rifle recoil is bounded and
-recovers through fixed simulation. This milestone deliberately has no
-finite ammunition or ammo tracking, reloads, switching, spread, projectiles,
-weapon model, crosshair, audio, particles, enemies/AI, physical target
-destruction, shadows, general materials, arbitrary textures, runtime asset
-discovery or streaming, descriptor indexing, flashlight, arbitrary or mutable
-lights, fog, exposure adaptation, or HDR post-processing.
+former range but are now inert textured and collidable scenery with no health,
+damage, hit feedback, or destroyed state. The flashlight adds one bounded
+camera-mounted spot light using a source-independent render-frame type, smooth
+range falloff, and a smooth inner-to-outer cone transition. It has no visible
+model or shadow map, so its illumination does not account for occluding
+geometry. This milestone deliberately has no weapon, ammunition, reloads,
+switching, spread, projectiles, crosshair, combat audio, particles, enemies/AI,
+multiple simultaneous dynamic spot lights, light registry, shadows, general
+materials, arbitrary textures, runtime asset discovery or streaming,
+descriptor indexing, fog, exposure adaptation, or HDR post-processing.
 
 ## Build Targets
 
@@ -130,20 +131,21 @@ lights, fog, exposure adaptation, or HDR post-processing.
   lifetime, single-threaded static world, and virtual character.
 - `near_laugh_render` contains Vulkan and the internal surface bridge.
 - `near_laugh_runtime` contains the public facade, composition, FPS input
-  mapping, player policy, the concrete rifle/target gameplay, fixed-step
-  shooting coordination, interpolation, and main loop.
+  mapping, player policy, concrete flashlight toggle state, fixed-step player
+  movement, interpolation, and the main loop.
 - `fps` is the launcher executable and links through `near_laugh_runtime`.
 
 The deterministic suite includes public-header, target-interface, source, and
 compile-command boundary checks. It also verifies waited input-batch sampling,
 exhaustive runtime frame-outcome handling, fixed-step timing, grounded
 player/camera policy, headless Jolt collision, built-in shared scene
-composition, static ray queries, rifle/target determinism, native executable
+composition, flashlight edge/recapture determinism, native executable
 discovery, depth/memory selection, push-constant and vertex layouts, and
 swapchain capability selection. It also verifies fixed texture decoding and
 resource layout, surface-role mapping, world-scaled UV/layer generation,
-texture mip counts and format requirements, the six-location CPU/GPU vertex
-contract, the 80-byte push constant, two-light `std140` upload layout, ordered
+texture mip counts and format requirements, the five-location CPU/GPU vertex
+contract, the 128-byte camera-plus-spot push constant, source-independent spot
+data and bounded cone math, two-light `std140` upload layout, ordered
 texture/lighting descriptors, and single-draw ownership boundaries.
 Deliberately Vulkan- and Jolt-dependent fixtures are expected to fail the
 public-header check.
@@ -176,14 +178,15 @@ When running the FPS or smoke executable interactively, inspect differently
 oriented faces for consistent one-metre tile scale and orientation, verify
 distant floors and walls select stable mip levels, and confirm no face appears
 lit from the inward normal. Also confirm all four surface roles look distinct,
-target hits highlight immediately,
-destroyed plates remain dim after the final highlight, recoil stays bounded
-and recovers, a recapture click does not fire, and held fire respects its
-cadence. Confirm the spawn is contained by a dim cool pool, the destination is
-warmer, the intervening route falls into intentional darkness, light does not
-leak beyond either authored radius, textures still respond to surface
-orientation, and live/highlighted/dimmed target states remain readable. Treat
-every error-severity Vulkan validation message as a failure.
+the three plates retain their ordinary inert appearance, a captured left-click
+toggles exactly once, holding does not toggle repeatedly, and a recapture click
+does not toggle until released and pressed again. Confirm the flashlight stays
+aligned with the interpolated camera, reaches full strength inside its inner
+cone, fades smoothly to zero at its outer cone and range, and turns completely
+off. Confirm the spawn remains in a dim cool pool, the destination is warmer,
+the intervening route remains dark without the flashlight, both authored point
+lights retain bounded influence, and textures respond to surface orientation.
+Treat every error-severity Vulkan validation message as a failure.
 
 ## Debug Build Requirements
 

@@ -20,8 +20,8 @@ struct PlayerCameraPosition {
   float z{};
 };
 
-struct PlayerAim {
-  PhysicsVector eye_position{};
+struct PlayerViewPose {
+  PlayerCameraPosition position{};
   PhysicsVector direction{};
 };
 
@@ -64,10 +64,11 @@ class PlayerController {
   void collapsePresentationState() noexcept;
 
   [[nodiscard]] CameraFrame cameraFrame(float framebuffer_aspect,
-                                        float interpolation_alpha,
-                                        float recoil_pitch_degrees = 0.0F) const;
-  [[nodiscard]] PlayerAim currentAim(
-      float recoil_pitch_degrees = 0.0F) const;
+                                        float interpolation_alpha) const;
+  [[nodiscard]] CameraFrame cameraFrame(float framebuffer_aspect,
+                                        const PlayerViewPose& view) const;
+  [[nodiscard]] PlayerViewPose viewPose(
+      float interpolation_alpha) const noexcept;
   [[nodiscard]] PlayerCameraPosition interpolatedCameraPosition(
       float interpolation_alpha) const noexcept;
   [[nodiscard]] const PhysicsCharacterState& state() const noexcept {
@@ -79,12 +80,12 @@ class PlayerController {
   [[nodiscard]] float yawDegrees() const noexcept { return yaw_degrees_; }
   [[nodiscard]] float pitchDegrees() const noexcept { return pitch_degrees_; }
   [[nodiscard]] bool jumpPending() const noexcept { return jump_pending_; }
-  [[nodiscard]] const PlayerPresentationState& previousPresentation() const
-      noexcept {
+  [[nodiscard]] const PlayerPresentationState& previousPresentation()
+      const noexcept {
     return previous_presentation_;
   }
-  [[nodiscard]] const PlayerPresentationState& currentPresentation() const
-      noexcept {
+  [[nodiscard]] const PlayerPresentationState& currentPresentation()
+      const noexcept {
     return current_presentation_;
   }
 
