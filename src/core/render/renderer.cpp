@@ -12,8 +12,11 @@
 #include "core/platform/window.hpp"
 #include "core/render/depth_attachment.hpp"
 #include "core/render/graphics_pipeline.hpp"
+#include "core/render/immutable_mesh_buffer.hpp"
 #include "core/render/lighting_resources.hpp"
+#include "core/render/prototype_scene.hpp"
 #include "core/render/sampled_texture.hpp"
+#include "core/render/static_model_loader.hpp"
 #include "core/render/validation_diagnostics.hpp"
 #include "core/render/vulkan_context.hpp"
 #include "core/render/vulkan_utils.hpp"
@@ -108,6 +111,8 @@ class Renderer::Impl {
   RendererResources resources_{};
   std::unique_ptr<SampledTexture> sampled_texture_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
+  std::unique_ptr<ImmutableMeshBuffer> world_mesh_{};
+  std::unique_ptr<ImmutableMeshBuffer> chair_mesh_{};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
   VkFormat depth_format_{VK_FORMAT_UNDEFINED};
@@ -157,6 +162,15 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
       level_(level),
       resources_(std::move(resources)) {
   try {
+    const std::vector<PositionColorVertex> world_vertices =
+        buildPrototypeSceneVertices(level_);
+    const std::vector<PositionColorVertex> chair_vertices =
+        loadStaticModelVertices(resources_.prototype_chair_model,
+                                level_.staticProp());
+    world_mesh_ = std::make_unique<ImmutableMeshBuffer>(
+        context_.device(), context_.physicalDevice(), world_vertices, "world");
+    chair_mesh_ = std::make_unique<ImmutableMeshBuffer>(
+        context_.device(), context_.physicalDevice(), chair_vertices, "chair");
     sampled_texture_ = std::make_unique<SampledTexture>(
         context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
         context_.queueFamilies().graphics, resources_.surface_textures);
@@ -166,12 +180,12 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
     depth_format_ = selectDepthFormat(context_.physicalDevice());
     createSwapchain(initial_extent);
     pipeline_ = std::make_unique<GraphicsPipeline>(
-        context_.device(), context_.physicalDevice(), swapchain_format_,
-        depth_format_, sampled_texture_->descriptorSetLayout(),
+        context_.device(), swapchain_format_, depth_format_,
+        sampled_texture_->descriptorSetLayout(),
         sampled_texture_->descriptorSet(),
         lighting_resources_->descriptorSetLayout(),
         lighting_resources_->descriptorSet(), resources_.vertex_shader,
-        resources_.fragment_shader, level_);
+        resources_.fragment_shader);
     createFrameSlots();
     recordLifecycleEvent("renderer.created");
   } catch (...) {
@@ -180,6 +194,8 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
     cleanupSwapchain();
     lighting_resources_.reset();
     sampled_texture_.reset();
+    chair_mesh_.reset();
+    world_mesh_.reset();
     throw;
   }
 }
@@ -193,6 +209,8 @@ Renderer::Impl::~Impl() {
   cleanupSwapchain();
   lighting_resources_.reset();
   sampled_texture_.reset();
+  chair_mesh_.reset();
+  world_mesh_.reset();
   recordLifecycleEvent("renderer.destroyed");
 }
 
@@ -327,12 +345,12 @@ void Renderer::Impl::recreateSwapchain(FramebufferExtent framebuffer) {
   createSwapchain(framebuffer);
   if (pipeline_ != nullptr && previous_format != swapchain_format_) {
     pipeline_ = std::make_unique<GraphicsPipeline>(
-        context_.device(), context_.physicalDevice(), swapchain_format_,
-        depth_format_, sampled_texture_->descriptorSetLayout(),
+        context_.device(), swapchain_format_, depth_format_,
+        sampled_texture_->descriptorSetLayout(),
         sampled_texture_->descriptorSet(),
         lighting_resources_->descriptorSetLayout(),
         lighting_resources_->descriptorSet(), resources_.vertex_shader,
-        resources_.fragment_shader, level_);
+        resources_.fragment_shader);
   }
   recreate_requested_ = false;
 }
@@ -479,7 +497,9 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   const VkRect2D scissor{{0, 0}, swapchain_extent_};
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-  pipeline_->bindAndDraw(command_buffer, camera, spot_light);
+  pipeline_->bindSceneState(command_buffer, camera, spot_light);
+  world_mesh_->bindAndDraw(command_buffer);
+  chair_mesh_->bindAndDraw(command_buffer);
   vkCmdEndRendering(command_buffer);
 
   VkImageMemoryBarrier2 to_present{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};

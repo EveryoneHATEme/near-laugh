@@ -36,6 +36,18 @@ foreach(DECODER_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     endif()
 endforeach()
 
+foreach(CGLTF_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    if(CGLTF_SOURCE MATCHES
+       "[/\\\\]src[/\\\\]core[/\\\\]render[/\\\\](cgltf_impl|static_model_loader)[.]cpp$")
+        continue()
+    endif()
+    file(READ "${CGLTF_SOURCE}" CGLTF_SOURCE_CONTENT)
+    if(CGLTF_SOURCE_CONTENT MATCHES "cgltf[.]h|cgltf_")
+        message(FATAL_ERROR
+            "cgltf detail escaped the private model loader: ${CGLTF_SOURCE}")
+    endif()
+endforeach()
+
 file(GLOB_RECURSE PROJECT_BACKEND_SOURCES
      "${SOURCE_ROOT}/src/core/*.cpp"
      "${SOURCE_ROOT}/src/core/*.hpp")
@@ -109,6 +121,8 @@ file(READ "${SOURCE_ROOT}/src/core/render/sampled_texture.cpp"
      SAMPLED_TEXTURE_CONTENT)
 file(READ "${SOURCE_ROOT}/src/core/render/lighting_resources.cpp"
      LIGHTING_RESOURCES_CONTENT)
+file(READ "${SOURCE_ROOT}/src/core/render/immutable_mesh_buffer.cpp"
+     IMMUTABLE_MESH_CONTENT)
 foreach(REQUIRED_PIPELINE_TOKEN IN ITEMS
         "depthTestEnable"
         "depthWriteEnable"
@@ -132,7 +146,8 @@ foreach(REQUIRED_PRESENTATION_TOKEN IN ITEMS
     endif()
 endforeach()
 if(RENDERER_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets" OR
-   PIPELINE_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets")
+   PIPELINE_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets" OR
+   IMMUTABLE_MESH_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets")
     message(FATAL_ERROR
         "Prototype scene introduced indexed geometry or mutable frame descriptors")
 endif()
@@ -196,10 +211,21 @@ foreach(REQUIRED_TEXTURE_TOKEN IN ITEMS
             "Sampled texture owner is missing: ${REQUIRED_TEXTURE_TOKEN}")
     endif()
 endforeach()
-string(REGEX MATCHALL "vkCmdDraw\\(" SCENE_DRAW_CALLS "${PIPELINE_CONTENT}")
+string(REGEX MATCHALL "vkCmdDraw\\(" SCENE_DRAW_CALLS
+       "${IMMUTABLE_MESH_CONTENT}")
 list(LENGTH SCENE_DRAW_CALLS SCENE_DRAW_CALL_COUNT)
 if(NOT SCENE_DRAW_CALL_COUNT EQUAL 1)
-    message(FATAL_ERROR "Prototype scene must retain exactly one draw command")
+    message(FATAL_ERROR
+        "Immutable mesh owner must issue the one non-indexed draw command")
+endif()
+string(FIND "${RENDERER_CONTENT}" "world_mesh_->bindAndDraw"
+       WORLD_DRAW_POSITION)
+string(FIND "${RENDERER_CONTENT}" "chair_mesh_->bindAndDraw"
+       CHAIR_DRAW_POSITION)
+if(WORLD_DRAW_POSITION LESS 0 OR CHAIR_DRAW_POSITION LESS 0 OR
+   WORLD_DRAW_POSITION GREATER CHAIR_DRAW_POSITION)
+    message(FATAL_ERROR
+        "Renderer must draw the generated world before the imported chair")
 endif()
 
 foreach(RUNTIME_SOURCE IN ITEMS
@@ -334,7 +360,8 @@ foreach(RUNTIME_FILE IN LISTS REQUIRED_RUNTIME_FILES)
             set(FOUND_RUNTIME_FILE TRUE)
             string(JSON COMMAND_LINE GET
                    "${COMPILE_COMMANDS}" ${COMMAND_INDEX} command)
-            if(COMMAND_LINE MATCHES "VulkanSDK|_deps[/\\\\]glfw-src")
+            if(COMMAND_LINE MATCHES
+               "VulkanSDK|_deps[/\\\\]glfw-src|_deps[/\\\\]cgltf-src")
                 message(FATAL_ERROR
                     "Backend include directory leaked into ${RUNTIME_FILE}: "
                     "${COMMAND_LINE}")

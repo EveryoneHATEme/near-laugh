@@ -112,9 +112,10 @@ Shader paths are resolved beneath `RuntimeConfig::resource_root` before renderer
 construction. Renderer code never constructs a path relative to the process
 working directory.
 
-The current visible smoke output is a single immutable world-space triangle
-stream expanded deterministically from the same `PrototypeLevel` solids used
-by static physics collision. Every axis-aligned solid contributes six tinted
+The current visible smoke output uses two immutable world-space triangle
+streams. The generated-world stream is expanded deterministically from the
+same `PrototypeLevel` solids used by static physics collision. Every
+axis-aligned solid contributes six tinted
 faces with explicit outward world-space normals, continuous local face UVs at
 one repeat per metre, and one stable floor/boundary/obstacle/shooting-target
 texture-array layer. The graphics pipeline reads position, packed vertex tint,
@@ -134,12 +135,34 @@ Spot lighting uses smooth distance falloff and a smooth inner-to-outer cone
 transition. Accumulated RGB is clamped and alpha remains opaque. The cool spawn
 pool and warmer destination pool leave an intentionally dark region between
 their non-overlapping influences, which the flashlight can illuminate locally.
-The scene remains one immutable vertex buffer and one draw call. It does not
-introduce shadows, a visible or volumetric beam, a light registry, multiple
-dynamic spot lights, general or file-defined materials, model assets,
-per-object transforms, extra plate draws, fog, HDR post-processing,
+One renderer-private synchronous loader validates
+`resources/models/prototype_chair.glb` against a bounded binary glTF 2.0
+profile, flattens its indexed or non-indexed primitive in declared order, and
+combines its root-node transform with the level-authored translation, yaw, and
+uniform scale. Positions become world-space, normals use the inverse transpose
+and are normalized, UVs are preserved, tint is opaque white, and appearance is
+fixed to the obstacle texture layer. File materials and textures do not affect
+the result.
+
+The renderer owns separate host-visible coherent immutable vertex buffers for
+the generated world and imported chair. `GraphicsPipeline` owns only pipeline
+and layout state. Frame recording binds the one pipeline, descriptor pair, and
+scene push constant once, then issues the generated-world draw followed by the
+chair draw. Both buffers survive swapchain and compatible pipeline recreation.
+The scene does not introduce shadows, a visible or volumetric beam, a light
+registry, multiple dynamic spot lights, general or file-defined materials,
+runtime model transforms, extra plate draws, fog, HDR post-processing,
 collision/gameplay types, or a general scene framework. Without a shadow map,
 the spot contribution does not account for occluding geometry.
+
+The accepted GLB contains exactly one default scene, one mesh-bearing root node
+with no children, one mesh, and one non-empty triangle-list primitive. It must
+embed its geometry and provide finite `POSITION`, `NORMAL`, and `TEXCOORD_0`
+accessors, with optional unsigned 8-, 16-, or 32-bit indices. Required
+extensions, compression, external buffers, sparse accessors, skins, animation,
+morph targets, cameras, lights, multiple meshes/primitives, discovery,
+streaming, caching, and hot reload are rejected. This is the profile for one
+controlled FPS prop, not a general model or material system.
 
 The renderer decodes `prototype_floor.png`, `prototype_boundary.png`,
 `prototype_obstacle.png`, and `prototype_shooting_target.png` during startup.
@@ -188,7 +211,7 @@ requirement makes ordinary descriptor management significantly worse.
 
 Descriptor updates must respect GPU lifetime and frame-in-flight rules.
 
-The prototype binds two immutable descriptors once for the single scene draw:
+The prototype binds two immutable descriptors once for the two scene draws:
 the combined image sampler is set 0 binding 0, and the lighting uniform buffer
 is set 1 binding 0. Each descriptor is updated once during renderer startup;
 neither is rewritten per frame or recreated during swapchain recovery.

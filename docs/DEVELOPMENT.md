@@ -91,7 +91,8 @@ output directory. The required shader files are
 `resources/shaders/prototype_scene_fragment.spv`. The required fixed texture
 files are `resources/textures/prototype_floor.png`,
 `prototype_boundary.png`, `prototype_obstacle.png`, and
-`prototype_shooting_target.png`.
+`prototype_shooting_target.png`. The required static model is
+`resources/models/prototype_chair.glb`.
 The launcher queries the actual running module through the host's native
 process facility, derives and normalizes that executable-relative directory,
 and passes it through `RuntimeConfig::resource_root`. Changing the process
@@ -117,11 +118,16 @@ damage, hit feedback, or destroyed state. The flashlight adds one bounded
 camera-mounted spot light using a source-independent render-frame type, smooth
 range falloff, and a smooth inner-to-outer cone transition. It has no visible
 model or shadow map, so its illumination does not account for occluding
-geometry. This milestone deliberately has no weapon, ammunition, reloads,
+geometry. One fixed low-poly chair beside the route uses opaque white tint and
+the obstacle texture, responds to both point lights and the flashlight, and
+blocks movement with a separate authored box proxy. It has no controls or
+interaction state. This milestone deliberately has no weapon, ammunition, reloads,
 switching, spread, projectiles, crosshair, combat audio, particles, enemies/AI,
 multiple simultaneous dynamic spot lights, light registry, shadows, general
 materials, arbitrary textures, runtime asset discovery or streaming,
-descriptor indexing, fog, exposure adaptation, or HDR post-processing.
+descriptor indexing, model caching or hot reload, file-defined materials,
+animation, skinning, morph targets, mesh collision, fog, exposure adaptation,
+or HDR post-processing.
 
 ## Build Targets
 
@@ -129,7 +135,8 @@ descriptor indexing, fog, exposure adaptation, or HDR post-processing.
 - `near_laugh_world` contains immutable prototype solids and the player spawn.
 - `near_laugh_physics` privately links Jolt v5.6.0 and contains its RAII
   lifetime, single-threaded static world, and virtual character.
-- `near_laugh_render` contains Vulkan and the internal surface bridge.
+- `near_laugh_render` contains Vulkan, the internal surface bridge, the private
+  pinned `cgltf` integration, and the bounded static-chair loader.
 - `near_laugh_runtime` contains the public facade, composition, FPS input
   mapping, player policy, concrete flashlight toggle state, fixed-step player
   movement, interpolation, and the main loop.
@@ -146,7 +153,8 @@ resource layout, surface-role mapping, world-scaled UV/layer generation,
 texture mip counts and format requirements, the five-location CPU/GPU vertex
 contract, the 128-byte camera-plus-spot push constant, source-independent spot
 data and bounded cone math, two-light `std140` upload layout, ordered
-texture/lighting descriptors, and single-draw ownership boundaries.
+texture/lighting descriptors, the bounded GLB profile and transforms, the
+executable-relative chair resource, and two-draw immutable mesh ownership.
 Deliberately Vulkan- and Jolt-dependent fixtures are expected to fail the
 public-header check.
 
@@ -160,7 +168,7 @@ ctest --preset vulkan-smoke --output-on-failure
 ```
 
 The smoke executable renders the depth-buffered, locally lit and mipmapped
-textured prototype scene for fixed frames and forces one swapchain
+textured prototype scene and imported chair for fixed frames and forces one swapchain
 recreation.
 It requires a desktop session and a Vulkan 1.3 presentation-capable device.
 It keeps validation diagnostics alive through renderer teardown and fails after
@@ -170,7 +178,10 @@ and partial-construction destruction order, including injected failures across
 texture staging/upload, view/sampler/descriptor creation, immutable lighting
 buffer/memory/upload/descriptor creation, and depth attachment creation. It
 verifies the immutable texture and lighting descriptors survive forced
-swapchain recreation without another update. Swapchain creation and recreation use only
+swapchain recreation without another update. It also verifies both immutable
+mesh buffers survive without another upload, are drawn world-then-chair, and
+clean up correctly after buffer, memory, bind, map, and upload failures.
+Swapchain creation and recreation use only
 color-attachment usage and composite-alpha modes reported by the current
 surface, and own one depth target per swapchain image.
 
@@ -186,6 +197,10 @@ cone, fades smoothly to zero at its outer cone and range, and turns completely
 off. Confirm the spawn remains in a dim cool pool, the destination is warmer,
 the intervening route remains dark without the flashlight, both authored point
 lights retain bounded influence, and textures respond to surface orientation.
+Inspect the chair beside the initial route from multiple angles, confirm the
+obstacle texture follows its authored UVs, normals respond consistently under
+point and flashlight illumination, its box proxy blocks the player, and it
+remains present after resize/swapchain recreation.
 Treat every error-severity Vulkan validation message as a failure.
 
 ## Debug Build Requirements

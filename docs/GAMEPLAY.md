@@ -129,6 +129,12 @@ model, batteries, flicker, volumetric beams, fog, exposure adaptation, and a
 general lighting registry are outside this milestone. Without shadow mapping,
 the spot light does not account for occluding geometry.
 
+One fixed low-poly chair stands beside the initial route. It uses the existing
+obstacle texture, responds to the same ambient, point, and flashlight lighting
+as generated geometry, and blocks the player with a deliberately simple
+authored box proxy. The chair cannot move, animate, take damage, be used, or be
+picked up; its render triangles are never used as collision geometry.
+
 ## Enemies
 
 Enemies may require:

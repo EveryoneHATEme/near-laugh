@@ -7,6 +7,7 @@ add_executable(engine_tests
     core/test_runtime_resources.cpp
     core/test_validation_diagnostics.cpp
     core/test_shader_provider.cpp
+    core/test_static_model_loader.cpp
     core/test_texture_assets.cpp
     core/test_vertex_layout.cpp
     core/test_world.cpp
@@ -49,6 +50,9 @@ add_custom_command(TARGET vulkan_smoke POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/textures"
             "$<TARGET_FILE_DIR:vulkan_smoke>/resources/textures"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/resources/models"
+            "$<TARGET_FILE_DIR:vulkan_smoke>/resources/models"
 )
 add_test(NAME vulkan_smoke COMMAND vulkan_smoke)
 set_tests_properties(vulkan_smoke PROPERTIES
@@ -130,6 +134,9 @@ add_custom_command(TARGET resource_layout_probe POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/textures"
             "$<TARGET_FILE_DIR:resource_layout_probe>/resources/textures"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/resources/models"
+            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/models"
 )
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")
 add_test(NAME executable_relative_resource_layout COMMAND resource_layout_probe)

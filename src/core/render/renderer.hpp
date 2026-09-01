@@ -15,6 +15,7 @@ struct RendererResources {
   std::filesystem::path vertex_shader{};
   std::filesystem::path fragment_shader{};
   std::array<std::filesystem::path, 4> surface_textures{};
+  std::filesystem::path prototype_chair_model{};
 };
 
 class Renderer {

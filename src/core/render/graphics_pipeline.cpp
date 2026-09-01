@@ -1,8 +1,6 @@
 #include "graphics_pipeline.hpp"
 
 #include <array>
-#include <cstring>
-#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -12,23 +10,19 @@
 #include "core/testing/test_controls.hpp"
 
 GraphicsPipeline::GraphicsPipeline(
-    VkDevice device, VkPhysicalDevice physical_device,
-    VkFormat swapchain_format, VkFormat depth_format,
+    VkDevice device, VkFormat swapchain_format, VkFormat depth_format,
     VkDescriptorSetLayout texture_descriptor_layout,
     VkDescriptorSet texture_descriptor_set,
     VkDescriptorSetLayout lighting_descriptor_layout,
     VkDescriptorSet lighting_descriptor_set,
     const std::filesystem::path& vertex_shader_path,
-    const std::filesystem::path& fragment_shader_path,
-    const PrototypeLevel& level)
+    const std::filesystem::path& fragment_shader_path)
     : device_(device),
-      physical_device_(physical_device),
       texture_descriptor_layout_(texture_descriptor_layout),
       texture_descriptor_set_(texture_descriptor_set),
       lighting_descriptor_layout_(lighting_descriptor_layout),
       lighting_descriptor_set_(lighting_descriptor_set) {
-  if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE ||
-      texture_descriptor_layout_ == VK_NULL_HANDLE ||
+  if (device_ == VK_NULL_HANDLE || texture_descriptor_layout_ == VK_NULL_HANDLE ||
       texture_descriptor_set_ == VK_NULL_HANDLE ||
       lighting_descriptor_layout_ == VK_NULL_HANDLE ||
       lighting_descriptor_set_ == VK_NULL_HANDLE) {
@@ -39,7 +33,6 @@ GraphicsPipeline::GraphicsPipeline(
   try {
     createPipeline(swapchain_format, depth_format, vertex_shader_path,
                    fragment_shader_path);
-    createVertexBuffer(level);
     recordLifecycleEvent("pipeline.created");
     lifecycle_recorded_ = true;
   } catch (...) {
@@ -185,52 +178,9 @@ void GraphicsPipeline::createPipeline(
   vkDestroyShaderModule(device_, vertex_shader, nullptr);
 }
 
-void GraphicsPipeline::createVertexBuffer(const PrototypeLevel& level) {
-  const std::vector<PositionColorVertex> vertices =
-      buildPrototypeSceneVertices(level);
-  if (vertices.empty() ||
-      vertices.size() >
-          static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
-    throw std::runtime_error("Prototype scene vertex count is invalid");
-  }
-  const VkDeviceSize vertex_bytes =
-      sizeof(PositionColorVertex) * vertices.size();
-  VkBufferCreateInfo buffer_info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-  buffer_info.size = vertex_bytes;
-  buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-  buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  requireVulkan(vkCreateBuffer(device_, &buffer_info, nullptr, &vertex_buffer_),
-                "Create prototype scene vertex buffer");
-
-  VkMemoryRequirements requirements{};
-  vkGetBufferMemoryRequirements(device_, vertex_buffer_, &requirements);
-  VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-  allocation.allocationSize = requirements.size;
-  VkPhysicalDeviceMemoryProperties memory_properties{};
-  vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
-  allocation.memoryTypeIndex =
-      chooseMemoryType(requirements.memoryTypeBits, memory_properties,
-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                       "prototype scene vertices");
-  requireVulkan(
-      vkAllocateMemory(device_, &allocation, nullptr, &vertex_memory_),
-      "Allocate prototype scene vertex memory");
-  requireVulkan(vkBindBufferMemory(device_, vertex_buffer_, vertex_memory_, 0),
-                "Bind prototype scene vertex memory");
-
-  void* mapped = nullptr;
-  requireVulkan(
-      vkMapMemory(device_, vertex_memory_, 0, vertex_bytes, 0, &mapped),
-      "Map prototype scene vertex memory");
-  std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(vertex_bytes));
-  vkUnmapMemory(device_, vertex_memory_);
-  vertex_count_ = static_cast<std::uint32_t>(vertices.size());
-}
-
-void GraphicsPipeline::bindAndDraw(VkCommandBuffer command_buffer,
-                                   const CameraFrame& camera,
-                                   SpotLightFrame spot_light) const {
+void GraphicsPipeline::bindSceneState(VkCommandBuffer command_buffer,
+                                      const CameraFrame& camera,
+                                      SpotLightFrame spot_light) const {
   const ScenePushConstant push_constant =
       makeScenePushConstant(camera, spot_light);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
@@ -243,20 +193,9 @@ void GraphicsPipeline::bindAndDraw(VkCommandBuffer command_buffer,
   vkCmdPushConstants(command_buffer, layout_,
                      scenePushConstantRange().stageFlags, 0,
                      sizeof(ScenePushConstant), &push_constant);
-  const VkDeviceSize offset = 0;
-  vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer_, &offset);
-  vkCmdDraw(command_buffer, vertex_count_, 1, 0, 0);
 }
 
 void GraphicsPipeline::cleanup() noexcept {
-  if (vertex_buffer_ != VK_NULL_HANDLE) {
-    vkDestroyBuffer(device_, vertex_buffer_, nullptr);
-    vertex_buffer_ = VK_NULL_HANDLE;
-  }
-  if (vertex_memory_ != VK_NULL_HANDLE) {
-    vkFreeMemory(device_, vertex_memory_, nullptr);
-    vertex_memory_ = VK_NULL_HANDLE;
-  }
   if (pipeline_ != VK_NULL_HANDLE) {
     vkDestroyPipeline(device_, pipeline_, nullptr);
     pipeline_ = VK_NULL_HANDLE;

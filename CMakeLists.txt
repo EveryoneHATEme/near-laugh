@@ -61,6 +61,17 @@ target_include_directories(near_laugh_stb_image SYSTEM INTERFACE
     "${stb_SOURCE_DIR}"
 )
 
+FetchContent_Declare(
+    cgltf
+    GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
+    GIT_TAG 85cd62382dfea638278962690cf515023f33ed00
+)
+FetchContent_MakeAvailable(cgltf)
+add_library(near_laugh_cgltf INTERFACE)
+target_include_directories(near_laugh_cgltf SYSTEM INTERFACE
+    "${cgltf_SOURCE_DIR}"
+)
+
 set(JPH_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
 set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
@@ -136,12 +147,15 @@ near_laugh_enable_warnings(near_laugh_platform)
 
 add_library(near_laugh_render STATIC
     src/core/platform/glfw_vulkan_bridge.cpp
+    src/core/render/cgltf_impl.cpp
     src/core/render/depth_attachment.cpp
     src/core/render/graphics_pipeline.cpp
+    src/core/render/immutable_mesh_buffer.cpp
     src/core/render/lighting_resources.cpp
     src/core/render/prototype_scene.cpp
     src/core/render/renderer.cpp
     src/core/render/sampled_texture.cpp
+    src/core/render/static_model_loader.cpp
     src/core/render/validation_diagnostics.cpp
     src/core/render/vulkan_context.cpp
     src/core/render/vulkan_utils.cpp
@@ -151,7 +165,7 @@ add_library(near_laugh_render STATIC
 target_include_directories(near_laugh_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_render
     PRIVATE near_laugh_platform near_laugh_world Vulkan::Vulkan glfw
-            near_laugh_stb_image
+            near_laugh_stb_image near_laugh_cgltf
 )
 near_laugh_enable_warnings(near_laugh_render)
 
@@ -194,7 +208,8 @@ if(NOT near_laugh_runtime_interface_includes STREQUAL
 endif()
 get_target_property(near_laugh_runtime_interface_links
                     near_laugh_runtime INTERFACE_LINK_LIBRARIES)
-if(near_laugh_runtime_interface_links MATCHES "Vulkan::Vulkan|glfw|glm|Jolt")
+if(near_laugh_runtime_interface_links MATCHES
+   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf")
     message(FATAL_ERROR
         "near_laugh_runtime exposes a backend usage requirement: "
         "${near_laugh_runtime_interface_links}")
@@ -224,6 +239,9 @@ add_custom_command(TARGET fps POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
             "$<TARGET_FILE_DIR:fps>/resources/textures"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
+            "$<TARGET_FILE_DIR:fps>/resources/models"
 )
 
 if(BUILD_TESTING)

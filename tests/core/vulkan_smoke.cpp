@@ -29,7 +29,8 @@ RendererResources smokeResources() {
           {resources / "textures/prototype_floor.png",
            resources / "textures/prototype_boundary.png",
            resources / "textures/prototype_obstacle.png",
-           resources / "textures/prototype_shooting_target.png"}};
+           resources / "textures/prototype_shooting_target.png"},
+          resources / "models/prototype_chair.glb"};
 }
 
 void requireLifecycle(const std::vector<std::string>& actual,
@@ -117,6 +118,18 @@ void requireBalancedDepthLifecycle(const std::vector<std::string>& events,
   }
 }
 
+void requireBalancedMeshLifecycle(const std::vector<std::string>& events,
+                                  std::string_view name,
+                                  std::string_view phase) {
+  const std::string prefix = std::string(name) + ".mesh.";
+  requireBalancedEvent(events, prefix + "buffer.created",
+                       prefix + "buffer.destroyed", phase);
+  requireBalancedEvent(events, prefix + "memory.allocated",
+                       prefix + "memory.freed", phase);
+  requireBalancedEvent(events, prefix + "created", prefix + "destroyed",
+                       phase);
+}
+
 void setForcedVulkanStage(const char* stage) {
 #if defined(_WIN32)
   if (_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", stage) != 0) {
@@ -149,11 +162,18 @@ void runLifecycleSmoke() {
       throw std::runtime_error(
           "Forced swapchain recreation did not report recovery");
     }
+    const FrameOutcome draw_outcome = renderer.renderFrame(
+        {window.framebufferExtent(), false});
+    if (draw_outcome == FrameOutcome::Skipped) {
+      throw std::runtime_error("Lifecycle smoke skipped the two mesh draws");
+    }
   }
   setLifecycleLog(nullptr);
   requireBalancedDepthLifecycle(events, "normal shutdown");
   requireBalancedTextureLifecycle(events, "normal shutdown");
   requireBalancedLightingLifecycle(events, "normal shutdown");
+  requireBalancedMeshLifecycle(events, "world", "normal shutdown");
+  requireBalancedMeshLifecycle(events, "chair", "normal shutdown");
   if (eventCount(events, "texture.image.created") != 1 ||
       eventCount(events, "texture.sampler.created") != 1 ||
       eventCount(events, "texture.descriptor_layout.created") != 1 ||
@@ -174,10 +194,29 @@ void runLifecycleSmoke() {
         "Swapchain recreation rebuilt or rewrote immutable prototype "
         "lighting");
   }
+  for (const std::string name : {"world", "chair"}) {
+    const std::string prefix = name + ".mesh.";
+    if (eventCount(events, prefix + "buffer.created") != 1 ||
+        eventCount(events, prefix + "memory.allocated") != 1 ||
+        eventCount(events, prefix + "uploaded") != 1 ||
+        eventCount(events, prefix + "drawn") != 1) {
+      throw std::runtime_error(
+          "Swapchain recreation rebuilt, re-uploaded, or failed to draw the " +
+          name + " mesh exactly once");
+    }
+  }
   requireBefore(events, "pipeline.destroyed",
                 "texture.descriptor_pool.destroyed", "normal shutdown");
   requireBefore(events, "pipeline.destroyed",
                 "lighting.descriptor_pool.destroyed", "normal shutdown");
+  requireBefore(events, "pipeline.destroyed", "world.mesh.destroyed",
+                "normal shutdown");
+  requireBefore(events, "pipeline.destroyed", "chair.mesh.destroyed",
+                "normal shutdown");
+  requireBefore(events, "world.mesh.destroyed", "device.destroyed",
+                "normal shutdown");
+  requireBefore(events, "chair.mesh.destroyed", "device.destroyed",
+                "normal shutdown");
   requireBefore(events, "lighting.destroyed", "device.destroyed",
                 "normal shutdown");
   requireBefore(events, "texture.destroyed", "device.destroyed",
@@ -294,6 +333,45 @@ void runLifecycleSmoke() {
     if (eventCount(events, "lighting.created") != 0) {
       throw std::runtime_error(
           "Partially constructed lighting reported complete ownership at " +
+          std::string(stage));
+    }
+  }
+
+  constexpr std::array<const char*, 10> mesh_failure_stages = {
+      "world_mesh_buffer", "world_mesh_memory", "world_mesh_bind",
+      "world_mesh_map",    "world_mesh_upload", "chair_mesh_buffer",
+      "chair_mesh_memory", "chair_mesh_bind",   "chair_mesh_map",
+      "chair_mesh_upload"};
+  for (const char* stage : mesh_failure_stages) {
+    events.clear();
+    setForcedVulkanStage(stage);
+    setLifecycleLog(&events);
+    renderer_failed = false;
+    try {
+      Platform platform;
+      Window window(platform, 320, 240, "near-laugh mesh failure smoke");
+      PrototypeLevel level;
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
+    } catch (const std::runtime_error&) {
+      renderer_failed = true;
+    }
+    setLifecycleLog(nullptr);
+    setForcedVulkanStage("");
+    if (!renderer_failed) {
+      throw std::runtime_error(
+          "Forced immutable mesh construction failure did not occur at " +
+          std::string(stage));
+    }
+    requireBalancedMeshLifecycle(events, "world", stage);
+    requireBalancedMeshLifecycle(events, "chair", stage);
+    requireBalancedTextureLifecycle(events, stage);
+    requireBalancedLightingLifecycle(events, stage);
+    const std::string failed_name =
+        std::string_view(stage).starts_with("world") ? "world" : "chair";
+    if (eventCount(events, failed_name + ".mesh.created") != 0) {
+      throw std::runtime_error(
+          "Partially constructed mesh reported complete ownership at " +
           std::string(stage));
     }
   }

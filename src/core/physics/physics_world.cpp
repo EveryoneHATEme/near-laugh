@@ -262,8 +262,8 @@ class PhysicsWorld::Impl {
           "Physics initialization forced to fail after world creation");
     }
 
-    static_solids_.reserve(level.solids().size());
-    static_body_ids_.reserve(level.solids().size() + 1);
+    static_solids_.reserve(level.solids().size() + 1);
+    static_body_ids_.reserve(level.solids().size() + 2);
     try {
       const JPH::RefConst<JPH::Shape> terrain_shape =
           makeTerrainShape(level.terrain());
@@ -302,7 +302,37 @@ class PhysicsWorld::Impl {
               "Create static prototype collision body failed");
         }
         static_body_ids_.push_back(id);
-        static_solids_.push_back({solid.center, solid.half_extent, solid.kind});
+        static_solids_.push_back(
+            {solid.center, solid.half_extent, solid.kind, 0.0F});
+      }
+      const PrototypeStaticProp& prop = level.staticProp();
+      const WorldPosition prop_center =
+          prototypeStaticPropProxyWorldCenter(prop);
+      const WorldExtent prop_half_extent =
+          prototypeStaticPropProxyWorldHalfExtent(prop);
+      JPH::BodyCreationSettings prop_settings(
+          new JPH::BoxShape({prop_half_extent.x, prop_half_extent.y,
+                             prop_half_extent.z}),
+          {prop_center.x, prop_center.y, prop_center.z},
+          JPH::Quat::sRotation(JPH::Vec3::sAxisY(),
+                              JPH::DegreesToRadians(prop.yaw_degrees)),
+          JPH::EMotionType::Static, layers::non_moving);
+      prop_settings.mUserData =
+          static_cast<JPH::uint64>(level.solids().size());
+      const JPH::BodyID prop_id =
+          physics_system_.GetBodyInterface().CreateAndAddBody(
+              prop_settings, JPH::EActivation::DontActivate);
+      if (prop_id.IsInvalid()) {
+        throw std::runtime_error(
+            "Create static prototype chair proxy body failed");
+      }
+      static_body_ids_.push_back(prop_id);
+      static_solids_.push_back({prop_center, prop_half_extent,
+                                PrototypeSolidKind::Obstacle,
+                                prop.yaw_degrees});
+      if (forcedFailureAt("model-proxy")) {
+        throw std::runtime_error(
+            "Physics initialization forced to fail after model proxy creation");
       }
       physics_system_.OptimizeBroadPhase();
 
@@ -392,6 +422,7 @@ class PhysicsWorld::Impl {
       bodies.DestroyBody(id);
     }
     static_body_ids_.clear();
+    static_solids_.clear();
     terrain_collision_installed_ = false;
   }
 

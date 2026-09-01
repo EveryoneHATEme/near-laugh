@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -62,7 +63,7 @@ TEST(PhysicsLifetime, RepeatedCreateDestroyLeavesNoGlobalOwner) {
   const PrototypeLevel level;
   for (int cycle = 0; cycle < 4; ++cycle) {
     const PhysicsWorld physics(level);
-    EXPECT_EQ(physics.staticBodyCount(), level.solids().size());
+    EXPECT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);
     EXPECT_TRUE(physics.hasTerrainCollision());
   }
 }
@@ -71,14 +72,15 @@ TEST(PhysicsLifetime, RejectsDuplicateActiveRuntimeWithoutDamagingOwner) {
   const PrototypeLevel level;
   PhysicsWorld owner(level);
   EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error);
-  EXPECT_EQ(owner.staticBodyCount(), level.solids().size());
+  EXPECT_EQ(owner.staticBodyCount(), level.solids().size() + 1U);
   EXPECT_TRUE(owner.hasTerrainCollision());
 }
 
 TEST(PhysicsLifetime, PartialInitializationFailuresReleaseEveryStage) {
   const PrototypeLevel level;
   for (const char* stage :
-       {"runtime-factory", "world", "static-bodies", "character"}) {
+       {"runtime-factory", "world", "static-bodies", "model-proxy",
+        "character"}) {
     {
       const ScopedPhysicsFailure failure(stage);
       EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error)
@@ -165,6 +167,45 @@ TEST(PhysicsWorld, StaticObstacleRejectsForwardMovement) {
       simulate(physics, {0.0F, 0.0F, -8.0F}, 120);
   EXPECT_GT(state.foot_position.z, 1.3F);
   EXPECT_LT(state.foot_position.z, 2.0F);
+}
+
+TEST(PhysicsWorld, StaticChairProxyMatchesPlacementAndBlocksThePlayer) {
+  const PrototypeLevel level;
+  PhysicsWorld physics(level);
+  ASSERT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);
+  const PhysicsStaticSolid chair = physics.staticBody(level.solids().size());
+  const WorldPosition expected_center =
+      prototypeStaticPropProxyWorldCenter(level.staticProp());
+  const WorldExtent expected_half_extent =
+      prototypeStaticPropProxyWorldHalfExtent(level.staticProp());
+  EXPECT_FLOAT_EQ(chair.center.x, expected_center.x);
+  EXPECT_FLOAT_EQ(chair.center.y, expected_center.y);
+  EXPECT_FLOAT_EQ(chair.center.z, expected_center.z);
+  EXPECT_FLOAT_EQ(chair.half_extent.x, expected_half_extent.x);
+  EXPECT_FLOAT_EQ(chair.half_extent.y, expected_half_extent.y);
+  EXPECT_FLOAT_EQ(chair.half_extent.z, expected_half_extent.z);
+  EXPECT_FLOAT_EQ(chair.yaw_degrees, level.staticProp().yaw_degrees);
+  EXPECT_EQ(chair.kind, PrototypeSolidKind::Obstacle);
+
+  static_cast<void>(simulate(physics, {}, 120));
+  static_cast<void>(simulate(physics, {4.0F, 0.0F, 0.0F}, 27));
+  static_cast<void>(simulate(physics, {0.0F, 0.0F, -5.0F}, 72));
+  const float yaw = level.staticProp().yaw_degrees *
+                    std::numbers::pi_v<float> / 180.0F;
+  const float local_z_x = std::sin(yaw);
+  const float local_z_z = std::cos(yaw);
+  const PhysicsCharacterState blocked =
+      simulate(physics, {-local_z_x * 5.0F, 0.0F, -local_z_z * 5.0F}, 120);
+  const float offset_x = blocked.foot_position.x - chair.center.x;
+  const float offset_z = blocked.foot_position.z - chair.center.z;
+  const float front_distance = offset_x * local_z_x + offset_z * local_z_z;
+  const float lateral_distance =
+      offset_x * std::cos(yaw) - offset_z * std::sin(yaw);
+  EXPECT_GT(front_distance,
+            chair.half_extent.z + player_capsule_radius - 0.1F);
+  EXPECT_LT(front_distance,
+            chair.half_extent.z + player_capsule_radius + 0.15F);
+  EXPECT_NEAR(lateral_distance, 0.0F, 0.25F);
 }
 
 TEST(PhysicsCharacter, SpawnsUnsupportedThenSettlesStably) {

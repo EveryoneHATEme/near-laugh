@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "core/render/graphics_pipeline.hpp"
+#include "core/render/immutable_mesh_buffer.hpp"
 #include "core/render/lighting_resources.hpp"
 
 TEST(SceneVertex, MatchesVulkanPipelineDescription) {
@@ -30,6 +31,16 @@ TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   EXPECT_EQ(attributes[4].format, VK_FORMAT_R32_UINT);
   EXPECT_EQ(attributes[4].offset, offsetof(PositionColorVertex, texture_layer));
   EXPECT_EQ(sizeof(PositionColorVertex), sizeof(float) * 8 + 8);
+}
+
+TEST(ImmutableMeshBuffer, AcceptsOnlyCompleteDrawableTriangleStreams) {
+  EXPECT_FALSE(immutableMeshVertexCountIsValid(0));
+  EXPECT_FALSE(immutableMeshVertexCountIsValid(1));
+  EXPECT_FALSE(immutableMeshVertexCountIsValid(2));
+  EXPECT_TRUE(immutableMeshVertexCountIsValid(3));
+  EXPECT_TRUE(immutableMeshVertexCountIsValid(6));
+  EXPECT_FALSE(immutableMeshVertexCountIsValid(
+      static_cast<std::size_t>(UINT32_MAX) + 1U));
 }
 
 TEST(ScenePipeline, SceneDataFitsTheSharedPushConstantRange) {

@@ -43,6 +43,7 @@ struct PhysicsStaticSolid {
   WorldPosition center{};
   WorldExtent half_extent{};
   PrototypeSolidKind kind{PrototypeSolidKind::Obstacle};
+  float yaw_degrees{};
 };
 
 class PhysicsWorld {

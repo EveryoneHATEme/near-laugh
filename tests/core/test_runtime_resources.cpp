@@ -8,13 +8,14 @@
 #include "core/runtime_resources.hpp"
 
 namespace {
-const std::array<std::filesystem::path, 6> runtimeAssetPaths = {
+const std::array<std::filesystem::path, 7> runtimeAssetPaths = {
     "shaders/prototype_scene_vertex.spv",
     "shaders/prototype_scene_fragment.spv",
     "textures/prototype_floor.png",
     "textures/prototype_boundary.png",
     "textures/prototype_obstacle.png",
-    "textures/prototype_shooting_target.png"};
+    "textures/prototype_shooting_target.png",
+    "models/prototype_chair.glb"};
 
 std::filesystem::path makeCompleteRuntimeRoot() {
   const std::filesystem::path root =
@@ -62,6 +63,10 @@ TEST(RuntimeResources, ResolvesShadersIndependentlyOfWorkingDirectory) {
       EXPECT_TRUE(std::filesystem::is_regular_file(texture));
       EXPECT_EQ(texture.parent_path(), resource_root / "textures");
     }
+    EXPECT_TRUE(
+        std::filesystem::is_regular_file(resources.prototype_chair_model));
+    EXPECT_EQ(resources.prototype_chair_model,
+              resource_root / "models" / "prototype_chair.glb");
   } catch (...) {
     std::filesystem::current_path(original_working_directory);
     throw;
@@ -71,11 +76,17 @@ TEST(RuntimeResources, ResolvesShadersIndependentlyOfWorkingDirectory) {
 
 TEST(RuntimeResources, EveryMissingTextureReportsItsResolvedAbsolutePath) {
   for (const std::filesystem::path& relative :
-       std::span{runtimeAssetPaths}.subspan(2)) {
+       std::span{runtimeAssetPaths}.subspan(2, 4)) {
     const std::filesystem::path root = makeCompleteRuntimeRoot();
     expectMissingPathReported(root, relative);
     std::filesystem::remove_all(root);
   }
+}
+
+TEST(RuntimeResources, MissingModelReportsItsResolvedAbsolutePath) {
+  const std::filesystem::path root = makeCompleteRuntimeRoot();
+  expectMissingPathReported(root, "models/prototype_chair.glb");
+  std::filesystem::remove_all(root);
 }
 
 TEST(RuntimeResources, MissingShaderReportsResolvedAbsolutePath) {

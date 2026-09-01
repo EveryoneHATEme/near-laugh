@@ -78,6 +78,15 @@ struct PrototypeEnvironmentLight {
   float ambient_intensity{};
 };
 
+struct PrototypeStaticProp {
+  WorldPosition translation{};
+  float yaw_degrees{};
+  float uniform_scale{1.0F};
+  PrototypeSurface surface{PrototypeSurface::Obstacle};
+  WorldPosition box_proxy_center{};
+  WorldExtent box_proxy_half_extent{};
+};
+
 class PrototypeLevel {
  public:
   PrototypeLevel();
@@ -95,18 +104,28 @@ class PrototypeLevel {
       const noexcept {
     return environment_light_;
   }
+  [[nodiscard]] const PrototypeStaticProp& staticProp() const noexcept {
+    return static_prop_;
+  }
 
  private:
   PrototypeTerrain terrain_;
   std::vector<PrototypeSolid> solids_;
   PrototypePlayerSpawn player_spawn_;
   PrototypeEnvironmentLight environment_light_;
+  PrototypeStaticProp static_prop_;
 };
 
 [[nodiscard]] bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept;
 [[nodiscard]] bool prototypeSurfaceIsValid(PrototypeSurface surface) noexcept;
 [[nodiscard]] bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept;
+[[nodiscard]] bool prototypeStaticPropIsValid(
+    const PrototypeStaticProp& prop) noexcept;
+[[nodiscard]] WorldPosition prototypeStaticPropProxyWorldCenter(
+    const PrototypeStaticProp& prop) noexcept;
+[[nodiscard]] WorldExtent prototypeStaticPropProxyWorldHalfExtent(
+    const PrototypeStaticProp& prop) noexcept;
 [[nodiscard]] bool prototypeTerrainIsValid(
     const PrototypeTerrain& terrain) noexcept;
 [[nodiscard]] bool prototypeTerrainContains(const PrototypeTerrain& terrain,

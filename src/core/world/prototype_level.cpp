@@ -167,7 +167,14 @@ PrototypeLevel::PrototypeLevel()
       environment_light_{
           {{{{0.0F, 2.4F, 6.0F}, {0.30F, 0.50F, 0.90F}, 0.65F, 4.0F},
             {{0.0F, 4.0F, -9.0F}, {1.00F, 0.48F, 0.20F}, 0.95F, 10.0F}}},
-          0.12F} {}
+          0.12F},
+      static_prop_{{3.0F, prototypeTerrainHeightAt(terrain_, 3.0F, -2.0F),
+                    -2.0F},
+                   -25.0F,
+                   1.0F,
+                   PrototypeSurface::Obstacle,
+                   {0.0F, 0.91F, 0.0F},
+                   {0.55F, 0.91F, 0.48F}} {}
 
 bool prototypeEnvironmentLightIsValid(
     const PrototypeEnvironmentLight& light) noexcept {
@@ -209,6 +216,45 @@ bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept {
          std::isfinite(solid.half_extent.z) && solid.half_extent.x > 0.0F &&
          solid.half_extent.y > 0.0F && solid.half_extent.z > 0.0F &&
          prototypeSurfaceIsValid(solid.surface);
+}
+
+WorldPosition prototypeStaticPropProxyWorldCenter(
+    const PrototypeStaticProp& prop) noexcept {
+  const float yaw = prop.yaw_degrees * std::numbers::pi_v<float> / 180.0F;
+  const float cosine = std::cos(yaw);
+  const float sine = std::sin(yaw);
+  const float local_x = prop.box_proxy_center.x * prop.uniform_scale;
+  const float local_y = prop.box_proxy_center.y * prop.uniform_scale;
+  const float local_z = prop.box_proxy_center.z * prop.uniform_scale;
+  return {prop.translation.x + cosine * local_x + sine * local_z,
+          prop.translation.y + local_y,
+          prop.translation.z - sine * local_x + cosine * local_z};
+}
+
+WorldExtent prototypeStaticPropProxyWorldHalfExtent(
+    const PrototypeStaticProp& prop) noexcept {
+  return {prop.box_proxy_half_extent.x * prop.uniform_scale,
+          prop.box_proxy_half_extent.y * prop.uniform_scale,
+          prop.box_proxy_half_extent.z * prop.uniform_scale};
+}
+
+bool prototypeStaticPropIsValid(const PrototypeStaticProp& prop) noexcept {
+  const WorldPosition center = prototypeStaticPropProxyWorldCenter(prop);
+  const WorldExtent half_extent =
+      prototypeStaticPropProxyWorldHalfExtent(prop);
+  return std::isfinite(prop.translation.x) &&
+         std::isfinite(prop.translation.y) &&
+         std::isfinite(prop.translation.z) && std::isfinite(prop.yaw_degrees) &&
+         std::isfinite(prop.uniform_scale) && prop.uniform_scale > 0.0F &&
+         prop.surface == PrototypeSurface::Obstacle &&
+         std::isfinite(prop.box_proxy_center.x) &&
+         std::isfinite(prop.box_proxy_center.y) &&
+         std::isfinite(prop.box_proxy_center.z) &&
+         std::isfinite(center.x) && std::isfinite(center.y) &&
+         std::isfinite(center.z) && std::isfinite(half_extent.x) &&
+         std::isfinite(half_extent.y) && std::isfinite(half_extent.z) &&
+         half_extent.x > 0.0F && half_extent.y > 0.0F &&
+         half_extent.z > 0.0F;
 }
 
 WorldPosition prototypeTerrainSamplePosition(const PrototypeTerrain& terrain,
@@ -299,7 +345,8 @@ bool prototypeTerrainIsValid(const PrototypeTerrain& terrain) noexcept {
 
 bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
   if (!prototypeTerrainIsValid(level.terrain()) || level.solids().empty() ||
-      !prototypeEnvironmentLightIsValid(level.environmentLight())) {
+      !prototypeEnvironmentLightIsValid(level.environmentLight()) ||
+      !prototypeStaticPropIsValid(level.staticProp())) {
     return false;
   }
   const bool solids_are_valid = std::all_of(
@@ -342,6 +389,21 @@ bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,
                  solid_max_z)) {
       return false;
     }
+  }
+  const PrototypeStaticProp& prop = level.staticProp();
+  const WorldPosition prop_center = prototypeStaticPropProxyWorldCenter(prop);
+  const WorldExtent prop_half_extent =
+      prototypeStaticPropProxyWorldHalfExtent(prop);
+  if (overlaps(spawn.x - player_radius, spawn.x + player_radius,
+               prop_center.x - prop_half_extent.x,
+               prop_center.x + prop_half_extent.x) &&
+      overlaps(player_min_y, player_max_y,
+               prop_center.y - prop_half_extent.y,
+               prop_center.y + prop_half_extent.y) &&
+      overlaps(spawn.z - player_radius, spawn.z + player_radius,
+               prop_center.z - prop_half_extent.z,
+               prop_center.z + prop_half_extent.z)) {
+    return false;
   }
   return true;
 }

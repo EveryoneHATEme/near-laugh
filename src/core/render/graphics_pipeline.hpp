@@ -120,15 +120,14 @@ sceneDescriptorSets(VkDescriptorSet texture,
 
 class GraphicsPipeline {
  public:
-  GraphicsPipeline(VkDevice device, VkPhysicalDevice physical_device,
-                   VkFormat swapchain_format, VkFormat depth_format,
+  GraphicsPipeline(VkDevice device, VkFormat swapchain_format,
+                   VkFormat depth_format,
                    VkDescriptorSetLayout texture_descriptor_layout,
                    VkDescriptorSet texture_descriptor_set,
                    VkDescriptorSetLayout lighting_descriptor_layout,
                    VkDescriptorSet lighting_descriptor_set,
                    const std::filesystem::path& vertex_shader_path,
-                   const std::filesystem::path& fragment_shader_path,
-                   const PrototypeLevel& level);
+                   const std::filesystem::path& fragment_shader_path);
   ~GraphicsPipeline();
 
   GraphicsPipeline(const GraphicsPipeline&) = delete;
@@ -136,8 +135,9 @@ class GraphicsPipeline {
   GraphicsPipeline(GraphicsPipeline&&) = delete;
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
-  void bindAndDraw(VkCommandBuffer command_buffer, const CameraFrame& camera,
-                   SpotLightFrame spot_light) const;
+  void bindSceneState(VkCommandBuffer command_buffer,
+                      const CameraFrame& camera,
+                      SpotLightFrame spot_light) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(
@@ -145,20 +145,15 @@ class GraphicsPipeline {
   void createPipeline(VkFormat swapchain_format, VkFormat depth_format,
                       const std::filesystem::path& vertex_shader_path,
                       const std::filesystem::path& fragment_shader_path);
-  void createVertexBuffer(const PrototypeLevel& level);
   void cleanup() noexcept;
 
   VkDevice device_{VK_NULL_HANDLE};
-  VkPhysicalDevice physical_device_{VK_NULL_HANDLE};
   VkDescriptorSetLayout texture_descriptor_layout_{VK_NULL_HANDLE};
   VkDescriptorSet texture_descriptor_set_{VK_NULL_HANDLE};
   VkDescriptorSetLayout lighting_descriptor_layout_{VK_NULL_HANDLE};
   VkDescriptorSet lighting_descriptor_set_{VK_NULL_HANDLE};
   VkPipelineLayout layout_{VK_NULL_HANDLE};
   VkPipeline pipeline_{VK_NULL_HANDLE};
-  VkBuffer vertex_buffer_{VK_NULL_HANDLE};
-  VkDeviceMemory vertex_memory_{VK_NULL_HANDLE};
-  std::uint32_t vertex_count_{};
   bool lifecycle_recorded_{};
 };
 

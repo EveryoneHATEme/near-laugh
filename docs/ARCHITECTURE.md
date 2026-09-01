@@ -35,8 +35,9 @@ only standard-library types. The concrete build modules are:
   consumers that need them;
 - `near_laugh_physics`: the concrete Jolt lifetime, static collision world,
   and one virtual character;
-- `near_laugh_render`: Vulkan lifetime, presentation, and explicit frame
-  requests/outcomes.
+- `near_laugh_render`: Vulkan lifetime, presentation, explicit frame
+  requests/outcomes, and renderer-private synchronous parsing of the one
+  packaged static GLB through privately linked `cgltf`.
 
 GLFW/Vulkan surface coupling is confined to one internal bridge. It is not a
 rendering-backend abstraction.
@@ -138,29 +139,39 @@ begins, while held actions persist across both kinds of event dispatch.
 
 The `fps` launcher uses a private, host-native helper to discover its actual
 executable path and supplies the adjacent `resources` directory through
-`RuntimeConfig`. The packaged prototype shaders and the four fixed textures
+`RuntimeConfig`. The packaged prototype shaders, the four fixed textures
 `prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
-`prototype_shooting_target.png` are resolved beneath that explicit root.
+`prototype_shooting_target.png`, plus `models/prototype_chair.glb`, are resolved
+beneath that explicit root.
 Invocation text and the process working directory do not participate in
 runtime layout discovery.
 
 The current world is one immutable `PrototypeLevel` containing tinted
 axis-aligned solids, a player spawn, exactly two world-space point lights, a
-near-black ambient scalar, and three inert plate solids. Each
+near-black ambient scalar, three inert plate solids, and one fixed chair
+placement with an obstacle surface role and an independently authored box
+collision proxy. The chair description contains no path, parser, Vulkan, or
+Jolt type. Each
 solid independently carries exactly one fixed surface role: floor, boundary,
 obstacle, or shooting target. Rendering expands each solid into the existing
-UV/layer-bearing triangle stream, while physics creates one matching static box
-body. The renderer validates and uploads the level point lights once; they do
-not follow the camera or become mutable frame state. The inert plates carry no
-target descriptions, health, damage, or feedback state. The four roles are not
-a material system, the dynamic spot-light frame is not a registry, and the
-level is not a scene hierarchy, asset pipeline, ECS, or generic level format.
+UV/layer-bearing world triangle stream and synchronously flattens the validated
+chair GLB into a separate world-space triangle stream. Physics creates matching
+solid boxes plus the chair's authored proxy without reading model geometry.
+The renderer validates and uploads the level point lights once; they do not
+follow the camera or become mutable frame state. The chair and inert plates
+carry no gameplay identity, health, damage, interaction, or feedback state.
+The four roles are not a material system, the one model is not an asset
+registry, the dynamic spot-light frame is not a registry, and the level is not
+a scene hierarchy, asset pipeline, ECS, or generic level format.
 
 Renderer lifetime owns the sampled texture and immutable lighting resources
-after the Vulkan context and before the format-dependent graphics pipeline.
-Pipelines borrow their descriptor layouts and sets, are destroyed first, and
-may be recreated without rebuilding either owner. Both owners are released
-before the logical device.
+plus separate immutable generated-world and imported-chair vertex buffers after
+the Vulkan context and before teardown. The format-dependent pipeline borrows
+descriptor layouts and sets and owns no geometry. It binds one descriptor pair
+and one scene push constant before deterministic world-then-chair draws. The
+pipeline may be recreated without rebuilding or re-uploading textures,
+lighting, or either mesh. It is destroyed before those dependent owners, and
+all are released before the logical device.
 
 ## Threading
 

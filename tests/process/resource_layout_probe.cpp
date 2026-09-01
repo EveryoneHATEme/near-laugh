@@ -21,6 +21,8 @@ int main(int argc, char** argv) {
         root / "textures" / "prototype_boundary.png",
         root / "textures" / "prototype_obstacle.png",
         root / "textures" / "prototype_shooting_target.png"};
+    const std::filesystem::path chair =
+        root / "models" / "prototype_chair.glb";
     if (!std::filesystem::is_regular_file(vertex) ||
         !std::filesystem::is_regular_file(fragment)) {
       std::cerr << "Executable-relative shader resources are missing beneath: "
@@ -33,6 +35,11 @@ int main(int argc, char** argv) {
                   << texture << '\n';
         return 1;
       }
+    }
+    if (!std::filesystem::is_regular_file(chair)) {
+      std::cerr << "Executable-relative model resource is missing: " << chair
+                << '\n';
+      return 1;
     }
     return 0;
   } catch (const std::exception& error) {

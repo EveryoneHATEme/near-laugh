@@ -154,6 +154,62 @@ TEST(PrototypeLevel, RejectsInvalidSurfaceRoles) {
   EXPECT_FALSE(prototypeSolidIsValid(solid));
 }
 
+TEST(PrototypeLevel, HasOneValidFilesystemFreeStaticChairDescription) {
+  const PrototypeLevel level;
+  const PrototypeStaticProp& chair = level.staticProp();
+  static_assert(std::is_same_v<decltype(std::declval<const PrototypeLevel&>()
+                                            .staticProp()),
+                               const PrototypeStaticProp&>);
+  EXPECT_TRUE(prototypeStaticPropIsValid(chair));
+  EXPECT_TRUE(std::isfinite(chair.translation.x));
+  EXPECT_TRUE(std::isfinite(chair.translation.y));
+  EXPECT_TRUE(std::isfinite(chair.translation.z));
+  EXPECT_TRUE(std::isfinite(chair.yaw_degrees));
+  EXPECT_GT(chair.uniform_scale, 0.0F);
+  EXPECT_EQ(chair.surface, PrototypeSurface::Obstacle);
+  const WorldPosition center = prototypeStaticPropProxyWorldCenter(chair);
+  const WorldExtent half_extent =
+      prototypeStaticPropProxyWorldHalfExtent(chair);
+  EXPECT_TRUE(std::isfinite(center.x));
+  EXPECT_TRUE(std::isfinite(center.y));
+  EXPECT_TRUE(std::isfinite(center.z));
+  EXPECT_GT(half_extent.x, 0.0F);
+  EXPECT_GT(half_extent.y, 0.0F);
+  EXPECT_GT(half_extent.z, 0.0F);
+}
+
+TEST(PrototypeLevel, RejectsInvalidStaticChairFixtures) {
+  const PrototypeStaticProp valid = PrototypeLevel{}.staticProp();
+
+  auto invalid = valid;
+  invalid.translation.x = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+
+  invalid = valid;
+  invalid.yaw_degrees = std::numeric_limits<float>::infinity();
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+
+  invalid = valid;
+  invalid.uniform_scale = 0.0F;
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+
+  invalid = valid;
+  invalid.uniform_scale = -1.0F;
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+
+  invalid = valid;
+  invalid.box_proxy_center.y = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+
+  invalid = valid;
+  invalid.box_proxy_half_extent.z = 0.0F;
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+
+  invalid = valid;
+  invalid.surface = PrototypeSurface::Floor;
+  EXPECT_FALSE(prototypeStaticPropIsValid(invalid));
+}
+
 TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
   const PrototypeLevel level;
   static_assert(std::is_same_v<decltype(std::declval<const PrototypeLevel&>()
@@ -267,7 +323,7 @@ TEST(PrototypeLevel, RenderingAndPhysicsDeriveFromMatchingSolids) {
   const PrototypeLevel level;
   const PhysicsWorld physics(level);
   EXPECT_TRUE(physics.hasTerrainCollision());
-  ASSERT_EQ(physics.staticBodyCount(), level.solids().size());
+  ASSERT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);
   for (std::size_t index = 0; index < level.solids().size(); ++index) {
     const PrototypeSolid& authored = level.solids()[index];
     const PhysicsStaticSolid collision = physics.staticBody(index);
@@ -278,7 +334,22 @@ TEST(PrototypeLevel, RenderingAndPhysicsDeriveFromMatchingSolids) {
     EXPECT_FLOAT_EQ(collision.half_extent.y, authored.half_extent.y);
     EXPECT_FLOAT_EQ(collision.half_extent.z, authored.half_extent.z);
     EXPECT_EQ(collision.kind, authored.kind);
+    EXPECT_FLOAT_EQ(collision.yaw_degrees, 0.0F);
   }
+
+  const PhysicsStaticSolid prop_collision =
+      physics.staticBody(level.solids().size());
+  const WorldPosition prop_center =
+      prototypeStaticPropProxyWorldCenter(level.staticProp());
+  const WorldExtent prop_half_extent =
+      prototypeStaticPropProxyWorldHalfExtent(level.staticProp());
+  EXPECT_FLOAT_EQ(prop_collision.center.x, prop_center.x);
+  EXPECT_FLOAT_EQ(prop_collision.center.y, prop_center.y);
+  EXPECT_FLOAT_EQ(prop_collision.center.z, prop_center.z);
+  EXPECT_FLOAT_EQ(prop_collision.half_extent.x, prop_half_extent.x);
+  EXPECT_FLOAT_EQ(prop_collision.half_extent.y, prop_half_extent.y);
+  EXPECT_FLOAT_EQ(prop_collision.half_extent.z, prop_half_extent.z);
+  EXPECT_FLOAT_EQ(prop_collision.yaw_degrees, level.staticProp().yaw_degrees);
 
   for (const PrototypeSolid& solid : level.solids()) {
     if (solid.kind != PrototypeSolidKind::Boundary) {
