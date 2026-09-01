@@ -10,7 +10,8 @@ inline constexpr float player_capsule_radius = 0.35F;
 inline constexpr float player_standing_height = 1.80F;
 inline constexpr float player_crouched_height = 1.20F;
 inline constexpr float player_maximum_step_height = 0.30F;
-inline constexpr float player_maximum_slope_degrees = 50.0F;
+inline constexpr float player_maximum_slope_degrees =
+    prototype_terrain_maximum_slope_degrees;
 
 struct PhysicsVector {
   float x{};
@@ -59,6 +60,7 @@ class PhysicsWorld {
   [[nodiscard]] PhysicsCharacterState characterState() const noexcept;
   [[nodiscard]] std::size_t staticBodyCount() const noexcept;
   [[nodiscard]] PhysicsStaticSolid staticBody(std::size_t index) const;
+  [[nodiscard]] bool hasTerrainCollision() const noexcept;
   [[nodiscard]] bool usesSingleThreadedJobs() const noexcept;
 
  private:

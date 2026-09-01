@@ -35,12 +35,15 @@ bool samePositionAndUv(const PositionColorVertex& first,
 }
 }  // namespace
 
-TEST(PrototypeScene, ContainsFloorBoundariesAndMultipleColoredObjects) {
+TEST(PrototypeScene, ContainsTerrainBoundariesAndMultipleColoredObjects) {
   const PrototypeLevel level;
   const auto vertices = buildPrototypeSceneVertices(level);
   EXPECT_FALSE(vertices.empty());
   EXPECT_EQ(vertices.size() % 3, 0U);
-  EXPECT_EQ(vertices.size(), level.solids().size() * 36U);
+  EXPECT_EQ(vertices.size(),
+            level.solids().size() * 36U +
+                prototype_terrain_cell_count * prototype_terrain_cell_count *
+                    6U);
   EXPECT_TRUE(hasColor(vertices, {86, 91, 101, 255}));
   EXPECT_TRUE(hasColor(vertices, {55, 78, 122, 255}));
   EXPECT_TRUE(hasColor(vertices, {205, 63, 73, 255}));
@@ -49,6 +52,42 @@ TEST(PrototypeScene, ContainsFloorBoundariesAndMultipleColoredObjects) {
   EXPECT_TRUE(hasColor(vertices, {139, 91, 196, 255}));
   EXPECT_TRUE(hasColor(vertices, {70, 184, 190, 255}));
   EXPECT_TRUE(hasColor(vertices, {190, 118, 197, 255}));
+}
+
+TEST(PrototypeScene, AppendsContinuousWorldScaledTerrainTriangles) {
+  const PrototypeLevel level;
+  const PrototypeTerrain& terrain = level.terrain();
+  const auto vertices = buildPrototypeSceneVertices(level);
+  const std::size_t terrain_first_vertex = level.solids().size() * 36U;
+  const WorldPosition p00 = prototypeTerrainSamplePosition(terrain, 0, 0);
+  const WorldPosition p01 = prototypeTerrainSamplePosition(terrain, 0, 1);
+  const WorldPosition p11 = prototypeTerrainSamplePosition(terrain, 1, 1);
+  const WorldPosition p10 = prototypeTerrainSamplePosition(terrain, 1, 0);
+  const std::array<WorldPosition, 6> expected = {p00, p01, p11,
+                                                  p00, p11, p10};
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    const PositionColorVertex& vertex = vertices[terrain_first_vertex + index];
+    EXPECT_FLOAT_EQ(vertex.position[0], expected[index].x);
+    EXPECT_FLOAT_EQ(vertex.position[1], expected[index].y);
+    EXPECT_FLOAT_EQ(vertex.position[2], expected[index].z);
+    EXPECT_FLOAT_EQ(vertex.texture_coordinates[0], expected[index].x);
+    EXPECT_FLOAT_EQ(vertex.texture_coordinates[1], expected[index].z);
+    EXPECT_EQ(vertex.texture_layer,
+              static_cast<std::uint32_t>(PrototypeSurface::Floor));
+    const float normal_length = vertex.normal[0] * vertex.normal[0] +
+                                vertex.normal[1] * vertex.normal[1] +
+                                vertex.normal[2] * vertex.normal[2];
+    EXPECT_NEAR(normal_length, 1.0F, 0.00001F);
+    EXPECT_GT(vertex.normal[1], 0.0F);
+  }
+
+  const std::size_t next_cell_first_vertex = terrain_first_vertex + 6U;
+  EXPECT_FLOAT_EQ(vertices[terrain_first_vertex + 2].position[0],
+                  vertices[next_cell_first_vertex + 1].position[0]);
+  EXPECT_FLOAT_EQ(vertices[terrain_first_vertex + 2].position[1],
+                  vertices[next_cell_first_vertex + 1].position[1]);
+  EXPECT_FLOAT_EQ(vertices[terrain_first_vertex + 2].position[2],
+                  vertices[next_cell_first_vertex + 1].position[2]);
 }
 
 TEST(PrototypeScene, CenterObjectsOverlapInDepthFromInitialPose) {
@@ -196,10 +235,10 @@ TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
   const PrototypeLevel level;
   const auto vertices = buildPrototypeSceneVertices(level);
   constexpr std::size_t vertices_per_solid = 36;
-  constexpr std::size_t floor_top_face_first_vertex = 4 * 6;
-  EXPECT_GT(vertices[floor_top_face_first_vertex + 1].texture_coordinates[0],
+  const std::size_t terrain_first_vertex = level.solids().size() * 36U;
+  EXPECT_GT(std::abs(vertices[terrain_first_vertex].texture_coordinates[0]),
             1.0F);
-  EXPECT_GT(vertices[floor_top_face_first_vertex + 2].texture_coordinates[1],
+  EXPECT_GT(std::abs(vertices[terrain_first_vertex].texture_coordinates[1]),
             1.0F);
 
   for (std::size_t solid_index = 0; solid_index < level.solids().size();
@@ -211,5 +250,10 @@ TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
           vertices[solid_index * vertices_per_solid + vertex].texture_layer,
           expected_layer);
     }
+  }
+  for (std::size_t vertex = terrain_first_vertex; vertex < vertices.size();
+       ++vertex) {
+    EXPECT_EQ(vertices[vertex].texture_layer,
+              static_cast<std::uint32_t>(PrototypeSurface::Floor));
   }
 }

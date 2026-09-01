@@ -1,10 +1,4 @@
-# scene-lighting Specification
-
-## Purpose
-
-Defines the small, deterministic environment-lighting model that makes the built-in opaque FPS prototype scene spatially readable without external art assets.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Lightable prototype geometry
 Every rendered face generated from immutable prototype solids and every rendered terrain triangle SHALL carry a finite world-space position and a finite, unit-length world-space normal that points away from the surface. Both triangles forming the same planar solid face SHALL use the same normal, and the opaque lighting stage SHALL receive an interpolated world-space surface position for each covered fragment.
@@ -58,10 +52,3 @@ The opaque prototype scene SHALL combine its readable ambient contribution with 
 #### Scenario: Prototype atmosphere is inspected
 - **WHEN** the built-in scene is viewed from its initial player route
 - **THEN** terrain and static structures remain visibly readable between the two authored point lights
-
-### Requirement: Packaged lighting shaders
-The lit prototype scene SHALL remain executable from the existing explicit runtime resource root and SHALL require only the packaged scene shaders and fixed prototype surface textures. It SHALL NOT require a general material, model, scene, or external lighting data file.
-
-#### Scenario: Executable-relative resources are complete
-- **WHEN** the launcher supplies a valid executable-relative resource root containing the packaged lit scene shaders and fixed surface textures
-- **THEN** renderer startup can construct the lit textured scene pipeline without consulting the process working directory or additional graphics assets

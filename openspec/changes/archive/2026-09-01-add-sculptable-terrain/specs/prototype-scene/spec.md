@@ -1,10 +1,4 @@
-# prototype-scene Specification
-
-## Purpose
-
-Defines the small built-in 3D environment used to validate static scene rendering and free camera inspection before asset loading or gameplay physics exist.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Built-in static scene
 The executable SHALL present a deterministic built-in scene composed from one immutable prototype-level description whose finite heightfield terrain and solid structural dimensions are used to derive both opaque world-space renderer geometry and static physics collision. The description SHALL include a sculpted ground surface, enclosing or boundary geometry, multiple objects with visibly distinct textured appearances and overlapping depth from the initial player pose, one walkable low step, and one low-clearance structure that permits crouched but not standing passage. The scene SHALL use only its packaged shader and fixed surface-texture resources and SHALL NOT require a model, general material, collision, or level file.
@@ -35,25 +29,3 @@ Every renderable frame SHALL depict the built-in scene from the current collisio
 #### Scenario: Player uses movement-test geometry
 - **WHEN** the player approaches a terrain slope, the low step while standing, or the low-clearance route while crouched
 - **THEN** the visible environment provides matching collision that permits the intended traversal
-
-### Requirement: Depth-correct opaque visibility
-The prototype scene SHALL render opaque surfaces with depth testing so that the nearest visible surface wins independently of geometry submission order.
-
-#### Scenario: Geometry overlaps in screen space
-- **WHEN** two scene surfaces project onto the same framebuffer region at different depths
-- **THEN** the nearer surface obscures the farther surface
-
-### Requirement: Built-in inert plate geometry
-The immutable prototype-level description SHALL include exactly three visually separated inert textured plates. Each plate's authored placement and dimensions SHALL derive matching opaque world-space geometry and static physics collision, each plate SHALL select the fixed shooting-target surface texture, and the plates SHALL require no gameplay target description, mutable health, model, general material, collision, or level asset beyond the existing executable-relative shader and fixed texture resources.
-
-#### Scenario: Target plates are constructed
-- **WHEN** the built-in prototype level is created
-- **THEN** it contains three distinct inert plate solids assigned to the shooting-target surface texture without target gameplay descriptions
-
-#### Scenario: Target geometry reaches rendering and physics
-- **WHEN** renderer and physics initialization consume the same prototype level
-- **THEN** each plate has textured visible geometry and collidable geometry with matching placement and dimensions
-
-#### Scenario: Prototype plates are packaged
-- **WHEN** the executable runs from its copied executable-relative resource layout
-- **THEN** all plate geometry and its fixed surface texture remain available without an additional target, model, material, or level asset

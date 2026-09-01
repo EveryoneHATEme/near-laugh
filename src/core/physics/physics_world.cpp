@@ -11,6 +11,7 @@
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
@@ -224,6 +225,21 @@ JPH::RefConst<JPH::Shape> makePlayerCapsule(float total_height) {
   }
   return result.Get();
 }
+
+JPH::RefConst<JPH::Shape> makeTerrainShape(const PrototypeTerrain& terrain) {
+  JPH::HeightFieldShapeSettings settings(
+      terrain.heights.data(),
+      {terrain.origin.x, terrain.origin.y, terrain.origin.z},
+      {terrain.sample_spacing, 1.0F, terrain.sample_spacing},
+      static_cast<JPH::uint>(prototype_terrain_sample_count));
+  settings.mBitsPerSample = 16;
+  const JPH::ShapeSettings::ShapeResult result = settings.Create();
+  if (result.HasError()) {
+    throw std::runtime_error(std::string{"Create terrain heightfield failed: "} +
+                             result.GetError().c_str());
+  }
+  return result.Get();
+}
 }  // namespace
 
 class PhysicsWorld::Impl {
@@ -247,8 +263,27 @@ class PhysicsWorld::Impl {
     }
 
     static_solids_.reserve(level.solids().size());
-    static_body_ids_.reserve(level.solids().size());
+    static_body_ids_.reserve(level.solids().size() + 1);
     try {
+      const JPH::RefConst<JPH::Shape> terrain_shape =
+          makeTerrainShape(level.terrain());
+      JPH::BodyCreationSettings terrain_settings(
+          terrain_shape, {0.0F, 0.0F, 0.0F}, JPH::Quat::sIdentity(),
+          JPH::EMotionType::Static, layers::non_moving);
+      const JPH::BodyID terrain_id =
+          physics_system_.GetBodyInterface().CreateAndAddBody(
+              terrain_settings, JPH::EActivation::DontActivate);
+      if (terrain_id.IsInvalid()) {
+        throw std::runtime_error("Create static terrain collision body failed");
+      }
+      static_body_ids_.push_back(terrain_id);
+      terrain_collision_installed_ = true;
+      if (forcedFailureAt("static-bodies")) {
+        throw std::runtime_error(
+            "Physics initialization forced to fail during static collision "
+            "creation");
+      }
+
       for (std::size_t solid_index = 0; solid_index < level.solids().size();
            ++solid_index) {
         const PrototypeSolid& solid = level.solids()[solid_index];
@@ -268,11 +303,6 @@ class PhysicsWorld::Impl {
         }
         static_body_ids_.push_back(id);
         static_solids_.push_back({solid.center, solid.half_extent, solid.kind});
-        if (forcedFailureAt("static-bodies") && static_body_ids_.size() == 1) {
-          throw std::runtime_error(
-              "Physics initialization forced to fail during static collision "
-              "creation");
-        }
       }
       physics_system_.OptimizeBroadPhase();
 
@@ -362,6 +392,7 @@ class PhysicsWorld::Impl {
       bodies.DestroyBody(id);
     }
     static_body_ids_.clear();
+    terrain_collision_installed_ = false;
   }
 
   JoltRuntime runtime_{};
@@ -376,6 +407,7 @@ class PhysicsWorld::Impl {
   std::vector<JPH::BodyID> static_body_ids_{};
   std::vector<PhysicsStaticSolid> static_solids_{};
   JPH::Ref<JPH::CharacterVirtual> character_{};
+  bool terrain_collision_installed_{};
   bool crouched_{};
 };
 
@@ -402,6 +434,10 @@ PhysicsStaticSolid PhysicsWorld::staticBody(std::size_t index) const {
     throw std::out_of_range("Physics static body index is out of range");
   }
   return impl_->static_solids_[index];
+}
+
+bool PhysicsWorld::hasTerrainCollision() const noexcept {
+  return impl_->terrain_collision_installed_;
 }
 
 bool PhysicsWorld::usesSingleThreadedJobs() const noexcept {

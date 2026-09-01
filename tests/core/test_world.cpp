@@ -45,7 +45,7 @@ float distance(const WorldPosition& first, const WorldPosition& second) {
 TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
   const PrototypeLevel level;
   EXPECT_TRUE(prototypeLevelIsValid(level));
-  EXPECT_EQ(countKind(level, PrototypeSolidKind::Floor), 1U);
+  EXPECT_EQ(countKind(level, PrototypeSolidKind::Floor), 0U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::Boundary), 4U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::Obstacle), 2U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::WalkableStep), 1U);
@@ -68,6 +68,50 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
   const float passage_clearance = passage->center.y - passage->half_extent.y;
   EXPECT_GT(passage_clearance, player_crouched_height);
   EXPECT_LT(passage_clearance, player_standing_height);
+}
+
+TEST(PrototypeLevel, HasValidBoundedSculptableTerrain) {
+  const PrototypeLevel level;
+  const PrototypeTerrain& terrain = level.terrain();
+  EXPECT_TRUE(prototypeTerrainIsValid(terrain));
+  EXPECT_EQ(terrain.sample_spacing, prototype_terrain_sample_spacing);
+  EXPECT_TRUE(prototypeTerrainContains(terrain, terrain.origin.x, terrain.origin.z));
+  EXPECT_TRUE(prototypeTerrainContains(
+      terrain, terrain.origin.x +
+                   static_cast<float>(prototype_terrain_cell_count) *
+                       terrain.sample_spacing,
+      terrain.origin.z +
+          static_cast<float>(prototype_terrain_cell_count) * terrain.sample_spacing));
+  EXPECT_FALSE(prototypeTerrainContains(terrain, terrain.origin.x - 0.01F,
+                                        terrain.origin.z));
+  EXPECT_FALSE(prototypeTerrainContains(terrain, terrain.origin.x,
+                                        terrain.origin.z - 0.01F));
+
+  const WorldPosition first = prototypeTerrainSamplePosition(terrain, 0, 0);
+  const WorldPosition last = prototypeTerrainSamplePosition(
+      terrain, prototype_terrain_cell_count, prototype_terrain_cell_count);
+  EXPECT_FLOAT_EQ(first.x, terrain.origin.x);
+  EXPECT_FLOAT_EQ(first.z, terrain.origin.z);
+  EXPECT_FLOAT_EQ(last.x - first.x, 48.0F);
+  EXPECT_FLOAT_EQ(last.z - first.z, 48.0F);
+  EXPECT_LT(prototypeTerrainMinimumHeight(terrain), -0.1F);
+  EXPECT_GT(prototypeTerrainHeightAt(terrain, -15.0F, -8.0F), 0.1F);
+  EXPECT_LT(prototypeTerrainHeightAt(terrain, 14.0F, -11.0F), -0.1F);
+}
+
+TEST(PrototypeLevel, RejectsInvalidTerrainFixtures) {
+  const PrototypeTerrain valid = PrototypeLevel{}.terrain();
+  auto invalid = valid;
+  invalid.sample_spacing = 0.0F;
+  EXPECT_FALSE(prototypeTerrainIsValid(invalid));
+
+  invalid = valid;
+  invalid.heights[0] = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_FALSE(prototypeTerrainIsValid(invalid));
+
+  invalid = valid;
+  invalid.heights[1] = 100.0F;
+  EXPECT_FALSE(prototypeTerrainIsValid(invalid));
 }
 
 TEST(PrototypeLevel, HasThreeDistinctInertTexturedPlates) {
@@ -119,7 +163,8 @@ TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
   static_assert(prototype_point_light_count == 2U);
   ASSERT_EQ(light.point_lights.size(), 2U);
   EXPECT_TRUE(prototypeEnvironmentLightIsValid(light));
-  EXPECT_GT(light.ambient_intensity, 0.0F);
+  EXPECT_FLOAT_EQ(light.ambient_intensity, 0.12F);
+  EXPECT_FLOAT_EQ(prototype_maximum_ambient_intensity, 0.20F);
   EXPECT_LE(light.ambient_intensity, prototype_maximum_ambient_intensity);
 
   for (const PrototypePointLight& point_light : light.point_lights) {
@@ -195,6 +240,10 @@ TEST(PrototypeLevel, RejectsInvalidEnvironmentLightFixtures) {
   EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
 
   invalid = valid;
+  invalid.ambient_intensity = prototype_maximum_ambient_intensity;
+  EXPECT_TRUE(prototypeEnvironmentLightIsValid(invalid));
+
+  invalid = valid;
   invalid.ambient_intensity = prototype_maximum_ambient_intensity + 0.01F;
   EXPECT_FALSE(prototypeEnvironmentLightIsValid(invalid));
 }
@@ -208,11 +257,16 @@ TEST(PrototypeLevel, SpawnFacesSceneAndClearsEverySolid) {
   EXPECT_LT(level.playerSpawn().foot_position.z, 10.0F);
   EXPECT_GT(level.playerSpawn().foot_position.x, -10.0F);
   EXPECT_LT(level.playerSpawn().foot_position.x, 10.0F);
+  EXPECT_FLOAT_EQ(level.playerSpawn().foot_position.y,
+                  prototypeTerrainHeightAt(level.terrain(),
+                                           level.playerSpawn().foot_position.x,
+                                           level.playerSpawn().foot_position.z));
 }
 
 TEST(PrototypeLevel, RenderingAndPhysicsDeriveFromMatchingSolids) {
   const PrototypeLevel level;
   const PhysicsWorld physics(level);
+  EXPECT_TRUE(physics.hasTerrainCollision());
   ASSERT_EQ(physics.staticBodyCount(), level.solids().size());
   for (std::size_t index = 0; index < level.solids().size(); ++index) {
     const PrototypeSolid& authored = level.solids()[index];
@@ -224,5 +278,13 @@ TEST(PrototypeLevel, RenderingAndPhysicsDeriveFromMatchingSolids) {
     EXPECT_FLOAT_EQ(collision.half_extent.y, authored.half_extent.y);
     EXPECT_FLOAT_EQ(collision.half_extent.z, authored.half_extent.z);
     EXPECT_EQ(collision.kind, authored.kind);
+  }
+
+  for (const PrototypeSolid& solid : level.solids()) {
+    if (solid.kind != PrototypeSolidKind::Boundary) {
+      continue;
+    }
+    EXPECT_LE(solid.center.y - solid.half_extent.y,
+              prototypeTerrainMinimumHeight(level.terrain()));
   }
 }

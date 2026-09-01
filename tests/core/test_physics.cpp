@@ -63,6 +63,7 @@ TEST(PhysicsLifetime, RepeatedCreateDestroyLeavesNoGlobalOwner) {
   for (int cycle = 0; cycle < 4; ++cycle) {
     const PhysicsWorld physics(level);
     EXPECT_EQ(physics.staticBodyCount(), level.solids().size());
+    EXPECT_TRUE(physics.hasTerrainCollision());
   }
 }
 
@@ -71,6 +72,7 @@ TEST(PhysicsLifetime, RejectsDuplicateActiveRuntimeWithoutDamagingOwner) {
   PhysicsWorld owner(level);
   EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error);
   EXPECT_EQ(owner.staticBodyCount(), level.solids().size());
+  EXPECT_TRUE(owner.hasTerrainCollision());
 }
 
 TEST(PhysicsLifetime, PartialInitializationFailuresReleaseEveryStage) {
@@ -97,13 +99,52 @@ TEST(PhysicsWorld, AdvancesOnTheCallingThreadWithSingleThreadedJobs) {
   EXPECT_LT(state.foot_position.y, level.playerSpawn().foot_position.y);
 }
 
-TEST(PhysicsWorld, StaticFloorSupportsTheFallingCharacter) {
+TEST(PhysicsWorld, StaticTerrainSupportsTheFallingCharacter) {
   const PrototypeLevel level;
   PhysicsWorld physics(level);
   const PhysicsCharacterState state = simulate(physics, {}, 180);
   EXPECT_TRUE(state.supported());
-  EXPECT_NEAR(state.foot_position.y, 0.0F, 0.03F);
-  EXPECT_GE(state.foot_position.y, -0.001F);
+  EXPECT_NEAR(state.foot_position.y,
+              prototypeTerrainHeightAt(level.terrain(), state.foot_position.x,
+                                       state.foot_position.z),
+              0.03F);
+}
+
+TEST(PhysicsWorld, TraversesTerrainFeaturesAndCannotEscapeAtADepression) {
+  const PrototypeLevel level;
+
+  {
+    PhysicsWorld hill_world(level);
+    static_cast<void>(simulate(hill_world, {}, 120));
+    static_cast<void>(simulate(hill_world, {-5.0F, 0.0F, 0.0F}, 180));
+    const PhysicsCharacterState hill =
+        simulate(hill_world, {0.0F, 0.0F, -5.0F}, 180);
+    ASSERT_TRUE(hill.supported());
+    EXPECT_GT(hill.foot_position.y, 0.3F);
+    EXPECT_NEAR(hill.foot_position.y,
+                prototypeTerrainHeightAt(level.terrain(), hill.foot_position.x,
+                                         hill.foot_position.z),
+                0.04F);
+  }
+
+  PhysicsWorld depression_world(level);
+  static_cast<void>(simulate(depression_world, {}, 120));
+  static_cast<void>(simulate(depression_world, {5.0F, 0.0F, 0.0F}, 170));
+  const PhysicsCharacterState depression =
+      simulate(depression_world, {0.0F, 0.0F, -5.0F}, 216);
+  ASSERT_TRUE(depression.supported());
+  EXPECT_LT(depression.foot_position.y, -0.3F);
+  EXPECT_NEAR(depression.foot_position.y,
+              prototypeTerrainHeightAt(level.terrain(),
+                                       depression.foot_position.x,
+                                       depression.foot_position.z),
+              0.04F);
+
+  const PhysicsCharacterState blocked =
+      simulate(depression_world, {8.0F, 0.0F, 0.0F}, 120);
+  EXPECT_LT(blocked.foot_position.x, 23.7F);
+  EXPECT_GT(blocked.foot_position.x, 23.0F);
+  EXPECT_TRUE(blocked.supported());
 }
 
 TEST(PhysicsWorld, StaticBoundaryBlocksCharacter) {
@@ -112,8 +153,8 @@ TEST(PhysicsWorld, StaticBoundaryBlocksCharacter) {
   static_cast<void>(simulate(physics, {}, 120));
   const PhysicsCharacterState state =
       simulate(physics, {20.0F, 0.0F, 0.0F}, 90);
-  EXPECT_LT(state.foot_position.x, 9.7F);
-  EXPECT_GT(state.foot_position.x, 9.0F);
+  EXPECT_LT(state.foot_position.x, 23.7F);
+  EXPECT_GT(state.foot_position.x, 23.0F);
 }
 
 TEST(PhysicsWorld, StaticObstacleRejectsForwardMovement) {
@@ -148,8 +189,8 @@ TEST(PhysicsCharacter, SlidesTangentiallyAlongBoundary) {
   const float initial_z = physics.characterState().foot_position.z;
   const PhysicsCharacterState state =
       simulate(physics, {8.0F, 0.0F, -2.0F}, 180);
-  EXPECT_LT(state.foot_position.x, 9.7F);
-  EXPECT_GT(state.foot_position.x, 9.0F);
+  EXPECT_LT(state.foot_position.x, 23.7F);
+  EXPECT_GT(state.foot_position.x, 23.0F);
   EXPECT_LT(state.foot_position.z, initial_z - 4.0F);
 }
 
