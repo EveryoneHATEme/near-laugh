@@ -1,4 +1,8 @@
 add_executable(engine_tests
+    core/test_editor_bridge.cpp
+    core/test_editor_camera.cpp
+    core/test_editor_document.cpp
+    core/test_editor_loop.cpp
     core/test_input.cpp
     core/test_level_document.cpp
     core/test_executable_path.cpp
@@ -22,7 +26,8 @@ add_executable(engine_tests
 target_include_directories(engine_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(engine_tests PRIVATE
     near_laugh_runtime near_laugh_platform near_laugh_world near_laugh_physics
-    near_laugh_render
+    near_laugh_render near_laugh_editor_core near_laugh_editor_ui
+    near_laugh_editor_render
     Vulkan::Vulkan GTest::gtest_main
 )
 near_laugh_enable_warnings(engine_tests)
@@ -121,6 +126,29 @@ add_test(NAME source_boundary_check
             -P ${CMAKE_CURRENT_SOURCE_DIR}/boundary/check_sources.cmake
 )
 set_tests_properties(source_boundary_check PROPERTIES LABELS "boundary")
+
+add_test(NAME editor_executable_resources
+    COMMAND ${CMAKE_COMMAND}
+            -DROOT=$<TARGET_FILE_DIR:level_editor>/resources
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/boundary/check_editor_resources.cmake
+)
+set_tests_properties(editor_executable_resources PROPERTIES LABELS "boundary")
+
+add_test(NAME editor_vulkan_smoke COMMAND level_editor --smoke)
+set_tests_properties(editor_vulkan_smoke PROPERTIES
+    LABELS "vulkan-smoke"
+    TIMEOUT 120
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>"
+)
+
+add_test(NAME editor_vulkan_construction_failure COMMAND level_editor --smoke)
+set_tests_properties(editor_vulkan_construction_failure PROPERTIES
+    LABELS "vulkan-smoke"
+    TIMEOUT 120
+    WILL_FAIL TRUE
+    ENVIRONMENT "NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE=editor-imgui-backend"
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>"
+)
 
 add_executable(resource_layout_probe
     process/resource_layout_probe.cpp

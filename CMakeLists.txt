@@ -82,6 +82,30 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.92.9b-docking
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(imgui)
+add_library(near_laugh_imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+target_include_directories(near_laugh_imgui SYSTEM PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+)
+target_link_libraries(near_laugh_imgui PRIVATE Vulkan::Vulkan glfw)
+target_compile_definitions(near_laugh_imgui
+    PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+)
+
 set(JPH_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
 set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
@@ -127,6 +151,8 @@ function(near_laugh_enable_warnings target)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
 endfunction()
+
+near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
     src/core/world/level_codec.cpp
@@ -228,10 +254,62 @@ endif()
 get_target_property(near_laugh_runtime_interface_links
                     near_laugh_runtime INTERFACE_LINK_LIBRARIES)
 if(near_laugh_runtime_interface_links MATCHES
-   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf|nlohmann")
+   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf|nlohmann|imgui")
     message(FATAL_ERROR
         "near_laugh_runtime exposes a backend usage requirement: "
         "${near_laugh_runtime_interface_links}")
+endif()
+
+add_library(near_laugh_editor_core STATIC
+    src/editor/editor_camera.cpp
+    src/editor/editor_document.cpp
+)
+target_include_directories(near_laugh_editor_core
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${glm_SOURCE_DIR}
+)
+target_link_libraries(near_laugh_editor_core
+    PRIVATE near_laugh_platform near_laugh_world
+)
+target_compile_definitions(near_laugh_editor_core PRIVATE
+    GLM_FORCE_RADIANS
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
+)
+near_laugh_enable_warnings(near_laugh_editor_core)
+
+add_library(near_laugh_editor_ui STATIC
+    src/editor/editor_glfw_bridge.cpp
+    src/editor/editor_ui.cpp
+)
+target_include_directories(near_laugh_editor_ui
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(near_laugh_editor_ui
+    PRIVATE near_laugh_editor_core near_laugh_platform near_laugh_world
+            near_laugh_imgui glfw
+)
+near_laugh_enable_warnings(near_laugh_editor_ui)
+
+add_library(near_laugh_editor_render STATIC
+    src/editor/editor_renderer.cpp
+)
+target_include_directories(near_laugh_editor_render
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(near_laugh_editor_render
+    PRIVATE near_laugh_render near_laugh_platform near_laugh_world
+            near_laugh_imgui Vulkan::Vulkan
+)
+near_laugh_enable_warnings(near_laugh_editor_render)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(near_laugh_editor_render
+        PRIVATE NEAR_LAUGH_ENABLE_VULKAN_VALIDATION=1
+    )
+endif()
+
+get_target_property(near_laugh_editor_render_links
+                    near_laugh_editor_render LINK_LIBRARIES)
+if(near_laugh_editor_render_links MATCHES "near_laugh_runtime")
+    message(FATAL_ERROR "Editor renderer must not link near_laugh_runtime")
 endif()
 get_target_property(near_laugh_runtime_interface_definitions
                     near_laugh_runtime INTERFACE_COMPILE_DEFINITIONS)
@@ -265,6 +343,41 @@ add_custom_command(TARGET fps POST_BUILD
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/levels"
             "$<TARGET_FILE_DIR:fps>/resources/levels"
 )
+
+add_executable(level_editor
+    src/editor/editor_application.cpp
+    src/editor/main.cpp
+    src/launcher/executable_path.cpp
+)
+target_include_directories(level_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(level_editor PRIVATE
+    near_laugh_editor_core near_laugh_editor_ui near_laugh_editor_render
+    near_laugh_platform near_laugh_world
+)
+near_laugh_enable_warnings(level_editor)
+set_target_properties(level_editor PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+add_custom_command(TARGET level_editor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
+            "$<TARGET_FILE_DIR:level_editor>/resources/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
+            "$<TARGET_FILE_DIR:level_editor>/resources/textures"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
+            "$<TARGET_FILE_DIR:level_editor>/resources/models"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/levels"
+            "$<TARGET_FILE_DIR:level_editor>/resources/levels"
+)
+
+get_target_property(level_editor_links level_editor LINK_LIBRARIES)
+if(level_editor_links MATCHES "near_laugh_runtime|near_laugh_physics")
+    message(FATAL_ERROR
+        "level_editor must not link gameplay runtime or physics targets")
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

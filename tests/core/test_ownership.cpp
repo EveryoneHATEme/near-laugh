@@ -17,6 +17,7 @@
 #include "core/render/sampled_texture.hpp"
 #include "core/render/vulkan_context.hpp"
 #include "core/testing/test_controls.hpp"
+#include "editor/editor_renderer.hpp"
 #include "near_laugh/application.hpp"
 
 TEST(Ownership, RuntimeAndVulkanOwnersAreNonCopyable) {
@@ -33,6 +34,7 @@ TEST(Ownership, RuntimeAndVulkanOwnersAreNonCopyable) {
   static_assert(!std::is_copy_constructible_v<SampledTexture>);
   static_assert(!std::is_move_constructible_v<SampledTexture>);
   static_assert(!std::is_copy_constructible_v<Renderer>);
+  static_assert(!std::is_copy_constructible_v<EditorRenderer>);
   static_assert(!std::is_copy_constructible_v<PhysicsWorld>);
   static_assert(!std::is_copy_constructible_v<PlayerController>);
   static_assert(!std::is_copy_constructible_v<near_laugh::Application>);

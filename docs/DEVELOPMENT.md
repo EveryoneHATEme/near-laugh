@@ -85,6 +85,35 @@ On other supported desktop environments:
 ./build/debug/bin/fps
 ```
 
+Run the standalone level editor without an initial document, or pass one
+explicit level path:
+
+```powershell
+.\build\debug\bin\level_editor.exe
+.\build\debug\bin\level_editor.exe .\resources\levels\prototype.level.json
+```
+
+On other supported desktop environments, use the corresponding
+`./build/debug/bin/level_editor` path. The editor derives its resource root from
+the actual executable directory, not the process working directory or
+`argv[0]`. The build copies the same shaders, textures, packaged chair, and
+prototype level beneath `bin/resources` for both executables.
+
+The editor uses right mouse to enter scene navigation, Escape to release it,
+mouse movement to look, W/A/S/D for horizontal movement, Space/Left Control for
+vertical movement, and Left Shift to sprint. UI keyboard or pointer capture
+suppresses conflicting camera input. File > Open and File > Save As use explicit
+path-entry dialogs. Open is transactional, Save and Save As use the shared
+validated deterministic codec, and dirty open/close/exit requests require a
+Save, Discard, or Cancel decision.
+
+This foundation displays terrain, solids, both point lights and ambient light,
+the player spawn, and the fixed chair placement as read-only data. It does not
+provide selection, property mutation, gizmos, object placement, terrain
+sculpting, native file dialogs, play-in-editor, physics, gameplay input,
+multiple platform viewports, an offscreen viewport, asset browsing, or a scene
+hierarchy.
+
 The executable loads its copied SPIR-V and texture assets beneath the runtime
 output directory. The required shader files are
 `resources/shaders/prototype_scene_vertex.spv` and
@@ -147,6 +176,15 @@ or HDR post-processing.
   mapping, player policy, concrete flashlight toggle state, fixed-step player
   movement, interpolation, and the main loop.
 - `fps` is the launcher executable and links through `near_laugh_runtime`.
+- `near_laugh_editor_core` contains the editor document state machine and
+  fixed free-fly camera without gameplay/runtime dependencies.
+- `near_laugh_editor_ui` privately contains pinned Dear ImGui core plus its
+  GLFW/Vulkan-facing editor UI integration and read-only workspace.
+- `near_laugh_editor_render` contains the concrete Vulkan editor renderer and
+  active-document GPU replacement; it reuses narrow render helpers but does not
+  link `near_laugh_runtime`.
+- `level_editor` is the standalone authoring executable and copies resources
+  beside itself using the same executable-relative layout as `fps`.
 
 The deterministic suite includes public-header, target-interface, source, and
 compile-command boundary checks. It also verifies waited input-batch sampling,
@@ -174,6 +212,13 @@ window/GPU-dependent smoke test. Run the smoke path explicitly with:
 ```sh
 ctest --preset vulkan-smoke --output-on-failure
 ```
+
+That preset also runs `level_editor --smoke`. The editor smoke opens and
+replaces the packaged level, rejects an invalid replacement without losing the
+active document, forces swapchain recovery, resizes, minimizes/restores, and
+shuts down. A companion expected-failure test injects ImGui Vulkan-backend
+construction failure to cover partial teardown. Both editor and game smoke
+paths treat every error-severity Vulkan validation message as a failure.
 
 The smoke executable renders the depth-buffered, locally lit and mipmapped
 textured prototype scene and imported chair for fixed frames and forces one swapchain
