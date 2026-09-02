@@ -8,27 +8,26 @@
 #include "core/runtime_resources.hpp"
 
 namespace {
-const std::array<std::filesystem::path, 7> runtimeAssetPaths = {
+const std::array<std::filesystem::path, 8> runtimeAssetPaths = {
     "shaders/prototype_scene_vertex.spv",
     "shaders/prototype_scene_fragment.spv",
     "textures/prototype_floor.png",
     "textures/prototype_boundary.png",
     "textures/prototype_obstacle.png",
     "textures/prototype_shooting_target.png",
-    "models/prototype_chair.glb"};
+    "models/prototype_chair.glb",
+    "levels/prototype.level.json"};
 
 std::filesystem::path makeCompleteRuntimeRoot() {
-  const std::filesystem::path root =
-      (std::filesystem::temp_directory_path() /
-       "near_laugh_runtime_resources_test")
-          .lexically_normal();
+  const std::filesystem::path root = (std::filesystem::temp_directory_path() /
+                                      "near_laugh_runtime_resources_test")
+                                         .lexically_normal();
   std::filesystem::remove_all(root);
   for (const std::filesystem::path& relative : runtimeAssetPaths) {
     const std::filesystem::path destination = root / relative;
     std::filesystem::create_directories(destination.parent_path());
-    std::filesystem::copy_file(std::filesystem::absolute("resources") /
-                                   relative,
-                               destination);
+    std::filesystem::copy_file(
+        std::filesystem::absolute("resources") / relative, destination);
   }
   return root;
 }
@@ -67,6 +66,9 @@ TEST(RuntimeResources, ResolvesShadersIndependentlyOfWorkingDirectory) {
         std::filesystem::is_regular_file(resources.prototype_chair_model));
     EXPECT_EQ(resources.prototype_chair_model,
               resource_root / "models" / "prototype_chair.glb");
+    EXPECT_TRUE(std::filesystem::is_regular_file(resources.prototype_level));
+    EXPECT_EQ(resources.prototype_level,
+              resource_root / "levels" / "prototype.level.json");
   } catch (...) {
     std::filesystem::current_path(original_working_directory);
     throw;
@@ -86,6 +88,12 @@ TEST(RuntimeResources, EveryMissingTextureReportsItsResolvedAbsolutePath) {
 TEST(RuntimeResources, MissingModelReportsItsResolvedAbsolutePath) {
   const std::filesystem::path root = makeCompleteRuntimeRoot();
   expectMissingPathReported(root, "models/prototype_chair.glb");
+  std::filesystem::remove_all(root);
+}
+
+TEST(RuntimeResources, MissingLevelReportsItsResolvedAbsolutePath) {
+  const std::filesystem::path root = makeCompleteRuntimeRoot();
+  expectMissingPathReported(root, "levels/prototype.level.json");
   std::filesystem::remove_all(root);
 }
 

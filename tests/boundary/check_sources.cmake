@@ -48,6 +48,18 @@ foreach(CGLTF_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     endif()
 endforeach()
 
+foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    if(JSON_SOURCE MATCHES
+       "[/\\\\]src[/\\\\]core[/\\\\]world[/\\\\]level_codec[.]cpp$")
+        continue()
+    endif()
+    file(READ "${JSON_SOURCE}" JSON_SOURCE_CONTENT)
+    if(JSON_SOURCE_CONTENT MATCHES "nlohmann[/\\\\]json")
+        message(FATAL_ERROR
+            "JSON dependency escaped the private level codec: ${JSON_SOURCE}")
+    endif()
+endforeach()
+
 file(GLOB_RECURSE PROJECT_BACKEND_SOURCES
      "${SOURCE_ROOT}/src/core/*.cpp"
      "${SOURCE_ROOT}/src/core/*.hpp")
@@ -239,6 +251,39 @@ foreach(RUNTIME_SOURCE IN ITEMS
 endforeach()
 
 file(READ "${SOURCE_ROOT}/CMakeLists.txt" ROOT_CMAKE_CONTENT)
+if(NOT ROOT_CMAKE_CONTENT MATCHES "GIT_TAG v1[.]92[.]9b-docking")
+    message(FATAL_ERROR "Dear ImGui must remain pinned to v1.92.9b-docking")
+endif()
+if(NOT ROOT_CMAKE_CONTENT MATCHES
+   "target_link_libraries\\(fps PRIVATE near_laugh_runtime\\)")
+    message(FATAL_ERROR "fps must link only through near_laugh_runtime")
+endif()
+foreach(EDITOR_TARGET IN ITEMS
+        near_laugh_editor_core near_laugh_editor_ui near_laugh_editor_render
+        level_editor)
+    string(REGEX MATCH
+           "target_link_libraries\\(${EDITOR_TARGET}[^)]*\\)"
+           EDITOR_LINK_BLOCK "${ROOT_CMAKE_CONTENT}")
+    if(NOT EDITOR_LINK_BLOCK OR EDITOR_LINK_BLOCK MATCHES
+       "near_laugh_runtime|near_laugh_physics")
+        message(FATAL_ERROR
+            "${EDITOR_TARGET} is missing or links gameplay/physics: "
+            "${EDITOR_LINK_BLOCK}")
+    endif()
+endforeach()
+if(NOT ROOT_CMAKE_CONTENT MATCHES
+   "target_link_libraries\\(near_laugh_world PRIVATE nlohmann_json::nlohmann_json\\)")
+    message(FATAL_ERROR
+        "nlohmann/json must be linked privately by near_laugh_world")
+endif()
+string(REGEX MATCHALL
+       "target_link_libraries\\([^)]*nlohmann_json::nlohmann_json[^)]*\\)"
+       JSON_LINK_BLOCKS "${ROOT_CMAKE_CONTENT}")
+list(LENGTH JSON_LINK_BLOCKS JSON_LINK_BLOCK_COUNT)
+if(NOT JSON_LINK_BLOCK_COUNT EQUAL 1)
+    message(FATAL_ERROR
+        "nlohmann/json is linked by a target other than near_laugh_world")
+endif()
 if(NOT ROOT_CMAKE_CONTENT MATCHES
    "target_link_libraries\\(near_laugh_physics PRIVATE near_laugh_world Jolt\\)")
     message(FATAL_ERROR
@@ -361,7 +406,7 @@ foreach(RUNTIME_FILE IN LISTS REQUIRED_RUNTIME_FILES)
             string(JSON COMMAND_LINE GET
                    "${COMPILE_COMMANDS}" ${COMMAND_INDEX} command)
             if(COMMAND_LINE MATCHES
-               "VulkanSDK|_deps[/\\\\]glfw-src|_deps[/\\\\]cgltf-src")
+               "VulkanSDK|_deps[/\\\\]glfw-src|_deps[/\\\\]cgltf-src|_deps[/\\\\]imgui-src|IMGUI_")
                 message(FATAL_ERROR
                     "Backend include directory leaked into ${RUNTIME_FILE}: "
                     "${COMMAND_LINE}")
@@ -372,6 +417,76 @@ foreach(RUNTIME_FILE IN LISTS REQUIRED_RUNTIME_FILES)
         message(FATAL_ERROR "No compile command found for ${RUNTIME_FILE}")
     endif()
 endforeach()
+
+file(GLOB_RECURSE GAME_BOUNDARY_SOURCES
+     "${SOURCE_ROOT}/include/*.hpp"
+     "${SOURCE_ROOT}/include/*.h"
+     "${SOURCE_ROOT}/src/core/*.cpp"
+     "${SOURCE_ROOT}/src/core/*.hpp")
+list(APPEND GAME_BOUNDARY_SOURCES "${SOURCE_ROOT}/src/main.cpp")
+foreach(GAME_SOURCE IN LISTS GAME_BOUNDARY_SOURCES)
+    file(READ "${GAME_SOURCE}" GAME_SOURCE_CONTENT)
+    if(GAME_SOURCE_CONTENT MATCHES "imgui|ImGui|editor/")
+        message(FATAL_ERROR
+            "Editor UI dependency leaked into game source: ${GAME_SOURCE}")
+    endif()
+endforeach()
+
+file(READ "${SOURCE_ROOT}/src/core/frame.hpp" FRAME_CONTRACT_CONTENT)
+file(READ "${SOURCE_ROOT}/src/core/world/level_document.hpp"
+     LEVEL_CONTRACT_CONTENT)
+if("${FRAME_CONTRACT_CONTENT}${LEVEL_CONTRACT_CONTENT}" MATCHES
+   "EditorCamera|EditorUi|ImGui|imgui")
+    message(FATAL_ERROR
+        "Editor camera/UI concepts leaked into shared renderer or level contracts")
+endif()
+
+file(READ "${SOURCE_ROOT}/src/editor/editor_application.cpp"
+     EDITOR_APPLICATION_CONTENT)
+if(EDITOR_APPLICATION_CONTENT MATCHES
+   "PlayerController|PhysicsWorld|PlayerFlashlight|near_laugh::Application")
+    message(FATAL_ERROR "level_editor constructs gameplay objects")
+endif()
+if(NOT EDITOR_APPLICATION_CONTENT MATCHES "executableResourceRoot")
+    file(READ "${SOURCE_ROOT}/src/editor/main.cpp" EDITOR_LAUNCHER_CONTENT)
+    if(NOT EDITOR_LAUNCHER_CONTENT MATCHES "executableResourceRoot")
+        message(FATAL_ERROR
+            "level_editor must derive resources from its executable path")
+    endif()
+endif()
+
+file(READ "${SOURCE_ROOT}/src/editor/editor_renderer.cpp"
+     EDITOR_RENDERER_CONTENT)
+string(FIND "${EDITOR_RENDERER_CONTENT}" "world_mesh_->bindAndDraw"
+       EDITOR_SCENE_DRAW_POSITION)
+string(FIND "${EDITOR_RENDERER_CONTENT}" "ImGui_ImplVulkan_RenderDrawData"
+       EDITOR_IMGUI_DRAW_POSITION)
+if(EDITOR_SCENE_DRAW_POSITION LESS 0 OR EDITOR_IMGUI_DRAW_POSITION LESS 0 OR
+   EDITOR_SCENE_DRAW_POSITION GREATER EDITOR_IMGUI_DRAW_POSITION)
+    message(FATAL_ERROR "Editor renderer must draw scene before ImGui")
+endif()
+foreach(REQUIRED_EDITOR_RENDER_TOKEN IN ITEMS
+        "vkCmdBeginRendering" "vkCmdPipelineBarrier2"
+        "VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL"
+        "replaceDocument" "vkDeviceWaitIdle")
+    if(NOT EDITOR_RENDERER_CONTENT MATCHES "${REQUIRED_EDITOR_RENDER_TOKEN}")
+        message(FATAL_ERROR
+            "Editor renderer is missing: ${REQUIRED_EDITOR_RENDER_TOKEN}")
+    endif()
+endforeach()
+
+file(READ "${SOURCE_ROOT}/src/editor/editor_ui.cpp" EDITOR_UI_CONTENT)
+foreach(REQUIRED_PANEL_TOKEN IN ITEMS
+        "Document Summary" "Read-only Properties" "Validation" "Terrain"
+        "Solids" "Lights" "Player Spawn" "Static Prop" "Open Level"
+        "Save Level As" "Unsaved Changes")
+    if(NOT EDITOR_UI_CONTENT MATCHES "${REQUIRED_PANEL_TOKEN}")
+        message(FATAL_ERROR "Editor UI is missing: ${REQUIRED_PANEL_TOKEN}")
+    endif()
+endforeach()
+if(EDITOR_UI_CONTENT MATCHES "editDocument|markDirty")
+    message(FATAL_ERROR "Foundation UI exposes level mutation controls")
+endif()
 
 set(REQUIRED_NON_PHYSICS_FILES
         "src/core/application.cpp"

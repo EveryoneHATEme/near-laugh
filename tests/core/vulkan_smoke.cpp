@@ -19,6 +19,7 @@
 #include "core/render/validation_diagnostics.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/prototype_level.hpp"
+#include "prototype_level_fixture.hpp"
 
 namespace {
 RendererResources smokeResources() {
@@ -126,8 +127,7 @@ void requireBalancedMeshLifecycle(const std::vector<std::string>& events,
                        prefix + "buffer.destroyed", phase);
   requireBalancedEvent(events, prefix + "memory.allocated",
                        prefix + "memory.freed", phase);
-  requireBalancedEvent(events, prefix + "created", prefix + "destroyed",
-                       phase);
+  requireBalancedEvent(events, prefix + "created", prefix + "destroyed", phase);
 }
 
 void setForcedVulkanStage(const char* stage) {
@@ -153,7 +153,7 @@ void runLifecycleSmoke() {
   {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh lifecycle smoke");
-    PrototypeLevel level;
+    PrototypeLevel level = loadPackagedPrototypeLevel();
     Renderer renderer(window, window.framebufferExtent(), level,
                       smokeResources(), diagnostics);
     renderer.requestSwapchainRecreation();
@@ -162,8 +162,8 @@ void runLifecycleSmoke() {
       throw std::runtime_error(
           "Forced swapchain recreation did not report recovery");
     }
-    const FrameOutcome draw_outcome = renderer.renderFrame(
-        {window.framebufferExtent(), false});
+    const FrameOutcome draw_outcome =
+        renderer.renderFrame({window.framebufferExtent(), false});
     if (draw_outcome == FrameOutcome::Skipped) {
       throw std::runtime_error("Lifecycle smoke skipped the two mesh draws");
     }
@@ -229,7 +229,7 @@ void runLifecycleSmoke() {
   try {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh failure smoke");
-    PrototypeLevel level;
+    PrototypeLevel level = loadPackagedPrototypeLevel();
     Renderer renderer(window, window.framebufferExtent(), level,
                       smokeResources(), diagnostics);
   } catch (const std::runtime_error&) {
@@ -253,7 +253,7 @@ void runLifecycleSmoke() {
   try {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh depth failure smoke");
-    PrototypeLevel level;
+    PrototypeLevel level = loadPackagedPrototypeLevel();
     Renderer renderer(window, window.framebufferExtent(), level,
                       smokeResources(), diagnostics);
   } catch (const std::runtime_error&) {
@@ -282,7 +282,7 @@ void runLifecycleSmoke() {
     try {
       Platform platform;
       Window window(platform, 320, 240, "near-laugh texture failure smoke");
-      PrototypeLevel level;
+      PrototypeLevel level = loadPackagedPrototypeLevel();
       Renderer renderer(window, window.framebufferExtent(), level,
                         smokeResources(), diagnostics);
     } catch (const std::runtime_error&) {
@@ -315,7 +315,7 @@ void runLifecycleSmoke() {
     try {
       Platform platform;
       Window window(platform, 320, 240, "near-laugh lighting failure smoke");
-      PrototypeLevel level;
+      PrototypeLevel level = loadPackagedPrototypeLevel();
       Renderer renderer(window, window.framebufferExtent(), level,
                         smokeResources(), diagnostics);
     } catch (const std::runtime_error&) {
@@ -350,7 +350,7 @@ void runLifecycleSmoke() {
     try {
       Platform platform;
       Window window(platform, 320, 240, "near-laugh mesh failure smoke");
-      PrototypeLevel level;
+      PrototypeLevel level = loadPackagedPrototypeLevel();
       Renderer renderer(window, window.framebufferExtent(), level,
                         smokeResources(), diagnostics);
     } catch (const std::runtime_error&) {
@@ -403,7 +403,7 @@ int main(int argc, char** argv) {
       if (window.cursorCaptured()) {
         throw std::runtime_error("Cursor capture did not disable");
       }
-      PrototypeLevel level;
+      PrototypeLevel level = loadPackagedPrototypeLevel();
       PhysicsWorld physics(level);
       PlayerController player(physics, level.playerSpawn().yaw_degrees);
       for (int step = 0; step < 120; ++step) {

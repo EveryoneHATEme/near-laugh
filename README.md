@@ -14,12 +14,14 @@ Development: `docs/DEVELOPMENT.md`
 ## Runtime boundaries
 
 The `fps` executable links the backend-neutral `near_laugh_runtime` facade.
-Runtime composition owns `Platform -> Window -> PrototypeLevel -> PhysicsWorld
+Runtime composition owns `Platform -> Window -> RuntimeResources ->
+PrototypeLevel -> PhysicsWorld
 -> PlayerController -> PlayerFlashlight -> Renderer` in that
 order and destroys them in reverse.
 `near_laugh_platform` confines GLFW and physical keyboard/mouse state;
-`near_laugh_world` owns immutable prototype solids and two authored point
-lights; `near_laugh_physics`
+`near_laugh_world` owns the bounded level document, private JSON codec, shared
+validation, and immutable prototype terrain, solids, spawn, prop, and two
+authored point lights; `near_laugh_physics`
 confines Jolt Physics; and `near_laugh_render` confines Vulkan. The runtime
 maps physical state to the fixed controls for the one local FPS player.
 Polling and blocking waits each open one input batch; the Engine samples a
@@ -40,7 +42,13 @@ The executable starts with the cursor captured and shows one built-in textured
 crouch-only passage, plus three inert textured and collidable plates. Every immutable
 axis-aligned solid carries one fixed floor, boundary, obstacle, or
 shooting-target surface role; rendering and static collision derive from those
-same solids. It requires no model, general material, collision, or level file.
+same solids. The fixed packaged asset
+`resources/levels/prototype.level.json` supplies the 97-by-97 terrain, no more
+than 240 solids, spawn, exactly two point lights and ambient intensity, and one
+chair placement with its box proxy. It contains no resource paths; the fixed
+chair GLB, shaders, and four textures remain separately implicit runtime
+resources. Startup validates the document once, and the game does not mutate,
+save, or hot-reload it while running.
 One restrained cool point light surrounds the spawn and one stronger warm
 point light marks the destination. Their finite, non-overlapping radii leave
 an intentionally dark transition between them over a near-black ambient floor.
@@ -97,7 +105,9 @@ verification commands.
 `build/debug/bin/resources/shaders`. The four fixed textures
 `prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
 `prototype_shooting_target.png` are copied to
-`build/debug/bin/resources/textures`; the launcher
+`build/debug/bin/resources/textures`; `prototype.level.json` is copied to
+`build/debug/bin/resources/levels`; and `prototype_chair.glb` is copied to
+`build/debug/bin/resources/models`. The launcher
 uses the host's native process facility to discover the actual executable and
 passes its adjacent resource root explicitly to the runtime. Asset loading is
 therefore independent of both the current working directory and the spelling

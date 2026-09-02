@@ -5,6 +5,7 @@
 #include "core/player/player_controller.hpp"
 #include "core/simulation/fixed_step.hpp"
 #include "core/world/prototype_level.hpp"
+#include "prototype_level_fixture.hpp"
 
 TEST(FixedStepAccumulator, RetainsSubStepRemainder) {
   FixedStepAccumulator accumulator;
@@ -50,7 +51,7 @@ TEST(FixedStepAccumulator, ResetClearsRemainderAndClockOrigin) {
 }
 
 TEST(PlayerInterpolation, ZeroStepKeepsPositionWhileLookIsLatest) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   const PlayerCameraPosition before = player.interpolatedCameraPosition(0.5F);
@@ -66,7 +67,7 @@ TEST(PlayerInterpolation, ZeroStepKeepsPositionWhileLookIsLatest) {
 
 TEST(PlayerInterpolation, MultiStepIterationRetainsLatestTwoValidPoses) {
   constexpr float delta = 1.0F / 60.0F;
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   for (int step = 0; step < 120; ++step) {
@@ -90,7 +91,7 @@ TEST(PlayerInterpolation, MultiStepIterationRetainsLatestTwoValidPoses) {
 
 TEST(PlayerInterpolation, InterpolatesStanceEyeHeightAndCanCollapse) {
   constexpr float delta = 1.0F / 60.0F;
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   for (int step = 0; step < 120; ++step) {

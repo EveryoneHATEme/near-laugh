@@ -10,6 +10,7 @@ struct RuntimeResources {
   std::filesystem::path scene_fragment_shader{};
   std::array<std::filesystem::path, 4> scene_textures{};
   std::filesystem::path prototype_chair_model{};
+  std::filesystem::path prototype_level{};
 };
 
 [[nodiscard]] RuntimeResources resolveRuntimeResources(

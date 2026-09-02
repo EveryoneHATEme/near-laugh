@@ -9,6 +9,7 @@
 
 #include "core/physics/physics_world.hpp"
 #include "core/world/prototype_level.hpp"
+#include "prototype_level_fixture.hpp"
 
 namespace {
 class ScopedPhysicsFailure {
@@ -60,7 +61,7 @@ PhysicsCharacterState simulate(PhysicsWorld& world, PhysicsVector horizontal,
 }  // namespace
 
 TEST(PhysicsLifetime, RepeatedCreateDestroyLeavesNoGlobalOwner) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   for (int cycle = 0; cycle < 4; ++cycle) {
     const PhysicsWorld physics(level);
     EXPECT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);
@@ -69,7 +70,7 @@ TEST(PhysicsLifetime, RepeatedCreateDestroyLeavesNoGlobalOwner) {
 }
 
 TEST(PhysicsLifetime, RejectsDuplicateActiveRuntimeWithoutDamagingOwner) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld owner(level);
   EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error);
   EXPECT_EQ(owner.staticBodyCount(), level.solids().size() + 1U);
@@ -77,10 +78,9 @@ TEST(PhysicsLifetime, RejectsDuplicateActiveRuntimeWithoutDamagingOwner) {
 }
 
 TEST(PhysicsLifetime, PartialInitializationFailuresReleaseEveryStage) {
-  const PrototypeLevel level;
-  for (const char* stage :
-       {"runtime-factory", "world", "static-bodies", "model-proxy",
-        "character"}) {
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
+  for (const char* stage : {"runtime-factory", "world", "static-bodies",
+                            "model-proxy", "character"}) {
     {
       const ScopedPhysicsFailure failure(stage);
       EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error)
@@ -91,7 +91,7 @@ TEST(PhysicsLifetime, PartialInitializationFailuresReleaseEveryStage) {
 }
 
 TEST(PhysicsWorld, AdvancesOnTheCallingThreadWithSingleThreadedJobs) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   const std::thread::id caller = std::this_thread::get_id();
   EXPECT_TRUE(physics.usesSingleThreadedJobs());
@@ -102,7 +102,7 @@ TEST(PhysicsWorld, AdvancesOnTheCallingThreadWithSingleThreadedJobs) {
 }
 
 TEST(PhysicsWorld, StaticTerrainSupportsTheFallingCharacter) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   const PhysicsCharacterState state = simulate(physics, {}, 180);
   EXPECT_TRUE(state.supported());
@@ -113,7 +113,7 @@ TEST(PhysicsWorld, StaticTerrainSupportsTheFallingCharacter) {
 }
 
 TEST(PhysicsWorld, TraversesTerrainFeaturesAndCannotEscapeAtADepression) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
 
   {
     PhysicsWorld hill_world(level);
@@ -136,11 +136,11 @@ TEST(PhysicsWorld, TraversesTerrainFeaturesAndCannotEscapeAtADepression) {
       simulate(depression_world, {0.0F, 0.0F, -5.0F}, 216);
   ASSERT_TRUE(depression.supported());
   EXPECT_LT(depression.foot_position.y, -0.3F);
-  EXPECT_NEAR(depression.foot_position.y,
-              prototypeTerrainHeightAt(level.terrain(),
-                                       depression.foot_position.x,
-                                       depression.foot_position.z),
-              0.04F);
+  EXPECT_NEAR(
+      depression.foot_position.y,
+      prototypeTerrainHeightAt(level.terrain(), depression.foot_position.x,
+                               depression.foot_position.z),
+      0.04F);
 
   const PhysicsCharacterState blocked =
       simulate(depression_world, {8.0F, 0.0F, 0.0F}, 120);
@@ -150,7 +150,7 @@ TEST(PhysicsWorld, TraversesTerrainFeaturesAndCannotEscapeAtADepression) {
 }
 
 TEST(PhysicsWorld, StaticBoundaryBlocksCharacter) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   static_cast<void>(simulate(physics, {}, 120));
   const PhysicsCharacterState state =
@@ -160,7 +160,7 @@ TEST(PhysicsWorld, StaticBoundaryBlocksCharacter) {
 }
 
 TEST(PhysicsWorld, StaticObstacleRejectsForwardMovement) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   static_cast<void>(simulate(physics, {}, 120));
   const PhysicsCharacterState state =
@@ -170,7 +170,7 @@ TEST(PhysicsWorld, StaticObstacleRejectsForwardMovement) {
 }
 
 TEST(PhysicsWorld, StaticChairProxyMatchesPlacementAndBlocksThePlayer) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   ASSERT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);
   const PhysicsStaticSolid chair = physics.staticBody(level.solids().size());
@@ -190,8 +190,8 @@ TEST(PhysicsWorld, StaticChairProxyMatchesPlacementAndBlocksThePlayer) {
   static_cast<void>(simulate(physics, {}, 120));
   static_cast<void>(simulate(physics, {4.0F, 0.0F, 0.0F}, 27));
   static_cast<void>(simulate(physics, {0.0F, 0.0F, -5.0F}, 72));
-  const float yaw = level.staticProp().yaw_degrees *
-                    std::numbers::pi_v<float> / 180.0F;
+  const float yaw =
+      level.staticProp().yaw_degrees * std::numbers::pi_v<float> / 180.0F;
   const float local_z_x = std::sin(yaw);
   const float local_z_z = std::cos(yaw);
   const PhysicsCharacterState blocked =
@@ -201,15 +201,14 @@ TEST(PhysicsWorld, StaticChairProxyMatchesPlacementAndBlocksThePlayer) {
   const float front_distance = offset_x * local_z_x + offset_z * local_z_z;
   const float lateral_distance =
       offset_x * std::cos(yaw) - offset_z * std::sin(yaw);
-  EXPECT_GT(front_distance,
-            chair.half_extent.z + player_capsule_radius - 0.1F);
+  EXPECT_GT(front_distance, chair.half_extent.z + player_capsule_radius - 0.1F);
   EXPECT_LT(front_distance,
             chair.half_extent.z + player_capsule_radius + 0.15F);
   EXPECT_NEAR(lateral_distance, 0.0F, 0.25F);
 }
 
 TEST(PhysicsCharacter, SpawnsUnsupportedThenSettlesStably) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   const PhysicsCharacterState initial = physics.characterState();
   EXPECT_EQ(initial.ground_state, PhysicsGroundState::InAir);
@@ -224,7 +223,7 @@ TEST(PhysicsCharacter, SpawnsUnsupportedThenSettlesStably) {
 }
 
 TEST(PhysicsCharacter, SlidesTangentiallyAlongBoundary) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   static_cast<void>(simulate(physics, {}, 120));
   const float initial_z = physics.characterState().foot_position.z;
@@ -236,7 +235,7 @@ TEST(PhysicsCharacter, SlidesTangentiallyAlongBoundary) {
 }
 
 TEST(PhysicsCharacter, TraversesAuthoredLowStepWithoutEmbedding) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   static_cast<void>(simulate(physics, {}, 120));
   static_cast<void>(simulate(physics, {-6.5F, 0.0F, 0.0F}, 60));
@@ -253,7 +252,7 @@ TEST(PhysicsCharacter, TraversesAuthoredLowStepWithoutEmbedding) {
 }
 
 TEST(PhysicsCharacter, CrouchPreservesFootPosition) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   const PhysicsCharacterState standing = simulate(physics, {}, 120);
   const PhysicsCharacterState crouched = simulate(physics, {}, 1, true);
@@ -264,7 +263,7 @@ TEST(PhysicsCharacter, CrouchPreservesFootPosition) {
 }
 
 TEST(PhysicsCharacter, LowClearanceRouteRejectsStandingPlayer) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   static_cast<void>(simulate(physics, {}, 120));
   static_cast<void>(simulate(physics, {6.0F, 0.0F, 0.0F}, 60));
@@ -275,7 +274,7 @@ TEST(PhysicsCharacter, LowClearanceRouteRejectsStandingPlayer) {
 }
 
 TEST(PhysicsCharacter, CrouchesThroughRouteAndStandsAfterClearance) {
-  const PrototypeLevel level;
+  const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   static_cast<void>(simulate(physics, {}, 120));
   static_cast<void>(simulate(physics, {6.0F, 0.0F, 0.0F}, 60));

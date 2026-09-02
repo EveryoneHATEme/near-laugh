@@ -29,6 +29,11 @@ The engine is designed around a game with the following assumptions:
 
 These assumptions are allowed to influence engine architecture.
 
+The current prototype level is a versioned packaged JSON asset with deliberately
+fixed FPS limits. Startup parses and validates it once, then hands one immutable
+value to physics and rendering. Runtime editing, saving, hot reload, arbitrary
+asset paths, and a general scene format are not part of the game runtime.
+
 ## Primary Goals
 
 The engine should:

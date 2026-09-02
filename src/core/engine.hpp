@@ -1,8 +1,6 @@
 #ifndef CORE_ENGINE_HPP
 #define CORE_ENGINE_HPP
 
-#include <utility>
-
 #include "core/gameplay/player_flashlight.hpp"
 #include "core/input/fps_input.hpp"
 #include "core/physics/physics_world.hpp"
@@ -19,7 +17,7 @@ class ValidationDiagnostics;
 
 class Engine {
  public:
-  Engine(const near_laugh::RuntimeConfig& config, RuntimeResources resources,
+  Engine(const near_laugh::RuntimeConfig& config,
          ValidationDiagnostics& diagnostics);
   ~Engine() = default;
 
@@ -36,7 +34,8 @@ class Engine {
 
   Platform platform_;
   Window window_;
-  PrototypeLevel level_{};
+  RuntimeResources resources_;
+  PrototypeLevel level_;
   PhysicsWorld physics_;
   PlayerController player_;
   PlayerFlashlight flashlight_{};

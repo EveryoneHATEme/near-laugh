@@ -10,6 +10,7 @@
 
 class Platform;
 class GlfwVulkanBridge;
+class EditorGlfwBridge;
 
 class Window {
  public:
@@ -33,6 +34,7 @@ class Window {
   void setSize(std::uint32_t width, std::uint32_t height);
   void minimize();
   void restore();
+  void cancelCloseRequest() noexcept;
 
   [[nodiscard]] const PhysicalInputSnapshot& input() const noexcept;
   void setCursorCaptured(bool captured);
@@ -40,6 +42,7 @@ class Window {
 
  private:
   friend class GlfwVulkanBridge;
+  friend class EditorGlfwBridge;
   [[nodiscard]] void* surfaceBridgeHandle() const noexcept;
 
   Platform& platform_;

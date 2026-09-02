@@ -30,14 +30,31 @@ only standard-library types. The concrete build modules are:
   configuration, and fixed FPS input mapping;
 - `near_laugh_platform`: GLFW lifetime, the window, event batches, and
   engine-owned physical keyboard/mouse state;
-- `near_laugh_world`: the immutable axis-aligned prototype solids, player
-  spawn, and two validated world-space point lights shared with the concrete
-  consumers that need them;
+- `near_laugh_world`: the bounded version-1 level document and private JSON
+  codec, field-aware validation, and the immutable terrain, solids, spawn,
+  two world-space point lights, and static-prop placement shared with concrete
+  consumers;
 - `near_laugh_physics`: the concrete Jolt lifetime, static collision world,
   and one virtual character;
 - `near_laugh_render`: Vulkan lifetime, presentation, explicit frame
   requests/outcomes, and renderer-private synchronous parsing of the one
   packaged static GLB through privately linked `cgltf`.
+
+The level-authoring foundation is a separate concrete tool stack:
+
+- `near_laugh_editor_core` owns the editable document workflow, pending
+  save/discard/cancel decisions, and the fixed free-fly editor camera;
+- `near_laugh_editor_ui` owns the Dear ImGui context, the callback-chained GLFW
+  backend, and the FPS-level-specific read-only workspace;
+- `near_laugh_editor_render` owns the editor Vulkan context, swapchain, active
+  document scene resources, and the ImGui Vulkan backend; and
+- `level_editor` composes those modules without linking `near_laugh_runtime` or
+  `near_laugh_physics` and without constructing gameplay objects.
+
+Dear ImGui core and only its GLFW/Vulkan backends are pinned in one private
+editor dependency. No ImGui type, include path, compile definition, or link
+requirement enters `fps`, `near_laugh_runtime`, the shared frame contract, the
+level-persistence contract, or public headers.
 
 GLFW/Vulkan surface coupling is confined to one internal bridge. It is not a
 rendering-backend abstraction.
@@ -96,6 +113,7 @@ Engine
   creates, in order
 Platform
 Window
+RuntimeResources
 PrototypeLevel
 PhysicsWorld
 PlayerController
@@ -139,14 +157,29 @@ begins, while held actions persist across both kinds of event dispatch.
 
 The `fps` launcher uses a private, host-native helper to discover its actual
 executable path and supplies the adjacent `resources` directory through
-`RuntimeConfig`. The packaged prototype shaders, the four fixed textures
+`RuntimeConfig`. The packaged prototype level `levels/prototype.level.json`,
+the shaders, the four fixed textures
 `prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
 `prototype_shooting_target.png`, plus `models/prototype_chair.glb`, are resolved
 beneath that explicit root.
 Invocation text and the process working directory do not participate in
 runtime layout discovery.
 
-The current world is one immutable `PrototypeLevel` containing tinted
+After the window exists, runtime composition resolves the fixed resource set,
+strictly parses and validates `levels/prototype.level.json`, and only then
+constructs physics, player, and renderer owners. Missing, malformed,
+unsupported, or invalid level data therefore cannot reach a dependent
+subsystem or the frame loop. Destruction remains the reverse of member order.
+
+The version-1 document contains exactly one 97-by-97 heightfield, no more than
+240 axis-aligned solids, one player spawn, exactly two point lights and one
+ambient value, and one placement of the packaged chair with a box proxy. It
+contains no resource paths. The private `nlohmann/json` codec rejects unknown
+or missing fields and emits canonical locale-independent JSON. The editable
+`LevelDocument` may hold invalid work, while saving and construction of an
+immutable `PrototypeLevel` both use the same field-aware validation.
+
+The current world is one immutable loaded `PrototypeLevel` containing tinted
 axis-aligned solids, a player spawn, exactly two world-space point lights, a
 near-black ambient scalar, three inert plate solids, and one fixed chair
 placement with an obstacle surface role and an independently authored box
@@ -162,7 +195,8 @@ follow the camera or become mutable frame state. The chair and inert plates
 carry no gameplay identity, health, damage, interaction, or feedback state.
 The four roles are not a material system, the one model is not an asset
 registry, the dynamic spot-light frame is not a registry, and the level is not
-a scene hierarchy, asset pipeline, ECS, or generic level format.
+a scene hierarchy, asset pipeline, ECS, or generic level format. The running
+game does not mutate, save, discover, or hot-reload level documents.
 
 Renderer lifetime owns the sampled texture and immutable lighting resources
 plus separate immutable generated-world and imported-chair vertex buffers after
@@ -172,6 +206,40 @@ and one scene push constant before deterministic world-then-chair draws. The
 pipeline may be recreated without rebuilding or re-uploading textures,
 lighting, or either mesh. It is destroyed before those dependent owners, and
 all are released before the logical device.
+
+## Level Editor Lifetime
+
+The standalone editor constructs, in order, Vulkan diagnostics, `Platform`,
+`Window`, the GLFW/ImGui callback bridge, `EditorDocument`, and
+`EditorRenderer`. Shutdown reverses that order, so the ImGui Vulkan backend is
+released before its Vulkan device and the ImGui GLFW backend is released before
+its window and context. Callback installation occurs after `Window` installs
+the gameplay-compatible physical input callbacks; the ImGui GLFW backend uses
+its supported callback chaining and does not replace the game path.
+
+The editor loop owns event polling, close requests, minimized waits, bounded
+steady-clock camera timing, UI input capture, and exhaustive rendered, skipped,
+and recovered outcomes. Right-button scene navigation uses the existing
+physical snapshot only while the scene owns navigation; menu, text-field, and
+modal capture suppresses conflicting input. The editor camera produces the
+same backend-neutral `CameraFrame` scalar layout without adding camera concepts
+to that contract.
+
+`EditorDocument` loads a candidate through the shared strict codec before
+replacing the active document. It retains an optional resolved path,
+diagnostics, dirty state, and one pending open/close/exit action. Save and Save
+As use the shared deterministic atomic codec. Failed loads and saves preserve
+the current document and dirty state; dirty transitions require save, discard,
+or cancel.
+
+The concrete editor renderer draws the active validated bounded FPS level
+directly to the main swapchain and records Dear ImGui last in the same Dynamic
+Rendering pass. Document-dependent world/chair buffers, immutable lighting,
+and pipeline are constructed as a temporary set and swapped only after success.
+Resize and presentation recovery rebuild swapchain-dependent state while the
+document, UI, texture owner, and camera remain alive. This is not a renderer
+interface, render graph, offscreen viewport system, runtime editor mode, scene
+hierarchy, or general-purpose editor framework.
 
 ## Threading
 

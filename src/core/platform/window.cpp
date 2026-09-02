@@ -167,6 +167,10 @@ void Window::minimize() { glfwIconifyWindow(impl_->handle); }
 
 void Window::restore() { glfwRestoreWindow(impl_->handle); }
 
+void Window::cancelCloseRequest() noexcept {
+  glfwSetWindowShouldClose(impl_->handle, GLFW_FALSE);
+}
+
 const PhysicalInputSnapshot& Window::input() const noexcept {
   return impl_->input.snapshot();
 }
