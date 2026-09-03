@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9619,66 +9619,6 @@
       ],
       "kind": "low_clearance",
       "surface": "obstacle"
-    },
-    {
-      "center": {
-        "x": -9.0,
-        "y": 1.75,
-        "z": -7.0
-      },
-      "half_extent": {
-        "x": 0.75,
-        "y": 0.75,
-        "z": 0.12
-      },
-      "color": [
-        222,
-        122,
-        58,
-        255
-      ],
-      "kind": "shooting_target",
-      "surface": "shooting_target"
-    },
-    {
-      "center": {
-        "x": 0.0,
-        "y": 4.0,
-        "z": -12.5
-      },
-      "half_extent": {
-        "x": 0.75,
-        "y": 0.75,
-        "z": 0.12
-      },
-      "color": [
-        222,
-        122,
-        58,
-        255
-      ],
-      "kind": "shooting_target",
-      "surface": "shooting_target"
-    },
-    {
-      "center": {
-        "x": 9.0,
-        "y": 1.75,
-        "z": -7.0
-      },
-      "half_extent": {
-        "x": 0.75,
-        "y": 0.75,
-        "z": 0.12
-      },
-      "color": [
-        222,
-        122,
-        58,
-        255
-      ],
-      "kind": "shooting_target",
-      "surface": "shooting_target"
     }
   ],
   "player_spawn": {

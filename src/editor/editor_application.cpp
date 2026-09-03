@@ -28,8 +28,7 @@ EditorRendererResources resolveEditorRendererResources(
       requireEditorFile(root / "shaders" / "prototype_scene_fragment.spv"),
       {requireEditorFile(root / "textures" / "prototype_floor.png"),
        requireEditorFile(root / "textures" / "prototype_boundary.png"),
-       requireEditorFile(root / "textures" / "prototype_obstacle.png"),
-       requireEditorFile(root / "textures" / "prototype_shooting_target.png")},
+       requireEditorFile(root / "textures" / "prototype_obstacle.png")},
       requireEditorFile(root / "models" / "prototype_chair.glb")};
 }
 }  // namespace

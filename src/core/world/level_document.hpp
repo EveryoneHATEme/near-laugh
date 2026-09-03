@@ -9,9 +9,8 @@
 #include <string>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 1;
-inline constexpr std::size_t prototype_plate_count = 3;
-inline constexpr std::size_t prototype_surface_count = 4;
+inline constexpr std::uint32_t level_format_version = 2;
+inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t prototype_point_light_count = 2;
 inline constexpr std::size_t prototype_terrain_sample_count = 97;
 inline constexpr std::size_t prototype_terrain_cell_count =
@@ -43,14 +42,12 @@ enum class PrototypeSolidKind {
   Obstacle,
   WalkableStep,
   LowClearance,
-  ShootingTarget,
 };
 
 enum class PrototypeSurface : std::uint32_t {
   Floor = 0,
   Boundary = 1,
   Obstacle = 2,
-  ShootingTarget = 3,
 };
 
 struct PrototypeSolid {

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the small, deterministic environment-lighting model that makes the built-in opaque FPS prototype scene spatially readable without external art assets.
+Defines the small, deterministic environment-lighting model that makes the built-in opaque game prototype scene spatially readable without external art assets.
 
 ## Requirements
 

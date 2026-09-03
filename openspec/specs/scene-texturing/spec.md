@@ -2,20 +2,24 @@
 
 ## Purpose
 
-Defines the fixed tileable surface textures and deterministic mapping used to make the built-in opaque FPS prototype scene visually readable without introducing a general material or asset system.
+Defines the fixed tileable surface textures and deterministic mapping used to make the built-in opaque game prototype scene visually readable without introducing a general material or asset system.
 
 ## Requirements
 
 ### Requirement: Fixed prototype surface texture set
-The built-in prototype level SHALL assign every solid exactly one texture role from a fixed set containing floor, boundary, obstacle, and shooting-target surfaces. Every role SHALL resolve to a distinct packaged opaque texture, and the assignment SHALL remain immutable for the run.
+The built-in prototype level SHALL assign every solid exactly one texture role from a fixed set containing floor, boundary, and obstacle surfaces. Every role SHALL resolve to a distinct packaged opaque texture, and the assignment SHALL remain immutable for the run. The fixed set SHALL NOT contain a shooting-target role or require a shooting-target texture asset.
 
 #### Scenario: Prototype level assigns surface roles
 - **WHEN** the immutable prototype level is constructed
-- **THEN** every floor, boundary, obstacle, movement-test structure, and shooting target has one valid fixed texture role
+- **THEN** every floor, boundary, obstacle, and movement-test structure has one valid fixed texture role from the three-role set
 
 #### Scenario: Movement-test geometry is assigned
 - **WHEN** the walkable step or low-clearance structure is prepared for rendering
 - **THEN** it uses the fixed obstacle surface texture role without requiring another material definition
+
+#### Scenario: Removed surface role is supplied
+- **WHEN** level data or a runtime resource request supplies the legacy shooting-target surface role or texture
+- **THEN** it is rejected or absent rather than mapped to a compatibility texture layer
 
 ### Requirement: Deterministic tiled texture coordinates
 Every generated prototype-solid face and terrain triangle SHALL carry finite texture coordinates with a consistent world-space texel density, SHALL map shared surface positions continuously, and SHALL repeat rather than stretch the full texture across differently sized surfaces.
@@ -43,16 +47,12 @@ Prototype textures SHALL repeat outside normalized coordinates, SHALL provide a 
 - **WHEN** generated texture coordinates extend outside the normalized texture range
 - **THEN** the selected surface texture repeats across the face
 
-### Requirement: Textured spot-lit prototype appearance
-Every prototype surface SHALL combine its sampled texture color with its authored tint, the immutable point-light and ambient environment, and any active dynamic spot-light contribution. Inert target plates SHALL use the same ordinary textured-lighting path as other prototype solids without per-target highlight or dimming state.
+### Requirement: Textured prototype surface appearance
+Every prototype surface SHALL combine its sampled texture color with its authored tint, the immutable point-light and ambient environment, and any active dynamic spot-light contribution without target-specific highlight, dimming, or presentation state.
 
 #### Scenario: Prototype surface is rendered
 - **WHEN** a textured prototype solid is visible in a renderable frame
 - **THEN** it displays its fixed texture modulated by its authored tint and the bounded point-plus-optional-spot lighting
-
-#### Scenario: Inert plate is rendered
-- **WHEN** one of the three textured plates is visible
-- **THEN** it retains its authored appearance without requiring mutable target presentation masks
 
 ### Requirement: Fixed imported-prop appearance
 The imported static prop SHALL preserve its finite `TEXCOORD_0` values, SHALL use opaque white vertex tint and the fixed obstacle surface texture, and SHALL be sampled through the same immutable repeating, filtered texture array as generated prototype geometry. File-defined glTF materials, images, samplers, vertex colors, and texture transforms SHALL NOT change its appearance.

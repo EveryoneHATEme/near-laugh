@@ -30,8 +30,7 @@ RuntimeResources resolveRuntimeResources(
       root / "shaders" / "prototype_scene_fragment.spv",
       {root / "textures" / "prototype_floor.png",
        root / "textures" / "prototype_boundary.png",
-       root / "textures" / "prototype_obstacle.png",
-       root / "textures" / "prototype_shooting_target.png"},
+       root / "textures" / "prototype_obstacle.png"},
       root / "models" / "prototype_chair.glb",
       root / "levels" / "prototype.level.json"};
   requireFile(resources.scene_vertex_shader);

@@ -2,7 +2,7 @@
 #define CORE_PLAYER_PLAYER_CONTROLLER_HPP
 
 #include "core/frame.hpp"
-#include "core/input/fps_input.hpp"
+#include "core/input/player_input.hpp"
 #include "core/physics/physics_world.hpp"
 
 inline constexpr float player_standing_eye_height = 1.65F;
@@ -33,7 +33,7 @@ struct PlayerPresentationState {
 enum class PlayerCursorCaptureTransition { None, Release, Capture };
 
 [[nodiscard]] constexpr PlayerCursorCaptureTransition playerCursorTransition(
-    bool cursor_captured, const FpsActionSnapshot& actions) noexcept {
+    bool cursor_captured, const PlayerActionSnapshot& actions) noexcept {
   if (actions.menu) {
     return cursor_captured ? PlayerCursorCaptureTransition::Release
                            : PlayerCursorCaptureTransition::None;
@@ -59,7 +59,7 @@ class PlayerController {
   PlayerController(PlayerController&&) = delete;
   PlayerController& operator=(PlayerController&&) = delete;
 
-  void sampleInput(const FpsActionSnapshot& actions, bool controls_active);
+  void sampleInput(const PlayerActionSnapshot& actions, bool controls_active);
   void fixedStep(float delta_seconds);
   void collapsePresentationState() noexcept;
 
@@ -94,7 +94,7 @@ class PlayerController {
   [[nodiscard]] static float eyeHeight(PhysicsPlayerStance stance) noexcept;
 
   PhysicsWorld& physics_;
-  FpsActionSnapshot controls_{};
+  PlayerActionSnapshot controls_{};
   PhysicsCharacterState state_{};
   PhysicsVector requested_horizontal_velocity_{};
   PlayerPresentationState previous_presentation_{};

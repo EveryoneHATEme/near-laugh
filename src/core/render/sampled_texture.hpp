@@ -8,7 +8,7 @@
 #include <filesystem>
 
 inline constexpr std::uint32_t prototype_texture_dimension = 256;
-inline constexpr std::uint32_t prototype_texture_layer_count = 4;
+inline constexpr std::uint32_t prototype_texture_layer_count = 3;
 
 class SampledTexture {
  public:

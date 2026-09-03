@@ -1,8 +1,8 @@
 ## Context
 
-See `proposal.md` for motivation. This change assumes the persistence and editor-foundation changes are implemented and archived. The editor owns a valid `LevelDocument`, renders it with a free camera, and tracks path and dirty state, but its presentation is read-only.
+See `proposal.md` for motivation. This change assumes `remove-legacy-fps-assumptions` is implemented first and that the persistence and editor-foundation changes are implemented and archived. The editor owns a valid version-2 `LevelDocument`, renders it with a free camera, and tracks path and dirty state, but its presentation is read-only.
 
-The supported level remains intentionally flat: a vector of axis-aligned solids, one spawn, two lights, and one static prop placement. Terrain mutation is deferred to `add-terrain-sculpting`.
+The supported level remains intentionally flat: a vector of axis-aligned solids using the fixed floor, boundary, and obstacle surface roles, one player spawn, two lights, and one static prop placement. Terrain mutation is deferred to `add-terrain-sculpting`.
 
 ## Goals / Non-Goals
 
@@ -72,11 +72,10 @@ Field parsing rejects non-finite or structurally meaningless values before mutat
 
 ## Migration Plan
 
-1. Implement and archive persistence and editor-foundation changes first.
+1. Complete and archive `remove-legacy-fps-assumptions`; retain version 2, the three-role surface set, player-oriented input, and the `near_laugh` game target.
 2. Add editor object IDs, command controller, history, and deterministic unit tests without UI/render integration.
 3. Add analytic picking and terrain anchoring tests using known camera rays and level geometry.
 4. Add ImGui object list/property controls and concrete selection overlays.
-5. Exercise add/duplicate/remove/edit/save/undo workflows and run Vulkan validation plus regression tests for `fps`.
+5. Exercise add/duplicate/remove/edit/save/undo workflows and run Vulkan validation plus regression tests for `near_laugh`.
 
 Rollback removes editor mutation, selection, overlays, and history while leaving the read-only editor and persisted level intact.
-

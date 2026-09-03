@@ -233,7 +233,7 @@ void VulkanContext::createInstance() {
 #endif
 
   VkApplicationInfo application_info{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-  application_info.pApplicationName = "near-laugh fps";
+  application_info.pApplicationName = "near-laugh";
   application_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
   application_info.pEngineName = "near-laugh";
   application_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);

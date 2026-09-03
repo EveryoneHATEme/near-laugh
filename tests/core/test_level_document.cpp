@@ -115,15 +115,15 @@ class CommaDecimalPoint final : public std::numpunct<char> {
 };
 }  // namespace
 
-TEST(LevelDocument, FixedProfileAndPackagedAssetMatchLegacySceneExactly) {
-  static_assert(level_format_version == 1);
+TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
+  static_assert(level_format_version == 2);
   static_assert(prototype_terrain_sample_count == 97);
   static_assert(level_maximum_solid_count == 240);
   static_assert(prototype_point_light_count == 2);
   const LevelDocumentLoadResult loaded =
       loadLevelDocument(packagedPrototypeLevelPath());
   ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
-  expectDocumentEqual(*loaded.document, legacyPrototypeLevelDocument());
+  expectDocumentEqual(*loaded.document, prototypeLevelDocument());
   const std::filesystem::path root = testDirectory("packaged_canonical");
   const std::filesystem::path resaved = root / "prototype.level.json";
   ASSERT_TRUE(saveLevelDocument(resaved, *loaded.document));
@@ -138,7 +138,7 @@ TEST(LevelDocument, FixedProfileAndPackagedAssetMatchLegacySceneExactly) {
 }
 
 TEST(LevelDocument, ValidationIsFieldAwareAndAuthoritative) {
-  LevelDocument document = legacyPrototypeLevelDocument();
+  LevelDocument document = prototypeLevelDocument();
   document.terrain.heights[1] = 100.0F;
   document.solids[0].half_extent.x = 0.0F;
   document.player_spawn.foot_position = document.solids[4].center;
@@ -157,7 +157,7 @@ TEST(LevelDocument, ValidationIsFieldAwareAndAuthoritative) {
 }
 
 TEST(LevelDocument, EnforcesSolidCapAndFiniteSupportedValues) {
-  LevelDocument document = legacyPrototypeLevelDocument();
+  LevelDocument document = prototypeLevelDocument();
   while (document.solids.size() < level_maximum_solid_count) {
     document.solids.push_back(document.solids[4]);
   }
@@ -165,11 +165,11 @@ TEST(LevelDocument, EnforcesSolidCapAndFiniteSupportedValues) {
   document.solids.push_back(document.solids[4]);
   EXPECT_TRUE(hasField(validateLevelDocument(document), "solids"));
 
-  document = legacyPrototypeLevelDocument();
+  document = prototypeLevelDocument();
   document.player_spawn.yaw_degrees = std::numeric_limits<float>::quiet_NaN();
   EXPECT_TRUE(
       hasField(validateLevelDocument(document), "player_spawn.yaw_degrees"));
-  document = legacyPrototypeLevelDocument();
+  document = prototypeLevelDocument();
   document.static_prop.translation.x = 1000.0F;
   EXPECT_TRUE(hasField(validateLevelDocument(document),
                        "static_prop.box_proxy.center"));
@@ -186,9 +186,9 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   std::vector<Case> cases;
   cases.push_back({"malformed", "{", "byte"});
 
-  std::string unsupported = canonical;
-  replaceOnce(unsupported, "\"version\": 1", "\"version\": 2");
-  cases.push_back({"unsupported", std::move(unsupported), "version"});
+  std::string version_one = canonical;
+  replaceOnce(version_one, "\"version\": 2", "\"version\": 1");
+  cases.push_back({"version_one", std::move(version_one), "version"});
 
   std::string unknown = canonical;
   replaceOnce(unknown, "{\n  \"version\"",
@@ -196,7 +196,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"path", std::move(unknown), "model_path"});
 
   std::string missing = canonical;
-  replaceOnce(missing, "  \"version\": 1,\n", "");
+  replaceOnce(missing, "  \"version\": 2,\n", "");
   cases.push_back({"missing", std::move(missing), "version"});
 
   std::string invalid_heights = canonical;
@@ -211,6 +211,18 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   std::string invalid_enum = canonical;
   replaceOnce(invalid_enum, "\"kind\": \"boundary\"", "\"kind\": \"door\"");
   cases.push_back({"enum", std::move(invalid_enum), "solids[0].kind"});
+
+  std::string removed_kind = canonical;
+  replaceOnce(removed_kind, "\"kind\": \"boundary\"",
+              "\"kind\": \"shooting_target\"");
+  cases.push_back(
+      {"removed_kind", std::move(removed_kind), "solids[0].kind"});
+
+  std::string removed_surface = canonical;
+  replaceOnce(removed_surface, "\"surface\": \"boundary\"",
+              "\"surface\": \"shooting_target\"");
+  cases.push_back(
+      {"removed_surface", std::move(removed_surface), "solids[0].surface"});
 
   std::string excessive = canonical;
   const std::size_t solids_member = excessive.find("  \"solids\": [");
@@ -278,7 +290,7 @@ TEST(LevelDocument, RuntimeLoaderRejectsMissingParseAndValidationFailures) {
 }
 
 TEST(LevelDocument, CanonicalSaveRoundTripsBytesUnderNonClassicGlobalLocale) {
-  LevelDocument original = legacyPrototypeLevelDocument();
+  LevelDocument original = prototypeLevelDocument();
   original.terrain.heights[0] = -0.0F;
   original.static_prop.yaw_degrees =
       std::nextafter(original.static_prop.yaw_degrees, 0.0F);
@@ -315,7 +327,7 @@ TEST(LevelDocument, InvalidAndFilesystemFailuresDoNotReplacePriorData) {
   const std::filesystem::path destination = root / "level.json";
   writeBytes(destination, "prior bytes\n");
 
-  LevelDocument invalid = legacyPrototypeLevelDocument();
+  LevelDocument invalid = prototypeLevelDocument();
   invalid.solids[0].half_extent.x = 0.0F;
   const LevelDocumentSaveResult invalid_result =
       saveLevelDocument(destination, invalid);
@@ -325,7 +337,7 @@ TEST(LevelDocument, InvalidAndFilesystemFailuresDoNotReplacePriorData) {
 
   const std::filesystem::path missing_parent = root / "missing" / "level.json";
   const LevelDocumentSaveResult unwritable =
-      saveLevelDocument(missing_parent, legacyPrototypeLevelDocument());
+      saveLevelDocument(missing_parent, prototypeLevelDocument());
   ASSERT_FALSE(unwritable);
   EXPECT_EQ(unwritable.diagnostics.front().category,
             LevelDiagnosticCategory::Filesystem);
@@ -333,7 +345,7 @@ TEST(LevelDocument, InvalidAndFilesystemFailuresDoNotReplacePriorData) {
   const std::filesystem::path directory_destination = root / "directory.json";
   std::filesystem::create_directory(directory_destination);
   const LevelDocumentSaveResult replacement =
-      saveLevelDocument(directory_destination, legacyPrototypeLevelDocument());
+      saveLevelDocument(directory_destination, prototypeLevelDocument());
   ASSERT_FALSE(replacement);
   EXPECT_EQ(replacement.diagnostics.front().category,
             LevelDiagnosticCategory::Filesystem);

@@ -1,223 +1,121 @@
 # Rendering Architecture
 
-## Goal
+## Purpose
 
-The renderer exists to render the FPS described in GAMEPLAY.md.
+The renderer presents the authored environments, lighting, darkness, and
+player-carried light needed by near-laugh's first-person narrative horror
+experience. It is a direct Vulkan implementation for this game, not a reusable
+graphics framework.
 
-It is not a general-purpose graphics framework.
+## API Boundary
 
-## API
+The renderer targets Vulkan 1.3 and uses Dynamic Rendering, Synchronization 2,
+and `vkQueueSubmit2`. There is no rendering-backend abstraction. Vulkan types
+remain in `near_laugh_render` and `near_laugh_editor_render`; the public runtime
+facade, world data, player code, and normal window interface do not expose
+Vulkan or GLFW types.
 
-Graphics API: Vulkan
+GLFW/Vulkan coupling is confined to an internal bridge that supplies required
+instance extensions and creates the presentation surface. The bridge is a
+concrete integration boundary, not an RHI.
 
-Initial baseline: Vulkan 1.3
+Development builds enable Vulkan validation when available. Error-severity
+validation messages are recorded in a diagnostics sink that outlives Vulkan
+teardown and cause smoke tests to fail after orderly cleanup.
 
-The renderer may assume a modern desktop Vulkan implementation.
+## Frame and Presentation Model
 
-There is no rendering backend abstraction.
+The runtime submits at most one `FrameRequest` per loop iteration. It contains:
 
-Vulkan types remain inside `near_laugh_render`. The public runtime facade and
-the normal window API do not include or exchange Vulkan or GLFW types. A narrow
-internal GLFW/Vulkan bridge supplies instance extensions and creates the
-presentation surface.
+- the current framebuffer extent and resize state;
+- a standard-layout, column-major camera view-projection matrix; and
+- at most one source-independent dynamic `SpotLightFrame`.
 
-Do not create interfaces such as:
+A zero extent is skipped before GPU submission. The renderer owns swapchain
+out-of-date and suboptimal handling and returns a backend-neutral `Rendered`,
+`Skipped`, or `Recovered` outcome. Event processing, simulation, camera policy,
+and application lifetime remain runtime-owned.
 
-IRenderDevice
-IGraphicsAPI
-IVulkanBackend
-IDirectXBackend
+Before swapchain creation, the renderer requires color-attachment image usage
+and chooses a supported composite-alpha mode, preferring opaque. It owns one
+device-local depth image and view per swapchain image. Recording transitions
+color and depth with Synchronization 2, clears depth to 1.0, and uses depth
+test/write with `LESS`.
 
-unless another graphics backend becomes an actual requirement.
+## Authored Scene Input
 
-The renderer IS a Vulkan renderer.
-
-## Vulkan API Policy
-
-Prefer Vulkan 1.3 functionality where it simplifies implementation.
-
-Use Dynamic Rendering.
-
-Use Synchronization 2.
-
-Validation layers must be enabled in development builds when available.
-
-Validation errors are treated as bugs.
-
-Do not support legacy Vulkan synchronization APIs alongside
-Synchronization 2 unless there is a demonstrated compatibility need.
-
-## Initial Rendering Scope
-
-The initial renderer should support:
-
-opaque static meshes
-opaque dynamic meshes
-depth buffering
-textures
-basic materials
-authored local lighting
-additional point/spot lights as required by the game
-basic shadow mapping
-first-person weapon rendering
-simple transparency where required
-basic post-processing
-
-The initial renderer does NOT require:
-
-ray tracing
-mesh shaders
-virtual geometry
-GPU-driven rendering
-a render graph
-asynchronous compute
-multiple graphics queues
-bindless rendering
-virtual texturing
-global illumination
-arbitrary shader graphs
-a material editor
-multiple rendering backends
-
-## Frame Model
-
-Use a small fixed number of frames in flight.
-
-Each frame owns its transient per-frame resources, including
-the synchronization objects and command resources required for that frame.
-
-CPU code must not modify resources still in use by the GPU.
-
-Resource lifetime must always account for pending GPU work.
-
-Prefer a simple and correct synchronization model over maximizing
-CPU/GPU overlap.
-
-The runtime sends one explicit frame request containing framebuffer extent and
-resize state plus a standard-layout, column-major camera view-projection
-matrix and at most one source-independent dynamic spot-light value. A zero
-extent is skipped before GPU submission. Swapchain
-out-of-date/suboptimal interpretation and recovery remain renderer-owned, and a
-backend-neutral rendered/skipped/recovered outcome is returned to the runtime.
-The runtime handles all three outcomes explicitly and retains ownership of the
-next event-processing and lifetime decision.
-
-Before creating or recreating a swapchain, the renderer verifies that the
-surface supports color-attachment image usage. It prefers opaque composite
-alpha and otherwise selects the first supported pre-multiplied,
-post-multiplied, or inherited mode. Missing required usage or a usable
-composite-alpha mode is reported before `vkCreateSwapchainKHR`.
-
-Shader paths are resolved beneath `RuntimeConfig::resource_root` before renderer
-construction. Renderer code never constructs a path relative to the process
-working directory.
-
-Runtime composition also resolves and validates
+Runtime composition resolves and validates
 `resources/levels/prototype.level.json` before renderer construction. The
-renderer receives only the resulting immutable `PrototypeLevel`; it does not
-parse JSON, save or hot-reload levels, retain editable documents, or select
-resource paths from level data.
+renderer receives an immutable `PrototypeLevel`; it does not parse JSON, save
+documents, hot-reload levels, or select paths from level data.
 
-The current visible smoke output uses two immutable world-space triangle
-streams. The generated-world stream is expanded deterministically from the
-same `PrototypeLevel` solids used by static physics collision. Every
-axis-aligned solid contributes six tinted
-faces with explicit outward world-space normals, continuous local face UVs at
-one repeat per metre, and one stable floor/boundary/obstacle/shooting-target
-texture-array layer. The graphics pipeline reads position, packed vertex tint,
-a floating-point normal, UVs, and an unsigned texture layer. The existing world
-position also passes from the vertex stage to the fragment stage. A 128-byte
-shared push constant carries the grounded player's current interpolated 4x4
-camera matrix plus four aligned vectors describing one optional dynamic spot
-light: position/range, direction/inner-cone cosine, color/intensity, and
-outer-cone cosine/enabled state. The spot-light data contains no player or
-flashlight type and can be supplied by another concrete runtime object.
+The current scene uses two immutable world-space triangle streams:
 
-The fragment stage samples one repeat/linear `sampler2DArray`, multiplies the
-sampled sRGB color by the authored tint, and accumulates radius-bounded Lambert
-diffuse illumination from exactly two immutable level-authored point lights
-plus the optional finite-range spot light over a near-black ambient floor.
-Spot lighting uses smooth distance falloff and a smooth inner-to-outer cone
-transition. Accumulated RGB is clamped and alpha remains opaque. The cool spawn
-pool and warmer destination pool leave an intentionally dark region between
-their non-overlapping influences, which the flashlight can illuminate locally.
-One renderer-private synchronous loader validates
-`resources/models/prototype_chair.glb` against a bounded binary glTF 2.0
-profile, flattens its indexed or non-indexed primitive in declared order, and
-combines its root-node transform with the level-authored translation, yaw, and
-uniform scale. Positions become world-space, normals use the inverse transpose
-and are normalized, UVs are preserved, tint is opaque white, and appearance is
-fixed to the obstacle texture layer. File materials and textures do not affect
-the result.
+- generated terrain and axis-aligned solids from the level; and
+- the one packaged chair flattened synchronously from
+  `resources/models/prototype_chair.glb`.
 
-The renderer owns separate host-visible coherent immutable vertex buffers for
-the generated world and imported chair. `GraphicsPipeline` owns only pipeline
-and layout state. Frame recording binds the one pipeline, descriptor pair, and
-scene push constant once, then issues the generated-world draw followed by the
-chair draw. Both buffers survive swapchain and compatible pipeline recreation.
-The scene does not introduce shadows, a visible or volumetric beam, a light
-registry, multiple dynamic spot lights, general or file-defined materials,
-runtime model transforms, extra plate draws, fog, HDR post-processing,
-collision/gameplay types, or a general scene framework. Without a shadow map,
-the spot contribution does not account for occluding geometry.
+Generated faces carry position, authored tint, outward world-space normal,
+continuous one-repeat-per-metre UVs, and an unsigned texture layer. The stable
+surface-to-layer order is floor (0), boundary (1), and obstacle (2). Movement
+test structures and the chair use the obstacle layer.
 
-The accepted GLB contains exactly one default scene, one mesh-bearing root node
-with no children, one mesh, and one non-empty triangle-list primitive. It must
-embed its geometry and provide finite `POSITION`, `NORMAL`, and `TEXCOORD_0`
-accessors, with optional unsigned 8-, 16-, or 32-bit indices. Required
-extensions, compression, external buffers, sparse accessors, skins, animation,
-morph targets, cameras, lights, multiple meshes/primitives, discovery,
-streaming, caching, and hot reload are rejected. This is the profile for one
-controlled FPS prop, not a general model or material system.
+The chair loader accepts one controlled binary glTF 2.0 profile: one default
+scene, one mesh-bearing root without children, one mesh, and one non-empty
+triangle-list primitive with finite `POSITION`, `NORMAL`, and `TEXCOORD_0`
+data. It applies the root transform plus the level-authored translation, yaw,
+and uniform scale. File materials and textures do not affect the result.
 
-The renderer decodes `prototype_floor.png`, `prototype_boundary.png`,
-`prototype_obstacle.png`, and `prototype_shooting_target.png` during startup.
-One concrete renderer-private RAII owner uploads their contiguous RGBA data to
-a four-layer device-local `VK_FORMAT_R8G8B8A8_SRGB` image, generates the full
-mip chain on the graphics queue with Synchronization 2 and `vkQueueSubmit2`,
-and owns the array view, repeat/linear sampler, one-set descriptor layout,
-pool, and immutable descriptor. The graphics pipeline borrows only the layout
-and set handles. The texture owner is created after the Vulkan context, is not
-rebuilt during swapchain recreation, and is destroyed after every pipeline but
-before the logical device. There is no texture cache, streaming uploader,
-asset discovery, bindless path, descriptor indexing, compression, anisotropy,
-or hot reload.
+## Textures, Descriptors, and Lighting
 
-A separate renderer-private RAII owner validates the level lighting and uploads
-two `std140` point-light records plus the ambient scalar once to an 80-byte
-host-visible, host-coherent uniform buffer. It owns one fragment-stage uniform
-descriptor layout, one-set pool, and immutable descriptor. The owner is created
-beside the sampled texture, survives swapchain recreation, is destroyed after
-all dependent pipelines and before the logical device, and has explicit
-partial-construction cleanup. It is not a light registry or per-frame lighting
-path; dynamic spot-light data uses the existing per-draw push constant instead.
+At startup, `SampledTexture` decodes these opaque 256-by-256 PNGs in layer
+order:
 
-The renderer selects the first supported format from its small depth candidate
-list and owns one device-local depth image, allocation, and view for every
-swapchain image. Corresponding depth resources are created and destroyed with
-the swapchain, including recreation and partial-construction cleanup. Each
-recording transitions its color and depth image through Synchronization 2,
-clears depth to 1.0, and supplies the depth view directly to Dynamic Rendering.
-The opaque pipeline uses depth test/write with `LESS`; no render pass or legacy
-synchronization path exists.
+1. `resources/textures/prototype_floor.png`
+2. `resources/textures/prototype_boundary.png`
+3. `resources/textures/prototype_obstacle.png`
 
-The Vulkan debug callback records decoded severity/category messages in a
-thread-safe runtime-owned diagnostics sink and never throws or aborts. The sink
-outlives Vulkan teardown; a smoke process exits unsuccessfully after orderly
-cleanup if any error-severity validation message was counted.
+It uploads one three-layer device-local `VK_FORMAT_R8G8B8A8_SRGB` image,
+generates the full mip chain on the graphics queue, and owns the array view,
+repeat/linear sampler, descriptor layout, pool, and immutable descriptor.
 
-## Descriptor Strategy
+`LightingResources` validates and uploads exactly two immutable authored point
+lights plus ambient intensity to one 80-byte `std140` uniform buffer. The
+fragment shader combines texture color and tint with radius-bounded Lambert
+point lighting and the optional finite-range spot light over a near-black
+ambient floor. Spot distance and cone transitions are smooth; accumulated RGB
+is clamped and alpha remains opaque.
 
-Start with explicit and simple descriptor layouts.
+The pipeline binds two immutable descriptor sets once for the scene draws:
 
-Do not introduce bindless descriptor architecture initially.
+- set 0, binding 0: combined texture-array sampler;
+- set 1, binding 0: authored lighting uniform buffer.
 
-Descriptor indexing may be introduced only when a concrete renderer
-requirement makes ordinary descriptor management significantly worse.
+A 128-byte push constant carries the camera matrix and four aligned spot-light
+vectors. Descriptors are written once during startup and survive swapchain
+recovery. The pipeline binds them and the push constant once, then draws the
+generated world followed by the chair.
 
-Descriptor updates must respect GPU lifetime and frame-in-flight rules.
+## Ownership and Lifetime
 
-The prototype binds two immutable descriptors once for the two scene draws:
-the combined image sampler is set 0 binding 0, and the lighting uniform buffer
-is set 1 binding 0. Each descriptor is updated once during renderer startup;
-neither is rewritten per frame or recreated during swapchain recovery.
+`Renderer` owns the Vulkan context, sampled texture, lighting resources, world
+mesh, chair mesh, swapchain resources, and pipeline. Swapchain-independent
+textures, lighting, and mesh uploads survive resize and presentation recovery.
+The pipeline borrows descriptor handles and owns no geometry.
+
+Teardown destroys pipelines before the descriptors and mesh buffers they use;
+all GPU owners are released before the logical device. Partial-construction
+paths clean up only resources that were successfully created. Per-frame command
+and synchronization resources are not modified while still in GPU use.
+
+The editor reuses the narrow rendering helpers but owns a separate Vulkan
+context and active-document resources. It records scene geometry first and
+Dear ImGui last in the same Dynamic Rendering pass.
+
+## Current Limits
+
+The current renderer deliberately implements only the bounded scene above. It
+does not infer a general material system, asset discovery, runtime transforms,
+texture streaming, bindless descriptors, a light registry, multiple dynamic
+spot lights, shadows, fog, HDR, or a render graph. Such features should be
+introduced only for a concrete visual or gameplay requirement.

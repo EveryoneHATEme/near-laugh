@@ -60,9 +60,9 @@ PlayerController::PlayerController(PhysicsWorld& physics,
       current_presentation_(previous_presentation_),
       yaw_degrees_(initial_yaw_degrees) {}
 
-void PlayerController::sampleInput(const FpsActionSnapshot& actions,
+void PlayerController::sampleInput(const PlayerActionSnapshot& actions,
                                    bool controls_active) {
-  controls_ = controls_active ? actions : FpsActionSnapshot{};
+  controls_ = controls_active ? actions : PlayerActionSnapshot{};
   if (controls_active) {
     yaw_degrees_ +=
         static_cast<float>(actions.look_delta_x) * mouse_sensitivity_degrees;

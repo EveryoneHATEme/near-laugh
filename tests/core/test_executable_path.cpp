@@ -15,7 +15,7 @@ launcher::ExecutablePathProbeResult growingProbe(std::size_t capacity) {
   if (capacity < 512) {
     return {{}, false, {}};
   }
-  return {std::filesystem::current_path() / "bin" / ".." / "fps.exe", true,
+  return {std::filesystem::current_path() / "bin" / ".." / "near_laugh.exe", true,
           {}};
 }
 
@@ -30,7 +30,8 @@ TEST(ExecutablePath, GrowsNativeBufferAndNormalizesTheResult) {
       launcher::executablePathFromProbe(growingProbe);
   EXPECT_EQ(observed_capacities, (std::vector<std::size_t>{256, 512}));
   EXPECT_EQ(path,
-            (std::filesystem::current_path() / "fps.exe").lexically_normal());
+            (std::filesystem::current_path() / "near_laugh.exe")
+                .lexically_normal());
 }
 
 TEST(ExecutablePath, ReportsActionableNativeDiscoveryFailure) {

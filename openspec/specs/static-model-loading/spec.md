@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the bounded binary glTF profile and deterministic startup conversion used to load one immutable opaque static prop for the FPS prototype world.
+Defines the bounded binary glTF profile and deterministic startup conversion used to load one immutable opaque static prop for the game prototype world.
 
 ## Requirements
 

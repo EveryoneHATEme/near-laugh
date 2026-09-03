@@ -224,7 +224,7 @@ add_library(near_laugh_runtime STATIC
     src/core/application.cpp
     src/core/engine.cpp
     src/core/gameplay/player_flashlight.cpp
-    src/core/input/fps_input.cpp
+    src/core/input/player_input.cpp
     src/core/player/player_controller.cpp
     src/core/runtime_resources.cpp
     src/core/simulation/fixed_step.cpp
@@ -319,29 +319,29 @@ if(near_laugh_runtime_interface_definitions MATCHES "GLM_")
         "${near_laugh_runtime_interface_definitions}")
 endif()
 
-add_executable(fps
+add_executable(near_laugh
     src/main.cpp
     src/launcher/executable_path.cpp
 )
-target_include_directories(fps PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(fps PRIVATE near_laugh_runtime)
-near_laugh_enable_warnings(fps)
-set_target_properties(fps PROPERTIES
+target_include_directories(near_laugh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh PRIVATE near_laugh_runtime)
+near_laugh_enable_warnings(near_laugh)
+set_target_properties(near_laugh PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-add_custom_command(TARGET fps POST_BUILD
+add_custom_command(TARGET near_laugh POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
-            "$<TARGET_FILE_DIR:fps>/resources/shaders"
+            "$<TARGET_FILE_DIR:near_laugh>/resources/shaders"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
-            "$<TARGET_FILE_DIR:fps>/resources/textures"
+            "$<TARGET_FILE_DIR:near_laugh>/resources/textures"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
-            "$<TARGET_FILE_DIR:fps>/resources/models"
+            "$<TARGET_FILE_DIR:near_laugh>/resources/models"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/levels"
-            "$<TARGET_FILE_DIR:fps>/resources/levels"
+            "$<TARGET_FILE_DIR:near_laugh>/resources/levels"
 )
 
 add_executable(level_editor

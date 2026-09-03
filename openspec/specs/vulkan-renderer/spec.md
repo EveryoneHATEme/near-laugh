@@ -101,7 +101,7 @@ The renderer SHALL validate the current surface capabilities required for swapch
 - **THEN** the renderer completes safe work and schedules swapchain recreation without terminating the application
 
 ### Requirement: Camera-transformed prototype scene rendering
-The renderer SHALL load the prototype scene SPIR-V shaders, fixed prototype surface textures, and validated static model mesh from the explicit runtime resources; upload correctly described immutable opaque vertex and sampled texture data; bind the immutable texture and lighting descriptors; apply the engine-owned camera frame in the vertex stage; clear the swapchain image; and render the generated world mesh followed by the imported prop mesh through the same Vulkan graphics pipeline.
+The renderer SHALL load the prototype scene SPIR-V shaders, fixed prototype surface textures, and validated static model mesh from the explicit runtime resources; upload correctly described immutable opaque vertex and sampled texture data; bind the immutable texture and lighting descriptors; apply the runtime-owned camera frame in the vertex stage; clear the swapchain image; and render the generated world mesh followed by the imported prop mesh through the same Vulkan graphics pipeline.
 
 #### Scenario: First visible scene frame
 - **WHEN** renderer initialization succeeds with valid runtime resources and the window has a non-zero framebuffer extent

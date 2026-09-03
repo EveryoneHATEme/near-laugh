@@ -1,6 +1,6 @@
 ## Purpose
 
-Defines bounded selection and placement behavior for the FPS level objects already represented by the persisted level document, without introducing a general scene hierarchy or component model.
+Defines bounded selection and placement behavior for the game objects already represented by the version-2 persisted level document, without introducing a general scene hierarchy or component model.
 
 ## ADDED Requirements
 
@@ -9,11 +9,11 @@ The editor SHALL present one flat selectable set containing every axis-aligned s
 
 #### Scenario: Level objects are listed
 - **WHEN** a valid level document is active
-- **THEN** the object list contains each supported object exactly once with its concrete FPS-oriented type and no parent-child hierarchy
+- **THEN** the object list contains each supported object exactly once with its concrete game-specific type and no parent-child hierarchy
 
 #### Scenario: User requests a new object
 - **WHEN** the user adds an object
-- **THEN** the editor creates one axis-aligned solid using a supported solid kind and surface role without offering arbitrary components or assets
+- **THEN** the editor creates one axis-aligned solid using a supported solid kind and one of the fixed floor, boundary, or obstacle surface roles without offering arbitrary components or assets
 
 ### Requirement: Consistent list and viewport selection
 Selecting an object in the list or selecting its visible representation in the viewport SHALL establish the same single active selection. Viewport selection SHALL choose the nearest selectable object intersected by the pointer ray, selection shall persist across camera movement, and selecting empty space SHALL clear it.

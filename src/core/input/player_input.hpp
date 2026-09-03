@@ -1,9 +1,9 @@
-#ifndef CORE_INPUT_FPS_INPUT_HPP
-#define CORE_INPUT_FPS_INPUT_HPP
+#ifndef CORE_INPUT_PLAYER_INPUT_HPP
+#define CORE_INPUT_PLAYER_INPUT_HPP
 
 #include "core/platform/input.hpp"
 
-struct FpsActionSnapshot {
+struct PlayerActionSnapshot {
   bool move_forward{};
   bool move_backward{};
   bool move_left{};
@@ -18,9 +18,9 @@ struct FpsActionSnapshot {
   double look_delta_y{};
 };
 
-class FpsInputMapper {
+class PlayerInputMapper {
  public:
-  [[nodiscard]] FpsActionSnapshot map(
+  [[nodiscard]] PlayerActionSnapshot map(
       const PhysicalInputSnapshot& physical) const noexcept;
 };
 

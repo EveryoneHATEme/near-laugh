@@ -66,7 +66,6 @@ bool solidKindIsValid(PrototypeSolidKind kind) noexcept {
     case PrototypeSolidKind::Obstacle:
     case PrototypeSolidKind::WalkableStep:
     case PrototypeSolidKind::LowClearance:
-    case PrototypeSolidKind::ShootingTarget:
       return true;
   }
   return false;
@@ -82,8 +81,6 @@ PrototypeSurface expectedSurface(PrototypeSolidKind kind) noexcept {
     case PrototypeSolidKind::WalkableStep:
     case PrototypeSolidKind::LowClearance:
       return PrototypeSurface::Obstacle;
-    case PrototypeSolidKind::ShootingTarget:
-      return PrototypeSurface::ShootingTarget;
   }
   return static_cast<PrototypeSurface>(prototype_surface_count);
 }
@@ -152,7 +149,6 @@ bool prototypeSurfaceIsValid(PrototypeSurface surface) noexcept {
     case PrototypeSurface::Floor:
     case PrototypeSurface::Boundary:
     case PrototypeSurface::Obstacle:
-    case PrototypeSurface::ShootingTarget:
       return true;
   }
   return false;
@@ -338,7 +334,6 @@ std::vector<LevelDiagnostic> validateLevelDocument(
     addValidation(diagnostics, source_path, "solids",
                   "exceeds the 240-solid limit");
   }
-  std::size_t plate_count = 0;
   for (std::size_t index = 0; index < document.solids.size(); ++index) {
     const PrototypeSolid& solid = document.solids[index];
     const std::string path = "solids[" + std::to_string(index) + "]";
@@ -373,14 +368,6 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       addValidation(diagnostics, source_path, path + ".surface",
                     "does not match the fixed role for this solid kind");
     }
-    if (solid.kind == PrototypeSolidKind::ShootingTarget &&
-        solid.surface == PrototypeSurface::ShootingTarget) {
-      ++plate_count;
-    }
-  }
-  if (plate_count != prototype_plate_count) {
-    addValidation(diagnostics, source_path, "solids",
-                  "must contain exactly three shooting-target plates");
   }
 
   const PrototypePlayerSpawn& spawn = document.player_spawn;

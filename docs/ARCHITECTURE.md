@@ -1,284 +1,148 @@
 # Architecture
 
-## Architectural Goal
+## Goal
 
-The architecture should remain small enough to be understood
-and maintained by one developer.
+near-laugh is a purpose-built runtime and authoring toolchain for one
+single-player first-person narrative horror game. Its architecture favors
+explicit ownership, small concrete modules, and direct data flow that one
+developer can understand and debug.
 
-Prefer explicit dependencies and simple ownership over extensibility.
+The project does not separate a reusable engine from a game layer. The
+`near_laugh_*` targets are focused parts of this game's runtime and tools.
 
-## High-Level Structure
+## Build Modules and Dependencies
 
-fps_game
-   │
-   ▼
-gameplay
-   │
-   ▼
-engine
- ┌─┴──────────────────────────────┐
- │                                │
-World   Renderer   Physics   Audio   Input
- │        │
- └──── Core / Platform ───────────┘
+```text
+near_laugh
+  `-> near_laugh_runtime
+        |-> near_laugh_platform -> GLFW
+        |-> near_laugh_world -> nlohmann/json
+        |-> near_laugh_physics -> near_laugh_world, Jolt
+        `-> near_laugh_render -> near_laugh_platform, near_laugh_world,
+                                Vulkan, GLFW, stb_image, cgltf
 
-The executable-facing boundary is the PImpl-based
-`near_laugh::Application` facade and `RuntimeConfig`. Its public headers contain
-only standard-library types. The concrete build modules are:
+level_editor
+  |-> near_laugh_editor_core -> near_laugh_platform, near_laugh_world
+  |-> near_laugh_editor_ui -> near_laugh_editor_core, near_laugh_platform,
+  |                           near_laugh_world, ImGui, GLFW
+  |-> near_laugh_editor_render -> near_laugh_render, near_laugh_platform,
+  |                               near_laugh_world, ImGui, Vulkan
+  |-> near_laugh_platform
+  `-> near_laugh_world
+```
 
-- `near_laugh_runtime`: application composition, the main-thread loop, resource
-  configuration, and fixed FPS input mapping;
-- `near_laugh_platform`: GLFW lifetime, the window, event batches, and
-  engine-owned physical keyboard/mouse state;
-- `near_laugh_world`: the bounded version-1 level document and private JSON
-  codec, field-aware validation, and the immutable terrain, solids, spawn,
-  two world-space point lights, and static-prop placement shared with concrete
-  consumers;
-- `near_laugh_physics`: the concrete Jolt lifetime, static collision world,
-  and one virtual character;
-- `near_laugh_render`: Vulkan lifetime, presentation, explicit frame
-  requests/outcomes, and renderer-private synchronous parsing of the one
-  packaged static GLB through privately linked `cgltf`.
+The concrete targets have these responsibilities:
 
-The level-authoring foundation is a separate concrete tool stack:
+- `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
+  capture, and project-owned physical keyboard and mouse state.
+- `near_laugh_world` owns the bounded version-2 level document, strict private
+  JSON codec, shared validation, and immutable level data. It privately links
+  `nlohmann/json`.
+- `near_laugh_physics` owns Jolt lifetime, the static collision world, and one
+  virtual character. It consumes immutable world data and privately links
+  Jolt.
+- `near_laugh_render` owns Vulkan presentation and scene resources. It consumes
+  immutable world data and uses the narrow internal GLFW/Vulkan surface bridge.
+  Image decoding and the one bounded GLB loader remain renderer-private.
+- `near_laugh_runtime` owns application composition, player input mapping,
+  fixed-step player policy, flashlight state, frame interpolation, and the
+  main-thread loop.
+- `near_laugh` is the game launcher. It discovers its native executable path,
+  supplies the adjacent resource root, and links only `near_laugh_runtime`.
+- `near_laugh_editor_core` owns editable document workflow and the free-fly
+  editor camera.
+- `near_laugh_editor_ui` owns Dear ImGui and the editor workspace.
+- `near_laugh_editor_render` owns editor Vulkan presentation, active-document
+  scene resources, and the ImGui Vulkan backend.
+- `level_editor` composes the editor modules without linking
+  `near_laugh_runtime` or `near_laugh_physics`.
 
-- `near_laugh_editor_core` owns the editable document workflow, pending
-  save/discard/cancel decisions, and the fixed free-fly editor camera;
-- `near_laugh_editor_ui` owns the Dear ImGui context, the callback-chained GLFW
-  backend, and the FPS-level-specific read-only workspace;
-- `near_laugh_editor_render` owns the editor Vulkan context, swapchain, active
-  document scene resources, and the ImGui Vulkan backend; and
-- `level_editor` composes those modules without linking `near_laugh_runtime` or
-  `near_laugh_physics` and without constructing gameplay objects.
+All target include and link relationships are declared in `CMakeLists.txt`.
+The public runtime boundary is the PImpl-based `near_laugh::Application` and
+`RuntimeConfig` under `include/near_laugh`; those headers expose only standard
+library types. Other subsystem headers are repository-internal. Vulkan, GLFW,
+Jolt, GLM, JSON, and ImGui types do not cross the public runtime boundary.
 
-Dear ImGui core and only its GLFW/Vulkan backends are pinned in one private
-editor dependency. No ImGui type, include path, compile definition, or link
-requirement enters `fps`, `near_laugh_runtime`, the shared frame contract, the
-level-persistence contract, or public headers.
+## Runtime Ownership and Flow
 
-GLFW/Vulkan surface coupling is confined to one internal bridge. It is not a
-rendering-backend abstraction.
+The internal `Engine` is the concrete runtime composition owner; its name does
+not establish a reusable engine layer. It constructs, in dependency order:
 
- ## Dependency Rules
+```text
+Platform -> Window -> RuntimeResources -> PrototypeLevel
+         -> PhysicsWorld -> PlayerController -> PlayerFlashlight -> Renderer
+```
 
-Game-specific code may depend on engine code.
+RAII destruction reverses that order. Raw pointers and references are
+non-owning; exclusive dynamic Vulkan owners use `std::unique_ptr`. Mutable
+global subsystem ownership is not used.
 
-Engine code must never depend on game-specific code.
+Startup resolves shaders, the floor/boundary/obstacle textures, the chair GLB,
+and `levels/prototype.level.json` beneath the executable-relative resource
+root. The version-2 document is parsed and validated before physics or renderer
+construction. Neither the process working directory nor level-authored paths
+participate in resource discovery.
 
-Rendering must not depend on gameplay concepts such as Player,
-Enemy, Weapon, or Health.
+The main-thread loop owns event processing, close and minimize decisions,
+player-input sampling, elapsed-time accumulation, fixed simulation steps,
+cursor-capture transitions, camera interpolation, flashlight updates, and the
+decision to request a frame. Blocking event waits form and sample their own
+input batch before another poll can clear relative mouse movement; timing is
+reset after the wait.
 
-Physics must not depend on rendering.
+The renderer receives immutable level data at construction and a
+backend-neutral `FrameRequest` at runtime. A request contains framebuffer
+state, a column-major camera matrix, and at most one source-independent spot
+light. Rendering returns `Rendered`, `Skipped`, or `Recovered`; the runtime
+handles every outcome and retains application-lifetime control. Rendering does
+not interpret player actions, update simulation, poll events, or decide when
+the game exits.
 
-Core must not depend on Rendering, Gameplay, Physics, or Audio.
+The player and physics advance on the main thread through a fixed-step
+accumulator. Jolt uses its single-threaded job implementation; the project has
+no runtime job system.
 
-Platform-specific APIs must remain behind the platform layer.
+## World Boundary
 
-Vulkan types must not leak into gameplay code.
+The bounded level document contains one 97-by-97 heightfield, at most 240
+axis-aligned solids, one player spawn, exactly two point lights and an ambient
+intensity, and one packaged chair placement with an authored box collision
+proxy. Solids use the fixed floor, boundary, or obstacle surface roles. The
+document contains no resource paths.
 
-## Ownership
+The editable `LevelDocument` may temporarily contain invalid data. Saving and
+construction of an immutable `PrototypeLevel` both use the same field-aware
+validation. The running game loads once and does not mutate, save, discover, or
+hot-reload level documents.
 
-Ownership must be explicit.
+Rendering expands terrain and solids into an immutable world triangle stream
+and flattens the validated chair GLB into a separate immutable stream. Physics
+builds matching terrain and solid collision plus the chair's authored box
+proxy; it does not derive collision from renderer geometry. Shared level data
+contains no Vulkan, Jolt, parser, or filesystem types.
 
-Prefer stack ownership and RAII.
+## Editor Ownership
 
-Use `std::unique_ptr` for exclusive dynamic ownership.
+The standalone editor constructs Vulkan diagnostics, `Platform`, `Window`, the
+GLFW/ImGui callback bridge, `EditorDocument`, and `EditorRenderer`. Shutdown
+reverses that order so ImGui backends are released before their Vulkan and GLFW
+dependencies.
 
-Use `std::shared_ptr` only when shared ownership is genuinely required
-and the lifetime cannot be represented more simply.
+The editor loop owns event polling, minimized waits, camera timing, UI capture,
+and render outcomes. `EditorDocument` loads candidates transactionally and
+tracks its resolved path, diagnostics, dirty state, and pending save/discard/
+cancel decision. A failed load or save preserves the active document and dirty
+state.
 
-Raw pointers and references are non-owning.
+The editor renderer draws the active validated level and then Dear ImGui in the
+same Dynamic Rendering pass. Replacement GPU resources are built temporarily
+and swapped in only after success. Swapchain recovery preserves the document,
+UI state, texture owner, and camera. The editor is a concrete tool for this
+game, not a runtime mode or general scene-editor framework.
 
-Do not introduce owning raw pointers.
+## Architectural Constraints
 
-Engine subsystem lifetimes are controlled by the Engine object.
-
-GPU resource ownership is defined separately in RENDERING.md.
-
-## Global State
-
-Avoid mutable global state.
-
-Global singletons are not the default architecture.
-
-Subsystems should receive their required dependencies explicitly.
-
-## Lifetime
-
-The intended high-level lifetime is:
-
-Application
-  creates
-Engine
-  creates, in order
-Platform
-Window
-RuntimeResources
-PrototypeLevel
-PhysicsWorld
-PlayerController
-PlayerFlashlight
-Renderer
-
-Shutdown happens in reverse dependency order.
-
-Resource destruction must never depend on already-destroyed subsystems.
-
-The runtime loop owns platform polling, close decisions, input sampling,
-minimized-window waiting, bounded steady-clock sampling, prototype cursor
-capture, fixed player simulation, interpolated first-person camera state, and
-the decision to issue at most one frame request per iteration. A blocking wait
-begins its own input batch, and the runtime maps that batch immediately after
-the wait returns, before a later poll can reset its cursor delta. It also resets
-both the clock origin and simulation accumulator across the wait so restoration
-cannot create catch-up movement. The renderer consumes the current
-framebuffer extent/resize state, a backend-neutral column-major camera matrix,
-and at most one source-independent spot-light description, then reports
-rendered, skipped, or recovered without controlling events, input, time,
-camera state, light-source gameplay, or application lifetime. The runtime
-exhaustively consumes each outcome before it continues the application-owned
-loop.
-
-Each complete fixed step advances player movement on the main thread. A
-concrete Engine-owned `PlayerFlashlight` samples primary-action edges once per
-event batch, independently of fixed simulation timing, and produces the one
-generic `SpotLightFrame` from the same interpolated view pose used to build the
-render camera. Its recapture suppression consumes an inactive press until the
-button is released. The renderer receives only source-independent scalar light
-data; it does not depend on player or flashlight types. The current frame
-contract deliberately has one dynamic spot-light slot rather than a light
-registry or arbitrary light collection.
-
-Platform callbacks retain held physical keys/buttons and accumulate cursor
-movement for one event batch. `FpsInputMapper` maps W/A/S/D, Space, Left Shift,
-Left Control, Escape, and the left/right mouse buttons to the single-player FPS
-action snapshot. Look delta resets when the next polling or blocking batch
-begins, while held actions persist across both kinds of event dispatch.
-
-The `fps` launcher uses a private, host-native helper to discover its actual
-executable path and supplies the adjacent `resources` directory through
-`RuntimeConfig`. The packaged prototype level `levels/prototype.level.json`,
-the shaders, the four fixed textures
-`prototype_floor.png`, `prototype_boundary.png`, `prototype_obstacle.png`, and
-`prototype_shooting_target.png`, plus `models/prototype_chair.glb`, are resolved
-beneath that explicit root.
-Invocation text and the process working directory do not participate in
-runtime layout discovery.
-
-After the window exists, runtime composition resolves the fixed resource set,
-strictly parses and validates `levels/prototype.level.json`, and only then
-constructs physics, player, and renderer owners. Missing, malformed,
-unsupported, or invalid level data therefore cannot reach a dependent
-subsystem or the frame loop. Destruction remains the reverse of member order.
-
-The version-1 document contains exactly one 97-by-97 heightfield, no more than
-240 axis-aligned solids, one player spawn, exactly two point lights and one
-ambient value, and one placement of the packaged chair with a box proxy. It
-contains no resource paths. The private `nlohmann/json` codec rejects unknown
-or missing fields and emits canonical locale-independent JSON. The editable
-`LevelDocument` may hold invalid work, while saving and construction of an
-immutable `PrototypeLevel` both use the same field-aware validation.
-
-The current world is one immutable loaded `PrototypeLevel` containing tinted
-axis-aligned solids, a player spawn, exactly two world-space point lights, a
-near-black ambient scalar, three inert plate solids, and one fixed chair
-placement with an obstacle surface role and an independently authored box
-collision proxy. The chair description contains no path, parser, Vulkan, or
-Jolt type. Each
-solid independently carries exactly one fixed surface role: floor, boundary,
-obstacle, or shooting target. Rendering expands each solid into the existing
-UV/layer-bearing world triangle stream and synchronously flattens the validated
-chair GLB into a separate world-space triangle stream. Physics creates matching
-solid boxes plus the chair's authored proxy without reading model geometry.
-The renderer validates and uploads the level point lights once; they do not
-follow the camera or become mutable frame state. The chair and inert plates
-carry no gameplay identity, health, damage, interaction, or feedback state.
-The four roles are not a material system, the one model is not an asset
-registry, the dynamic spot-light frame is not a registry, and the level is not
-a scene hierarchy, asset pipeline, ECS, or generic level format. The running
-game does not mutate, save, discover, or hot-reload level documents.
-
-Renderer lifetime owns the sampled texture and immutable lighting resources
-plus separate immutable generated-world and imported-chair vertex buffers after
-the Vulkan context and before teardown. The format-dependent pipeline borrows
-descriptor layouts and sets and owns no geometry. It binds one descriptor pair
-and one scene push constant before deterministic world-then-chair draws. The
-pipeline may be recreated without rebuilding or re-uploading textures,
-lighting, or either mesh. It is destroyed before those dependent owners, and
-all are released before the logical device.
-
-## Level Editor Lifetime
-
-The standalone editor constructs, in order, Vulkan diagnostics, `Platform`,
-`Window`, the GLFW/ImGui callback bridge, `EditorDocument`, and
-`EditorRenderer`. Shutdown reverses that order, so the ImGui Vulkan backend is
-released before its Vulkan device and the ImGui GLFW backend is released before
-its window and context. Callback installation occurs after `Window` installs
-the gameplay-compatible physical input callbacks; the ImGui GLFW backend uses
-its supported callback chaining and does not replace the game path.
-
-The editor loop owns event polling, close requests, minimized waits, bounded
-steady-clock camera timing, UI input capture, and exhaustive rendered, skipped,
-and recovered outcomes. Right-button scene navigation uses the existing
-physical snapshot only while the scene owns navigation; menu, text-field, and
-modal capture suppresses conflicting input. The editor camera produces the
-same backend-neutral `CameraFrame` scalar layout without adding camera concepts
-to that contract.
-
-`EditorDocument` loads a candidate through the shared strict codec before
-replacing the active document. It retains an optional resolved path,
-diagnostics, dirty state, and one pending open/close/exit action. Save and Save
-As use the shared deterministic atomic codec. Failed loads and saves preserve
-the current document and dirty state; dirty transitions require save, discard,
-or cancel.
-
-The concrete editor renderer draws the active validated bounded FPS level
-directly to the main swapchain and records Dear ImGui last in the same Dynamic
-Rendering pass. Document-dependent world/chair buffers, immutable lighting,
-and pipeline are constructed as a temporary set and swapped only after success.
-Resize and presentation recovery rebuild swapchain-dependent state while the
-document, UI, texture owner, and camera remain alive. This is not a renderer
-interface, render graph, offscreen viewport system, runtime editor mode, scene
-hierarchy, or general-purpose editor framework.
-
-## Threading
-
-The initial engine is primarily single-threaded.
-
-The main thread owns:
-
-- application lifecycle
-- gameplay update
-- world mutation
-- render submission
-
-Jolt uses its library-provided temporary allocator and
-`JobSystemSingleThreaded`; the initial physics world creates no worker pool
-and requires no engine job system.
-
-Background threads may later be introduced for clearly isolated work
-such as asset loading.
-
-Do not introduce:
-
-- a job system
-- task graphs
-- parallel ECS updates
-- asynchronous compute
-- complicated lock-free structures
-
-without a dedicated design change and measured justification.
-
-## World Model
-
-The project does not require a generic ECS architecture.
-
-Initially prefer the simplest world representation that supports
-the FPS requirements described in GAMEPLAY.md.
-
-Composition is preferred where useful, but engine architecture
-must not be reorganized around ECS terminology without a concrete need.
-
-If entity scale or update performance becomes a measured problem,
-an ECS or data-oriented representation may be proposed through
-an OpenSpec change.
+The current requirements do not justify an ECS, render graph, RHI, plugin
+system, general scripting runtime, generic scene hierarchy, job system, or
+asset registry. New boundaries or abstractions require a concrete game,
+authoring, reliability, or measured performance need.

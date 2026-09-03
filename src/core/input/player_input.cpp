@@ -1,6 +1,6 @@
-#include "core/input/fps_input.hpp"
+#include "core/input/player_input.hpp"
 
-FpsActionSnapshot FpsInputMapper::map(
+PlayerActionSnapshot PlayerInputMapper::map(
     const PhysicalInputSnapshot& physical) const noexcept {
   return {
       physical.isKeyDown(PhysicalKey::W),

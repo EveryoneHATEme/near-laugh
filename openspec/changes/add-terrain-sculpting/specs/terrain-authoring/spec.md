@@ -1,6 +1,6 @@
 ## Purpose
 
-Defines deterministic, undoable terrain-brush behavior for editing the bounded FPS heightfield while keeping game runtime terrain immutable and non-voxel.
+Defines deterministic, undoable terrain-brush behavior for editing the bounded version-2 game heightfield while keeping `near_laugh` runtime terrain immutable and non-voxel.
 
 ## ADDED Requirements
 
@@ -57,7 +57,7 @@ The editor SHALL regenerate the visible terrain surface from the current in-memo
 
 #### Scenario: Editor document is closed
 - **WHEN** the user closes a sculpted document after resolving any unsaved-change decision
-- **THEN** its preview resources are released without altering any running or packaged FPS level implicitly
+- **THEN** its preview resources are released without altering the running `near_laugh` level or packaged game level implicitly
 
 ### Requirement: One history operation per stroke
 A continuous pointer press that changes terrain SHALL create one undoable history entry containing the affected samples' before and after values, regardless of the number of stamps. A press that changes no sample SHALL create no entry. Undo and redo SHALL restore the complete affected sample set and its corresponding preview, validation, and dirty state.
@@ -82,7 +82,7 @@ Terrain edits SHALL refresh the shared level validation result after each comple
 - **THEN** the editor clears the resolved diagnostics and permits deterministic saving
 
 ### Requirement: Heightfield-only authoring boundary
-Terrain authoring SHALL modify only height samples in the single bounded heightfield. It SHALL NOT create holes, caves, overhangs, additional terrain surfaces, voxel data, texture paint, procedural or erosion output, or runtime-deformable terrain.
+Terrain authoring SHALL modify only height samples in the single bounded heightfield and SHALL preserve the fixed floor, boundary, and obstacle surface roles. It SHALL NOT create holes, caves, overhangs, additional terrain surfaces, voxel data, texture paint, procedural or erosion output, or runtime-deformable terrain.
 
 #### Scenario: Terrain tools are inspected
 - **WHEN** the terrain-authoring controls and saved level data are inspected

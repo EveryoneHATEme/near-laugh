@@ -67,7 +67,7 @@ bool Engine::tick() {
   return false;
 }
 
-void Engine::samplePlayerInput(const FpsActionSnapshot& input) {
+void Engine::samplePlayerInput(const PlayerActionSnapshot& input) {
   const bool was_captured = window_.cursorCaptured();
   const PlayerCursorCaptureTransition transition =
       playerCursorTransition(was_captured, input);

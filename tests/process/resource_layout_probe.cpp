@@ -16,11 +16,10 @@ int main(int argc, char** argv) {
         root / "shaders" / "prototype_scene_vertex.spv";
     const std::filesystem::path fragment =
         root / "shaders" / "prototype_scene_fragment.spv";
-    const std::array<std::filesystem::path, 4> textures = {
+    const std::array<std::filesystem::path, 3> textures = {
         root / "textures" / "prototype_floor.png",
         root / "textures" / "prototype_boundary.png",
-        root / "textures" / "prototype_obstacle.png",
-        root / "textures" / "prototype_shooting_target.png"};
+        root / "textures" / "prototype_obstacle.png"};
     const std::filesystem::path chair = root / "models" / "prototype_chair.glb";
     const std::filesystem::path level =
         root / "levels" / "prototype.level.json";

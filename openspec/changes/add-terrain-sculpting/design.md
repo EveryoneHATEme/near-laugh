@@ -1,8 +1,8 @@
 ## Context
 
-See `proposal.md` for motivation. This change assumes persistence, editor foundation, and object placement are implemented and archived. The active editor document already has transient state, bounded command history, shared validation, terrain picking support for placement, and a generated heightfield preview.
+See `proposal.md` for motivation. This change assumes `remove-legacy-fps-assumptions`, persistence, editor foundation, and object placement are implemented and archived. The active editor document is version 2 and already has transient state, bounded command history, shared validation, terrain picking support for placement, and a generated heightfield preview.
 
-The terrain is a fixed 97-by-97 row-major height array with 0.5-metre spacing. Runtime rendering and Jolt collision remain immutable after game startup; only the editor mutates document samples.
+The terrain is a fixed 97-by-97 row-major height array with 0.5-metre spacing. Its solids retain only the floor, boundary, and obstacle surface roles. Runtime rendering and Jolt collision remain immutable after `near_laugh` startup; only the editor mutates document samples.
 
 ## Goals / Non-Goals
 
@@ -64,7 +64,7 @@ The preview may show a finite but invalid surface during a stroke. Saving remain
 
 ## Migration Plan
 
-1. Implement and archive the three prerequisite changes in order.
+1. Complete and archive `remove-legacy-fps-assumptions`, retaining version 2, the three-role surface set, player-oriented terminology, and the `near_laugh` game target; then implement and archive the other prerequisite changes in order.
 2. Add pure brush kernels, path stamping, and sparse stroke commands with deterministic tests.
 3. Add terrain targeting and brush-footprint overlay behavior.
 4. Add coalesced editor terrain preview rebuilding and spatial validation overlays.

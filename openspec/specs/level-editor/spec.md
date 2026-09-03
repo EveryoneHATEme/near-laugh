@@ -2,20 +2,24 @@
 
 ## Purpose
 
-Defines the standalone, FPS-specific level-editor workspace used to inspect persisted levels safely without coupling editor state or UI dependencies to the shipping game runtime.
+Defines the standalone game-specific level-editor workspace used to inspect persisted levels safely without coupling editor state or UI dependencies to the game runtime.
 
 ## Requirements
 
 ### Requirement: Standalone editor application
-The project SHALL provide a desktop `level_editor` application that owns its window, editor input, editor camera, document state, rendering, and orderly shutdown independently from the `fps` application. Building or running the game SHALL NOT require editor UI code, editor document state, or editor-only resources.
+The project SHALL provide a desktop `level_editor` application that owns its window, editor input, editor camera, document state, rendering, and orderly shutdown independently from the `near_laugh` game application. Building or running the game SHALL NOT require editor UI code, editor document state, or editor-only resources, and neither application SHALL require the removed shooting-target texture.
 
 #### Scenario: Editor starts
-- **WHEN** the editor executable starts with valid resources
+- **WHEN** the editor executable starts with valid current resources
 - **THEN** it opens an editor workspace without constructing the grounded player, gameplay input mapper, player flashlight, or physics simulation
 
 #### Scenario: Game target is inspected
-- **WHEN** the shipping FPS target's transitive dependencies and public headers are inspected
+- **WHEN** the shipping `near_laugh` target's transitive dependencies and public headers are inspected
 - **THEN** they contain no editor UI dependency or editor document type
+
+#### Scenario: Runtime resources are inspected
+- **WHEN** the game and editor executable-relative resource layouts are inspected
+- **THEN** neither layout contains or requires a shooting-target texture asset
 
 ### Requirement: Inspectable scene workspace
 The editor SHALL render the currently open validated level in its main window and SHALL provide menus, a document summary, validation feedback, and read-only properties for its terrain, solids, lights, spawn, and static prop. The foundation SHALL NOT modify level content through the viewport or property presentation.

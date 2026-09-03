@@ -10,7 +10,7 @@ namespace near_laugh {
 struct RuntimeConfig {
   std::uint32_t window_width{1024};
   std::uint32_t window_height{768};
-  std::string window_title{"near-laugh FPS"};
+  std::string window_title{"near-laugh"};
   std::filesystem::path resource_root{};
 };
 

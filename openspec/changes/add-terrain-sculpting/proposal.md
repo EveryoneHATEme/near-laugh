@@ -8,13 +8,14 @@ The persisted heightfield is structurally ready for authoring, but editing thous
 - Preview heightfield geometry updates in the editor and expose slope, finiteness, spawn-support, and spawn-clearance validation failures before saving.
 - Treat each continuous brush stroke as one undoable document operation and integrate it with dirty-state and deterministic persistence.
 - Preserve the game's immutable startup level; sculpting occurs only in the standalone editor.
+- Keep the version-2 document and fixed floor/boundary/obstacle surface set unchanged by terrain editing.
 - Exclude holes, caves, overhangs, texture painting, erosion simulation, procedural generation, runtime deformation, and dynamic collision rebuilding in the game.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `terrain-authoring`: Purpose-built editor picking, brush operations, preview rebuilding, validation visualization, and undo/redo for the bounded FPS heightfield.
+- `terrain-authoring`: Purpose-built editor picking, brush operations, preview rebuilding, validation visualization, and undo/redo for the bounded game heightfield.
 
 ### Modified Capabilities
 
@@ -22,5 +23,5 @@ The persisted heightfield is structurally ready for authoring, but editing thous
 ## Impact
 
 - Affects editor document state, viewport picking and overlays, terrain mesh preview rebuilding, undo storage, level validation, and editor tests.
-- Depends on `add-bounded-level-persistence`, `add-level-editor-foundation`, and the document history established by `add-level-object-placement`.
+- Depends on `remove-legacy-fps-assumptions` completing first, plus `add-bounded-level-persistence`, `add-level-editor-foundation`, and the document history established by `add-level-object-placement`.
 - Does not change runtime terrain mutability or introduce voxel terrain, general geometry editing, or a material editor.

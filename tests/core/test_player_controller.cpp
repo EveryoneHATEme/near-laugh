@@ -23,7 +23,7 @@ float horizontalSpeed(PhysicsVector velocity) {
   return std::sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
 }
 
-PhysicsVector groundedRequest(FpsActionSnapshot actions) {
+PhysicsVector groundedRequest(PlayerActionSnapshot actions) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
@@ -57,7 +57,7 @@ HomogeneousPoint transform(const CameraFrame& frame,
 }  // namespace
 
 TEST(PlayerMovement, EveryGroundAxisUsesCurrentYaw) {
-  FpsActionSnapshot actions;
+  PlayerActionSnapshot actions;
   actions.move_forward = true;
   PhysicsVector velocity = groundedRequest(actions);
   EXPECT_NEAR(velocity.x, 0.0F, 0.0001F);
@@ -80,7 +80,7 @@ TEST(PlayerMovement, EveryGroundAxisUsesCurrentYaw) {
 }
 
 TEST(PlayerMovement, DiagonalIsNormalizedAndSprintUsesSevenMetersPerSecond) {
-  FpsActionSnapshot actions;
+  PlayerActionSnapshot actions;
   actions.move_forward = true;
   actions.move_right = true;
   EXPECT_NEAR(horizontalSpeed(groundedRequest(actions)), player_walk_speed,
@@ -99,7 +99,7 @@ TEST(PlayerMovement, GravityAndGroundedMotionUseDifferentPolicies) {
   EXPECT_LT(player.state().linear_velocity.y, 0.0F);
 
   settle(player);
-  FpsActionSnapshot forward;
+  PlayerActionSnapshot forward;
   forward.move_forward = true;
   player.sampleInput(forward, true);
   player.fixedStep(fixed_delta);
@@ -112,14 +112,14 @@ TEST(PlayerMovement, AirControlApproachesRequestAtBoundedAcceleration) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
-  FpsActionSnapshot jump;
+  PlayerActionSnapshot jump;
   jump.jump = true;
   player.sampleInput(jump, true);
   player.fixedStep(fixed_delta);
   player.fixedStep(fixed_delta);
   ASSERT_FALSE(player.state().supported());
 
-  FpsActionSnapshot forward;
+  PlayerActionSnapshot forward;
   forward.move_forward = true;
   player.sampleInput(forward, true);
   player.fixedStep(fixed_delta);
@@ -135,7 +135,7 @@ TEST(PlayerJump, LatchSurvivesAZeroStepRenderIteration) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
-  FpsActionSnapshot jump;
+  PlayerActionSnapshot jump;
   jump.jump = true;
   player.sampleInput(jump, true);
   EXPECT_TRUE(player.jumpPending());
@@ -151,7 +151,7 @@ TEST(PlayerJump, HeldJumpIsConsumedExactlyOnceAcrossCatchUpSteps) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
-  FpsActionSnapshot jump;
+  PlayerActionSnapshot jump;
   jump.jump = true;
   player.sampleInput(jump, true);
   player.fixedStep(fixed_delta);
@@ -174,7 +174,7 @@ TEST(PlayerJump, AirbornePressWaitsForFirstEligibleGroundedStep) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   settle(player);
-  FpsActionSnapshot jump;
+  PlayerActionSnapshot jump;
   jump.jump = true;
   player.sampleInput(jump, true);
   player.fixedStep(fixed_delta);
@@ -221,7 +221,7 @@ TEST(PlayerCamera, AppliesLookOncePerSampleAndClampsPitch) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
-  FpsActionSnapshot actions;
+  PlayerActionSnapshot actions;
   actions.look_delta_x = 100.0;
   actions.look_delta_y = -1000.0;
   player.sampleInput(actions, true);
@@ -247,7 +247,7 @@ TEST(PlayerCamera, UsesActualStanceEyeHeight) {
               player.state().foot_position.y + player_standing_eye_height,
               0.0001F);
 
-  FpsActionSnapshot crouch;
+  PlayerActionSnapshot crouch;
   crouch.crouch = true;
   player.sampleInput(crouch, true);
   player.fixedStep(fixed_delta);
@@ -267,7 +267,7 @@ TEST(PlayerView, UsesInterpolatedStandingAndCrouchedEye) {
               player.state().foot_position.y + player_standing_eye_height,
               0.0001F);
 
-  FpsActionSnapshot crouch;
+  PlayerActionSnapshot crouch;
   crouch.crouch = true;
   player.sampleInput(crouch, true);
   player.fixedStep(fixed_delta);
@@ -287,7 +287,7 @@ TEST(PlayerView, DirectionMatchesLookAndSharedCameraPose) {
   EXPECT_NEAR(initial.direction.y, 0.0F, 0.0001F);
   EXPECT_NEAR(initial.direction.z, -1.0F, 0.0001F);
 
-  FpsActionSnapshot look;
+  PlayerActionSnapshot look;
   look.look_delta_x = 150.0;
   look.look_delta_y = -200.0;
   player.sampleInput(look, true);
@@ -302,7 +302,7 @@ TEST(PlayerView, DirectionMatchesLookAndSharedCameraPose) {
   EXPECT_NEAR(centered.x / centered.w, 0.0F, 0.0001F);
   EXPECT_NEAR(centered.y / centered.w, 0.0F, 0.0001F);
 
-  FpsActionSnapshot almost_up;
+  PlayerActionSnapshot almost_up;
   almost_up.look_delta_y = -880.0;
   player.sampleInput(almost_up, true);
   const PlayerViewPose maximum = player.viewPose(1.0F);
@@ -313,7 +313,7 @@ TEST(PlayerView, DirectionMatchesLookAndSharedCameraPose) {
 }
 
 TEST(PlayerCursor, ReleasePrecedesRecaptureAndTransitionsNeutralizeControls) {
-  FpsActionSnapshot actions;
+  PlayerActionSnapshot actions;
   actions.menu = true;
   actions.primary_action = true;
   EXPECT_EQ(playerCursorTransition(true, actions),
@@ -336,7 +336,7 @@ TEST(PlayerCursor, ReleasedControlsAreNeutralWhileAirbornePhysicsContinues) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
-  FpsActionSnapshot actions;
+  PlayerActionSnapshot actions;
   actions.move_forward = true;
   actions.jump = true;
   actions.crouch = true;

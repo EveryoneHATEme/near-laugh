@@ -156,7 +156,6 @@ PrototypeSolidKind parseSolidKind(const Json& value, const std::string& path) {
   if (text == "obstacle") return PrototypeSolidKind::Obstacle;
   if (text == "walkable_step") return PrototypeSolidKind::WalkableStep;
   if (text == "low_clearance") return PrototypeSolidKind::LowClearance;
-  if (text == "shooting_target") return PrototypeSolidKind::ShootingTarget;
   fail(path, "unsupported solid kind '" + text + "'");
 }
 
@@ -165,7 +164,6 @@ PrototypeSurface parseSurface(const Json& value, const std::string& path) {
   if (text == "floor") return PrototypeSurface::Floor;
   if (text == "boundary") return PrototypeSurface::Boundary;
   if (text == "obstacle") return PrototypeSurface::Obstacle;
-  if (text == "shooting_target") return PrototypeSurface::ShootingTarget;
   fail(path, "unsupported surface role '" + text + "'");
 }
 
@@ -306,8 +304,6 @@ std::string_view solidKindString(PrototypeSolidKind kind) {
       return "walkable_step";
     case PrototypeSolidKind::LowClearance:
       return "low_clearance";
-    case PrototypeSolidKind::ShootingTarget:
-      return "shooting_target";
   }
   throw std::logic_error("validated level has unsupported solid kind");
 }
@@ -320,8 +316,6 @@ std::string_view surfaceString(PrototypeSurface surface) {
       return "boundary";
     case PrototypeSurface::Obstacle:
       return "obstacle";
-    case PrototypeSurface::ShootingTarget:
-      return "shooting_target";
   }
   throw std::logic_error("validated level has unsupported surface role");
 }

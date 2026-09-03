@@ -11,7 +11,7 @@ inline std::filesystem::path packagedPrototypeLevelPath() {
       .lexically_normal();
 }
 
-inline LevelDocument legacyPrototypeLevelDocument() {
+inline LevelDocument prototypeLevelDocument() {
   constexpr WorldColor boundary_color{55, 78, 122, 255};
   constexpr WorldColor red{205, 63, 73, 255};
   constexpr WorldColor green{66, 176, 111, 255};
@@ -19,7 +19,6 @@ inline LevelDocument legacyPrototypeLevelDocument() {
   constexpr WorldColor violet{139, 91, 196, 255};
   constexpr WorldColor step_color{70, 184, 190, 255};
   constexpr WorldColor passage_color{190, 118, 197, 255};
-  constexpr WorldColor target_color{222, 122, 58, 255};
 
   LevelDocument document{};
   document.terrain.origin = {-24.0F, 0.0F, -26.0F};
@@ -97,21 +96,6 @@ inline LevelDocument legacyPrototypeLevelDocument() {
        passage_color,
        PrototypeSolidKind::LowClearance,
        PrototypeSurface::Obstacle},
-      {{-9.0F, 1.75F, -7.0F},
-       {0.75F, 0.75F, 0.12F},
-       target_color,
-       PrototypeSolidKind::ShootingTarget,
-       PrototypeSurface::ShootingTarget},
-      {{0.0F, 4.0F, -12.5F},
-       {0.75F, 0.75F, 0.12F},
-       target_color,
-       PrototypeSolidKind::ShootingTarget,
-       PrototypeSurface::ShootingTarget},
-      {{9.0F, 1.75F, -7.0F},
-       {0.75F, 0.75F, 0.12F},
-       target_color,
-       PrototypeSolidKind::ShootingTarget,
-       PrototypeSurface::ShootingTarget},
   };
 
   document.player_spawn = {

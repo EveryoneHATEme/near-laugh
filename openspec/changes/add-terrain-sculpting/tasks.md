@@ -1,6 +1,6 @@
 ## 1. Prerequisites and Brush Model
 
-- [ ] 1.1 Confirm the persistence, editor-foundation, and object-placement changes are implemented and archived with their main specs present, and verify object history, terrain picking, validation-gated saving, and editor overlays work before adding terrain commands.
+- [ ] 1.1 Confirm `remove-legacy-fps-assumptions`, persistence, editor-foundation, and object-placement are implemented and archived with their main specs present; verify the version-2 document, floor/boundary/obstacle surface set, `near_laugh` target, player terminology, object history, terrain picking, validation-gated saving, and editor overlays before adding terrain commands.
 - [ ] 1.2 Add editor-only raise, lower, and smooth brush settings with specified radius, strength, and falloff bounds, and verify table-driven tests accept boundary values and reject non-finite or out-of-range commits without changing prior settings.
 
 ## 2. Deterministic Sculpting Kernels
@@ -27,5 +27,5 @@
 
 - [ ] 5.1 Add deterministic save/reload tests for sculpted height samples and mixed object/terrain history, and verify canonical level bytes stabilize after an unedited round trip.
 - [ ] 5.2 Update editor documentation with brush controls, bounds, history semantics, invalid-terrain repair, and heightfield-only limitations, and verify documented behavior matches the UI.
-- [ ] 5.3 Build debug, run deterministic tests, manually exercise long/border/smooth strokes and unsaved-close behavior, and confirm saved terrain produces matching game rendering and Jolt collision after restart.
+- [ ] 5.3 Build debug, run deterministic tests, manually exercise long/border/smooth strokes and unsaved-close behavior, and confirm saved terrain produces matching `near_laugh` rendering and Jolt collision after restart.
 - [ ] 5.4 Run editor and game Vulkan validation across active strokes, buffer replacement, resize, minimize/restore, and shutdown; run `openspec validate add-terrain-sculpting --strict` and review `git diff` for runtime deformation, voxel, material, or generic dynamic-mesh scope.

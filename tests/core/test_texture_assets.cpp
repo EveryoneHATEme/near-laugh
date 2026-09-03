@@ -10,13 +10,12 @@
 TEST(TextureAssets, FixedPrototypeTexturesAreDistinctOpaqueRgbaTiles) {
   const std::filesystem::path textures =
       std::filesystem::absolute("resources/textures").lexically_normal();
-  const std::array<std::filesystem::path, 4> paths = {
+  const std::array<std::filesystem::path, 3> paths = {
       textures / "prototype_floor.png",
       textures / "prototype_boundary.png",
-      textures / "prototype_obstacle.png",
-      textures / "prototype_shooting_target.png"};
+      textures / "prototype_obstacle.png"};
 
-  std::array<std::vector<std::uint8_t>, 4> decoded_pixels;
+  std::array<std::vector<std::uint8_t>, 3> decoded_pixels;
   for (std::size_t index = 0; index < paths.size(); ++index) {
     const DecodedRgbaImage image = decodePngRgba(paths[index]);
     EXPECT_EQ(image.width, 256U) << paths[index];

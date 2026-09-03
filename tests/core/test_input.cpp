@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "core/input/fps_input.hpp"
+#include "core/input/player_input.hpp"
 #include "core/platform/input.hpp"
 
 TEST(InputAccumulator, TracksEngineOwnedKeysAndButtons) {
@@ -17,7 +17,7 @@ TEST(InputAccumulator, TracksEngineOwnedKeysAndButtons) {
       input.snapshot().isMouseButtonDown(PhysicalMouseButton::Left));
 }
 
-TEST(FpsInputMapper, MapsEveryRequiredDefaultControl) {
+TEST(PlayerInputMapper, MapsEveryRequiredDefaultControl) {
   InputAccumulator input;
   for (const PhysicalKey key :
        {PhysicalKey::W, PhysicalKey::A, PhysicalKey::S, PhysicalKey::D,
@@ -30,7 +30,7 @@ TEST(FpsInputMapper, MapsEveryRequiredDefaultControl) {
   input.addCursorPosition(10.0, 20.0);
   input.addCursorPosition(13.0, 24.0);
 
-  const FpsActionSnapshot actions = FpsInputMapper{}.map(input.snapshot());
+  const PlayerActionSnapshot actions = PlayerInputMapper{}.map(input.snapshot());
   EXPECT_TRUE(actions.move_forward);
   EXPECT_TRUE(actions.move_backward);
   EXPECT_TRUE(actions.move_left);
@@ -45,7 +45,7 @@ TEST(FpsInputMapper, MapsEveryRequiredDefaultControl) {
   EXPECT_DOUBLE_EQ(actions.look_delta_y, 4.0);
 }
 
-TEST(FpsInputMapper, NewBatchClearsLookAndPreservesHeldActions) {
+TEST(PlayerInputMapper, NewBatchClearsLookAndPreservesHeldActions) {
   InputAccumulator input;
   input.setKey(PhysicalKey::W, true);
   input.setMouseButton(PhysicalMouseButton::Left, true);
@@ -53,7 +53,7 @@ TEST(FpsInputMapper, NewBatchClearsLookAndPreservesHeldActions) {
   input.addCursorPosition(2.0, 3.0);
   input.beginEventBatch();
 
-  const FpsActionSnapshot actions = FpsInputMapper{}.map(input.snapshot());
+  const PlayerActionSnapshot actions = PlayerInputMapper{}.map(input.snapshot());
   EXPECT_TRUE(actions.move_forward);
   EXPECT_TRUE(actions.primary_action);
   EXPECT_DOUBLE_EQ(actions.look_delta_x, 0.0);
@@ -77,19 +77,19 @@ TEST(InputAccumulator, ResetsCursorDeltaPerEventBatch) {
 
 TEST(InputAccumulator, WaitedBatchIsSampledBeforeTheNextPollBatch) {
   InputAccumulator input;
-  FpsInputMapper mapper;
+  PlayerInputMapper mapper;
   input.setKey(PhysicalKey::W, true);
   input.addCursorPosition(10.0, 20.0);
 
   input.beginEventBatch();
   input.addCursorPosition(13.0, 18.0);
-  const FpsActionSnapshot waited_actions = mapper.map(input.snapshot());
+  const PlayerActionSnapshot waited_actions = mapper.map(input.snapshot());
   EXPECT_TRUE(waited_actions.move_forward);
   EXPECT_DOUBLE_EQ(waited_actions.look_delta_x, 3.0);
   EXPECT_DOUBLE_EQ(waited_actions.look_delta_y, -2.0);
 
   input.beginEventBatch();
-  const FpsActionSnapshot next_poll_actions = mapper.map(input.snapshot());
+  const PlayerActionSnapshot next_poll_actions = mapper.map(input.snapshot());
   EXPECT_TRUE(next_poll_actions.move_forward);
   EXPECT_DOUBLE_EQ(next_poll_actions.look_delta_x, 0.0);
   EXPECT_DOUBLE_EQ(next_poll_actions.look_delta_y, 0.0);

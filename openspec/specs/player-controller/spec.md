@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the one local first-person player's collision-constrained movement, stance, gravity, jumping, air control, look orientation, and camera placement for the built-in FPS prototype environment.
+Defines the one local first-person player's collision-constrained movement, stance, gravity, jumping, air control, look orientation, and camera placement for the built-in prototype environment.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ The runtime SHALL maintain exactly one local player represented by an upright ga
 - **THEN** one standing player capsule starts at the configured spawn without intersecting static geometry and settles onto the floor under gravity
 
 ### Requirement: Ground movement
-While first-person control is active, the player SHALL move horizontally relative to current yaw from the forward, backward, left, and right FPS actions, SHALL use a faster configured speed while sprint is active, and SHALL normalize combined movement axes so diagonal input does not exceed the selected speed. Ground movement SHALL collide with and slide along static geometry, traverse the prototype's configured walkable step, and SHALL NOT pass through blocking structures.
+While first-person control is active, the player SHALL move horizontally relative to current yaw from the forward, backward, left, and right player actions, SHALL use a faster configured speed while sprint is active, and SHALL normalize combined movement axes so diagonal input does not exceed the selected speed. Ground movement SHALL collide with and slide along static geometry, traverse the prototype's configured walkable step, and SHALL NOT pass through blocking structures.
 
 #### Scenario: Player walks relative to view
 - **WHEN** forward input remains active while the player faces away from the initial yaw and is supported on walkable ground

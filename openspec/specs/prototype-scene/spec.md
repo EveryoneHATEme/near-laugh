@@ -53,18 +53,3 @@ The prototype scene SHALL render opaque surfaces with depth testing so that the 
 #### Scenario: Geometry overlaps in screen space
 - **WHEN** two scene surfaces project onto the same framebuffer region at different depths
 - **THEN** the nearer surface obscures the farther surface
-
-### Requirement: Built-in inert plate geometry
-The immutable loaded prototype-level description SHALL include exactly three visually separated inert textured plates. Each plate's authored placement and dimensions SHALL derive matching opaque world-space geometry and static physics collision, each plate SHALL select the fixed shooting-target surface texture, and the plates SHALL require no gameplay target description, mutable health, model, general material, or separate collision asset beyond the packaged level, existing executable-relative shaders, and fixed textures.
-
-#### Scenario: Target plates are constructed
-- **WHEN** the packaged prototype level is loaded and validates successfully
-- **THEN** it contains three distinct inert plate solids assigned to the shooting-target surface texture without target gameplay descriptions
-
-#### Scenario: Target geometry reaches rendering and physics
-- **WHEN** renderer and physics initialization consume the same loaded prototype level
-- **THEN** each plate has textured visible geometry and collidable geometry with matching placement and dimensions
-
-#### Scenario: Prototype plates are packaged
-- **WHEN** the executable runs from its copied executable-relative resource layout
-- **THEN** all plate descriptions and their fixed surface texture remain available without an additional target, model, material, or collision asset

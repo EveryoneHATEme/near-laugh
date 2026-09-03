@@ -9,9 +9,9 @@ file(GLOB_RECURSE RENDER_SOURCES
 foreach(RENDER_SOURCE IN LISTS RENDER_SOURCES)
     file(READ "${RENDER_SOURCE}" RENDER_SOURCE_CONTENT)
     if(RENDER_SOURCE_CONTENT MATCHES
-       "FpsActionSnapshot|PlayerController|FixedStep|steady_clock|<chrono>|free_fly_camera|Jolt[/\\\\]|JPH::")
+       "PlayerActionSnapshot|PlayerController|FixedStep|steady_clock|<chrono>|free_fly_camera|Jolt[/\\\\]|JPH::")
         message(FATAL_ERROR
-            "Renderer source consumes FPS actions, camera policy, or timing: "
+            "Renderer source consumes player actions, camera policy, or timing: "
             "${RENDER_SOURCE}")
     endif()
 endforeach()
@@ -80,7 +80,7 @@ file(GLOB_RECURSE PHYSICS_SOURCES
 foreach(PHYSICS_SOURCE IN LISTS PHYSICS_SOURCES)
     file(READ "${PHYSICS_SOURCE}" PHYSICS_SOURCE_CONTENT)
     if(PHYSICS_SOURCE_CONTENT MATCHES
-       "FpsActionSnapshot|fps_input|GLFW|glfw3|vulkan[/\\\\]|Vk[A-Z]|core/render|core/platform")
+       "PlayerActionSnapshot|player_input|GLFW|glfw3|vulkan[/\\\\]|Vk[A-Z]|core/render|core/platform")
         message(FATAL_ERROR
             "Physics source depends on input, platform, or rendering: "
             "${PHYSICS_SOURCE}")
@@ -255,8 +255,8 @@ if(NOT ROOT_CMAKE_CONTENT MATCHES "GIT_TAG v1[.]92[.]9b-docking")
     message(FATAL_ERROR "Dear ImGui must remain pinned to v1.92.9b-docking")
 endif()
 if(NOT ROOT_CMAKE_CONTENT MATCHES
-   "target_link_libraries\\(fps PRIVATE near_laugh_runtime\\)")
-    message(FATAL_ERROR "fps must link only through near_laugh_runtime")
+   "target_link_libraries\\(near_laugh PRIVATE near_laugh_runtime\\)")
+    message(FATAL_ERROR "near_laugh must link only through near_laugh_runtime")
 endif()
 foreach(EDITOR_TARGET IN ITEMS
         near_laugh_editor_core near_laugh_editor_ui near_laugh_editor_render
@@ -391,7 +391,7 @@ math(EXPR LAST_COMMAND "${COMMAND_COUNT} - 1")
 set(REQUIRED_RUNTIME_FILES
         "src/core/application.cpp"
         "src/core/engine.cpp"
-        "src/core/input/fps_input.cpp"
+        "src/core/input/player_input.cpp"
         "src/core/player/player_controller.cpp"
         "src/core/runtime_resources.cpp"
         "src/core/simulation/fixed_step.cpp"
@@ -491,7 +491,7 @@ endif()
 set(REQUIRED_NON_PHYSICS_FILES
         "src/core/application.cpp"
         "src/core/engine.cpp"
-        "src/core/input/fps_input.cpp"
+        "src/core/input/player_input.cpp"
         "src/core/render/renderer.cpp"
         "src/core/world/prototype_level.cpp"
         "tests/boundary/minimal_consumer.cpp")

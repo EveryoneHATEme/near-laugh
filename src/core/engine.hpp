@@ -2,7 +2,7 @@
 #define CORE_ENGINE_HPP
 
 #include "core/gameplay/player_flashlight.hpp"
-#include "core/input/fps_input.hpp"
+#include "core/input/player_input.hpp"
 #include "core/physics/physics_world.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
@@ -30,7 +30,7 @@ class Engine {
   [[nodiscard]] bool tick();
 
  private:
-  void samplePlayerInput(const FpsActionSnapshot& input);
+  void samplePlayerInput(const PlayerActionSnapshot& input);
 
   Platform platform_;
   Window window_;
@@ -40,8 +40,8 @@ class Engine {
   PlayerController player_;
   PlayerFlashlight flashlight_{};
   Renderer renderer_;
-  FpsInputMapper input_mapper_{};
-  FpsActionSnapshot input_{};
+  PlayerInputMapper input_mapper_{};
+  PlayerActionSnapshot input_{};
   FixedStepAccumulator fixed_step_{};
 };
 

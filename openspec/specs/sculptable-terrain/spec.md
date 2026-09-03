@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the bounded sculptable ground surface used by the built-in FPS level while preserving one shared source for rendering and collision.
+Defines the bounded sculptable ground surface used by the built-in game level while preserving one shared source for rendering and collision.
 
 ## Requirements
 

@@ -55,7 +55,7 @@ TEST(PlayerInterpolation, ZeroStepKeepsPositionWhileLookIsLatest) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   const PlayerCameraPosition before = player.interpolatedCameraPosition(0.5F);
-  FpsActionSnapshot look;
+  PlayerActionSnapshot look;
   look.look_delta_x = 25.0;
   player.sampleInput(look, true);
   const PlayerCameraPosition after = player.interpolatedCameraPosition(0.5F);
@@ -74,7 +74,7 @@ TEST(PlayerInterpolation, MultiStepIterationRetainsLatestTwoValidPoses) {
     player.fixedStep(delta);
   }
   player.collapsePresentationState();
-  FpsActionSnapshot right;
+  PlayerActionSnapshot right;
   right.move_right = true;
   player.sampleInput(right, true);
   player.fixedStep(delta);
@@ -98,7 +98,7 @@ TEST(PlayerInterpolation, InterpolatesStanceEyeHeightAndCanCollapse) {
     player.fixedStep(delta);
   }
   player.collapsePresentationState();
-  FpsActionSnapshot crouch;
+  PlayerActionSnapshot crouch;
   crouch.crouch = true;
   player.sampleInput(crouch, true);
   player.fixedStep(delta);

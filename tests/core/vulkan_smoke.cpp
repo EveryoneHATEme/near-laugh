@@ -29,8 +29,7 @@ RendererResources smokeResources() {
           resources / "shaders/prototype_scene_fragment.spv",
           {resources / "textures/prototype_floor.png",
            resources / "textures/prototype_boundary.png",
-           resources / "textures/prototype_obstacle.png",
-           resources / "textures/prototype_shooting_target.png"},
+           resources / "textures/prototype_obstacle.png"},
           resources / "models/prototype_chair.glb"};
 }
 

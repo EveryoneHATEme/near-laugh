@@ -1,6 +1,6 @@
 ## 1. Prerequisites and Document Identity
 
-- [ ] 1.1 Confirm `add-bounded-level-persistence` and `add-level-editor-foundation` are implemented and archived with their main specs present, and verify the read-only editor opens, saves, and renders the packaged level before enabling mutation.
+- [ ] 1.1 Confirm `remove-legacy-fps-assumptions` is implemented and archived after `add-bounded-level-persistence` and `add-level-editor-foundation`, then verify the read-only editor opens, saves, and renders the version-2 packaged level with only floor, boundary, and obstacle surfaces before enabling mutation.
 - [ ] 1.2 Add editor-only object IDs for solids and fixed IDs for spawn, two lights, and prop placement, and verify deterministic tests preserve solid identity and selection across insertion, removal, and document replacement without changing serialized output.
 
 ## 2. Command Editing and History
@@ -26,5 +26,4 @@
 
 - [ ] 5.1 Add save/reload integration tests for edited solids, spawn, lights, and prop values, and verify canonical document ordering plus exact semantic persistence after undo/redo workflows.
 - [ ] 5.2 Update editor documentation with selection, placement, property, history, invalid-document, and fixed-object behavior, and verify documented controls match the implementation.
-- [ ] 5.3 Build debug, run deterministic tests, manually exercise object editing and unsaved-close flows, run editor and game Vulkan validation, run `openspec validate add-level-object-placement --strict`, and review `git diff` for unrelated asset, hierarchy, gizmo, or runtime-mutation architecture.
-
+- [ ] 5.3 Build debug, run deterministic tests, manually exercise object editing and unsaved-close flows, run editor and `near_laugh` Vulkan validation, run `openspec validate add-level-object-placement --strict`, and review `git diff` for unrelated asset, hierarchy, gizmo, compatibility, or runtime-mutation architecture.

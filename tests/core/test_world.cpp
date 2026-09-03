@@ -29,8 +29,6 @@ PrototypeSurface expectedSurface(PrototypeSolidKind kind) {
     case PrototypeSolidKind::WalkableStep:
     case PrototypeSolidKind::LowClearance:
       return PrototypeSurface::Obstacle;
-    case PrototypeSolidKind::ShootingTarget:
-      return PrototypeSurface::ShootingTarget;
   }
   return static_cast<PrototypeSurface>(prototype_surface_count);
 }
@@ -51,8 +49,6 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
   EXPECT_GE(countKind(level, PrototypeSolidKind::Obstacle), 2U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::WalkableStep), 1U);
   EXPECT_GE(countKind(level, PrototypeSolidKind::LowClearance), 1U);
-  EXPECT_EQ(countKind(level, PrototypeSolidKind::ShootingTarget),
-            prototype_plate_count);
 
   const auto step = std::find_if(
       level.solids().begin(), level.solids().end(), [](const auto& solid) {
@@ -116,32 +112,12 @@ TEST(PrototypeLevel, RejectsInvalidTerrainFixtures) {
   EXPECT_FALSE(prototypeTerrainIsValid(invalid));
 }
 
-TEST(PrototypeLevel, HasThreeDistinctInertTexturedPlates) {
-  const PrototypeLevel level = loadPackagedPrototypeLevel();
-  std::size_t plate_count = 0;
-  float previous_x = -1000.0F;
-  for (const PrototypeSolid& solid : level.solids()) {
-    if (solid.kind != PrototypeSolidKind::ShootingTarget) {
-      continue;
-    }
-    ++plate_count;
-    EXPECT_EQ(solid.kind, PrototypeSolidKind::ShootingTarget);
-    EXPECT_EQ(solid.surface, PrototypeSurface::ShootingTarget);
-    EXPECT_GT(solid.center.x, previous_x);
-    previous_x = solid.center.x;
-  }
-  EXPECT_EQ(plate_count, prototype_plate_count);
-  EXPECT_TRUE(prototypeLevelIsValid(level));
-}
-
 TEST(PrototypeLevel, AssignsOneFixedSurfaceRoleToEveryBuiltInSolid) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
   static_assert(static_cast<std::uint32_t>(PrototypeSurface::Floor) == 0U);
   static_assert(static_cast<std::uint32_t>(PrototypeSurface::Boundary) == 1U);
   static_assert(static_cast<std::uint32_t>(PrototypeSurface::Obstacle) == 2U);
-  static_assert(static_cast<std::uint32_t>(PrototypeSurface::ShootingTarget) ==
-                3U);
-  static_assert(prototype_surface_count == 4U);
+  static_assert(prototype_surface_count == 3U);
 
   for (const PrototypeSolid& solid : level.solids()) {
     EXPECT_TRUE(prototypeSurfaceIsValid(solid.surface));

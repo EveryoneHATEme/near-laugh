@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the backend-neutral runtime boundary that owns subsystem lifetime, explicit startup configuration, and main-thread coordination for the single-player FPS application.
+Defines the backend-neutral runtime boundary that owns subsystem lifetime, explicit startup configuration, and main-thread coordination for the single-player game application.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ The runtime SHALL initialize its platform owner before creating a window, create
 - **THEN** physics, world, window, and platform are released in dependency-safe order without entering the main loop
 
 ### Requirement: Main-thread loop ownership
-The runtime SHALL keep event processing, close decisions, minimized-window waiting, input sampling, bounded elapsed-time accumulation, fixed-step physics/player updates, look and cursor-capture updates, render-state interpolation, and render coordination under the Engine-owned main-thread loop. Physics SHALL NOT control events, rendering, or application lifetime, and rendering SHALL NOT poll or wait for platform events, interpret FPS actions, update simulation or camera state, or decide whether the application exits.
+The runtime SHALL keep event processing, close decisions, minimized-window waiting, input sampling, bounded elapsed-time accumulation, fixed-step physics/player updates, look and cursor-capture updates, render-state interpolation, and render coordination under the runtime-owned main-thread loop. Physics SHALL NOT control events, rendering, or application lifetime, and rendering SHALL NOT poll or wait for platform events, interpret player actions, update simulation or camera state, or decide whether the application exits.
 
 #### Scenario: Normal loop iteration
 - **WHEN** the window is open and has a non-zero framebuffer extent
@@ -63,7 +63,7 @@ The runtime SHALL keep event processing, close decisions, minimized-window waiti
 - **THEN** the runtime waits for platform events without updating simulation or submitting render work until a non-zero extent or close request is observed, and resets elapsed-time accumulation so the blocked duration is not applied after restoration
 
 ### Requirement: Renderer outcome coordination
-Each frame request SHALL produce an engine-owned outcome that distinguishes rendered work, temporarily skipped work, and swapchain recovery. The runtime SHALL consume that outcome before deciding how the application loop proceeds and SHALL retain event processing and application lifetime ownership without inspecting Vulkan results.
+Each frame request SHALL produce a runtime-owned outcome that distinguishes rendered work, temporarily skipped work, and swapchain recovery. The runtime SHALL consume that outcome before deciding how the application loop proceeds and SHALL retain event processing and application lifetime ownership without inspecting Vulkan results.
 
 #### Scenario: Frame is rendered
 - **WHEN** image acquisition, submission, and presentation succeed
@@ -86,4 +86,4 @@ The runtime SHALL supply at most one optional dynamic spot-light description con
 
 #### Scenario: Runtime-render boundary is inspected
 - **WHEN** frame and renderer-facing declarations are inspected
-- **THEN** their spot-light contract contains only engine-owned scalar lighting data and no gameplay, physics-library, platform, or graphics-backend types
+- **THEN** their spot-light contract contains only project-owned scalar lighting data and no gameplay, physics-library, platform, or graphics-backend types

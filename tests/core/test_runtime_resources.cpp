@@ -8,13 +8,12 @@
 #include "core/runtime_resources.hpp"
 
 namespace {
-const std::array<std::filesystem::path, 8> runtimeAssetPaths = {
+const std::array<std::filesystem::path, 7> runtimeAssetPaths = {
     "shaders/prototype_scene_vertex.spv",
     "shaders/prototype_scene_fragment.spv",
     "textures/prototype_floor.png",
     "textures/prototype_boundary.png",
     "textures/prototype_obstacle.png",
-    "textures/prototype_shooting_target.png",
     "models/prototype_chair.glb",
     "levels/prototype.level.json"};
 
@@ -78,7 +77,7 @@ TEST(RuntimeResources, ResolvesShadersIndependentlyOfWorkingDirectory) {
 
 TEST(RuntimeResources, EveryMissingTextureReportsItsResolvedAbsolutePath) {
   for (const std::filesystem::path& relative :
-       std::span{runtimeAssetPaths}.subspan(2, 4)) {
+       std::span{runtimeAssetPaths}.subspan(2, 3)) {
     const std::filesystem::path root = makeCompleteRuntimeRoot();
     expectMissingPathReported(root, relative);
     std::filesystem::remove_all(root);

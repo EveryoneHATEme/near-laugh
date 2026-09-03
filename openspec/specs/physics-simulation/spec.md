@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the deterministic main-thread physics simulation required for the single-player FPS, including explicit lifetime, fixed-step advancement, static prototype-level collision, and containment of the selected physics library.
+Defines the deterministic main-thread physics simulation required for the single-player game, including explicit lifetime, fixed-step advancement, static prototype-level collision, and containment of the selected physics library.
 
 ## Requirements
 
@@ -52,7 +52,7 @@ Physics implementation types SHALL remain confined to the physics module and SHA
 
 #### Scenario: Dependency boundary is inspected
 - **WHEN** public headers, project targets, and source dependencies are inspected
-- **THEN** the physics-library dependency terminates at the physics module and renderer, platform, world-data, and runtime consumers exchange only engine-owned types
+- **THEN** the physics-library dependency terminates at the physics module and renderer, platform, world-data, and runtime consumers exchange only project-owned types
 
 #### Scenario: Initial simulation executes
 - **WHEN** the physics world advances during the grounded-player prototype
