@@ -46,6 +46,8 @@ Extend the concrete editor renderer with one small line/overlay path for selecte
 
 No general debug-draw service is introduced. The overlay supports only the shapes required by this editor change.
 
+World-space line segments are projected and clipped on the CPU, then submitted through the concrete editor renderer to ImGui's background draw list. The existing ImGui Vulkan backend draws them above scene geometry and below panels; selected bounds and markers intentionally remain visible through geometry. No extra shader, descriptor layout, or pipeline is required for these editor overlays.
+
 ### Define deterministic terrain anchoring per object type
 
 The placement ray uses the nearest heightfield-triangle intersection. Solids set horizontal center to the hit and vertical center to terrain height plus half extent. The spawn sets its foot position to the hit. Lights set their position directly to the hit plus their existing vertical offset relative to their prior terrain anchor. The prop sets translation to the hit while retaining yaw, scale, and proxy values.
@@ -61,6 +63,8 @@ This remains correct when undo returns to the last saved state and when edits br
 ### Permit invalid intermediate documents but gate persistence
 
 Field parsing rejects non-finite or structurally meaningless values before mutation. Cross-object or gameplay validation runs after a valid field commit and may leave the document invalid so the user can repair it. Preview continues from finite data; save remains disabled until all shared diagnostics clear.
+
+The editor renderer consumes the document's terrain, solids, lighting, and prop fields directly, reusing the concrete scene geometry builder. It does not construct a validated `PrototypeLevel` for preview. Field checks protect renderable geometry and transforms; full shared validation continues to gate saving and runtime construction. A failed GPU replacement preserves the previous installed resources and reports the failure. Document content revisions used for saved-state identity are separate from the monotonically increasing preview generation, so undo, redo, and document replacement always invalidate the displayed data correctly.
 
 ## Risks / Trade-offs
 

@@ -25,6 +25,7 @@
 #include "core/render/vulkan_utils.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/prototype_level.hpp"
+#include "editor/editor_overlay.hpp"
 
 namespace {
 struct SwapchainSupport {
@@ -94,7 +95,7 @@ class EditorRenderer::Impl {
   ~Impl();
 
   void beginUiFrame();
-  void replaceDocument(const PrototypeLevel& level);
+  void replaceDocument(const LevelDocument& level);
   void clearDocument();
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
   void requestSwapchainRecreation() noexcept { recreate_requested_ = true; }
@@ -149,8 +150,23 @@ EditorRenderer::~EditorRenderer() = default;
 
 void EditorRenderer::beginUiFrame() { impl_->beginUiFrame(); }
 
-void EditorRenderer::replaceDocument(const PrototypeLevel& level) {
+void EditorRenderer::replaceDocument(const LevelDocument& level) {
   impl_->replaceDocument(level);
+}
+
+void EditorRenderer::drawOverlays(std::span<const EditorOverlayLine> lines) {
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImDrawList* draw = ImGui::GetBackgroundDrawList();
+  for (const auto& line : lines) {
+    const auto point = [&](std::array<float, 2> p) {
+      return ImVec2{viewport->Pos.x + p[0] * viewport->Size.x,
+                    viewport->Pos.y + p[1] * viewport->Size.y};
+    };
+    draw->AddLine(
+        point(line.first), point(line.second),
+        IM_COL32(line.color[0], line.color[1], line.color[2], line.color[3]),
+        1.5F);
+  }
 }
 
 void EditorRenderer::clearDocument() { impl_->clearDocument(); }
@@ -218,20 +234,20 @@ EditorRenderer::Impl::~Impl() {
 
 void EditorRenderer::Impl::beginUiFrame() { ImGui_ImplVulkan_NewFrame(); }
 
-void EditorRenderer::Impl::replaceDocument(const PrototypeLevel& level) {
+void EditorRenderer::Impl::replaceDocument(const LevelDocument& level) {
   requireVulkan(vkDeviceWaitIdle(context_.device()),
                 "Wait for editor frames before replacing the level");
   const std::vector<PositionColorVertex> world_vertices =
-      buildPrototypeSceneVertices(level);
+      buildPrototypeSceneVertices(level.terrain, level.solids);
   const std::vector<PositionColorVertex> chair_vertices =
       loadStaticModelVertices(resources_.prototype_chair_model,
-                              level.staticProp());
+                              level.static_prop);
   auto world_mesh = std::make_unique<ImmutableMeshBuffer>(
       context_.device(), context_.physicalDevice(), world_vertices, "world");
   auto chair_mesh = std::make_unique<ImmutableMeshBuffer>(
       context_.device(), context_.physicalDevice(), chair_vertices, "chair");
   auto lighting_resources = std::make_unique<LightingResources>(
-      context_.device(), context_.physicalDevice(), level.environmentLight());
+      context_.device(), context_.physicalDevice(), level.environment_light);
   auto pipeline = std::make_unique<GraphicsPipeline>(
       context_.device(), swapchain_format_, depth_format_,
       sampled_texture_->descriptorSetLayout(),

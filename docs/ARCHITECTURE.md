@@ -134,8 +134,17 @@ tracks its resolved path, diagnostics, dirty state, and pending save/discard/
 cancel decision. A failed load or save preserves the active document and dirty
 state.
 
-The editor renderer draws the active validated level and then Dear ImGui in the
-same Dynamic Rendering pass. Replacement GPU resources are built temporarily
+`EditorDocument` also owns transient object IDs, one selection, concrete object
+commands, and 128-entry undo/redo history. IDs never enter the level file.
+Saved-state identity uses document revisions; a separate preview generation
+changes on edits, undo/redo, and document replacement. Property widgets edit a
+draft and commit once when editing ends. CPU rays pick authored boxes and
+light/spawn markers; placement intersects the exact heightfield triangles.
+
+The editor renderer draws structurally safe document fields, then selection
+overlays and Dear ImGui in the same Dynamic Rendering pass. Full gameplay
+validation gates saving and runtime construction, allowing an invalid spawn
+placement to remain visible during repair. Replacement GPU resources are built temporarily
 and swapped in only after success. Swapchain recovery preserves the document,
 UI state, texture owner, and camera. The editor is a concrete tool for this
 game, not a runtime mode or general scene-editor framework.

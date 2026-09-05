@@ -27,7 +27,7 @@ Selecting an object in the list or selecting its visible representation in the v
 - **THEN** the active selection is cleared in both viewport and object list
 
 ### Requirement: Bounded object property editing
-The editor SHALL expose finite numeric controls appropriate to the selected concrete object. Solids SHALL support center, positive half extents, tint, kind, and fixed surface role; the spawn SHALL support foot position and yaw; point lights SHALL support position, non-negative color, positive intensity, and positive radius; and the prop SHALL support translation, yaw, positive uniform scale, fixed obstacle surface, and positive box-proxy center and half extents. Structural solids SHALL remain axis-aligned.
+The editor SHALL expose finite numeric controls appropriate to the selected concrete object. Solids SHALL support center, positive half extents, tint, kind, and fixed surface role; the spawn SHALL support foot position and yaw; point lights SHALL support position, non-negative color, positive intensity, and positive radius; and the prop SHALL support translation, yaw, positive uniform scale, fixed obstacle surface, finite signed box-proxy center coordinates, and positive box-proxy half extents. Structural solids SHALL remain axis-aligned.
 
 #### Scenario: Solid is edited
 - **WHEN** the user commits valid solid center, extent, kind, tint, or surface values

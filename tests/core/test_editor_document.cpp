@@ -6,6 +6,18 @@
 #include "editor/editor_document.hpp"
 
 namespace {
+void changeYaw(EditorDocument& document) {
+  auto spawn = document.document()->player_spawn;
+  spawn.yaw_degrees += 1.0F;
+  ASSERT_TRUE(document.replaceObject(editor_spawn, spawn));
+}
+
+void invalidateSpawn(EditorDocument& document) {
+  auto spawn = document.document()->player_spawn;
+  spawn.foot_position.y += 1.0F;
+  ASSERT_TRUE(document.replaceObject(editor_spawn, spawn));
+}
+
 std::filesystem::path packagedLevel() {
   return std::filesystem::absolute("resources/levels/prototype.level.json")
       .lexically_normal();
@@ -25,7 +37,7 @@ TEST(EditorDocument, OpenIsTransactionalAndReportsRejectedPath) {
   ASSERT_TRUE(document.open(packagedLevel()));
   const std::filesystem::path original_path = *document.path();
   const std::size_t original_solids = document.document()->solids.size();
-  document.markDirty();
+  changeYaw(document);
 
   const std::filesystem::path missing =
       packagedLevel().parent_path() / "missing.level.json";
@@ -43,7 +55,7 @@ TEST(EditorDocument, SaveAsUpdatesPathAndSaveFailurePreservesState) {
       freshTemporaryRoot("near_laugh_editor_document_save");
   EditorDocument document;
   ASSERT_TRUE(document.open(packagedLevel()));
-  document.markDirty();
+  changeYaw(document);
   const std::filesystem::path saved = root / "saved.level.json";
   ASSERT_TRUE(document.saveAs(saved));
   EXPECT_EQ(document.path(),
@@ -52,7 +64,7 @@ TEST(EditorDocument, SaveAsUpdatesPathAndSaveFailurePreservesState) {
   EXPECT_TRUE(std::filesystem::is_regular_file(saved));
   EXPECT_TRUE(loadLevelDocument(saved));
 
-  document.editDocument().solids[0].half_extent.x = 0.0F;
+  invalidateSpawn(document);
   const std::filesystem::path prior_path = *document.path();
   EXPECT_FALSE(document.save());
   EXPECT_EQ(document.path(), prior_path);
@@ -87,10 +99,12 @@ TEST(EditorDocument, CleanActionsExecuteWithoutPrompt) {
 }
 
 TEST(EditorDocument, DirtyCloseSupportsSaveDiscardAndCancel) {
-  const auto make_dirty = [] {
+  const auto root = freshTemporaryRoot("near_laugh_editor_dirty_close");
+  const auto make_dirty = [&] {
     EditorDocument document;
     EXPECT_TRUE(document.open(packagedLevel()));
-    document.markDirty();
+    EXPECT_TRUE(document.saveAs(root / "working.json"));
+    changeYaw(document);
     document.requestClose();
     return document;
   };
@@ -107,13 +121,16 @@ TEST(EditorDocument, DirtyCloseSupportsSaveDiscardAndCancel) {
   EditorDocument saved = make_dirty();
   EXPECT_TRUE(saved.resolvePending(EditorPendingDecision::Save));
   EXPECT_FALSE(saved.document());
+  std::filesystem::remove_all(root);
 }
 
 TEST(EditorDocument, DirtyExitSupportsSaveDiscardAndCancel) {
-  const auto make_dirty = [] {
+  const auto root = freshTemporaryRoot("near_laugh_editor_dirty_exit");
+  const auto make_dirty = [&] {
     EditorDocument document;
     EXPECT_TRUE(document.open(packagedLevel()));
-    document.markDirty();
+    EXPECT_TRUE(document.saveAs(root / "working.json"));
+    changeYaw(document);
     document.requestExit();
     return document;
   };
@@ -130,6 +147,7 @@ TEST(EditorDocument, DirtyExitSupportsSaveDiscardAndCancel) {
   EditorDocument saved = make_dirty();
   EXPECT_TRUE(saved.resolvePending(EditorPendingDecision::Save));
   EXPECT_TRUE(saved.exitRequested());
+  std::filesystem::remove_all(root);
 }
 
 TEST(EditorDocument, DirtyOpenSupportsSaveDiscardCancelAndFailedCandidate) {
@@ -138,18 +156,21 @@ TEST(EditorDocument, DirtyOpenSupportsSaveDiscardCancelAndFailedCandidate) {
   const std::filesystem::path candidate = root / "candidate.level.json";
   ASSERT_TRUE(saveLevelDocument(candidate,
                                 *loadLevelDocument(packagedLevel()).document));
+  const auto original = root / "original.level.json";
+  ASSERT_TRUE(saveLevelDocument(original,
+                                *loadLevelDocument(packagedLevel()).document));
 
   const auto make_dirty = [&] {
     EditorDocument document;
-    EXPECT_TRUE(document.open(packagedLevel()));
-    document.markDirty();
+    EXPECT_TRUE(document.open(original));
+    changeYaw(document);
     document.requestOpen(candidate);
     return document;
   };
 
   EditorDocument canceled = make_dirty();
   EXPECT_TRUE(canceled.resolvePending(EditorPendingDecision::Cancel));
-  EXPECT_EQ(canceled.path(), packagedLevel());
+  EXPECT_EQ(canceled.path(), original);
   EXPECT_TRUE(canceled.dirty());
 
   EditorDocument discarded = make_dirty();
@@ -166,7 +187,7 @@ TEST(EditorDocument, DirtyOpenSupportsSaveDiscardCancelAndFailedCandidate) {
 
   EditorDocument rejected;
   ASSERT_TRUE(rejected.open(packagedLevel()));
-  rejected.markDirty();
+  changeYaw(rejected);
   rejected.requestOpen(root / "missing.level.json");
   EXPECT_FALSE(rejected.resolvePending(EditorPendingDecision::Discard));
   EXPECT_EQ(rejected.path(), packagedLevel());
@@ -178,7 +199,7 @@ TEST(EditorDocument, DirtyOpenSupportsSaveDiscardCancelAndFailedCandidate) {
 TEST(EditorDocument, FailedPendingSaveRetainsActionAndDocument) {
   EditorDocument document;
   ASSERT_TRUE(document.open(packagedLevel()));
-  document.editDocument().solids[0].half_extent.x = 0.0F;
+  invalidateSpawn(document);
   document.requestExit();
   EXPECT_FALSE(document.resolvePending(EditorPendingDecision::Save));
   EXPECT_EQ(document.pendingAction().kind, EditorPendingActionKind::Exit);

@@ -76,8 +76,7 @@ Normal triangleNormal(Point first, Point second, Point third) {
   const Normal normal{first_y * second_z - first_z * second_y,
                       first_z * second_x - first_x * second_z,
                       first_x * second_y - first_y * second_x};
-  const float length = std::sqrt(normal[0] * normal[0] +
-                                 normal[1] * normal[1] +
+  const float length = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] +
                                  normal[2] * normal[2]);
   return {normal[0] / length, normal[1] / length, normal[2] / length};
 }
@@ -105,10 +104,12 @@ void appendTerrain(std::vector<PositionColorVertex>& vertices,
       const Point fourth{p10.x, p10.y, p10.z};
       appendTriangle(vertices, first, second, third, terrain_color,
                      triangleNormal(first, second, third), {first[0], first[2]},
-                     {second[0], second[2]}, {third[0], third[2]}, terrain_layer);
+                     {second[0], second[2]}, {third[0], third[2]},
+                     terrain_layer);
       appendTriangle(vertices, first, third, fourth, terrain_color,
                      triangleNormal(first, third, fourth), {first[0], first[2]},
-                     {third[0], third[2]}, {fourth[0], fourth[2]}, terrain_layer);
+                     {third[0], third[2]}, {fourth[0], fourth[2]},
+                     terrain_layer);
     }
   }
 }
@@ -117,13 +118,17 @@ void appendTerrain(std::vector<PositionColorVertex>& vertices,
 
 std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const PrototypeLevel& level) {
+  return buildPrototypeSceneVertices(level.terrain(), level.solids());
+}
+
+std::vector<PositionColorVertex> buildPrototypeSceneVertices(
+    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids) {
   std::vector<PositionColorVertex> vertices;
-  vertices.reserve(level.solids().size() * 36 +
-                   prototype_terrain_cell_count * prototype_terrain_cell_count *
-                       6);
-  for (std::size_t solid_index = 0; solid_index < level.solids().size();
+  vertices.reserve(solids.size() * 36 + prototype_terrain_cell_count *
+                                            prototype_terrain_cell_count * 6);
+  for (std::size_t solid_index = 0; solid_index < solids.size();
        ++solid_index) {
-    const PrototypeSolid& solid = level.solids()[solid_index];
+    const PrototypeSolid& solid = solids[solid_index];
     const Point minimum{solid.center.x - solid.half_extent.x,
                         solid.center.y - solid.half_extent.y,
                         solid.center.z - solid.half_extent.z};
@@ -133,6 +138,6 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     appendBox(vertices, minimum, maximum, solid.color,
               static_cast<std::uint32_t>(solid.surface));
   }
-  appendTerrain(vertices, level.terrain());
+  appendTerrain(vertices, terrain);
   return vertices;
 }

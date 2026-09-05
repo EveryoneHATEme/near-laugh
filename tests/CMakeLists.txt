@@ -1,6 +1,9 @@
 add_executable(engine_tests
     core/test_editor_bridge.cpp
     core/test_editor_camera.cpp
+    core/test_editor_commands.cpp
+    core/test_editor_picking.cpp
+    core/test_editor_ui.cpp
     core/test_editor_document.cpp
     core/test_editor_loop.cpp
     core/test_input.cpp
@@ -28,7 +31,7 @@ target_link_libraries(engine_tests PRIVATE
     near_laugh_runtime near_laugh_platform near_laugh_world near_laugh_physics
     near_laugh_render near_laugh_editor_core near_laugh_editor_ui
     near_laugh_editor_render
-    Vulkan::Vulkan GTest::gtest_main
+    Vulkan::Vulkan near_laugh_imgui GTest::gtest_main
 )
 near_laugh_enable_warnings(engine_tests)
 

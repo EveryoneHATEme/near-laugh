@@ -18,6 +18,7 @@ The editor foundation can inspect a level but cannot yet change its layout. Purp
 
 ### Modified Capabilities
 
+- `level-editor`: Replace the foundation's read-only presentation with bounded editing and allow structurally safe previews while gameplay validation failures are repaired.
 
 ## Impact
 

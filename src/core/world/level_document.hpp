@@ -23,12 +23,14 @@ inline constexpr float prototype_spawn_validation_radius = 0.35F;
 inline constexpr float prototype_spawn_validation_height = 1.80F;
 
 struct WorldPosition {
+  bool operator==(const WorldPosition&) const = default;
   float x{};
   float y{};
   float z{};
 };
 
 struct WorldExtent {
+  bool operator==(const WorldExtent&) const = default;
   float x{};
   float y{};
   float z{};
@@ -51,6 +53,7 @@ enum class PrototypeSurface : std::uint32_t {
 };
 
 struct PrototypeSolid {
+  bool operator==(const PrototypeSolid&) const = default;
   WorldPosition center{};
   WorldExtent half_extent{};
   WorldColor color{};
@@ -59,6 +62,7 @@ struct PrototypeSolid {
 };
 
 struct PrototypeTerrain {
+  bool operator==(const PrototypeTerrain&) const = default;
   WorldPosition origin{};
   float sample_spacing{};
   std::array<float,
@@ -67,11 +71,13 @@ struct PrototypeTerrain {
 };
 
 struct PrototypePlayerSpawn {
+  bool operator==(const PrototypePlayerSpawn&) const = default;
   WorldPosition foot_position{};
   float yaw_degrees{};
 };
 
 struct PrototypePointLight {
+  bool operator==(const PrototypePointLight&) const = default;
   WorldPosition position{};
   std::array<float, 3> color{};
   float intensity{};
@@ -79,11 +85,13 @@ struct PrototypePointLight {
 };
 
 struct PrototypeEnvironmentLight {
+  bool operator==(const PrototypeEnvironmentLight&) const = default;
   std::array<PrototypePointLight, prototype_point_light_count> point_lights{};
   float ambient_intensity{};
 };
 
 struct PrototypeStaticProp {
+  bool operator==(const PrototypeStaticProp&) const = default;
   WorldPosition translation{};
   float yaw_degrees{};
   float uniform_scale{1.0F};
@@ -93,6 +101,7 @@ struct PrototypeStaticProp {
 };
 
 struct LevelDocument {
+  bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
   PrototypeTerrain terrain{};
   std::vector<PrototypeSolid> solids{};

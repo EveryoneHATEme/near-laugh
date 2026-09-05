@@ -2,6 +2,7 @@
 #define CORE_RENDER_PROTOTYPE_SCENE_HPP
 
 #include <cstdint>
+#include <span>
 #include <type_traits>
 #include <vector>
 
@@ -20,5 +21,9 @@ static_assert(sizeof(PositionColorVertex) == sizeof(float) * 8 + 8);
 
 [[nodiscard]] std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const PrototypeLevel& level);
+
+// The editor may preview renderable fields while gameplay constraints fail.
+[[nodiscard]] std::vector<PositionColorVertex> buildPrototypeSceneVertices(
+    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids);
 
 #endif

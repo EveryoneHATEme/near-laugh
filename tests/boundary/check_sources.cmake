@@ -475,19 +475,6 @@ foreach(REQUIRED_EDITOR_RENDER_TOKEN IN ITEMS
     endif()
 endforeach()
 
-file(READ "${SOURCE_ROOT}/src/editor/editor_ui.cpp" EDITOR_UI_CONTENT)
-foreach(REQUIRED_PANEL_TOKEN IN ITEMS
-        "Document Summary" "Read-only Properties" "Validation" "Terrain"
-        "Solids" "Lights" "Player Spawn" "Static Prop" "Open Level"
-        "Save Level As" "Unsaved Changes")
-    if(NOT EDITOR_UI_CONTENT MATCHES "${REQUIRED_PANEL_TOKEN}")
-        message(FATAL_ERROR "Editor UI is missing: ${REQUIRED_PANEL_TOKEN}")
-    endif()
-endforeach()
-if(EDITOR_UI_CONTENT MATCHES "editDocument|markDirty")
-    message(FATAL_ERROR "Foundation UI exposes level mutation controls")
-endif()
-
 set(REQUIRED_NON_PHYSICS_FILES
         "src/core/application.cpp"
         "src/core/engine.cpp"

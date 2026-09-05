@@ -22,7 +22,7 @@ The project SHALL provide a desktop `level_editor` application that owns its win
 - **THEN** neither layout contains or requires a shooting-target texture asset
 
 ### Requirement: Inspectable scene workspace
-The editor SHALL render the currently open validated level in its main window and SHALL provide menus, a document summary, validation feedback, and read-only properties for its terrain, solids, lights, spawn, and static prop. The foundation SHALL NOT modify level content through the viewport or property presentation.
+The editor SHALL render the currently open level in its main window and SHALL provide menus, a document summary, validation feedback, and bounded object selection and property editing. Terrain properties SHALL remain read-only. Structurally safe object edits that violate gameplay validation SHALL remain visible and editable while saving is unavailable.
 
 #### Scenario: Valid level is opened
 - **WHEN** the user opens a supported valid level document
@@ -31,6 +31,10 @@ The editor SHALL render the currently open validated level in its main window an
 #### Scenario: No document is open
 - **WHEN** the editor starts without a level path or the current document is closed
 - **THEN** the workspace remains responsive and clearly reports that no level is open without rendering stale scene data
+
+#### Scenario: Edit violates gameplay validation
+- **WHEN** a finite, structurally safe object edit causes a spawn overlap or another gameplay validation failure
+- **THEN** the workspace previews the edited scene, presents the diagnostics, and permits correction or undo while saving remains unavailable
 
 ### Requirement: Editor camera and input ownership
 The editor SHALL provide a free-fly perspective camera with mouse-look, three-axis movement, sprint acceleration, pitch limits, and framebuffer-aspect handling. Camera controls SHALL operate only while the scene view owns navigation input, and UI interaction SHALL suppress conflicting camera movement or mouse look.

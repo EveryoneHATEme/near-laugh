@@ -1,6 +1,5 @@
 #include "editor/editor_document.hpp"
 
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -21,8 +20,7 @@ bool EditorDocument::open(const std::filesystem::path& path) {
   document_ = std::move(candidate.document);
   path_ = candidate_path;
   diagnostics_.clear();
-  dirty_ = false;
-  ++revision_;
+  resetEditing();
   return true;
 }
 
@@ -44,7 +42,7 @@ bool EditorDocument::save() {
     return false;
   }
   diagnostics_.clear();
-  dirty_ = false;
+  saved_revision_ = current_revision_;
   return true;
 }
 
@@ -63,12 +61,12 @@ bool EditorDocument::saveAs(const std::filesystem::path& path) {
   }
   path_ = candidate_path;
   diagnostics_.clear();
-  dirty_ = false;
+  saved_revision_ = current_revision_;
   return true;
 }
 
 void EditorDocument::requestOpen(const std::filesystem::path& path) {
-  if (dirty_) {
+  if (dirty()) {
     pending_ = {EditorPendingActionKind::Open, resolvedPath(path)};
     return;
   }
@@ -76,7 +74,7 @@ void EditorDocument::requestOpen(const std::filesystem::path& path) {
 }
 
 void EditorDocument::requestClose() {
-  if (dirty_) {
+  if (dirty()) {
     pending_ = {EditorPendingActionKind::Close, {}};
     return;
   }
@@ -84,7 +82,7 @@ void EditorDocument::requestClose() {
 }
 
 void EditorDocument::requestExit() {
-  if (dirty_) {
+  if (dirty()) {
     pending_ = {EditorPendingActionKind::Exit, {}};
     return;
   }
@@ -105,20 +103,6 @@ bool EditorDocument::resolvePending(EditorPendingDecision decision) {
   return performPendingAction();
 }
 
-void EditorDocument::markDirty() noexcept {
-  if (document_) {
-    dirty_ = true;
-  }
-}
-
-LevelDocument& EditorDocument::editDocument() {
-  if (!document_) {
-    throw std::logic_error("Cannot edit without an open level document");
-  }
-  dirty_ = true;
-  return *document_;
-}
-
 void EditorDocument::reportResourceError(std::string message) {
   setOperationError(LevelDiagnosticCategory::Filesystem,
                     path_.value_or(std::filesystem::path{}),
@@ -130,8 +114,7 @@ void EditorDocument::performClose() noexcept {
     document_.reset();
     path_.reset();
     diagnostics_.clear();
-    dirty_ = false;
-    ++revision_;
+    resetEditing();
   }
 }
 

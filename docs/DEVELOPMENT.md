@@ -122,10 +122,48 @@ File > Open and File > Save As use explicit path-entry dialogs. Opening is
 transactional; Save and Save As use the shared validated deterministic codec;
 and dirty open, close, or exit requests require Save, Discard, or Cancel.
 
-The current workspace displays terrain, solids, authored lighting, player
-spawn, and chair placement as read-only data. Object placement and terrain
-sculpting are separate active OpenSpec changes and are not implemented by the
-editor foundation.
+The Objects panel and left-click viewport picking share one selection. Solids
+can be added, duplicated, deleted, and edited. The single spawn, two point
+lights, and single packaged chair can be selected and edited but cannot be
+added, duplicated, or removed. Terrain and ambient intensity remain read-only.
+
+The Properties panel edits position, dimensions, tint, solid kind/surface,
+spawn yaw, light color/intensity/radius, and chair translation/yaw/uniform
+scale plus its box proxy. Drag numeric values, or Ctrl-click a numeric field
+to type an exact value. Release or finish the field to commit one undo entry.
+Invalid numeric commits retain the previous value and report the field error.
+Changing a solid kind selects its matching surface; a manually changed surface
+must match the kind before saving.
+
+Enable **Place on terrain** with an object selected, then left-click the
+terrain at the yellow marker. Solids rest their bottom at the hit, the spawn
+places its feet there, and the chair places its translation there. Lights
+retain their height above the previous terrain anchor. Other properties stay
+unchanged. Escape cancels placement; a terrain miss has no effect. Yellow
+bounds identify the selected solid or chair proxy; sphere markers identify
+lights and spawn. These editor overlays remain visible through scene geometry.
+
+Editor shortcuts (suppressed during camera navigation, active field editing,
+or modal dialogs):
+
+- Ctrl+Z: undo; Ctrl+Y or Ctrl+Shift+Z: redo.
+- Ctrl+D: duplicate the selected solid at a visible horizontal offset.
+- Delete: remove the selected solid.
+- Ctrl+S: save the current valid document.
+
+History retains up to 128 committed edits and clears on document replacement.
+Undoing back to the saved state clears dirty state; editing after undo drops
+the redo branch. Finite edits that violate level constraints, such as spawn
+overlap, remain visible and editable with validation diagnostics. Save is
+disabled until correction or undo restores validity. Unsaved-close dialogs
+still offer Discard and Cancel when the document is invalid.
+
+To use an authored level in the game, save it explicitly to the game's
+executable-adjacent `resources/levels/prototype.level.json` and restart the
+game. Saving elsewhere does not change the packaged level. Builds that copy
+source resources may replace that executable-adjacent file; preserve authored
+work separately or deliberately update the source asset. Terrain sculpting
+remains the separate `add-terrain-sculpting` change.
 
 ## Build Targets
 
@@ -159,6 +197,11 @@ swapchain recovery, partial construction, and orderly shutdown. They verify
 that immutable texture, lighting, and mesh resources survive recovery and that
 error-severity Vulkan validation messages fail the test. A desktop session and
 a Vulkan 1.3 presentation-capable device are required.
+
+The editor smoke also exercises object duplication/removal, undo, invalid
+spawn preview and refused saving, canceled close, light/prop edits, and
+semantic save/reload using a temporary level copy. Deterministic UI tests drive
+real ImGui button, shortcut, capture, and numeric-drag behavior without a GPU.
 
 For visual inspection, confirm stable one-metre texture scale across face
 orientations, outward-normal lighting, mip stability at distance, the distinct

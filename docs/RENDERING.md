@@ -112,6 +112,19 @@ The editor reuses the narrow rendering helpers but owns a separate Vulkan
 context and active-document resources. It records scene geometry first and
 Dear ImGui last in the same Dynamic Rendering pass.
 
+Editor preview consumes renderable document fields directly instead of
+constructing a validated runtime level. Geometry generation is shared with
+the runtime; gameplay validation failures therefore do not hide the editable
+scene. On each committed document change, the editor waits for GPU completion
+and installs replacement scene resources transactionally. A failed replacement
+retains the previous resources and reports the error.
+
+Editor-only selection bounds, light/spawn spheres, and placement feedback are
+CPU-projected and clipped to the Vulkan view volume. The editor renderer draws
+these lines through the ImGui background draw list, above scene geometry and
+below UI panels, using the existing Vulkan backend. They intentionally have no
+scene depth test and do not alter runtime frame requests or level data.
+
 ## Current Limits
 
 The current renderer deliberately implements only the bounded scene above. It

@@ -4,10 +4,12 @@
 #include <array>
 #include <filesystem>
 #include <memory>
+#include <span>
 
 #include "core/frame.hpp"
 
-class PrototypeLevel;
+struct LevelDocument;
+struct EditorOverlayLine;
 class ValidationDiagnostics;
 class Window;
 
@@ -31,7 +33,8 @@ class EditorRenderer {
   EditorRenderer& operator=(EditorRenderer&&) = delete;
 
   void beginUiFrame();
-  void replaceDocument(const PrototypeLevel& level);
+  void replaceDocument(const LevelDocument& level);
+  void drawOverlays(std::span<const EditorOverlayLine> lines);
   void clearDocument();
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
   void requestSwapchainRecreation() noexcept;

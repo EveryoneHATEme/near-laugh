@@ -6,8 +6,11 @@
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <type_traits>
 
+#include "core/world/prototype_level.hpp"
 #include "editor/editor_document.hpp"
+#include "editor/editor_picking.hpp"
 
 namespace {
 const char* diagnosticCategoryName(LevelDiagnosticCategory category) {
@@ -27,9 +30,6 @@ void showPosition(const char* label, const WorldPosition& position) {
               position.z);
 }
 
-void showExtent(const char* label, const WorldExtent& extent) {
-  ImGui::Text("%s: (%.3f, %.3f, %.3f)", label, extent.x, extent.y, extent.z);
-}
 }  // namespace
 
 void EditorUi::draw(EditorDocument& document) {
@@ -37,6 +37,7 @@ void EditorUi::draw(EditorDocument& document) {
                                ImGuiDockNodeFlags_PassthruCentralNode);
   drawMenu(document);
   drawDocumentSummary(document);
+  drawObjects(document);
   drawProperties(document);
   drawValidation(document);
   drawPathModals(document);
@@ -53,12 +54,10 @@ void EditorUi::drawMenu(EditorDocument& document) {
     if (ImGui::MenuItem("Open...")) {
       openPathModal(false, document);
     }
-    if (ImGui::MenuItem("Save", nullptr, false,
-                        document.document().has_value())) {
+    if (ImGui::MenuItem("Save", "Ctrl+S", false, document.valid())) {
       static_cast<void>(document.save());
     }
-    if (ImGui::MenuItem("Save As...", nullptr, false,
-                        document.document().has_value())) {
+    if (ImGui::MenuItem("Save As...", nullptr, false, document.valid())) {
       openPathModal(true, document);
     }
     ImGui::Separator();
@@ -71,10 +70,19 @@ void EditorUi::drawMenu(EditorDocument& document) {
     }
     ImGui::EndMenu();
   }
+  if (ImGui::BeginMenu("Edit")) {
+    if (ImGui::MenuItem("Undo", "Ctrl+Z", false, document.canUndo()))
+      static_cast<void>(document.undo());
+    if (ImGui::MenuItem("Redo", "Ctrl+Y", false, document.canRedo()))
+      static_cast<void>(document.redo());
+    ImGui::EndMenu();
+  }
   ImGui::EndMainMenuBar();
 }
 
 void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
+  ImGui::SetNextWindowPos({10, 35}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({320, 245}, ImGuiCond_FirstUseEver);
   ImGui::Begin("Document Summary");
   if (!editor_document.document()) {
     ImGui::TextUnformatted("No level is open.");
@@ -99,8 +107,11 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
   ImGui::End();
 }
 
-void EditorUi::drawProperties(const EditorDocument& editor_document) {
-  ImGui::Begin("Read-only Properties");
+void EditorUi::drawProperties(EditorDocument& editor_document) {
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos({viewport->Size.x - 390, 35}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({380, 500}, ImGuiCond_FirstUseEver);
+  ImGui::Begin("Properties");
   if (!editor_document.document()) {
     ImGui::TextUnformatted("Open a level to inspect its bounded contents.");
     ImGui::End();
@@ -114,50 +125,89 @@ void EditorUi::drawProperties(const EditorDocument& editor_document) {
         document.terrain.heights.begin(), document.terrain.heights.end());
     ImGui::Text("Height range: %.3f to %.3f", *minimum, *maximum);
   }
-  if (ImGui::CollapsingHeader("Solids")) {
-    for (std::size_t index = 0; index < document.solids.size(); ++index) {
-      ImGui::PushID(static_cast<int>(index));
-      if (ImGui::TreeNode("Solid", "Solid %zu", index)) {
-        showPosition("Center", document.solids[index].center);
-        showExtent("Half extent", document.solids[index].half_extent);
-        ImGui::Text("Kind: %d", static_cast<int>(document.solids[index].kind));
-        ImGui::Text("Surface: %u",
-                    static_cast<unsigned>(document.solids[index].surface));
-        ImGui::TreePop();
-      }
-      ImGui::PopID();
+  property_edit_.synchronize(editor_document);
+  if (!property_edit_.value()) {
+    ImGui::TextUnformatted("Select an object in the list or scene to edit it.");
+    ImGui::End();
+    return;
+  }
+  bool commit = false;
+  const auto scalar = [&](const char* label, float& value,
+                          float speed = 0.05F) {
+    ImGui::DragFloat(label, &value, speed, 0, 0, "%.3f");
+    commit |= ImGui::IsItemDeactivatedAfterEdit();
+  };
+  const auto triple = [&](const char* label, auto& value) {
+    float values[] = {value.x, value.y, value.z};
+    if (ImGui::DragFloat3(label, values, 0.05F, 0, 0, "%.3f")) {
+      value.x = values[0];
+      value.y = values[1];
+      value.z = values[2];
     }
-  }
-  if (ImGui::CollapsingHeader("Lights")) {
-    ImGui::Text("Ambient intensity: %.3f",
-                document.environment_light.ambient_intensity);
-    for (std::size_t index = 0;
-         index < document.environment_light.point_lights.size(); ++index) {
-      const PrototypePointLight& light =
-          document.environment_light.point_lights[index];
-      ImGui::SeparatorText(("Point light " + std::to_string(index)).c_str());
-      showPosition("Position", light.position);
-      ImGui::Text("Color: (%.3f, %.3f, %.3f)", light.color[0], light.color[1],
-                  light.color[2]);
-      ImGui::Text("Intensity: %.3f, radius: %.3f", light.intensity,
-                  light.radius);
-    }
-  }
-  if (ImGui::CollapsingHeader("Player Spawn")) {
-    showPosition("Foot position", document.player_spawn.foot_position);
-    ImGui::Text("Yaw: %.3f degrees", document.player_spawn.yaw_degrees);
-  }
-  if (ImGui::CollapsingHeader("Static Prop")) {
-    showPosition("Translation", document.static_prop.translation);
-    ImGui::Text("Yaw: %.3f degrees", document.static_prop.yaw_degrees);
-    ImGui::Text("Scale: %.3f", document.static_prop.uniform_scale);
-    showPosition("Proxy center", document.static_prop.box_proxy_center);
-    showExtent("Proxy half extent", document.static_prop.box_proxy_half_extent);
-  }
+    commit |= ImGui::IsItemDeactivatedAfterEdit();
+  };
+  std::visit(
+      [&](auto& value) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, PrototypeSolid>) {
+          triple("Center", value.center);
+          triple("Half extent", value.half_extent);
+          float tint[] = {value.color[0] / 255.0F, value.color[1] / 255.0F,
+                          value.color[2] / 255.0F};
+          if (ImGui::ColorEdit3("Tint", tint, ImGuiColorEditFlags_NoPicker)) {
+            for (int i = 0; i < 3; ++i)
+              value.color[i] = static_cast<std::uint8_t>(
+                  std::clamp(tint[i], 0.0F, 1.0F) * 255.0F + 0.5F);
+          }
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
+          int kind = static_cast<int>(value.kind);
+          if (ImGui::Combo("Kind", &kind,
+                           "Floor\0Boundary\0Obstacle\0Walkable step\0Low "
+                           "clearance\0")) {
+            value.kind = static_cast<PrototypeSolidKind>(kind);
+            value.surface = kind == 0   ? PrototypeSurface::Floor
+                            : kind == 1 ? PrototypeSurface::Boundary
+                                        : PrototypeSurface::Obstacle;
+            commit = true;
+          }
+          int surface = static_cast<int>(value.surface);
+          if (ImGui::Combo("Surface", &surface,
+                           "Floor\0Boundary\0Obstacle\0")) {
+            value.surface = static_cast<PrototypeSurface>(surface);
+            commit = true;
+          }
+          ImGui::TextWrapped(
+              "Surface must match the kind before saving: floor, boundary, or "
+              "obstacle for other kinds.");
+        } else if constexpr (std::is_same_v<T, PrototypePlayerSpawn>) {
+          triple("Foot position", value.foot_position);
+          scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
+        } else if constexpr (std::is_same_v<T, PrototypePointLight>) {
+          triple("Position", value.position);
+          ImGui::DragFloat3("Light color", value.color.data(), 0.01F, 0, 0,
+                            "%.3f");
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
+          scalar("Intensity", value.intensity);
+          scalar("Radius", value.radius);
+        } else {
+          triple("Translation", value.translation);
+          scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
+          scalar("Uniform scale", value.uniform_scale, 0.01F);
+          ImGui::TextUnformatted("Surface: obstacle");
+          triple("Proxy center", value.box_proxy_center);
+          triple("Proxy half extent", value.box_proxy_half_extent);
+        }
+      },
+      *property_edit_.value());
+  if (commit) static_cast<void>(property_edit_.commit(editor_document));
   ImGui::End();
 }
 
 void EditorUi::drawValidation(const EditorDocument& document) {
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos({viewport->Size.x - 390, 545},
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({380, 280}, ImGuiCond_FirstUseEver);
   ImGui::Begin("Validation");
   if (document.document() && document.diagnostics().empty()) {
     ImGui::TextColored({0.3F, 0.9F, 0.4F, 1.0F}, "Level is valid.");
@@ -175,6 +225,8 @@ void EditorUi::drawValidation(const EditorDocument& document) {
     }
     ImGui::TextWrapped("%s", diagnostic.message.c_str());
   }
+  if (!document.editError().empty())
+    ImGui::TextWrapped("Edit rejected: %s", document.editError().c_str());
   ImGui::End();
 }
 
@@ -203,11 +255,13 @@ void EditorUi::drawPathModals(EditorDocument& document) {
   if (ImGui::BeginPopupModal("Save Level As", nullptr,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::InputText("Path", path_buffer_.data(), path_buffer_.size());
+    ImGui::BeginDisabled(!document.valid());
     if (ImGui::Button("Save")) {
       if (document.saveAs(std::filesystem::path(path_buffer_.data()))) {
         ImGui::CloseCurrentPopup();
       }
     }
+    ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Cancel")) {
       ImGui::CloseCurrentPopup();
@@ -224,13 +278,20 @@ void EditorUi::drawPendingModal(EditorDocument& document) {
                               ImGuiWindowFlags_AlwaysAutoResize)) {
     return;
   }
+  if (document.pendingAction().kind == EditorPendingActionKind::None) {
+    ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+    return;
+  }
   ImGui::TextUnformatted(
       "The current level has unsaved changes. Save before continuing?");
+  ImGui::BeginDisabled(!document.valid());
   if (ImGui::Button("Save")) {
     if (document.resolvePending(EditorPendingDecision::Save)) {
       ImGui::CloseCurrentPopup();
     }
   }
+  ImGui::EndDisabled();
   ImGui::SameLine();
   if (ImGui::Button("Discard")) {
     static_cast<void>(document.resolvePending(EditorPendingDecision::Discard));
@@ -253,4 +314,97 @@ void EditorUi::openPathModal(bool save_as, const EditorDocument& document) {
   }
   save_as_popup_ = save_as;
   open_path_popup_ = !save_as;
+}
+
+void EditorUi::drawObjects(EditorDocument& document) {
+  ImGui::SetNextWindowPos({10, 290}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({320, 480}, ImGuiCond_FirstUseEver);
+  ImGui::Begin("Objects");
+  if (!document.document()) {
+    placing_ = false;
+    ImGui::TextUnformatted("Open a level to place objects.");
+    ImGui::End();
+    return;
+  }
+  ImGui::BeginDisabled(document.solidIds().size() >= level_maximum_solid_count);
+  if (ImGui::Button("Add solid")) {
+    const auto& terrain = document.document()->terrain;
+    WorldPosition center{terrain.origin.x + 24.0F, 0, terrain.origin.z + 24.0F};
+    center.y = prototypeTerrainHeightAt(terrain, center.x, center.z) + 0.5F;
+    static_cast<void>(
+        document.addSolid({center, {0.5F, 0.5F, 0.5F}, {180, 180, 180, 255}}));
+  }
+  ImGui::EndDisabled();
+  const bool selected_solid = document.selection() >= editor_first_solid;
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!selected_solid ||
+                       document.solidIds().size() >= level_maximum_solid_count);
+  if (ImGui::Button("Duplicate"))
+    static_cast<void>(document.duplicateSelected());
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!selected_solid);
+  if (ImGui::Button("Delete")) static_cast<void>(document.removeSelected());
+  ImGui::EndDisabled();
+  if (!document.object(document.selection())) placing_ = false;
+  ImGui::BeginDisabled(document.selection() == editor_no_object);
+  ImGui::Checkbox("Place on terrain", &placing_);
+  ImGui::EndDisabled();
+  ImGui::TextWrapped(placing_
+                         ? "Click terrain to place the selected object. Escape "
+                           "cancels placement."
+                         : "Click an object here or in the scene to select. "
+                           "Right mouse starts camera navigation.");
+  ImGui::Separator();
+  const auto entry = [&](EditorObjectId id, const std::string& label) {
+    if (ImGui::Selectable(label.c_str(), document.selection() == id))
+      document.select(id);
+  };
+  entry(editor_spawn, "Player spawn");
+  entry(editor_first_light, "Point light 1");
+  entry(editor_first_light + 1, "Point light 2");
+  entry(editor_prop, "Chair / box proxy");
+  for (std::size_t i = 0; i < document.solidIds().size(); ++i) {
+    const auto& solid = document.document()->solids[i];
+    const char* kinds[] = {"Floor", "Boundary", "Obstacle", "Walkable step",
+                           "Low clearance"};
+    entry(document.solidIds()[i],
+          std::string(kinds[static_cast<int>(solid.kind)]) + " " +
+              std::to_string(i + 1));
+  }
+  ImGui::End();
+}
+
+std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
+                                                      const CameraFrame& camera,
+                                                      bool navigating) {
+  const ImGuiIO& io = ImGui::GetIO();
+  const bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+  if (!navigating && !io.WantTextInput && !ImGui::IsAnyItemActive() && !popup) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) placing_ = false;
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+      if (io.KeyShift)
+        static_cast<void>(document.redo());
+      else
+        static_cast<void>(document.undo());
+    }
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false))
+      static_cast<void>(document.redo());
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+      static_cast<void>(document.duplicateSelected());
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+      static_cast<void>(document.removeSelected());
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false) &&
+        document.valid())
+      static_cast<void>(document.save());
+  }
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  const auto ray = editorPointerRay(camera, io.MousePos.x - viewport->Pos.x,
+                                    io.MousePos.y - viewport->Pos.y,
+                                    viewport->Size.x, viewport->Size.y);
+  return updateEditorViewport(
+      document, ray,
+      io.WantCaptureMouse ||
+          ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) || popup,
+      navigating, ImGui::IsMouseClicked(ImGuiMouseButton_Left), placing_);
 }
