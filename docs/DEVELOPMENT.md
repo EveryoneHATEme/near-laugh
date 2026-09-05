@@ -125,7 +125,8 @@ and dirty open, close, or exit requests require Save, Discard, or Cancel.
 The Objects panel and left-click viewport picking share one selection. Solids
 can be added, duplicated, deleted, and edited. The single spawn, two point
 lights, and single packaged chair can be selected and edited but cannot be
-added, duplicated, or removed. Terrain and ambient intensity remain read-only.
+added, duplicated, or removed. Ambient intensity and terrain layout remain
+read-only.
 
 The Properties panel edits position, dimensions, tint, solid kind/surface,
 spawn yaw, light color/intensity/radius, and chair translation/yaw/uniform
@@ -158,12 +159,45 @@ overlap, remain visible and editable with validation diagnostics. Save is
 disabled until correction or undo restores validity. Unsaved-close dialogs
 still offer Discard and Cancel when the document is invalid.
 
+Under Properties > Terrain, enable **Sculpt terrain** and select Raise, Lower,
+or Smooth. Left-drag the scene to apply the brush; Escape returns to object
+selection. Object placement and sculpting are mutually exclusive. UI controls
+and camera navigation suppress brush input. The yellow outer ring shows the
+radius; inner rings show falloff strength and follow the heightfield. Arcs
+outside the terrain are omitted.
+
+- Radius: 0.5 to 8 metres.
+- Raise/lower strength: 0.01 to 1 metre per stamp.
+- Smooth strength: 0 to 1; zero leaves the terrain and history unchanged.
+- Falloff: 0 to 1, blending constant interior influence toward smoothstep
+  attenuation. Samples exactly on the radius remain unchanged.
+
+Drag controls or Ctrl-click to type values. Non-finite or out-of-range typed
+commits retain the previous valid value and report the field. A stroke captures
+its settings on press and stamps at 0.25-metre intervals along the observed X/Z
+pointer path. Holding still adds no stamps. A terrain miss breaks the path;
+returning to terrain starts a new segment within the same gesture. Smoothing
+uses a pre-stamp 3-by-3 neighborhood with [1, 2, 1] weights in each axis and
+clamped border coordinates.
+
+Each modifying gesture shares the 128-entry history with object edits. Undo
+restores the whole stroke, selection, and brush settings. Mesh preview updates
+during the stroke, and full validation runs when it ends or is undone/redone.
+Entering UI, starting navigation, minimizing, or requesting close ends the
+current stroke. Invalid slope triangles appear in red; Validation lists their
+zero-based cell X/Z and triangle 1 or 2. Repair with lower/smooth strokes or
+undo. If terrain changes leave the spawn unsupported, select the spawn and use
+Place on terrain, then resolve any reported overlap before saving.
+
+Brushes edit only the fixed 97-by-97 height samples. They do not change layout,
+surface roles, textures, or runtime collision and cannot author holes, caves,
+overhangs, voxel terrain, paint, procedural terrain, or erosion.
+
 To use an authored level in the game, save it explicitly to the game's
 executable-adjacent `resources/levels/prototype.level.json` and restart the
 game. Saving elsewhere does not change the packaged level. Builds that copy
 source resources may replace that executable-adjacent file; preserve authored
-work separately or deliberately update the source asset. Terrain sculpting
-remains the separate `add-terrain-sculpting` change.
+work separately or deliberately update the source asset.
 
 ## Build Targets
 
@@ -202,6 +236,9 @@ The editor smoke also exercises object duplication/removal, undo, invalid
 spawn preview and refused saving, canceled close, light/prop edits, and
 semantic save/reload using a temporary level copy. Deterministic UI tests drive
 real ImGui button, shortcut, capture, and numeric-drag behavior without a GPU.
+Terrain smoke coverage includes active multi-stamp strokes, coalesced buffer
+replacement, smoothing, undo/redo, sculpted save/reload, and resize/minimize
+recovery followed by an unsaved exit decision.
 
 For visual inspection, confirm stable one-metre texture scale across face
 orientations, outward-normal lighting, mip stability at distance, the distinct

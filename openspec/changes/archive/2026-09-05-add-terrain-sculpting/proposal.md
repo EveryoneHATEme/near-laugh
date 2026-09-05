@@ -19,6 +19,8 @@ The persisted heightfield is structurally ready for authoring, but editing thous
 
 ### Modified Capabilities
 
+- `level-editor`: Replace the previous terrain read-only milestone constraint
+  with height-sample authoring while keeping terrain layout read-only.
 
 ## Impact
 

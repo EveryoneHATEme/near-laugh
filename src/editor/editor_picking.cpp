@@ -174,3 +174,28 @@ std::optional<WorldPosition> updateEditorViewport(
   if (pressed) static_cast<void>(document.placeSelected(hit->position));
   return hit->position;
 }
+
+std::optional<WorldPosition> updateEditorTerrainViewport(
+    EditorDocument& document, const std::optional<EditorRay>& ray,
+    bool pointer_owned, bool navigation_active, bool pressed, bool down,
+    bool pointer_moved) {
+  if (!document.document()) return std::nullopt;
+  if (pointer_owned || navigation_active) {
+    // A press begun over UI cannot become a stroke by dragging out of the
+    // panel.
+    static_cast<void>(document.finishTerrainStroke());
+    return std::nullopt;
+  }
+  const auto intersection =
+      ray ? pickEditorTerrain(document.document()->terrain, *ray)
+          : std::nullopt;
+  const std::optional<WorldPosition> hit =
+      intersection ? std::optional<WorldPosition>{intersection->position}
+                   : std::nullopt;
+  if (pressed)
+    document.beginTerrainStroke(hit);
+  else if (document.terrainStrokeActive() && pointer_moved)
+    document.extendTerrainStroke(hit);
+  if (!down) static_cast<void>(document.finishTerrainStroke());
+  return hit;
+}

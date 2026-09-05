@@ -25,6 +25,7 @@ bool EditorDocument::open(const std::filesystem::path& path) {
 }
 
 bool EditorDocument::save() {
+  static_cast<void>(finishTerrainStroke());
   if (!document_) {
     setOperationError(LevelDiagnosticCategory::Validation, {},
                       "No level document is open");
@@ -47,6 +48,7 @@ bool EditorDocument::save() {
 }
 
 bool EditorDocument::saveAs(const std::filesystem::path& path) {
+  static_cast<void>(finishTerrainStroke());
   if (!document_) {
     setOperationError(LevelDiagnosticCategory::Validation, path,
                       "No level document is open");
@@ -66,6 +68,7 @@ bool EditorDocument::saveAs(const std::filesystem::path& path) {
 }
 
 void EditorDocument::requestOpen(const std::filesystem::path& path) {
+  static_cast<void>(finishTerrainStroke());
   if (dirty()) {
     pending_ = {EditorPendingActionKind::Open, resolvedPath(path)};
     return;
@@ -74,6 +77,7 @@ void EditorDocument::requestOpen(const std::filesystem::path& path) {
 }
 
 void EditorDocument::requestClose() {
+  static_cast<void>(finishTerrainStroke());
   if (dirty()) {
     pending_ = {EditorPendingActionKind::Close, {}};
     return;
@@ -82,6 +86,7 @@ void EditorDocument::requestClose() {
 }
 
 void EditorDocument::requestExit() {
+  static_cast<void>(finishTerrainStroke());
   if (dirty()) {
     pending_ = {EditorPendingActionKind::Exit, {}};
     return;

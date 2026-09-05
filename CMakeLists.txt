@@ -264,6 +264,7 @@ add_library(near_laugh_editor_core STATIC
     src/editor/editor_camera.cpp
     src/editor/editor_commands.cpp
     src/editor/editor_document.cpp
+    src/editor/editor_terrain.cpp
     src/editor/editor_picking.cpp
     src/editor/editor_overlay.cpp
 )

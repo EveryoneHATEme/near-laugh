@@ -45,7 +45,8 @@ std::optional<EditorOverlayLine> projectEditorLine(const CameraFrame& camera,
 
 std::vector<EditorOverlayLine> buildEditorOverlay(
     const EditorDocument& document, const CameraFrame& camera,
-    std::optional<WorldPosition> placement_hit) {
+    std::optional<WorldPosition> placement_hit,
+    const EditorTerrainBrush* brush) {
   std::vector<EditorOverlayLine> lines;
   if (!document.document()) return lines;
   constexpr WorldColor selected_color{255, 205, 60, 255};
@@ -92,6 +93,48 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     }
   };
   const auto& level = *document.document();
+  for (const auto& diagnostic : document.diagnostics()) {
+    const auto& location = diagnostic.terrain_location;
+    if (!location || !location->triangle ||
+        location->x >= prototype_terrain_cell_count ||
+        location->z >= prototype_terrain_cell_count)
+      continue;
+    const auto x = location->x, z = location->z;
+    const auto a = prototypeTerrainSamplePosition(level.terrain, x, z);
+    const auto c = prototypeTerrainSamplePosition(level.terrain, x + 1, z + 1);
+    const auto b =
+        *location->triangle == 0
+            ? prototypeTerrainSamplePosition(level.terrain, x, z + 1)
+            : prototypeTerrainSamplePosition(level.terrain, x + 1, z);
+    constexpr WorldColor invalid{255, 70, 70, 255};
+    line(a, b, invalid);
+    line(b, c, invalid);
+    line(c, a, invalid);
+  }
+  if (placement_hit && brush) {
+    // Concentric intensity rings show the same falloff used by the kernel.
+    for (int ring = 1; ring <= 4; ++ring) {
+      const double radius = brush->radius * ring / 4.0;
+      const double weight =
+          editorBrushWeight(radius, brush->radius, brush->falloff);
+      const WorldColor color{
+          255, 205, 60,
+          static_cast<std::uint8_t>(ring == 4 ? 255 : 40 + 180 * weight)};
+      for (int step = 0; step < 96; ++step) {
+        const auto point = [&](int i) {
+          const double angle = i * 2 * std::numbers::pi / 96;
+          WorldPosition p{
+              placement_hit->x + static_cast<float>(radius * std::cos(angle)),
+              0,
+              placement_hit->z + static_cast<float>(radius * std::sin(angle))};
+          p.y = prototypeTerrainHeightAt(level.terrain, p.x, p.z);
+          return p;
+        };
+        // Out-of-terrain arcs get NaN heights and are omitted by projection.
+        line(point(step), point(step + 1), color);
+      }
+    }
+  }
   marker(editorSpawnMarker(level.player_spawn),
          document.selection() == editor_spawn ? selected_color : spawn_color);
   for (std::size_t i = 0; i < level.environment_light.point_lights.size();

@@ -2,6 +2,7 @@ add_executable(engine_tests
     core/test_editor_bridge.cpp
     core/test_editor_camera.cpp
     core/test_editor_commands.cpp
+    core/test_editor_terrain.cpp
     core/test_editor_picking.cpp
     core/test_editor_ui.cpp
     core/test_editor_document.cpp

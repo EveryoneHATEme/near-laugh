@@ -124,6 +124,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
     const auto [minimum, maximum] = std::minmax_element(
         document.terrain.heights.begin(), document.terrain.heights.end());
     ImGui::Text("Height range: %.3f to %.3f", *minimum, *maximum);
+    drawTerrainBrush(editor_document);
   }
   property_edit_.synchronize(editor_document);
   if (!property_edit_.value()) {
@@ -209,7 +210,9 @@ void EditorUi::drawValidation(const EditorDocument& document) {
                           ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize({380, 280}, ImGuiCond_FirstUseEver);
   ImGui::Begin("Validation");
-  if (document.document() && document.diagnostics().empty()) {
+  if (document.terrainStrokeActive()) {
+    ImGui::TextUnformatted("Stroke active; validation refreshes on release.");
+  } else if (document.document() && document.diagnostics().empty()) {
     ImGui::TextColored({0.3F, 0.9F, 0.4F, 1.0F}, "Level is valid.");
   } else if (!document.document() && document.diagnostics().empty()) {
     ImGui::TextUnformatted("No level is open.");
@@ -224,6 +227,13 @@ void EditorUi::drawValidation(const EditorDocument& document) {
       ImGui::TextWrapped("Field/object: %s", diagnostic.document_path.c_str());
     }
     ImGui::TextWrapped("%s", diagnostic.message.c_str());
+    if (const auto& location = diagnostic.terrain_location) {
+      if (location->triangle)
+        ImGui::Text("Cell X=%zu Z=%zu, triangle %u", location->x, location->z,
+                    *location->triangle + 1);
+      else
+        ImGui::Text("Sample X=%zu Z=%zu", location->x, location->z);
+    }
   }
   if (!document.editError().empty())
     ImGui::TextWrapped("Edit rejected: %s", document.editError().c_str());
@@ -348,7 +358,10 @@ void EditorUi::drawObjects(EditorDocument& document) {
   ImGui::EndDisabled();
   if (!document.object(document.selection())) placing_ = false;
   ImGui::BeginDisabled(document.selection() == editor_no_object);
-  ImGui::Checkbox("Place on terrain", &placing_);
+  if (ImGui::Checkbox("Place on terrain", &placing_) && placing_) {
+    static_cast<void>(document.finishTerrainStroke());
+    sculpting_ = false;
+  }
   ImGui::EndDisabled();
   ImGui::TextWrapped(placing_
                          ? "Click terrain to place the selected object. Escape "
@@ -381,7 +394,11 @@ std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
   const ImGuiIO& io = ImGui::GetIO();
   const bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
   if (!navigating && !io.WantTextInput && !ImGui::IsAnyItemActive() && !popup) {
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) placing_ = false;
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+      placing_ = false;
+      sculpting_ = false;
+      static_cast<void>(document.finishTerrainStroke());
+    }
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
       if (io.KeyShift)
         static_cast<void>(document.redo());
@@ -402,9 +419,52 @@ std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
   const auto ray = editorPointerRay(camera, io.MousePos.x - viewport->Pos.x,
                                     io.MousePos.y - viewport->Pos.y,
                                     viewport->Size.x, viewport->Size.y);
+  if (sculpting_) {
+    return updateEditorTerrainViewport(
+        document, ray,
+        io.WantCaptureMouse ||
+            ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) || popup,
+        navigating, ImGui::IsMouseClicked(ImGuiMouseButton_Left),
+        ImGui::IsMouseDown(ImGuiMouseButton_Left),
+        io.MouseDelta.x != 0 || io.MouseDelta.y != 0);
+  }
   return updateEditorViewport(
       document, ray,
       io.WantCaptureMouse ||
           ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) || popup,
       navigating, ImGui::IsMouseClicked(ImGuiMouseButton_Left), placing_);
+}
+
+void EditorUi::drawTerrainBrush(EditorDocument& document) {
+  if (ImGui::Checkbox("Sculpt terrain", &sculpting_)) {
+    static_cast<void>(document.finishTerrainStroke());
+    if (sculpting_) placing_ = false;
+  }
+  if (!sculpting_) return;
+  if (!ImGui::IsAnyItemActive()) brush_draft_ = document.terrainBrush();
+  bool commit = false;
+  int mode = static_cast<int>(brush_draft_.mode);
+  if (ImGui::Combo("Brush mode", &mode, "Raise\0Lower\0Smooth\0")) {
+    brush_draft_.mode = static_cast<EditorBrushMode>(mode);
+    commit = true;
+  }
+  const auto control = [&](const char* label, float& value, float low,
+                           float high) {
+    ImGui::DragFloat(label, &value, 0.01F, low, high, "%.3f");
+    commit |= ImGui::IsItemDeactivatedAfterEdit();
+  };
+  control("Brush radius (m)", brush_draft_.radius, 0.5F, 8);
+  if (brush_draft_.mode == EditorBrushMode::Smooth)
+    control("Smooth strength", brush_draft_.smooth_strength, 0, 1);
+  else
+    control("Strength (m/stamp)", brush_draft_.strength, 0.01F, 1);
+  control("Falloff", brush_draft_.falloff, 0, 1);
+  if (commit) {
+    static_cast<void>(document.setTerrainBrush(brush_draft_));
+    brush_draft_ = document.terrainBrush();
+  }
+  ImGui::TextWrapped(
+      "Left-drag terrain to sculpt. One gesture is one undo. "
+      "Radius: 0.5-8 m; raise/lower: 0.01-1 m; smooth/falloff: 0-1. "
+      "Escape returns to object selection.");
 }

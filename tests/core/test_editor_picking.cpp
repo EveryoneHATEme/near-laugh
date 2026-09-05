@@ -263,3 +263,89 @@ TEST_F(EditorPlacement, SafeInvalidPreviewAndOverlayReflectEditedGeometry) {
   ASSERT_TRUE(editor.resolvePending(EditorPendingDecision::Discard));
   EXPECT_TRUE(buildEditorOverlay(editor, CameraFrame{}).empty());
 }
+
+TEST_F(EditorPlacement,
+       TerrainToolSuppressesUiAndNavigationAndDoesNotBridgeMisses) {
+  const auto original = *editor.document();
+  const EditorRay a{{10, 50, 10}, {0, -1, 0}};
+  const EditorRay b{{12, 50, 10}, {0, -1, 0}};
+  const auto update = [&](const auto& ray, bool owned, bool nav, bool press,
+                          bool down) {
+    return updateEditorTerrainViewport(editor, ray, owned, nav, press, down);
+  };
+  EXPECT_TRUE(update(a, false, false, false, false));
+  EXPECT_EQ(*editor.document(), original);
+  EXPECT_FALSE(update(a, true, false, true, true));
+  EXPECT_TRUE(update(b, false, false, false, true));
+  EXPECT_EQ(*editor.document(), original);
+  EXPECT_FALSE(update(a, false, true, true, true));
+  EXPECT_EQ(*editor.document(), original);
+  EXPECT_FALSE(update(std::optional<EditorRay>{}, false, false, true, true));
+  EXPECT_FALSE(update(std::optional<EditorRay>{}, false, false, false, false));
+  EXPECT_FALSE(editor.canUndo());
+
+  EXPECT_TRUE(update(a, false, false, true, true));
+  EXPECT_FALSE(update(std::optional<EditorRay>{}, false, false, false, true));
+  EXPECT_TRUE(update(b, false, false, false, true));
+  EXPECT_TRUE(update(b, false, false, false, false));
+  auto expected = original.terrain;
+  for (auto p : {WorldPosition{10, 0, 10}, WorldPosition{12, 0, 10}})
+    for (auto e : editorTerrainStamp(expected, {}, p))
+      expected.heights[e.index] = e.after;
+  EXPECT_EQ(editor.document()->terrain, expected);
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(*editor.document(), original);
+  EXPECT_FALSE(editor.canUndo());
+}
+
+TEST_F(EditorPlacement, StationaryPointerDoesNotStampAgainAsIntersectionMoves) {
+  const EditorRay ray{{10, 20, 10}, {0.1F, -1, 0}};
+  ASSERT_TRUE(
+      updateEditorTerrainViewport(editor, ray, false, false, true, true));
+  const auto stamped = *editor.document();
+  for (int i = 0; i < 100; ++i)
+    ASSERT_TRUE(updateEditorTerrainViewport(editor, ray, false, false, false,
+                                            true, false));
+  EXPECT_EQ(*editor.document(), stamped);
+  static_cast<void>(updateEditorTerrainViewport(editor, ray, false, false,
+                                                false, false, false));
+  EXPECT_TRUE(editor.canUndo());
+}
+
+TEST_F(EditorPlacement, BrushFootprintAndInvalidTriangleOverlaysFollowTerrain) {
+  // Top-down orthographic view containing the entire terrain.
+  CameraFrame camera;
+  camera.view_projection = {1.0F / 30, 0,         0, 0, 0, 0, -1.0F / 100, 0,
+                            0,         1.0F / 30, 0, 0, 0, 0, 0.5F,        1};
+  EditorTerrainBrush brush;
+  const auto center =
+      prototypeTerrainSamplePosition(editor.document()->terrain, 40, 40);
+  const auto footprint = buildEditorOverlay(editor, camera, center, &brush);
+  EXPECT_GT(footprint.size(), buildEditorOverlay(editor, camera).size() + 300);
+  brush.falloff = 0;
+  const auto hard = buildEditorOverlay(editor, camera, center, &brush);
+  EXPECT_NE(footprint.front().color, hard.front().color);
+  const auto edge = buildEditorOverlay(
+      editor, camera, editor.document()->terrain.origin, &brush);
+  EXPECT_LT(edge.size(), hard.size());
+  brush.radius = 0.5F;
+  brush.strength = 1;
+  ASSERT_TRUE(editor.setTerrainBrush(brush));
+  editor.beginTerrainStroke(center);
+  ASSERT_TRUE(editor.finishTerrainStroke());
+  const auto count_red = [&](const auto& lines) {
+    return std::count_if(lines.begin(), lines.end(), [](const auto& line) {
+      return line.color == WorldColor{255, 70, 70, 255};
+    });
+  };
+  const auto invalid = buildEditorOverlay(editor, camera);
+  const auto diagnostic_count =
+      std::count_if(editor.diagnostics().begin(), editor.diagnostics().end(),
+                    [](const auto& d) {
+                      return d.terrain_location && d.terrain_location->triangle;
+                    });
+  EXPECT_GT(diagnostic_count, 0);
+  EXPECT_EQ(count_red(invalid), 3 * diagnostic_count);
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(count_red(buildEditorOverlay(editor, camera)), 0);
+}

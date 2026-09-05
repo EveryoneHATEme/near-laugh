@@ -137,3 +137,50 @@ TEST_F(EditorUiInteraction, NumericDragCommitsOnceOnRelease) {
   EXPECT_EQ(*document.document(), original);
   EXPECT_FALSE(document.canUndo());
 }
+
+TEST_F(EditorUiInteraction,
+       TerrainCheckboxDragAndCaptureProduceOneUndoableGesture) {
+  const auto original = *document.document();
+  const ImGuiWindow* properties = ImGui::FindWindowByName("Properties");
+  const float top = properties->Pos.y + properties->TitleBarHeight +
+                    properties->WindowPadding.y;
+  const float row = ImGui::GetTextLineHeightWithSpacing();
+  // Header, origin, spacing and height range precede the tool checkbox.
+  click({properties->Pos.x + 40,
+         top + ImGui::GetFrameHeightWithSpacing() + 3 * row + 8});
+  ASSERT_TRUE(ui.sculpting());
+  EXPECT_EQ(*document.document(), original);
+  const ImVec2 start{750, 620};
+  ImGui::GetIO().AddMousePosEvent(start.x, start.y);
+  frame();
+  ImGui::GetIO().AddMouseButtonEvent(0, true);
+  frame();
+  ASSERT_TRUE(document.terrainStrokeActive());
+  for (int i = 1; i <= 10; ++i) {
+    ImGui::GetIO().AddMousePosEvent(start.x + i * 6, start.y);
+    frame();
+  }
+  const auto dragged = *document.document();
+  EXPECT_NE(dragged.terrain, original.terrain);
+  for (int i = 0; i < 30; ++i) frame();
+  EXPECT_EQ(*document.document(), dragged);
+  ImGui::GetIO().AddMouseButtonEvent(0, false);
+  frame();
+  EXPECT_FALSE(document.terrainStrokeActive());
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), original);
+  EXPECT_FALSE(document.canUndo());
+
+  // A UI drag ending over the scene remains a UI gesture.
+  ImGui::GetIO().AddMousePosEvent(properties->Pos.x + 60, top + 10);
+  frame();
+  ImGui::GetIO().AddMouseButtonEvent(0, true);
+  frame();
+  ImGui::GetIO().AddMousePosEvent(800, 650);
+  frame();
+  ImGui::GetIO().AddMouseButtonEvent(0, false);
+  frame();
+  EXPECT_EQ(*document.document(), original);
+  key(ImGuiKey_Escape);
+  EXPECT_FALSE(ui.sculpting());
+}

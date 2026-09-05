@@ -115,12 +115,18 @@ Dear ImGui last in the same Dynamic Rendering pass.
 Editor preview consumes renderable document fields directly instead of
 constructing a validated runtime level. Geometry generation is shared with
 the runtime; gameplay validation failures therefore do not hide the editable
-scene. On each committed document change, the editor waits for GPU completion
-and installs replacement scene resources transactionally. A failed replacement
-retains the previous resources and reports the error.
+scene. Object changes install replacement scene resources transactionally after
+GPU completion. Terrain stamps coalesce into one world-mesh rebuild per editor
+frame: the full terrain and unchanged solid vertices are regenerated, both
+in-flight frame fences are awaited, and a replacement buffer is installed.
+Chair geometry, lighting resources, textures, and pipeline remain in place
+during sculpting. A failed replacement retains the previous resources and
+reports the error. This uses the existing immutable buffer owner for each
+replacement; the game renderer and its meshes remain immutable.
 
-Editor-only selection bounds, light/spawn spheres, and placement feedback are
-CPU-projected and clipped to the Vulkan view volume. The editor renderer draws
+Editor-only selection bounds, light/spawn spheres, brush footprints, invalid
+terrain triangle outlines, and placement feedback are CPU-projected and clipped
+to the Vulkan view volume. The editor renderer draws
 these lines through the ImGui background draw list, above scene geometry and
 below UI panels, using the existing Vulkan backend. They intentionally have no
 scene depth test and do not alter runtime frame requests or level data.

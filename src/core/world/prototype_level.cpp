@@ -302,6 +302,9 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       addValidation(diagnostics, source_path,
                     "terrain.heights[" + std::to_string(index) + "]",
                     "must be finite");
+      diagnostics.back().terrain_location = TerrainDiagnosticLocation{
+          index % prototype_terrain_sample_count,
+          index / prototype_terrain_sample_count, std::nullopt};
     }
   }
   if (std::isfinite(terrain.sample_spacing) && terrain.sample_spacing > 0.0F &&
@@ -320,6 +323,8 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                           first
                               ? "first triangle exceeds the supported slope"
                               : "second triangle exceeds the supported slope");
+            diagnostics.back().terrain_location =
+                TerrainDiagnosticLocation{sample_x, sample_z, first ? 0U : 1U};
           }
         }
       }
@@ -389,7 +394,7 @@ std::vector<LevelDiagnostic> validateLevelDocument(
   } else {
     const float support = prototypeTerrainHeightAt(
         terrain, spawn.foot_position.x, spawn.foot_position.z);
-    if (!std::isfinite(spawn.foot_position.y) ||
+    if (!std::isfinite(spawn.foot_position.y) || !std::isfinite(support) ||
         std::abs(spawn.foot_position.y - support) >= 0.0001F) {
       addValidation(diagnostics, source_path, "player_spawn.foot_position.y",
                     "must be supported by the terrain surface");

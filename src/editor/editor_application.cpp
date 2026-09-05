@@ -110,6 +110,56 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   require(*document_.document() == original && !document_.dirty(),
           "Editor smoke undo did not restore saved content");
 
+  EditorTerrainBrush brush;
+  brush.radius = 3;
+  brush.strength = 0.01F;
+  require(document_.setTerrainBrush(brush),
+          "Editor smoke brush settings failed");
+  const auto uploads = renderer_.terrainReplacementCount();
+  document_.beginTerrainStroke({{10, 0, 10}});
+  for (int i = 1; i <= 20; ++i)
+    document_.extendTerrainStroke({{10 + i * 0.25F, 0, 10}});
+  preview();
+  require(
+      renderer_.terrainReplacementCount() == uploads + 1,
+      "Same-frame terrain stamps did not coalesce into one buffer replacement");
+  preview();
+  require(renderer_.terrainReplacementCount() == uploads + 1,
+          "Unchanged frame unnecessarily rebuilt the terrain");
+  document_.extendTerrainStroke({{16, 0, 10}});
+  window_.setSize(1280, 720);
+  renderer_.requestSwapchainRecreation();
+  preview();
+  require(document_.terrainStrokeActive(),
+          "Resize unexpectedly lost the stroke");
+  require(document_.finishTerrainStroke(), "Editor smoke stroke commit failed");
+  preview();
+  const auto sculpted = *document_.document();
+  require(document_.undo(), "Editor smoke terrain undo failed");
+  preview();
+  require(*document_.document() == original && !document_.dirty(),
+          "Terrain undo did not restore the saved document");
+  require(document_.redo(), "Editor smoke terrain redo failed");
+  preview();
+  require(*document_.document() == sculpted, "Terrain redo changed samples");
+
+  brush.mode = EditorBrushMode::Smooth;
+  require(document_.setTerrainBrush(brush),
+          "Editor smoke smooth settings failed");
+  document_.beginTerrainStroke({{12, 0, 10}});
+  preview();
+  document_.extendTerrainStroke({{15, 0, 10}});
+  require(document_.finishTerrainStroke(),
+          "Editor smoke smoothing had no effect");
+  preview();
+  require(document_.save(), "Editor smoke sculpted save failed");
+  const auto saved_terrain = *document_.document();
+  require(document_.open(temporary.path / "working.level.json"),
+          "Editor smoke sculpted reload failed");
+  require(*document_.document() == saved_terrain,
+          "Editor smoke sculpted round trip changed content");
+  preview();
+
   auto spawn = original.player_spawn;
   spawn.foot_position.y += 2;
   require(document_.replaceObject(editor_spawn, spawn),
@@ -159,6 +209,10 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
 
   document_.select(editor_prop);
   window_.setSize(1280, 720);
+  brush.mode = EditorBrushMode::Lower;
+  require(document_.setTerrainBrush(brush),
+          "Editor smoke lower settings failed");
+  document_.beginTerrainStroke({{22, 0, 22}});
   renderer_.requestSwapchainRecreation();
   static_cast<void>(tick());
 
@@ -176,6 +230,10 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
           "Editor recovery lost the selection or scene resources");
 
   document_.requestExit();
+  require(document_.pendingAction().kind == EditorPendingActionKind::Exit,
+          "Sculpted exit did not request an unsaved decision");
+  require(document_.resolvePending(EditorPendingDecision::Discard),
+          "Editor smoke sculpted discard failed");
   static_cast<void>(tick());
 }
 
@@ -191,6 +249,7 @@ bool EditorApplication::tick() {
     case EditorLoopAction::Exit:
       return false;
     case EditorLoopAction::WaitForEvents:
+      static_cast<void>(document_.finishTerrainStroke());
       window_.waitEvents();
       frame_clock_.reset();
       return !document_.exitRequested();
@@ -207,7 +266,9 @@ bool EditorApplication::tick() {
   ui_.draw(document_);
   const auto placement_hit =
       ui_.updateViewport(document_, camera, window_.cursorCaptured());
-  renderer_.drawOverlays(buildEditorOverlay(document_, camera, placement_hit));
+  renderer_.drawOverlays(buildEditorOverlay(
+      document_, camera, placement_hit,
+      ui_.sculpting() ? &document_.terrainBrush() : nullptr));
   ui_.finishFrame();
   synchronizeDocumentResources();
 
@@ -245,12 +306,17 @@ void EditorApplication::synchronizeDocumentResources() {
   }
   try {
     if (document_.document()) {
-      renderer_.replaceDocument(*document_.document());
+      if (scene_resources_installed_ &&
+          rendered_object_revision_ == document_.objectRevision())
+        renderer_.replaceTerrain(*document_.document());
+      else
+        renderer_.replaceDocument(*document_.document());
     } else {
       renderer_.clearDocument();
     }
     scene_resources_installed_ = document_.document().has_value();
     rendered_document_revision_ = document_.revision();
+    rendered_object_revision_ = document_.objectRevision();
   } catch (const std::exception& error) {
     // Replacement is transactional: retain the last usable preview on failure.
     rendered_document_revision_ = document_.revision();

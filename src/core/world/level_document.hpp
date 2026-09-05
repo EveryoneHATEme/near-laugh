@@ -116,11 +116,20 @@ enum class LevelDiagnosticCategory {
   Filesystem,
 };
 
+struct TerrainDiagnosticLocation {
+  bool operator==(const TerrainDiagnosticLocation&) const = default;
+  std::size_t x{};
+  std::size_t z{};
+  // Absent for a sample diagnostic; 0 = p00,p01,p11; 1 = p00,p11,p10.
+  std::optional<unsigned> triangle{};
+};
+
 struct LevelDiagnostic {
   LevelDiagnosticCategory category{LevelDiagnosticCategory::Validation};
   std::filesystem::path source_path{};
   std::string document_path{};
   std::string message{};
+  std::optional<TerrainDiagnosticLocation> terrain_location{};
 };
 
 struct LevelDocumentLoadResult {

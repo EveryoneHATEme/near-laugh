@@ -40,8 +40,8 @@ The current prototype provides the technical foundation for the game:
 * player-controlled flashlight
 * depth-tested textured rendering
 * deterministic tests for core simulation and physics behavior
-* standalone level editing with object placement, property controls, undo/redo,
-  and validation-gated saving
+* standalone level editing with object placement, terrain sculpting, property
+  controls, undo/redo, and validation-gated saving
 
 The prototype level is primarily a technical test environment and does not represent the intended final game.
 

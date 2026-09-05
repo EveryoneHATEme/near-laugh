@@ -136,6 +136,10 @@ state.
 
 `EditorDocument` also owns transient object IDs, one selection, concrete object
 commands, and 128-entry undo/redo history. IDs never enter the level file.
+Terrain gestures share that history as sorted sparse sample before/after pairs.
+Brush settings and the active path are editor-only state. Pure brush kernels
+read pre-stamp samples; the editor resamples horizontal motion at fixed distance
+and updates samples immediately while validating at stroke completion.
 Saved-state identity uses document revisions; a separate preview generation
 changes on edits, undo/redo, and document replacement. Property widgets edit a
 draft and commit once when editing ends. CPU rays pick authored boxes and
@@ -144,9 +148,14 @@ light/spawn markers; placement intersects the exact heightfield triangles.
 The editor renderer draws structurally safe document fields, then selection
 overlays and Dear ImGui in the same Dynamic Rendering pass. Full gameplay
 validation gates saving and runtime construction, allowing an invalid spawn
-placement to remain visible during repair. Replacement GPU resources are built temporarily
-and swapped in only after success. Swapchain recovery preserves the document,
-UI state, texture owner, and camera. The editor is a concrete tool for this
+placement to remain visible during repair. Replacement GPU resources are built
+temporarily and swapped in only after success.
+Terrain diagnostics also carry sample or cell coordinates and triangle identity
+for the validation panel and red viewport outlines. Terrain preview changes
+coalesce once per editor frame and replace the world buffer after both frame
+fences complete, preserving the chair, lighting, and pipeline owners.
+Swapchain recovery preserves the document, UI state, texture owner, and camera.
+The editor is a concrete tool for this
 game, not a runtime mode or general scene-editor framework.
 
 ## Architectural Constraints

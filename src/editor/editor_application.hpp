@@ -44,6 +44,7 @@ class EditorApplication {
   EditorCamera camera_{};
   EditorFrameClock frame_clock_{};
   std::uint64_t rendered_document_revision_{};
+  std::uint64_t rendered_object_revision_{};
   bool scene_resources_installed_{};
 };
 

@@ -20,6 +20,7 @@ struct EditorOverlayLine {
     WorldColor color);
 [[nodiscard]] std::vector<EditorOverlayLine> buildEditorOverlay(
     const EditorDocument& document, const CameraFrame& camera,
-    std::optional<WorldPosition> placement_hit = std::nullopt);
+    std::optional<WorldPosition> placement_hit = std::nullopt,
+    const EditorTerrainBrush* brush = nullptr);
 
 #endif

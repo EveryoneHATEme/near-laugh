@@ -96,6 +96,10 @@ class EditorRenderer::Impl {
 
   void beginUiFrame();
   void replaceDocument(const LevelDocument& level);
+  void replaceTerrain(const LevelDocument& level);
+  [[nodiscard]] std::size_t terrainReplacementCount() const noexcept {
+    return terrain_replacement_count_;
+  }
   void clearDocument();
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
   void requestSwapchainRecreation() noexcept { recreate_requested_ = true; }
@@ -137,6 +141,7 @@ class EditorRenderer::Impl {
   std::uint32_t minimum_image_count_{2};
   bool recreate_requested_{};
   bool imgui_backend_initialized_{};
+  std::size_t terrain_replacement_count_{};
 };
 
 EditorRenderer::EditorRenderer(const Window& window,
@@ -152,6 +157,14 @@ void EditorRenderer::beginUiFrame() { impl_->beginUiFrame(); }
 
 void EditorRenderer::replaceDocument(const LevelDocument& level) {
   impl_->replaceDocument(level);
+}
+
+void EditorRenderer::replaceTerrain(const LevelDocument& level) {
+  impl_->replaceTerrain(level);
+}
+
+std::size_t EditorRenderer::terrainReplacementCount() const noexcept {
+  return impl_->terrainReplacementCount();
 }
 
 void EditorRenderer::drawOverlays(std::span<const EditorOverlayLine> lines) {
@@ -271,6 +284,26 @@ void EditorRenderer::Impl::clearDocument() {
   chair_mesh_.reset();
   world_mesh_.reset();
   recordLifecycleEvent("editor.document-resources.cleared");
+}
+
+void EditorRenderer::Impl::replaceTerrain(const LevelDocument& level) {
+  // Both frame slots can reference the shared world buffer. Keep the small,
+  // unchanged solid stream beside terrain; chair, lights and pipeline survive.
+  std::array<VkFence, frames_in_flight> fences{};
+  for (std::size_t i = 0; i < frames_.size(); ++i)
+    fences[i] = frames_[i].completion;
+  requireVulkan(
+      vkWaitForFences(context_.device(),
+                      static_cast<std::uint32_t>(fences.size()), fences.data(),
+                      VK_TRUE, std::numeric_limits<std::uint64_t>::max()),
+      "Wait for editor terrain buffer readers");
+  const auto vertices =
+      buildPrototypeSceneVertices(level.terrain, level.solids);
+  auto mesh = std::make_unique<ImmutableMeshBuffer>(
+      context_.device(), context_.physicalDevice(), vertices, "world");
+  world_mesh_ = std::move(mesh);
+  ++terrain_replacement_count_;
+  recordLifecycleEvent("editor.terrain-resources.replaced");
 }
 
 void EditorRenderer::Impl::initializeImGuiBackend() {

@@ -92,10 +92,12 @@ void EditorDocument::resetEditing() {
   }
   selection_ = editor_no_object;
   history_.clear();
+  terrain_stroke_.reset();
   history_position_ = 0;
   current_revision_ = ++next_revision_;
   saved_revision_ = current_revision_;
   ++revision_;
+  ++object_revision_;
   refreshValidation();
 }
 
@@ -131,6 +133,7 @@ void EditorDocument::select(EditorObjectId id) {
 }
 
 bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
+  static_cast<void>(finishTerrainStroke());
   const auto before = object(id);
   if (!before || before->index() != value.index()) {
     edit_error_ = "Select an existing object of the matching type.";
@@ -144,6 +147,7 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
 }
 
 bool EditorDocument::addSolid(PrototypeSolid solid) {
+  static_cast<void>(finishTerrainStroke());
   if (!document_ || document_->solids.size() >= level_maximum_solid_count) {
     edit_error_ =
         "Open a level with fewer than 240 solids before adding a solid.";
@@ -165,6 +169,7 @@ bool EditorDocument::duplicateSelected() {
 }
 
 bool EditorDocument::removeSelected() {
+  static_cast<void>(finishTerrainStroke());
   const auto index = solidIndex(selection_);
   if (!index) return false;
   return commit({selection_, *index, document_->solids[*index], std::nullopt,
@@ -216,7 +221,12 @@ bool EditorDocument::commit(Edit edit) {
 
 void EditorDocument::applyEdit(const Edit& edit, bool forward) {
   const auto& value = forward ? edit.after : edit.before;
-  if (edit.id >= editor_first_solid) {
+  if (edit.brush) {
+    for (const auto& sample : edit.terrain)
+      document_->terrain.heights[sample.index] =
+          forward ? sample.after : sample.before;
+    terrain_brush_ = *edit.brush;
+  } else if (edit.id >= editor_first_solid) {
     const auto index = solidIndex(edit.id);
     if (!value) {
       document_->solids.erase(document_->solids.begin() +
@@ -244,17 +254,54 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
   select(forward ? edit.selection_after : edit.selection_before);
   current_revision_ = forward ? edit.revision_after : edit.revision_before;
   ++revision_;
+  if (!edit.brush) ++object_revision_;
   refreshValidation();
 }
 
 bool EditorDocument::undo() {
+  static_cast<void>(finishTerrainStroke());
   if (!canUndo()) return false;
   applyEdit(history_[--history_position_], false);
   return true;
 }
 
 bool EditorDocument::redo() {
+  static_cast<void>(finishTerrainStroke());
   if (!canRedo()) return false;
   applyEdit(history_[history_position_++], true);
   return true;
+}
+
+bool EditorDocument::setTerrainBrush(const EditorTerrainBrush& brush) {
+  return commitEditorBrush(terrain_brush_, brush, edit_error_);
+}
+
+void EditorDocument::beginTerrainStroke(std::optional<WorldPosition> hit) {
+  if (!document_ || terrain_stroke_) return;
+  terrain_stroke_.emplace();
+  terrain_stroke_->brush = terrain_brush_;
+  stroke_selection_ = selection_;
+  extendTerrainStroke(hit);
+}
+
+void EditorDocument::extendTerrainStroke(std::optional<WorldPosition> hit) {
+  if (terrain_stroke_ && terrain_stroke_->advance(document_->terrain, hit))
+    ++revision_;
+}
+
+bool EditorDocument::finishTerrainStroke() {
+  if (!terrain_stroke_) return false;
+  Edit edit;
+  edit.terrain = terrain_stroke_->changes(document_->terrain);
+  edit.brush = terrain_stroke_->brush;
+  edit.selection_before = stroke_selection_;
+  edit.selection_after = selection_;
+  terrain_stroke_.reset();
+  if (edit.terrain.empty()) return false;
+  // Samples are already visible; commit installs the same final values and
+  // assigns one saved-state revision for the entire gesture.
+  const auto next_brush = terrain_brush_;
+  const bool committed = commit(std::move(edit));
+  terrain_brush_ = next_brush;
+  return committed;
 }

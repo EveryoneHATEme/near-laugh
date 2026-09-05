@@ -33,4 +33,9 @@ struct EditorTerrainHit {
     EditorDocument& document, const std::optional<EditorRay>& ray,
     bool pointer_owned, bool navigation_active, bool pressed, bool placing);
 
+[[nodiscard]] std::optional<WorldPosition> updateEditorTerrainViewport(
+    EditorDocument& document, const std::optional<EditorRay>& ray,
+    bool pointer_owned, bool navigation_active, bool pressed, bool down,
+    bool pointer_moved = true);
+
 #endif

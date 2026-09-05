@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/world/level_document.hpp"
+#include "editor/editor_terrain.hpp"
 
 enum class EditorPendingActionKind { None, Open, Close, Exit };
 enum class EditorPendingDecision { Save, Discard, Cancel };
@@ -55,6 +56,16 @@ class EditorDocument {
   [[nodiscard]] bool duplicateSelected();
   [[nodiscard]] bool removeSelected();
   [[nodiscard]] bool placeSelected(WorldPosition terrain_hit);
+  [[nodiscard]] const EditorTerrainBrush& terrainBrush() const noexcept {
+    return terrain_stroke_ ? terrain_stroke_->brush : terrain_brush_;
+  }
+  [[nodiscard]] bool setTerrainBrush(const EditorTerrainBrush& brush);
+  void beginTerrainStroke(std::optional<WorldPosition> hit);
+  void extendTerrainStroke(std::optional<WorldPosition> hit);
+  [[nodiscard]] bool finishTerrainStroke();
+  [[nodiscard]] bool terrainStrokeActive() const noexcept {
+    return terrain_stroke_.has_value();
+  }
   [[nodiscard]] bool canUndo() const noexcept { return history_position_ != 0; }
   [[nodiscard]] bool canRedo() const noexcept {
     return history_position_ < history_.size();
@@ -78,16 +89,20 @@ class EditorDocument {
     return diagnostics_;
   }
   [[nodiscard]] bool dirty() const noexcept {
-    return current_revision_ != saved_revision_;
+    return current_revision_ != saved_revision_ ||
+           (terrain_stroke_ && !terrain_stroke_->before.empty());
   }
   [[nodiscard]] bool valid() const noexcept {
-    return document_.has_value() && valid_;
+    return document_.has_value() && valid_ && !terrain_stroke_;
   }
   [[nodiscard]] bool exitRequested() const noexcept { return exit_requested_; }
   [[nodiscard]] const EditorPendingAction& pendingAction() const noexcept {
     return pending_;
   }
   [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
+  [[nodiscard]] std::uint64_t objectRevision() const noexcept {
+    return object_revision_;
+  }
 
  private:
   struct Edit {
@@ -99,6 +114,8 @@ class EditorDocument {
     EditorObjectId selection_after{};
     std::uint64_t revision_before{};
     std::uint64_t revision_after{};
+    std::vector<EditorTerrainSampleEdit> terrain{};
+    std::optional<EditorTerrainBrush> brush{};
   };
   void resetEditing();
   void refreshValidation();
@@ -125,9 +142,13 @@ class EditorDocument {
   std::uint64_t saved_revision_{};
   std::uint64_t next_revision_{};
   std::string edit_error_{};
+  EditorTerrainBrush terrain_brush_{};
+  std::optional<EditorTerrainStroke> terrain_stroke_{};
+  EditorObjectId stroke_selection_{};
   bool valid_{};
   bool exit_requested_{};
   std::uint64_t revision_{};
+  std::uint64_t object_revision_{};
 };
 
 #endif

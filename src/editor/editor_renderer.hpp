@@ -34,6 +34,8 @@ class EditorRenderer {
 
   void beginUiFrame();
   void replaceDocument(const LevelDocument& level);
+  void replaceTerrain(const LevelDocument& level);
+  [[nodiscard]] std::size_t terrainReplacementCount() const noexcept;
   void drawOverlays(std::span<const EditorOverlayLine> lines);
   void clearDocument();
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);

@@ -30,17 +30,32 @@ Brute-force testing of 18,432 triangles is acceptable for this fixed terrain and
 
 A stroke records its brush settings at press time. Apply the first valid hit immediately, then place further stamps along the world-space pointer path at a fixed spacing of half the terrain sample spacing. Carry unused path distance between input updates. This yields the same stamp series for the same sampled world path rather than tying brush strength to frame duration.
 
+Path distance uses X/Z, and only pointer movement supplies new path samples;
+terrain rising under a stationary pointer does not produce extra stamps.
+Misses break the sampled path. Input capture, navigation, minimize, and document
+lifecycle requests finish the current stroke without discarding its edits.
+
 Each stamp visits the smallest row/column rectangle covering its radius, then evaluates samples in row-major order. Distance is measured in the X/Z plane. The falloff control blends between a constant interior weight and smoothstep attenuation toward the radius; raise/lower applies signed `strength * weight` metres.
+
+For `t = distance / radius`, interior weight is
+`1 - falloff * t*t*(3 - 2*t)`. At or beyond the radius the weight is zero.
 
 ### Smooth from an immutable pre-stamp neighborhood
 
 For each smooth stamp, first copy the affected rectangle plus its one-sample neighborhood. Compute each affected sample's 3-by-3 weighted average from that snapshot and blend the original toward it by `smooth_strength * distance_weight`. Applying results only after all values are computed prevents iteration order from biasing the surface.
+
+The fixed neighborhood uses separable `[1, 2, 1]` weights with total weight 16.
 
 ### Coalesce preview rebuilding once per editor frame
 
 Brush stamps update CPU height samples immediately and mark terrain preview data dirty. Before the next draw, regenerate the full bounded terrain vertex stream and replace the editor terrain buffer after the relevant frame fence makes the old buffer safe to release. Multiple input updates in one frame coalesce into one rebuild.
 
 The terrain is small enough that a full CPU rebuild is the simplest correct starting point. Do not change the immutable game mesh buffer or add a generic dynamic-mesh subsystem.
+
+The existing editor world buffer also contains the small solid vertex stream;
+rebuilding that buffer preserves those values and avoids another mesh owner.
+Both in-flight frame fences must complete before replacing the shared buffer.
+Chair, lighting, texture, and pipeline resources survive terrain-only changes.
 
 ### Record sparse stroke history
 
