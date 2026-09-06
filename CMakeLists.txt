@@ -263,6 +263,8 @@ if(near_laugh_runtime_interface_links MATCHES
 endif()
 
 add_library(near_laugh_editor_core STATIC
+    src/editor/editor_playtest.cpp
+    src/editor/editor_game_process.cpp
     src/editor/editor_camera.cpp
     src/editor/editor_commands.cpp
     src/editor/editor_document.cpp
@@ -327,6 +329,7 @@ endif()
 
 add_executable(near_laugh
     src/main.cpp
+    src/launcher/launch_options.cpp
     src/launcher/executable_path.cpp
 )
 target_include_directories(near_laugh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -335,20 +338,21 @@ near_laugh_enable_warnings(near_laugh)
 set_target_properties(near_laugh PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-add_custom_command(TARGET near_laugh POST_BUILD
+add_custom_target(near_laugh_packaged_resources ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
-            "$<TARGET_FILE_DIR:near_laugh>/resources/shaders"
+            "${CMAKE_BINARY_DIR}/bin/resources/shaders"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
-            "$<TARGET_FILE_DIR:near_laugh>/resources/textures"
+            "${CMAKE_BINARY_DIR}/bin/resources/textures"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
-            "$<TARGET_FILE_DIR:near_laugh>/resources/models"
+            "${CMAKE_BINARY_DIR}/bin/resources/models"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/levels"
-            "$<TARGET_FILE_DIR:near_laugh>/resources/levels"
+            "${CMAKE_BINARY_DIR}/bin/resources/levels"
 )
+add_dependencies(near_laugh near_laugh_packaged_resources)
 
 add_executable(level_editor
     src/editor/editor_application.cpp
@@ -364,20 +368,7 @@ near_laugh_enable_warnings(level_editor)
 set_target_properties(level_editor PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-add_custom_command(TARGET level_editor POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
-            "$<TARGET_FILE_DIR:level_editor>/resources/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
-            "$<TARGET_FILE_DIR:level_editor>/resources/textures"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
-            "$<TARGET_FILE_DIR:level_editor>/resources/models"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/levels"
-            "$<TARGET_FILE_DIR:level_editor>/resources/levels"
-)
+add_dependencies(level_editor near_laugh_packaged_resources)
 
 get_target_property(level_editor_links level_editor LINK_LIBRARIES)
 if(level_editor_links MATCHES "near_laugh_runtime|near_laugh_physics")

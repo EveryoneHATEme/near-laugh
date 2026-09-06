@@ -1,6 +1,7 @@
 #include "editor/editor_application.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -16,8 +17,9 @@ std::filesystem::path requireEditorFile(const std::filesystem::path& path) {
   const std::filesystem::path resolved =
       std::filesystem::absolute(path).lexically_normal();
   if (!std::filesystem::is_regular_file(resolved)) {
+    const auto text = resolved.u8string();
     throw std::runtime_error("Required editor resource is missing: " +
-                             resolved.string());
+                             std::string(text.begin(), text.end()));
   }
   return resolved;
 }
@@ -205,8 +207,8 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
           "Editor smoke sculpted round trip changed content");
   preview();
 
-  auto spawn = original.player_spawn;
-  spawn.foot_position.y += 2;
+  auto spawn = original.entries.front();
+  spawn.pose.foot_position.y += 2;
   require(document_.replaceObject(editor_spawn, spawn),
           "Editor smoke invalid spawn edit failed");
   document_.select(editor_spawn);
@@ -241,6 +243,51 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   require(*document_.document() == edited,
           "Editor smoke save/reload changed content");
   document_.select(editor_prop);
+  preview();
+
+  document_.requestNewInterior();
+  require(document_.valid() && !document_.document()->terrain,
+          "New interior did not create a valid terrain-free document");
+  preview();
+  document_.select(document_.solidIds().front());
+  require(document_.removeSelected(), "Interior floor removal failed");
+  require(!document_.valid(), "Empty interior should remain invalid");
+  preview();  // Chair, entries and UI survive an absent world mesh.
+
+  const auto apartment = loadLevelDocument(valid_level.parent_path() /
+                                           "apartment-stairs.level.json");
+  require(static_cast<bool>(apartment),
+          "Packaged apartment could not be decoded");
+#if defined(_WIN32)
+  require(_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE",
+                    "world_mesh_upload") == 0,
+          "Could not configure replacement failure");
+#else
+  require(setenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", "world_mesh_upload",
+                 1) == 0,
+          "Could not configure replacement failure");
+#endif
+  bool replacement_failed = false;
+  try {
+    renderer_.replaceDocument(*apartment.document);
+  } catch (const std::runtime_error&) {
+    replacement_failed = true;
+  }
+#if defined(_WIN32)
+  static_cast<void>(_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", ""));
+#else
+  static_cast<void>(unsetenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE"));
+#endif
+  require(replacement_failed, "Expected interior mesh replacement failure");
+  preview();  // Previously installed empty-world resources remain usable.
+  require(
+      document_.open(valid_level.parent_path() / "apartment-stairs.level.json"),
+      "Editor could not open the apartment");
+  preview();
+  require(document_.selectLaunchEntry("lower-landing"),
+          "Alternate editor entry missing");
+  window_.setSize(1200, 800);
+  renderer_.requestSwapchainRecreation();
   preview();
 
   document_.requestOpen(valid_level);
@@ -283,6 +330,7 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
 }
 
 bool EditorApplication::tick() {
+  game_process_.poll();
   window_.pollEvents();
   if (window_.shouldClose()) {
     window_.cancelCloseRequest();
@@ -308,7 +356,9 @@ bool EditorApplication::tick() {
   const CameraFrame camera =
       camera_.frame(static_cast<float>(framebuffer.width) /
                     static_cast<float>(framebuffer.height));
-  ui_.draw(document_);
+  ui_.draw(document_, game_process_.active(), game_process_.status());
+  if (auto launch = ui_.takeLaunchRequest())
+    static_cast<void>(game_process_.start(editorGameExecutable(), *launch));
   const auto placement_hit =
       ui_.updateViewport(document_, camera, window_.cursorCaptured());
   renderer_.drawOverlays(buildEditorOverlay(

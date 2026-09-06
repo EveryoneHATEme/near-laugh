@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9621,14 +9621,18 @@
       "surface": "obstacle"
     }
   ],
-  "player_spawn": {
-    "foot_position": {
-      "x": 0.0,
-      "y": 1.7859675e-07,
-      "z": 7.0
-    },
-    "yaw_degrees": -90.0
-  },
+  "entries": [
+    {
+      "id": "default",
+      "foot_position": {
+        "x": 0.0,
+        "y": 1.7859675e-07,
+        "z": 7.0
+      },
+      "yaw_degrees": -90.0
+    }
+  ],
+  "default_entry": "default",
   "environment_light": {
     "point_lights": [
       {

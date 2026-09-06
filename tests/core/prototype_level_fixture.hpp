@@ -21,24 +21,27 @@ inline LevelDocument prototypeLevelDocument() {
   constexpr WorldColor passage_color{190, 118, 197, 255};
 
   LevelDocument document{};
-  document.terrain.origin = {-24.0F, 0.0F, -26.0F};
-  document.terrain.sample_spacing = prototype_terrain_sample_spacing;
+  document.terrain.emplace();
+  document.entries = {{"default", {}}};
+  document.default_entry = "default";
+  document.terrain->origin = {-24.0F, 0.0F, -26.0F};
+  document.terrain->sample_spacing = prototype_terrain_sample_spacing;
   for (std::size_t sample_z = 0; sample_z < prototype_terrain_sample_count;
        ++sample_z) {
     for (std::size_t sample_x = 0; sample_x < prototype_terrain_sample_count;
          ++sample_x) {
       const float x =
-          document.terrain.origin.x +
-          static_cast<float>(sample_x) * document.terrain.sample_spacing;
+          document.terrain->origin.x +
+          static_cast<float>(sample_x) * document.terrain->sample_spacing;
       const float z =
-          document.terrain.origin.z +
-          static_cast<float>(sample_z) * document.terrain.sample_spacing;
+          document.terrain->origin.z +
+          static_cast<float>(sample_z) * document.terrain->sample_spacing;
       const float hill_x = (x + 15.0F) / 5.0F;
       const float hill_z = (z + 8.0F) / 6.0F;
       const float depression_x = (x - 14.0F) / 4.5F;
       const float depression_z = (z + 11.0F) / 5.0F;
       document.terrain
-          .heights[sample_z * prototype_terrain_sample_count + sample_x] =
+          ->heights[sample_z * prototype_terrain_sample_count + sample_x] =
           0.75F * std::exp(-(hill_x * hill_x + hill_z * hill_z)) -
           0.55F * std::exp(-(depression_x * depression_x +
                              depression_z * depression_z));
@@ -98,15 +101,15 @@ inline LevelDocument prototypeLevelDocument() {
        PrototypeSurface::Obstacle},
   };
 
-  document.player_spawn = {
-      {0.0F, prototypeTerrainHeightAt(document.terrain, 0.0F, 7.0F), 7.0F},
+  document.entries.front().pose = {
+      {0.0F, prototypeTerrainHeightAt(*document.terrain, 0.0F, 7.0F), 7.0F},
       -90.0F};
   document.environment_light = {
       {{{{0.0F, 2.4F, 6.0F}, {0.30F, 0.50F, 0.90F}, 0.65F, 4.0F},
         {{0.0F, 4.0F, -9.0F}, {1.00F, 0.48F, 0.20F}, 0.95F, 10.0F}}},
       0.12F};
   document.static_prop = {
-      {3.0F, prototypeTerrainHeightAt(document.terrain, 3.0F, -2.0F), -2.0F},
+      {3.0F, prototypeTerrainHeightAt(*document.terrain, 3.0F, -2.0F), -2.0F},
       -25.0F,
       1.0F,
       PrototypeSurface::Obstacle,

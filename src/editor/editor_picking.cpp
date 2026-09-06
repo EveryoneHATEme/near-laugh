@@ -131,7 +131,9 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
                              vec(prototypeStaticPropProxyWorldCenter(prop))),
                   inverseYaw(vec(ray.direction)),
                   prototypeStaticPropProxyWorldHalfExtent(prop)));
-  consider(editor_spawn, sphereHit(ray, editorSpawnMarker(level.player_spawn)));
+  for (std::size_t i = 0; i < level.entries.size(); ++i)
+    consider(document.entryIds()[i],
+             sphereHit(ray, editorSpawnMarker(level.entries[i].pose)));
   if (level.light_switch) {
     if (const auto hit = lightSwitchRayDistance(*level.light_switch, ray.origin,
                                                 ray.direction)) {
@@ -151,20 +153,77 @@ std::optional<EditorTerrainHit> pickEditorTerrain(
     const PrototypeTerrain& terrain, const EditorRay& ray) {
   if (!validRay(ray)) return std::nullopt;
   double nearest = std::numeric_limits<double>::infinity();
+  WorldPosition normal{};
   for (std::size_t z = 0; z < prototype_terrain_cell_count; ++z) {
     for (std::size_t x = 0; x < prototype_terrain_cell_count; ++x) {
       const auto a = prototypeTerrainSamplePosition(terrain, x, z);
       const auto b = prototypeTerrainSamplePosition(terrain, x, z + 1);
       const auto c = prototypeTerrainSamplePosition(terrain, x + 1, z + 1);
       const auto d = prototypeTerrainSamplePosition(terrain, x + 1, z);
-      for (double t : {triangleHit(ray, a, b, c), triangleHit(ray, a, c, d)}) {
-        if (t > 0 && t < nearest) nearest = t;
+      for (const auto& triangle : {std::array<WorldPosition, 3>{a, b, c},
+                                   std::array<WorldPosition, 3>{a, c, d}}) {
+        const double t =
+            triangleHit(ray, triangle[0], triangle[1], triangle[2]);
+        if (t > 0 && t < nearest) {
+          nearest = t;
+          normal = position(
+              glm::normalize(glm::cross(vec(triangle[1]) - vec(triangle[0]),
+                                        vec(triangle[2]) - vec(triangle[0]))));
+        }
       }
     }
   }
   if (!std::isfinite(nearest)) return std::nullopt;
   return EditorTerrainHit{
-      position(vec(ray.origin) + nearest * vec(ray.direction)), nearest};
+      position(vec(ray.origin) + nearest * vec(ray.direction)), nearest,
+      normal};
+}
+
+std::optional<EditorSurfaceHit> pickEditorSurface(
+    const EditorDocument& document, const EditorRay& ray,
+    EditorPlacementMode mode) {
+  if (!document.document() || !validRay(ray)) return std::nullopt;
+  const auto& level = *document.document();
+  std::optional<EditorSurfaceHit> nearest;
+  // Solid array order wins equal-distance ties, with terrain considered last.
+  if (mode == EditorPlacementMode::SceneSurfaces) {
+    for (std::size_t i = 0; i < level.solids.size(); ++i) {
+      const auto id = document.solidIds()[i];
+      if (id == document.selection()) continue;
+      const auto& solid = level.solids[i];
+      const auto relative = vec(ray.origin) - vec(solid.center);
+      const auto direction = vec(ray.direction);
+      const double t = boxHit(relative, direction, solid.half_extent);
+      if (!(t > 0) || (nearest && t >= nearest->distance)) continue;
+      const auto local = relative + direction * t;
+      const glm::dvec3 extent{solid.half_extent.x, solid.half_extent.y,
+                              solid.half_extent.z};
+      int axis = 0;
+      for (int j = 1; j < 3; ++j)
+        if (std::abs(std::abs(local[j]) - extent[j]) <
+            std::abs(std::abs(local[axis]) - extent[axis]))
+          axis = j;
+      glm::dvec3 normal{0};
+      normal[axis] = local[axis] < 0 ? -1 : 1;
+      const auto face = axis == 1 ? (normal.y > 0 ? EditorSurfaceFace::Top
+                                                  : EditorSurfaceFace::Bottom)
+                        : axis == 0
+                            ? (normal.x > 0 ? EditorSurfaceFace::PositiveX
+                                            : EditorSurfaceFace::NegativeX)
+                            : (normal.z > 0 ? EditorSurfaceFace::PositiveZ
+                                            : EditorSurfaceFace::NegativeZ);
+      nearest = EditorSurfaceHit{position(vec(ray.origin) + t * direction),
+                                 position(normal), t, id, face};
+    }
+  }
+  if (level.terrain) {
+    if (const auto hit = pickEditorTerrain(*level.terrain, ray);
+        hit && (!nearest || hit->distance < nearest->distance)) {
+      nearest = EditorSurfaceHit{hit->position, hit->normal, hit->distance,
+                                 editor_no_object, EditorSurfaceFace::Terrain};
+    }
+  }
+  return nearest;
 }
 
 std::optional<WorldPosition> updateEditorViewport(
@@ -176,18 +235,36 @@ std::optional<WorldPosition> updateEditorViewport(
     if (pressed) document.select(pickEditorObject(document, *ray));
     return std::nullopt;
   }
-  if (!document.object(document.selection())) return std::nullopt;
-  const auto hit = pickEditorTerrain(document.document()->terrain, *ray);
+  if (!document.object(document.selection()) || !document.document()->terrain)
+    return std::nullopt;
+  const auto hit = pickEditorTerrain(*document.document()->terrain, *ray);
   if (!hit) return std::nullopt;
   if (pressed) static_cast<void>(document.placeSelected(hit->position));
   return hit->position;
+}
+
+std::optional<EditorSurfaceHit> updateEditorPlacementViewport(
+    EditorDocument& document, const std::optional<EditorRay>& ray,
+    bool pointer_owned, bool navigation_active, bool pressed,
+    EditorPlacementMode mode, const EditorPlacementOffsets& offsets) {
+  if (!ray || pointer_owned || navigation_active) return std::nullopt;
+  const auto selected = document.object(document.selection());
+  if (!selected) return std::nullopt;
+  const auto hit = pickEditorSurface(document, *ray, mode);
+  if (hit && pressed) {
+    if (auto placed = editorPlacedObject(*selected, *hit, offsets))
+      static_cast<void>(
+          document.replaceObject(document.selection(), std::move(*placed)));
+  }
+  return hit;
 }
 
 std::optional<WorldPosition> updateEditorTerrainViewport(
     EditorDocument& document, const std::optional<EditorRay>& ray,
     bool pointer_owned, bool navigation_active, bool pressed, bool down,
     bool pointer_moved) {
-  if (!document.document()) return std::nullopt;
+  if (!document.document() || !document.document()->terrain)
+    return std::nullopt;
   if (pointer_owned || navigation_active) {
     // A press begun over UI cannot become a stroke by dragging out of the
     // panel.
@@ -195,7 +272,7 @@ std::optional<WorldPosition> updateEditorTerrainViewport(
     return std::nullopt;
   }
   const auto intersection =
-      ray ? pickEditorTerrain(document.document()->terrain, *ray)
+      ray ? pickEditorTerrain(*document.document()->terrain, *ray)
           : std::nullopt;
   const std::optional<WorldPosition> hit =
       intersection ? std::optional<WorldPosition>{intersection->position}

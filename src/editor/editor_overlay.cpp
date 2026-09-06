@@ -96,23 +96,23 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
   const auto& level = *document.document();
   for (const auto& diagnostic : document.diagnostics()) {
     const auto& location = diagnostic.terrain_location;
-    if (!location || !location->triangle ||
+    if (!level.terrain || !location || !location->triangle ||
         location->x >= prototype_terrain_cell_count ||
         location->z >= prototype_terrain_cell_count)
       continue;
     const auto x = location->x, z = location->z;
-    const auto a = prototypeTerrainSamplePosition(level.terrain, x, z);
-    const auto c = prototypeTerrainSamplePosition(level.terrain, x + 1, z + 1);
+    const auto a = prototypeTerrainSamplePosition(*level.terrain, x, z);
+    const auto c = prototypeTerrainSamplePosition(*level.terrain, x + 1, z + 1);
     const auto b =
         *location->triangle == 0
-            ? prototypeTerrainSamplePosition(level.terrain, x, z + 1)
-            : prototypeTerrainSamplePosition(level.terrain, x + 1, z);
+            ? prototypeTerrainSamplePosition(*level.terrain, x, z + 1)
+            : prototypeTerrainSamplePosition(*level.terrain, x + 1, z);
     constexpr WorldColor invalid{255, 70, 70, 255};
     line(a, b, invalid);
     line(b, c, invalid);
     line(c, a, invalid);
   }
-  if (placement_hit && brush) {
+  if (placement_hit && brush && level.terrain) {
     // Concentric intensity rings show the same falloff used by the kernel.
     for (int ring = 1; ring <= 4; ++ring) {
       const double radius = brush->radius * ring / 4.0;
@@ -128,7 +128,7 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
               placement_hit->x + static_cast<float>(radius * std::cos(angle)),
               0,
               placement_hit->z + static_cast<float>(radius * std::sin(angle))};
-          p.y = prototypeTerrainHeightAt(level.terrain, p.x, p.z);
+          p.y = prototypeTerrainHeightAt(*level.terrain, p.x, p.z);
           return p;
         };
         // Out-of-terrain arcs get NaN heights and are omitted by projection.
@@ -136,8 +136,10 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
       }
     }
   }
-  marker(editorSpawnMarker(level.player_spawn),
-         document.selection() == editor_spawn ? selected_color : spawn_color);
+  for (std::size_t i = 0; i < level.entries.size(); ++i)
+    marker(editorSpawnMarker(level.entries[i].pose),
+           document.selection() == document.entryIds()[i] ? selected_color
+                                                          : spawn_color);
   for (std::size_t i = 0; i < level.environment_light.point_lights.size();
        ++i) {
     marker(level.environment_light.point_lights[i].position,

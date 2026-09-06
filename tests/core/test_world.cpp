@@ -69,7 +69,7 @@ TEST(PrototypeLevel, HasValidContainedMovementTestGeometry) {
 
 TEST(PrototypeLevel, HasValidBoundedSculptableTerrain) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
-  const PrototypeTerrain& terrain = level.terrain();
+  const PrototypeTerrain& terrain = *level.terrain();
   EXPECT_TRUE(prototypeTerrainIsValid(terrain));
   EXPECT_EQ(terrain.sample_spacing, prototype_terrain_sample_spacing);
   EXPECT_TRUE(
@@ -98,7 +98,7 @@ TEST(PrototypeLevel, HasValidBoundedSculptableTerrain) {
 }
 
 TEST(PrototypeLevel, RejectsInvalidTerrainFixtures) {
-  const PrototypeTerrain valid = loadPackagedPrototypeLevel().terrain();
+  const PrototypeTerrain valid = *loadPackagedPrototypeLevel().terrain();
   auto invalid = valid;
   invalid.sample_spacing = 0.0F;
   EXPECT_FALSE(prototypeTerrainIsValid(invalid));
@@ -303,7 +303,7 @@ TEST(PrototypeLevel, SpawnFacesSceneAndClearsEverySolid) {
   EXPECT_LT(level.playerSpawn().foot_position.x, 10.0F);
   EXPECT_FLOAT_EQ(level.playerSpawn().foot_position.y,
                   prototypeTerrainHeightAt(
-                      level.terrain(), level.playerSpawn().foot_position.x,
+                      *level.terrain(), level.playerSpawn().foot_position.x,
                       level.playerSpawn().foot_position.z));
 }
 
@@ -344,6 +344,6 @@ TEST(PrototypeLevel, RenderingAndPhysicsDeriveFromMatchingSolids) {
       continue;
     }
     EXPECT_LE(solid.center.y - solid.half_extent.y,
-              prototypeTerrainMinimumHeight(level.terrain()));
+              prototypeTerrainMinimumHeight(*level.terrain()));
   }
 }

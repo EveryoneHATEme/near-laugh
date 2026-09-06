@@ -49,6 +49,7 @@ struct PhysicsStaticSolid {
 class PhysicsWorld {
  public:
   explicit PhysicsWorld(const PrototypeLevel& level);
+  PhysicsWorld(const PrototypeLevel& level, const LevelEntry& entry);
   ~PhysicsWorld();
 
   PhysicsWorld(const PhysicsWorld&) = delete;

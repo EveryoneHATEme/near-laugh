@@ -62,10 +62,10 @@ void expectDocumentEqual(const LevelDocument& actual,
                          const LevelDocument& expected) {
   EXPECT_EQ(actual.version, expected.version);
   EXPECT_EQ(actual.light_switch, expected.light_switch);
-  expectPositionEqual(actual.terrain.origin, expected.terrain.origin);
-  EXPECT_FLOAT_EQ(actual.terrain.sample_spacing,
-                  expected.terrain.sample_spacing);
-  EXPECT_EQ(actual.terrain.heights, expected.terrain.heights);
+  expectPositionEqual(actual.terrain->origin, expected.terrain->origin);
+  EXPECT_FLOAT_EQ(actual.terrain->sample_spacing,
+                  expected.terrain->sample_spacing);
+  EXPECT_EQ(actual.terrain->heights, expected.terrain->heights);
   ASSERT_EQ(actual.solids.size(), expected.solids.size());
   for (std::size_t index = 0; index < actual.solids.size(); ++index) {
     const PrototypeSolid& left = actual.solids[index];
@@ -78,10 +78,10 @@ void expectDocumentEqual(const LevelDocument& actual,
     EXPECT_EQ(left.kind, right.kind);
     EXPECT_EQ(left.surface, right.surface);
   }
-  expectPositionEqual(actual.player_spawn.foot_position,
-                      expected.player_spawn.foot_position);
-  EXPECT_FLOAT_EQ(actual.player_spawn.yaw_degrees,
-                  expected.player_spawn.yaw_degrees);
+  expectPositionEqual(actual.entries.front().pose.foot_position,
+                      expected.entries.front().pose.foot_position);
+  EXPECT_FLOAT_EQ(actual.entries.front().pose.yaw_degrees,
+                  expected.entries.front().pose.yaw_degrees);
   for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
     const PrototypePointLight& left =
         actual.environment_light.point_lights[index];
@@ -118,7 +118,7 @@ class CommaDecimalPoint final : public std::numpunct<char> {
 }  // namespace
 
 TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
-  static_assert(level_format_version == 3);
+  static_assert(level_format_version == 4);
   static_assert(prototype_terrain_sample_count == 97);
   static_assert(level_maximum_solid_count == 240);
   static_assert(prototype_point_light_count == 2);
@@ -133,7 +133,7 @@ TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
   std::filesystem::remove_all(root);
 
   const PrototypeLevel runtime = loadPackagedPrototypeLevel();
-  EXPECT_EQ(runtime.terrain().heights, loaded.document->terrain.heights);
+  EXPECT_EQ(runtime.terrain()->heights, loaded.document->terrain->heights);
   EXPECT_EQ(runtime.solids().size(), loaded.document->solids.size());
   EXPECT_EQ(runtime.environmentLight().point_lights.size(), 2U);
   EXPECT_TRUE(prototypeLevelIsValid(runtime));
@@ -141,16 +141,16 @@ TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
 
 TEST(LevelDocument, ValidationIsFieldAwareAndAuthoritative) {
   LevelDocument document = prototypeLevelDocument();
-  document.terrain.heights[1] = 100.0F;
+  document.terrain->heights[1] = 100.0F;
   document.solids[0].half_extent.x = 0.0F;
-  document.player_spawn.foot_position = document.solids[4].center;
+  document.entries.front().pose.foot_position = document.solids[4].center;
   document.environment_light.point_lights[0].radius = 0.0F;
   document.static_prop.box_proxy_half_extent.z = 0.0F;
   const std::vector<LevelDiagnostic> diagnostics =
       validateLevelDocument(document, "invalid.level.json");
   EXPECT_TRUE(hasField(diagnostics, "terrain.cells"));
   EXPECT_TRUE(hasField(diagnostics, "solids[0].half_extent"));
-  EXPECT_TRUE(hasField(diagnostics, "player_spawn"));
+  EXPECT_TRUE(hasField(diagnostics, "entries[0]"));
   EXPECT_TRUE(
       hasField(diagnostics, "environment_light.point_lights[0].radius"));
   EXPECT_TRUE(hasField(diagnostics, "static_prop.box_proxy.half_extent"));
@@ -168,13 +168,13 @@ TEST(LevelDocument, EnforcesSolidCapAndFiniteSupportedValues) {
   EXPECT_TRUE(hasField(validateLevelDocument(document), "solids"));
 
   document = prototypeLevelDocument();
-  document.player_spawn.yaw_degrees = std::numeric_limits<float>::quiet_NaN();
+  document.entries.front().pose.yaw_degrees =
+      std::numeric_limits<float>::quiet_NaN();
   EXPECT_TRUE(
-      hasField(validateLevelDocument(document), "player_spawn.yaw_degrees"));
+      hasField(validateLevelDocument(document), "entries[0].yaw_degrees"));
   document = prototypeLevelDocument();
   document.static_prop.translation.x = 1000.0F;
-  EXPECT_TRUE(hasField(validateLevelDocument(document),
-                       "static_prop.box_proxy.center"));
+  EXPECT_TRUE(validateLevelDocument(document).empty());
 }
 
 TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
@@ -189,7 +189,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"malformed", "{", "byte"});
 
   std::string version_one = canonical;
-  replaceOnce(version_one, "\"version\": 3", "\"version\": 1");
+  replaceOnce(version_one, "\"version\": 4", "\"version\": 1");
   cases.push_back({"version_one", std::move(version_one), "version"});
 
   std::string unknown = canonical;
@@ -198,7 +198,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"path", std::move(unknown), "model_path"});
 
   std::string missing = canonical;
-  replaceOnce(missing, "  \"version\": 3,\n", "");
+  replaceOnce(missing, "  \"version\": 4,\n", "");
   cases.push_back({"missing", std::move(missing), "version"});
 
   std::string invalid_heights = canonical;
@@ -230,7 +230,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   ASSERT_NE(solids_member, std::string::npos);
   const std::size_t array_begin = excessive.find('[', solids_member);
   const std::size_t array_end =
-      excessive.find("\n  ],\n  \"player_spawn\"", array_begin);
+      excessive.find("\n  ],\n  \"entries\"", array_begin);
   ASSERT_NE(array_end, std::string::npos);
   std::string too_many = "\n";
   for (std::size_t index = 0; index <= level_maximum_solid_count; ++index) {
@@ -271,8 +271,7 @@ TEST(LevelDocument, RuntimeLoaderRejectsMissingParseAndValidationFailures) {
                std::runtime_error);
 
   std::string unsupported_spawn = readBytes(packagedPrototypeLevelPath());
-  const std::size_t spawn_member =
-      unsupported_spawn.find("  \"player_spawn\": {");
+  const std::size_t spawn_member = unsupported_spawn.find("  \"entries\": [");
   ASSERT_NE(spawn_member, std::string::npos);
   const std::size_t spawn_x =
       unsupported_spawn.find("\"x\": 0.0", spawn_member);
@@ -284,7 +283,7 @@ TEST(LevelDocument, RuntimeLoaderRejectsMissingParseAndValidationFailures) {
   const LevelDocumentLoadResult editable = loadLevelDocument(invalid);
   ASSERT_TRUE(editable) << formatLevelDiagnostics(editable.diagnostics);
   EXPECT_TRUE(hasField(validateLevelDocument(*editable.document, invalid),
-                       "player_spawn.foot_position"));
+                       "entries[0].foot_position"));
   EXPECT_THROW(static_cast<void>(loadPrototypeLevel(invalid)),
                std::runtime_error);
   std::filesystem::remove_all(root);
@@ -292,7 +291,7 @@ TEST(LevelDocument, RuntimeLoaderRejectsMissingParseAndValidationFailures) {
 
 TEST(LevelDocument, CanonicalSaveRoundTripsBytesUnderNonClassicGlobalLocale) {
   LevelDocument original = prototypeLevelDocument();
-  original.terrain.heights[0] = -0.0F;
+  original.terrain->heights[0] = -0.0F;
   original.static_prop.yaw_degrees =
       std::nextafter(original.static_prop.yaw_degrees, 0.0F);
   const std::filesystem::path root = testDirectory("round_trip");
@@ -374,9 +373,8 @@ TEST(LightSwitchWorld, OptionalHandoffBoundsAndFieldValidation) {
                        "light_switch.point_light_index"));
   EXPECT_FALSE(lightSwitchIsValid(*document.light_switch));
   document.light_switch = *level.lightSwitch();
-  document.light_switch->position.x = document.terrain.origin.x;
-  EXPECT_TRUE(
-      hasField(validateLevelDocument(document), "light_switch.position"));
+  document.light_switch->position.x = document.terrain->origin.x;
+  EXPECT_TRUE(validateLevelDocument(document).empty());
   document.light_switch->position.x = std::numeric_limits<float>::infinity();
   EXPECT_FALSE(lightSwitchIsValid(*document.light_switch));
   document.light_switch = *level.lightSwitch();
@@ -402,18 +400,19 @@ TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
     ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
     EXPECT_EQ(readBytes(path), bytes);
   }
+  document = prototypeLevelDocument();
   document.light_switch.reset();
-  ASSERT_TRUE(saveLevelDocument(path, document));
-  auto old_bytes = readBytes(path);
+  auto old_bytes = readBytes("tests/fixtures/levels/prototype-v3.level.json");
   replaceOnce(old_bytes, "\"version\": 3", "\"version\": 2");
-  replaceOnce(old_bytes, ",\n  \"light_switch\": null", "");
+  old_bytes.erase(old_bytes.find(",\n  \"light_switch\""));
+  old_bytes += "\n}\n";
   writeBytes(path, old_bytes);
   const auto loaded = loadLevelDocument(path);
   ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(readBytes(path), old_bytes);
   ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
-  EXPECT_NE(readBytes(path).find("\"version\": 3"), std::string::npos);
+  EXPECT_NE(readBytes(path).find("\"version\": 4"), std::string::npos);
   EXPECT_NE(readBytes(path).find("\"light_switch\": null"), std::string::npos);
   const auto current = readBytes(path);
   ASSERT_TRUE(saveLevelDocument(path, *loadLevelDocument(path).document));
@@ -465,7 +464,7 @@ TEST(LevelDocument, SwitchParserRequiresExactShapeAndTypes) {
   replaceOnce(missing, ",\n  \"light_switch\": null", "");
   writeBytes(path, missing);
   EXPECT_TRUE(hasField(loadLevelDocument(path).diagnostics, "light_switch"));
-  auto mixed = absent;
+  auto mixed = readBytes("tests/fixtures/levels/prototype-v3.level.json");
   replaceOnce(mixed, "\"version\": 3", "\"version\": 2");
   writeBytes(path, mixed);
   EXPECT_TRUE(hasField(loadLevelDocument(path).diagnostics, "light_switch"));

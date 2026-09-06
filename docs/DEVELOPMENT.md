@@ -50,6 +50,7 @@ On Windows:
 
 ```powershell
 .\build\debug\bin\near_laugh.exe
+.\build\debug\bin\near_laugh.exe --level .\resources\levels\apartment-stairs.level.json --entry lower-landing
 .\build\debug\bin\level_editor.exe
 .\build\debug\bin\level_editor.exe .\resources\levels\prototype.level.json
 ```
@@ -58,12 +59,19 @@ On other supported desktop environments, use:
 
 ```sh
 ./build/debug/bin/near_laugh
+./build/debug/bin/near_laugh --level ./resources/levels/apartment-stairs.level.json --entry lower-landing
 ./build/debug/bin/level_editor
 ./build/debug/bin/level_editor ./resources/levels/prototype.level.json
 ```
 
 Both launchers derive the resource root from the actual executable path, not
 the working directory or `argv[0]`.
+The game accepts `--level <path>` and `--entry <id>` independently. Defaults
+are the packaged prototype and the selected level's authored default entry.
+Relative level arguments resolve against the invoking directory once; quote
+paths containing spaces. Unknown, repeated, missing, and empty options fail
+before application startup. Native Unicode paths are preserved. Other assets
+always come from the executable's resource root.
 
 ## Current Packaged Resources
 
@@ -73,6 +81,7 @@ the relevant smoke/process executables:
 ```text
 resources/
   levels/prototype.level.json
+  levels/apartment-stairs.level.json
   models/prototype_chair.glb
   shaders/prototype_scene_vertex.spv
   shaders/prototype_scene_fragment.spv
@@ -81,15 +90,18 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-The level uses format version 3. Its bounded profile contains one 97-by-97
-heightfield, at most 240 solids, one spawn, exactly two point lights and one
-ambient intensity, one chair placement with a box proxy, and zero or one
-light switch. Version 3 requires `light_switch` as null or an object with
+Levels use format version 4. The bounded profile contains an optional 97-by-97
+heightfield, 1–240 solids, 1–16 named entries and a default entry ID, exactly
+two point lights and one ambient intensity, one chair placement with a box
+proxy, and zero or one light switch. `light_switch` is null or an object with
 `position`, `yaw_degrees`, `point_light_index` (0/1), and `initially_on` (boolean).
-The exact previous version-2 shape loads with no switch and without rewriting
-the source. Explicit saves always write version 3, which older builds cannot
-read. Version 1 remains unsupported. The document has no resource paths and is
-loaded once before physics and renderer construction.
+Exact previous version-2/3 shapes load without rewriting the source. The old
+spawn becomes the `default` entry; version 2 has no switch, while version 3
+retains its nullable switch. Explicit saves always write version 4. Version 1
+and unknown versions remain unsupported. The document has no resource paths
+and is loaded and validated once before physics and renderer construction.
+Every entry must have solid-top or terrain support at its authored height and
+standing clearance, including entries not chosen for the current launch.
 
 The three textures form a fixed sRGB array in floor/boundary/obstacle order.
 Terrain and solid faces use outward normals, world-scaled UVs, authored tints,
@@ -136,51 +148,66 @@ suppresses conflicting camera input.
 
 File > Open and File > Save As use explicit path-entry dialogs. Opening is
 transactional; Save and Save As use the shared validated deterministic codec;
-and dirty open, close, or exit requests require Save, Discard, or Cancel.
+and dirty New, Open, Close, or Exit requests require Save, Discard, or Cancel.
+File > New Interior creates a valid starter floor, default entry, two lights,
+ambient 0.12, and the packaged chair without terrain or a switch. It begins
+dirty and unsaved; Save uses Save As until a path has been chosen. Legacy files
+open clean with a migration notice. Safely decoded gameplay-invalid files
+remain editable with diagnostics; malformed or unsafe files preserve the
+current document.
 
 The Objects panel and left-click viewport picking share one selection. Solids
-can be added, duplicated, deleted, and edited. The single spawn, two point
-lights, and single packaged chair can be selected and edited but cannot be
-added, duplicated, or removed. Ambient intensity and terrain layout remain
-read-only.
+can be added, duplicated, deleted, and edited. Entries can also be added,
+duplicated, renamed, and moved. IDs match `[a-z][a-z0-9-]{0,63}`; new entries use
+the first unused `entry-N`. Make default changes the authored startup entry.
+Renaming it updates the reference in one undoable edit. Choose another default
+before deleting the default entry; the last entry cannot be deleted. The two
+point lights and single packaged chair can be selected and edited but cannot
+be added, duplicated, or removed. Ambient and terrain layout remain read-only.
 
 **Add light switch** creates the optional singleton near the spawn at standing
 interaction height. Select **Light switch** in Objects or click its plate in
 the viewport. Delete removes it; duplication is unavailable. Properties expose
 Position, Yaw, Linked light (Point light 1/2), and Initially on. Exact numeric
-placement supports mounting it just in front of a wall. Place on terrain
-preserves its prior height above terrain. All switch edits share undo/redo,
-validation, and dirty state. Finite out-of-terrain placements stay editable but
-block saving. Preview follows the initial state, including link changes,
+placement is available alongside surface mounting. All switch edits share
+undo/redo, validation, and dirty state. Switches and the chair may lie outside
+terrain bounds. Preview follows the initial state, including link changes,
 removal, sculpting, and recovery. The editor does not run E interaction.
 
 The Properties panel edits position, dimensions, tint, solid kind/surface,
-spawn yaw, light color/intensity/radius, and chair translation/yaw/uniform
+entry ID and yaw, light color/intensity/radius, and chair translation/yaw/uniform
 scale plus its box proxy. Drag numeric values, or Ctrl-click a numeric field
 to type an exact value. Release or finish the field to commit one undo entry.
 Invalid numeric commits retain the previous value and report the field error.
 Changing a solid kind selects its matching surface; a manually changed surface
 must match the kind before saving.
 
-Enable **Place on terrain** with an object selected, then left-click the
-terrain at the yellow marker. Solids rest their bottom at the hit, the spawn
-places its feet there, and the chair places its translation there. Lights
-retain their height above the previous terrain anchor. Other properties stay
-unchanged. Escape cancels placement; a terrain miss has no effect. Yellow
-bounds identify the selected solid or chair proxy; sphere markers identify
-lights and spawn. These editor overlays remain visible through scene geometry.
+Enable **Place on surface** with an object selected. **Scene surfaces** uses
+the nearest structural face or terrain triangle and displays the target,
+face, elevation, and normal. It excludes the moved solid. **Terrain only**
+retains terrain placement and is unavailable when terrain is absent.
+On top surfaces, solids rest their bottom at the hit, entries place their
+feet, and the chair places its translation. Lights and switches use the visible
+height offset (initially 2 m and 1.4 m, or the previous terrain offset).
+Vertical faces support solids, lights with a visible outward offset, and
+switches with their back 1 mm outside the wall and front aligned outward.
+Entries and the chair cannot be wall-mounted. Undersides block placement;
+the editor never searches through an unsuitable nearer face. Escape, a miss,
+UI capture, or navigation cancels/suppresses placement without an edit.
+Yellow bounds identify selected geometry; sphere markers identify lights and
+entries. Editor overlays remain visible through scene geometry.
 
 Editor shortcuts (suppressed during camera navigation, active field editing,
 or modal dialogs):
 
 - Ctrl+Z: undo; Ctrl+Y or Ctrl+Shift+Z: redo.
-- Ctrl+D: duplicate the selected solid at a visible horizontal offset.
-- Delete: remove the selected solid.
+- Ctrl+D: duplicate a solid at a horizontal offset or an entry at the same pose.
+- Delete: remove the selected solid, removable entry, or switch.
 - Ctrl+S: save the current valid document.
 
 History retains up to 128 committed edits and clears on document replacement.
 Undoing back to the saved state clears dirty state; editing after undo drops
-the redo branch. Finite edits that violate level constraints, such as spawn
+the redo branch. Finite edits that violate level constraints, such as entry
 overlap, remain visible and editable with validation diagnostics. Save is
 disabled until correction or undo restores validity. Unsaved-close dialogs
 still offer Discard and Cancel when the document is invalid.
@@ -212,23 +239,43 @@ during the stroke, and full validation runs when it ends or is undone/redone.
 Entering UI, starting navigation, minimizing, or requesting close ends the
 current stroke. Invalid slope triangles appear in red; Validation lists their
 zero-based cell X/Z and triangle 1 or 2. Repair with lower/smooth strokes or
-undo. If terrain changes leave the spawn unsupported, select the spawn and use
-Place on terrain, then resolve any reported overlap before saving.
+undo. Terrain strokes revalidate all entries. If a stroke leaves an entry
+unsupported, place it back on a suitable surface or correct its numeric pose.
+Clear upper-floor entries remain supported by their authored structural floors.
+Terrain tools and footprints clear when switching to an interior.
 
 Brushes edit only the fixed 97-by-97 height samples. They do not change layout,
 surface roles, textures, or runtime collision and cannot author holes, caves,
 overhangs, voxel terrain, paint, procedural terrain, or erosion.
 
-To use an authored level in the game, save it explicitly to the game's
-executable-adjacent `resources/levels/prototype.level.json` and restart the
-game. Saving elsewhere does not change the packaged level. Builds that copy
-source resources may replace that executable-adjacent file; preserve authored
-work separately or deliberately update the source asset.
+In **Playtest**, choose **Start entry** and **Play**. The selection is editor
+state and does not change the authored default or dirty state. Play finishes
+pending edits and validates all entries. Dirty work requires **Save and Play**
+or **Cancel**; unsaved work then uses Save As. A fresh read must match the
+prepared editor document before launch. If the disk file changed externally,
+explicitly Save or Open it and try again. Errors and canceled dialogs launch
+nothing and leave no deferred request.
+
+The editor starts the sibling game with the saved absolute path and chosen
+entry. One game child can run at a time. Authoring remains available; process
+creation and eventual exit status appear in Playtest. Closing the editor
+leaves the game running independently. Saved edits do not change that run.
+Keep authored files at their own paths; playing them does not require changing
+the packaged prototype. Shared resource copying runs once per build for the
+executables in `build/<preset>/bin`.
+
+The M1 blockout has upper floors at Y=3 and the lower landing at Y=0. From
+`apartment`, leave Lena's room through the east doorway into the corridor;
+the kitchen is east of the corridor at Z=-2.3. Follow the corridor north to
+the rear stairs at Z=-6 and descend to Z=-16.2. `lower-landing` faces back
+upstairs. Fourteen 0.6 m treads give fifteen 0.2 m rises in a 1.8 m-wide stair.
+This route uses ordinary walking. No doors, narrative events, or checkpoints
+are delivered by this authoring change.
 
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-3 level data with version-2 read compatibility,
+- `near_laugh_world`: version-4 level data with version-2/3 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
 - `near_laugh_physics`: Jolt lifetime, static collision, and one virtual
   character.
@@ -237,7 +284,8 @@ work separately or deliberately update the source asset.
 - `near_laugh_runtime`: application facade, composition, player input,
   player/flashlight policy, fixed-step coordination, and main loop.
 - `near_laugh`: game launcher linking only `near_laugh_runtime`.
-- `near_laugh_editor_core`: editor document workflow and camera.
+- `near_laugh_editor_core`: document workflow, play preparation, native child
+  ownership, and camera.
 - `near_laugh_editor_ui`: Dear ImGui integration and workspace.
 - `near_laugh_editor_render`: editor Vulkan rendering and active-document GPU
   replacement.
@@ -259,12 +307,16 @@ error-severity Vulkan validation messages fail the test. A desktop session and
 a Vulkan 1.3 presentation-capable device are required.
 
 The editor smoke also exercises object duplication/removal, undo, invalid
-spawn preview and refused saving, canceled close, light/prop edits, and
+entry preview and refused saving, canceled close, light/prop edits, and
 semantic save/reload using a temporary level copy. Deterministic UI tests drive
 real ImGui button, shortcut, capture, and numeric-drag behavior without a GPU.
 Terrain smoke coverage includes active multi-stamp strokes, coalesced buffer
 replacement, smoothing, undo/redo, sculpted save/reload, and resize/minimize
 recovery followed by an unsaved exit decision.
+Interior smoke covers both named starts, runtime selected-entry failures,
+terrain/interior replacement, an empty world mesh, and failed replacement
+followed by rendering with the prior resources. Deterministic tests exercise
+the saved-file Play transaction and a real native child argument probe.
 
 Light-switch coverage includes all point-light/spotlight enable combinations,
 editor add/remove and link changes, initial-state preview, and terrain rebuilds.

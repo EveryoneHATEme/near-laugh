@@ -18,6 +18,7 @@ bool EditorDocument::open(const std::filesystem::path& path) {
   }
 
   document_ = std::move(candidate.document);
+  source_version_ = candidate.source_version;
   path_ = candidate_path;
   diagnostics_.clear();
   resetEditing();
@@ -44,6 +45,7 @@ bool EditorDocument::save() {
   }
   diagnostics_.clear();
   saved_revision_ = current_revision_;
+  source_version_ = level_format_version;
   return true;
 }
 
@@ -64,6 +66,7 @@ bool EditorDocument::saveAs(const std::filesystem::path& path) {
   path_ = candidate_path;
   diagnostics_.clear();
   saved_revision_ = current_revision_;
+  source_version_ = level_format_version;
   return true;
 }
 
@@ -74,6 +77,37 @@ void EditorDocument::requestOpen(const std::filesystem::path& path) {
     return;
   }
   static_cast<void>(open(path));
+}
+
+void EditorDocument::requestNewInterior() {
+  static_cast<void>(finishTerrainStroke());
+  if (dirty()) {
+    pending_ = {EditorPendingActionKind::NewInterior, {}};
+    return;
+  }
+  newInterior();
+}
+
+void EditorDocument::newInterior() {
+  LevelDocument interior;
+  interior.solids = {{{0, -0.25F, 0},
+                      {5, 0.25F, 5},
+                      {150, 155, 165, 255},
+                      PrototypeSolidKind::Floor,
+                      PrototypeSurface::Floor}};
+  interior.entries = {{"default", {{0, 0, 2}, -90}}};
+  interior.default_entry = "default";
+  interior.environment_light = {{{{{0, 2.4F, 2}, {0.3F, 0.5F, 0.9F}, 0.65F, 5},
+                                  {{0, 2.8F, -2}, {1, 0.48F, 0.2F}, 0.95F, 6}}},
+                                0.12F};
+  interior.static_prop = {
+      {3, 0, -2},           -25, 1, PrototypeSurface::Obstacle, {0, 0.91F, 0},
+      {0.55F, 0.91F, 0.48F}};
+  document_ = std::move(interior);
+  source_version_ = level_format_version;
+  path_.reset();
+  resetEditing();
+  saved_revision_ = 0;
 }
 
 void EditorDocument::requestClose() {
@@ -133,6 +167,9 @@ bool EditorDocument::performPendingAction() {
       return false;
     case EditorPendingActionKind::Open:
       return open(action.path);
+    case EditorPendingActionKind::NewInterior:
+      newInterior();
+      return true;
     case EditorPendingActionKind::Close:
       performClose();
       return true;

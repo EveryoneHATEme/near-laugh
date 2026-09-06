@@ -69,6 +69,24 @@ TEST(PhysicsLifetime, RepeatedCreateDestroyLeavesNoGlobalOwner) {
   }
 }
 
+TEST(PhysicsLifetime, InteriorPartialConstructionAndWallsRetainOwnership) {
+  const auto level =
+      loadPrototypeLevel("resources/levels/apartment-stairs.level.json");
+  for (const char* stage : {"runtime-factory", "world", "static-bodies",
+                            "model-proxy", "character"}) {
+    {
+      ScopedPhysicsFailure failure(stage);
+      EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error);
+    }
+    PhysicsWorld recovered(level, *level.entry("lower-landing"));
+    EXPECT_FALSE(recovered.hasTerrainCollision());
+    const auto state = simulate(recovered, {4, 0, 0}, 120);
+    EXPECT_TRUE(state.supported());
+    EXPECT_LT(state.foot_position.x, 1.7F);
+    EXPECT_TRUE(recovered.staticSegmentBlocked({0, 1, -16.2F}, {3, 1, -16.2F}));
+  }
+}
+
 TEST(PhysicsLifetime, RejectsDuplicateActiveRuntimeWithoutDamagingOwner) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
   PhysicsWorld owner(level);
@@ -107,7 +125,7 @@ TEST(PhysicsWorld, StaticTerrainSupportsTheFallingCharacter) {
   const PhysicsCharacterState state = simulate(physics, {}, 180);
   EXPECT_TRUE(state.supported());
   EXPECT_NEAR(state.foot_position.y,
-              prototypeTerrainHeightAt(level.terrain(), state.foot_position.x,
+              prototypeTerrainHeightAt(*level.terrain(), state.foot_position.x,
                                        state.foot_position.z),
               0.03F);
 }
@@ -124,7 +142,7 @@ TEST(PhysicsWorld, TraversesTerrainFeaturesAndCannotEscapeAtADepression) {
     ASSERT_TRUE(hill.supported());
     EXPECT_GT(hill.foot_position.y, 0.3F);
     EXPECT_NEAR(hill.foot_position.y,
-                prototypeTerrainHeightAt(level.terrain(), hill.foot_position.x,
+                prototypeTerrainHeightAt(*level.terrain(), hill.foot_position.x,
                                          hill.foot_position.z),
                 0.04F);
   }
@@ -138,7 +156,7 @@ TEST(PhysicsWorld, TraversesTerrainFeaturesAndCannotEscapeAtADepression) {
   EXPECT_LT(depression.foot_position.y, -0.3F);
   EXPECT_NEAR(
       depression.foot_position.y,
-      prototypeTerrainHeightAt(level.terrain(), depression.foot_position.x,
+      prototypeTerrainHeightAt(*level.terrain(), depression.foot_position.x,
                                depression.foot_position.z),
       0.04F);
 

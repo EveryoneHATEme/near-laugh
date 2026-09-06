@@ -51,7 +51,7 @@ TEST(StaticVisibility,
   EXPECT_FALSE(
       physics.staticSegmentBlocked({center.x, center.y, center.z + 1},
                                    {center.x, center.y, center.z + 0.3F}));
-  const auto spawn = document.player_spawn.foot_position;
+  const auto spawn = document.entries.front().pose.foot_position;
   EXPECT_FALSE(
       physics.staticSegmentBlocked({spawn.x, spawn.y + 0.9F, spawn.z},
                                    {spawn.x, spawn.y + 0.9F, spawn.z - 1}));
@@ -133,8 +133,8 @@ TEST(LightSwitchController, RejectedAndInactivePressesCannotBeDeferred) {
 
 TEST(LightSwitchController, EventBatchesAndPresentationDoNotReplayPresses) {
   auto document = prototypeLevelDocument();
-  document.player_spawn.foot_position = {
-      0, prototypeTerrainHeightAt(document.terrain, 0, 2.5F), 2.5F};
+  document.entries.front().pose.foot_position = {
+      0, prototypeTerrainHeightAt(*document.terrain, 0, 2.5F), 2.5F};
   const auto level = makePrototypeLevel(document);
   PhysicsWorld physics(level);
   PlayerController player(physics, -90);

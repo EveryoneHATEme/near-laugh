@@ -11,6 +11,7 @@
 #include <thread>
 #include <vector>
 
+#include "core/engine.hpp"
 #include "core/physics/physics_world.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
@@ -390,6 +391,8 @@ int main(int argc, char** argv) {
     }
     const bool inject_validation_error =
         argc == 2 && std::string_view(argv[1]) == "--inject-validation-error";
+    const bool interior =
+        argc == 3 && std::string_view(argv[1]) == "--interior";
     ValidationDiagnostics diagnostics;
     {
       Platform platform;
@@ -402,9 +405,15 @@ int main(int argc, char** argv) {
       if (window.cursorCaptured()) {
         throw std::runtime_error("Cursor capture did not disable");
       }
-      PrototypeLevel level = loadPackagedPrototypeLevel();
-      PhysicsWorld physics(level);
-      PlayerController player(physics, level.playerSpawn().yaw_degrees);
+      PrototypeLevel level =
+          interior ? loadPrototypeLevel(
+                         "resources/levels/apartment-stairs.level.json")
+                   : loadPackagedPrototypeLevel();
+      const auto* entry =
+          level.entry(interior ? argv[2] : level.defaultEntryId());
+      if (!entry) throw std::runtime_error("Smoke selected an unknown entry");
+      PhysicsWorld physics(level, *entry);
+      PlayerController player(physics, entry->pose.yaw_degrees);
       for (int step = 0; step < 120; ++step) {
         player.fixedStep(1.0F / 60.0F);
       }
@@ -479,6 +488,46 @@ int main(int argc, char** argv) {
       std::cerr << "Vulkan smoke failed after orderly cleanup: validation "
                 << "reported " << diagnostics.errorCount() << " error(s)\n";
       return 2;
+    }
+    if (interior) {
+      near_laugh::RuntimeConfig config;
+      config.resource_root = std::filesystem::absolute("resources");
+      config.level_path =
+          config.resource_root / "levels/apartment-stairs.level.json";
+      config.entry_id = argv[2];
+      config.window_width = 320;
+      config.window_height = 240;
+      {
+        Engine engine(config, diagnostics);
+        for (int i = 0; i < 3; ++i) static_cast<void>(engine.tick());
+      }
+      config.entry_id = "missing-interior-entry";
+      bool rejected = false;
+      try {
+        Engine engine(config, diagnostics);
+      } catch (const std::runtime_error& error) {
+        rejected =
+            std::string_view(error.what()).find("missing-interior-entry") !=
+            std::string_view::npos;
+      }
+      if (!rejected)
+        throw std::runtime_error(
+            "Runtime did not reject the selected missing entry");
+      config.entry_id = argv[2];
+      config.level_path = config.resource_root / "levels/missing-interior.json";
+      rejected = false;
+      try {
+        Engine engine(config, diagnostics);
+      } catch (const std::runtime_error& error) {
+        rejected =
+            std::string_view(error.what()).find("missing-interior.json") !=
+            std::string_view::npos;
+      }
+      if (!rejected)
+        throw std::runtime_error(
+            "Runtime did not reject the selected missing file");
+      if (diagnostics.errorCount())
+        throw std::runtime_error("Interior startup recorded validation errors");
     }
     return 0;
   } catch (const std::exception& error) {

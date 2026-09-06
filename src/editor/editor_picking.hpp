@@ -16,6 +16,7 @@ struct EditorRay {
 struct EditorTerrainHit {
   WorldPosition position{};
   double distance{};
+  WorldPosition normal{};
 };
 
 [[nodiscard]] std::optional<EditorRay> editorPointerRay(
@@ -26,6 +27,13 @@ struct EditorTerrainHit {
     const PrototypeTerrain& terrain, const EditorRay& ray);
 [[nodiscard]] WorldPosition editorSpawnMarker(
     const PrototypePlayerSpawn& spawn);
+[[nodiscard]] std::optional<EditorSurfaceHit> pickEditorSurface(
+    const EditorDocument& document, const EditorRay& ray,
+    EditorPlacementMode mode);
+[[nodiscard]] std::optional<EditorSurfaceHit> updateEditorPlacementViewport(
+    EditorDocument& document, const std::optional<EditorRay>& ray,
+    bool pointer_owned, bool navigation_active, bool pressed,
+    EditorPlacementMode mode, const EditorPlacementOffsets& offsets);
 
 // The UI supplies a press edge; capture/navigation suppress both selection and
 // placement.

@@ -1,4 +1,6 @@
 add_executable(engine_tests
+    core/test_editor_playtest.cpp
+    core/test_interior_level.cpp
     core/test_editor_bridge.cpp
     core/test_editor_camera.cpp
     core/test_editor_commands.cpp
@@ -27,6 +29,7 @@ add_executable(engine_tests
     core/test_player_controller.cpp
     core/test_prototype_scene.cpp
     ${CMAKE_SOURCE_DIR}/src/launcher/executable_path.cpp
+    ${CMAKE_SOURCE_DIR}/src/launcher/launch_options.cpp
 )
 target_include_directories(engine_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(engine_tests PRIVATE
@@ -36,6 +39,12 @@ target_link_libraries(engine_tests PRIVATE
     Vulkan::Vulkan near_laugh_imgui GTest::gtest_main
 )
 near_laugh_enable_warnings(engine_tests)
+
+add_executable(editor_argument_probe process/editor_argument_probe.cpp)
+near_laugh_enable_warnings(editor_argument_probe)
+add_dependencies(engine_tests editor_argument_probe)
+target_compile_definitions(engine_tests PRIVATE
+    EDITOR_ARGUMENT_PROBE_PATH="$<TARGET_FILE:editor_argument_probe>")
 
 include(GoogleTest)
 gtest_discover_tests(engine_tests
@@ -54,26 +63,19 @@ near_laugh_enable_warnings(vulkan_smoke)
 set_target_properties(vulkan_smoke PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-add_custom_command(TARGET vulkan_smoke POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/shaders"
-            "$<TARGET_FILE_DIR:vulkan_smoke>/resources/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/textures"
-            "$<TARGET_FILE_DIR:vulkan_smoke>/resources/textures"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/models"
-            "$<TARGET_FILE_DIR:vulkan_smoke>/resources/models"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/levels"
-            "$<TARGET_FILE_DIR:vulkan_smoke>/resources/levels"
-)
+add_dependencies(vulkan_smoke near_laugh_packaged_resources)
 add_test(NAME vulkan_smoke COMMAND vulkan_smoke)
 set_tests_properties(vulkan_smoke PROPERTIES
     LABELS "vulkan-smoke"
     TIMEOUT 120
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>"
 )
+foreach(ENTRY IN ITEMS apartment lower-landing)
+    add_test(NAME vulkan_interior_${ENTRY} COMMAND vulkan_smoke --interior ${ENTRY})
+    set_tests_properties(vulkan_interior_${ENTRY} PROPERTIES
+        LABELS "vulkan-smoke" TIMEOUT 120
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
+endforeach()
 
 add_test(NAME vulkan_smoke_validation_error
          COMMAND vulkan_smoke --inject-validation-error)
@@ -164,22 +166,13 @@ near_laugh_enable_warnings(resource_layout_probe)
 set_target_properties(resource_layout_probe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-add_custom_command(TARGET resource_layout_probe POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/shaders"
-            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/textures"
-            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/textures"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/models"
-            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/models"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/levels"
-            "$<TARGET_FILE_DIR:resource_layout_probe>/resources/levels"
-)
+add_dependencies(resource_layout_probe near_laugh_packaged_resources)
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")
 add_test(NAME executable_relative_resource_layout COMMAND resource_layout_probe)
+add_test(NAME game_launch_option_failures
+    COMMAND ${CMAKE_COMMAND} -DGAME=$<TARGET_FILE:near_laugh>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/process/check_launch_options.cmake)
+set_tests_properties(game_launch_option_failures PROPERTIES LABELS "process")
 set_tests_properties(executable_relative_resource_layout PROPERTIES
     LABELS "process"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working"

@@ -11,7 +11,7 @@
 #include "core/world/level_document.hpp"
 #include "editor/editor_terrain.hpp"
 
-enum class EditorPendingActionKind { None, Open, Close, Exit };
+enum class EditorPendingActionKind { None, Open, NewInterior, Close, Exit };
 enum class EditorPendingDecision { Save, Discard, Cancel };
 
 struct EditorPendingAction {
@@ -27,8 +27,33 @@ inline constexpr EditorObjectId editor_prop = 4;
 inline constexpr EditorObjectId editor_light_switch = 5;
 inline constexpr EditorObjectId editor_first_solid = 6;
 using EditorObjectValue =
-    std::variant<PrototypeSolid, PrototypePlayerSpawn, PrototypePointLight,
+    std::variant<PrototypeSolid, LevelEntry, PrototypePointLight,
                  PrototypeStaticProp, PrototypeLightSwitch>;
+
+enum class EditorPlacementMode { SceneSurfaces, TerrainOnly };
+enum class EditorSurfaceFace {
+  Terrain,
+  Top,
+  Bottom,
+  NegativeX,
+  PositiveX,
+  NegativeZ,
+  PositiveZ
+};
+struct EditorSurfaceHit {
+  WorldPosition position{};
+  WorldPosition normal{};
+  double distance{};
+  EditorObjectId target{};
+  EditorSurfaceFace face{EditorSurfaceFace::Terrain};
+};
+struct EditorPlacementOffsets {
+  float height{2.0F};
+  float outward{0.1F};
+};
+[[nodiscard]] std::optional<EditorObjectValue> editorPlacedObject(
+    EditorObjectValue value, const EditorSurfaceHit& hit,
+    const EditorPlacementOffsets& offsets);
 
 // Field-level checks permit safe intermediate gameplay-invalid documents.
 [[nodiscard]] std::string editorObjectFieldError(
@@ -41,6 +66,7 @@ class EditorDocument {
   [[nodiscard]] bool saveAs(const std::filesystem::path& path);
 
   void requestOpen(const std::filesystem::path& path);
+  void requestNewInterior();
   void requestClose();
   void requestExit();
   [[nodiscard]] bool resolvePending(EditorPendingDecision decision);
@@ -55,6 +81,18 @@ class EditorDocument {
   [[nodiscard]] bool replaceObject(EditorObjectId id, EditorObjectValue value);
   [[nodiscard]] bool addSolid(PrototypeSolid solid);
   [[nodiscard]] bool addLightSwitch();
+  [[nodiscard]] bool addEntry(PrototypePlayerSpawn pose);
+  [[nodiscard]] bool makeSelectedEntryDefault();
+  [[nodiscard]] const std::vector<EditorObjectId>& entryIds() const noexcept {
+    return entry_ids_;
+  }
+  [[nodiscard]] const std::string& launchEntry() const noexcept {
+    return launch_entry_;
+  }
+  [[nodiscard]] bool selectLaunchEntry(std::string_view id);
+  [[nodiscard]] std::uint32_t sourceVersion() const noexcept {
+    return source_version_;
+  }
   [[nodiscard]] bool duplicateSelected();
   [[nodiscard]] bool removeSelected();
   [[nodiscard]] bool placeSelected(WorldPosition terrain_hit);
@@ -105,6 +143,9 @@ class EditorDocument {
   [[nodiscard]] std::uint64_t objectRevision() const noexcept {
     return object_revision_;
   }
+  [[nodiscard]] std::uint64_t generation() const noexcept {
+    return generation_;
+  }
 
  private:
   struct Edit {
@@ -118,10 +159,14 @@ class EditorDocument {
     std::uint64_t revision_after{};
     std::vector<EditorTerrainSampleEdit> terrain{};
     std::optional<EditorTerrainBrush> brush{};
+    std::optional<std::string> default_before{};
+    std::optional<std::string> default_after{};
   };
   void resetEditing();
   void refreshValidation();
   [[nodiscard]] std::optional<std::size_t> solidIndex(EditorObjectId id) const;
+  [[nodiscard]] std::optional<std::size_t> entryIndex(EditorObjectId id) const;
+  void newInterior();
   [[nodiscard]] bool commit(Edit edit);
   void applyEdit(const Edit& edit, bool forward);
   void performClose() noexcept;
@@ -136,6 +181,9 @@ class EditorDocument {
   std::vector<LevelDiagnostic> diagnostics_{};
   EditorPendingAction pending_{};
   std::vector<EditorObjectId> solid_ids_{};
+  std::vector<EditorObjectId> entry_ids_{};
+  std::string launch_entry_{};
+  std::uint32_t source_version_{level_format_version};
   EditorObjectId next_object_id_{editor_first_solid};
   EditorObjectId selection_{};
   std::deque<Edit> history_{};
@@ -151,6 +199,7 @@ class EditorDocument {
   bool exit_requested_{};
   std::uint64_t revision_{};
   std::uint64_t object_revision_{};
+  std::uint64_t generation_{};
 };
 
 #endif

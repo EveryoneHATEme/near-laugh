@@ -3,6 +3,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -30,15 +31,32 @@ void showPosition(const char* label, const WorldPosition& position) {
               position.z);
 }
 
+std::string pathText(const std::filesystem::path& path) {
+  const auto text = path.u8string();
+  return {text.begin(), text.end()};
+}
+std::filesystem::path pathFromText(const char* text) {
+  return std::filesystem::path(std::u8string(text, text + std::strlen(text)));
+}
+
 }  // namespace
 
-void EditorUi::draw(EditorDocument& document) {
+void EditorUi::draw(EditorDocument& document, bool child_active,
+                    std::string_view process_status) {
+  if (document_generation_ != document.generation()) {
+    document_generation_ = document.generation();
+    placing_ = sculpting_ = false;
+    placement_hit_.reset();
+    placement_object_ = editor_no_object;
+    playtest_.cancel();
+  }
   ImGui::DockSpaceOverViewport(0, nullptr,
                                ImGuiDockNodeFlags_PassthruCentralNode);
   drawMenu(document);
   drawDocumentSummary(document);
   drawObjects(document);
   drawProperties(document);
+  drawPlay(document, child_active, process_status);
   drawValidation(document);
   drawPathModals(document);
   drawPendingModal(document);
@@ -46,16 +64,75 @@ void EditorUi::draw(EditorDocument& document) {
 
 void EditorUi::finishFrame() { ImGui::Render(); }
 
+void EditorUi::drawPlay(EditorDocument& document, bool child_active,
+                        std::string_view process_status) {
+  ImGui::SetNextWindowPos({340, 35}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({380, 160}, ImGuiCond_FirstUseEver);
+  ImGui::Begin("Playtest");
+  if (document.document()) {
+    if (ImGui::BeginCombo("Start entry", document.launchEntry().c_str())) {
+      for (const auto& entry : document.document()->entries) {
+        if (ImGui::Selectable(entry.id.c_str(),
+                              entry.id == document.launchEntry()))
+          static_cast<void>(document.selectLaunchEntry(entry.id));
+      }
+      ImGui::EndCombo();
+    }
+    ImGui::BeginDisabled(
+        child_active || playtest_.state() != EditorPlayState::Idle ||
+        document.pendingAction().kind != EditorPendingActionKind::None);
+    if (ImGui::Button("Play")) {
+      const bool draft_changed =
+          property_edit_.value() &&
+          property_edit_.value() != document.object(document.selection());
+      if (!draft_changed || property_edit_.commit(document))
+        static_cast<void>(playtest_.request(document, child_active));
+    }
+    ImGui::EndDisabled();
+  } else {
+    ImGui::TextUnformatted("Create or open a level to playtest.");
+  }
+  if (!playtest_.error().empty())
+    ImGui::TextWrapped("%s", playtest_.error().c_str());
+  if (!process_status.empty())
+    ImGui::TextWrapped("%.*s", static_cast<int>(process_status.size()),
+                       process_status.data());
+  if (playtest_.state() == EditorPlayState::ConfirmSave)
+    ImGui::OpenPopup("Save and Play");
+  if (ImGui::BeginPopupModal("Save and Play", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextUnformatted(
+        "Save the current level before launching the chosen entry.");
+    if (ImGui::Button("Save and Play")) {
+      static_cast<void>(playtest_.saveAndPlay(document));
+      if (playtest_.state() == EditorPlayState::SaveAs)
+        openPathModal(true, document);
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) {
+      playtest_.cancel();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::End();
+}
+
 void EditorUi::drawMenu(EditorDocument& document) {
   if (!ImGui::BeginMainMenuBar()) {
     return;
   }
   if (ImGui::BeginMenu("File")) {
+    if (ImGui::MenuItem("New Interior")) document.requestNewInterior();
     if (ImGui::MenuItem("Open...")) {
       openPathModal(false, document);
     }
     if (ImGui::MenuItem("Save", "Ctrl+S", false, document.valid())) {
-      static_cast<void>(document.save());
+      if (document.path())
+        static_cast<void>(document.save());
+      else
+        openPathModal(true, document);
     }
     if (ImGui::MenuItem("Save As...", nullptr, false, document.valid())) {
       openPathModal(true, document);
@@ -91,20 +168,27 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
   }
   const LevelDocument& document = *editor_document.document();
   const std::string path = editor_document.path()
-                               ? editor_document.path()->string()
+                               ? pathText(*editor_document.path())
                                : std::string("<unsaved>");
   ImGui::TextWrapped("Path: %s", path.c_str());
   ImGui::Text("Format version: %u", document.version);
-  ImGui::TextWrapped(
-      "Explicit saves write version 3; older builds cannot read it.");
+  if (editor_document.sourceVersion() < level_format_version)
+    ImGui::TextWrapped(
+        "Opened version %u without changing the file. Explicit Save writes "
+        "version 4.",
+        editor_document.sourceVersion());
   ImGui::Text("State: %s", editor_document.dirty() ? "dirty" : "clean");
-  ImGui::Text("Terrain: %zu x %zu samples", prototype_terrain_sample_count,
-              prototype_terrain_sample_count);
+  if (document.terrain)
+    ImGui::Text("Terrain: %zu x %zu samples", prototype_terrain_sample_count,
+                prototype_terrain_sample_count);
+  else
+    ImGui::TextUnformatted("Terrain: absent (interior)");
   ImGui::Text("Solids: %zu / %zu", document.solids.size(),
               level_maximum_solid_count);
   ImGui::Text("Point lights: %zu",
               document.environment_light.point_lights.size());
-  ImGui::TextUnformatted("Player spawn: 1");
+  ImGui::Text("Entries: %zu / 16; default: %s", document.entries.size(),
+              document.default_entry.c_str());
   ImGui::TextUnformatted("Static prop: 1 packaged chair");
   ImGui::Text("Light switch: %u / 1", document.light_switch ? 1U : 0U);
   ImGui::End();
@@ -121,11 +205,12 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
     return;
   }
   const LevelDocument& document = *editor_document.document();
-  if (ImGui::CollapsingHeader("Terrain", ImGuiTreeNodeFlags_DefaultOpen)) {
-    showPosition("Origin", document.terrain.origin);
-    ImGui::Text("Sample spacing: %.3f", document.terrain.sample_spacing);
+  if (document.terrain &&
+      ImGui::CollapsingHeader("Terrain", ImGuiTreeNodeFlags_DefaultOpen)) {
+    showPosition("Origin", document.terrain->origin);
+    ImGui::Text("Sample spacing: %.3f", document.terrain->sample_spacing);
     const auto [minimum, maximum] = std::minmax_element(
-        document.terrain.heights.begin(), document.terrain.heights.end());
+        document.terrain->heights.begin(), document.terrain->heights.end());
     ImGui::Text("Height range: %.3f to %.3f", *minimum, *maximum);
     drawTerrainBrush(editor_document);
   }
@@ -183,9 +268,19 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           ImGui::TextWrapped(
               "Surface must match the kind before saving: floor, boundary, or "
               "obstacle for other kinds.");
-        } else if constexpr (std::is_same_v<T, PrototypePlayerSpawn>) {
-          triple("Foot position", value.foot_position);
-          scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
+        } else if constexpr (std::is_same_v<T, LevelEntry>) {
+          std::array<char, 65> name{};
+          std::memcpy(name.data(), value.id.data(),
+                      std::min(value.id.size(), name.size() - 1));
+          if (ImGui::InputText("Entry ID", name.data(), name.size()))
+            value.id = name.data();
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
+          triple("Foot position", value.pose.foot_position);
+          scalar("Yaw (degrees)", value.pose.yaw_degrees, 0.5F);
+          if (ImGui::Button("Make default")) {
+            static_cast<void>(property_edit_.commit(editor_document));
+            static_cast<void>(editor_document.makeSelectedEntryDefault());
+          }
         } else if constexpr (std::is_same_v<T, PrototypePointLight>) {
           triple("Position", value.position);
           ImGui::DragFloat3("Light color", value.color.data(), 0.01F, 0, 0,
@@ -236,7 +331,7 @@ void EditorUi::drawValidation(const EditorDocument& document) {
     ImGui::Separator();
     ImGui::Text("%s", diagnosticCategoryName(diagnostic.category));
     if (!diagnostic.source_path.empty()) {
-      ImGui::TextWrapped("Path: %s", diagnostic.source_path.string().c_str());
+      ImGui::TextWrapped("Path: %s", pathText(diagnostic.source_path).c_str());
     }
     if (!diagnostic.document_path.empty()) {
       ImGui::TextWrapped("Field/object: %s", diagnostic.document_path.c_str());
@@ -268,11 +363,16 @@ void EditorUi::drawPathModals(EditorDocument& document) {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::InputText("Path", path_buffer_.data(), path_buffer_.size());
     if (ImGui::Button("Open")) {
-      document.requestOpen(std::filesystem::path(path_buffer_.data()));
+      document.requestOpen(pathFromText(path_buffer_.data()));
       ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
     if (ImGui::Button("Cancel")) {
+      if (save_pending_action_) {
+        save_pending_action_ = false;
+        static_cast<void>(
+            document.resolvePending(EditorPendingDecision::Cancel));
+      }
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -282,13 +382,31 @@ void EditorUi::drawPathModals(EditorDocument& document) {
     ImGui::InputText("Path", path_buffer_.data(), path_buffer_.size());
     ImGui::BeginDisabled(!document.valid());
     if (ImGui::Button("Save")) {
-      if (document.saveAs(std::filesystem::path(path_buffer_.data()))) {
+      const bool play_save = playtest_.state() == EditorPlayState::SaveAs;
+      const bool saved =
+          play_save ? playtest_.saveAsAndPlay(document,
+                                              pathFromText(path_buffer_.data()))
+                    : document.saveAs(pathFromText(path_buffer_.data()));
+      if (saved) {
+        if (save_pending_action_) {
+          save_pending_action_ = false;
+          static_cast<void>(
+              document.resolvePending(EditorPendingDecision::Discard));
+        }
+        ImGui::CloseCurrentPopup();
+      } else if (play_save) {
         ImGui::CloseCurrentPopup();
       }
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Cancel")) {
+      playtest_.cancel();
+      if (save_pending_action_) {
+        save_pending_action_ = false;
+        static_cast<void>(
+            document.resolvePending(EditorPendingDecision::Cancel));
+      }
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -297,6 +415,7 @@ void EditorUi::drawPathModals(EditorDocument& document) {
 
 void EditorUi::drawPendingModal(EditorDocument& document) {
   if (document.pendingAction().kind != EditorPendingActionKind::None) {
+    if (save_pending_action_) return;
     ImGui::OpenPopup("Unsaved Changes");
   }
   if (!ImGui::BeginPopupModal("Unsaved Changes", nullptr,
@@ -312,7 +431,11 @@ void EditorUi::drawPendingModal(EditorDocument& document) {
       "The current level has unsaved changes. Save before continuing?");
   ImGui::BeginDisabled(!document.valid());
   if (ImGui::Button("Save")) {
-    if (document.resolvePending(EditorPendingDecision::Save)) {
+    if (!document.path()) {
+      save_pending_action_ = true;
+      openPathModal(true, document);
+      ImGui::CloseCurrentPopup();
+    } else if (document.resolvePending(EditorPendingDecision::Save)) {
       ImGui::CloseCurrentPopup();
     }
   }
@@ -333,7 +456,7 @@ void EditorUi::drawPendingModal(EditorDocument& document) {
 void EditorUi::openPathModal(bool save_as, const EditorDocument& document) {
   path_buffer_.fill('\0');
   if (save_as && document.path()) {
-    const std::string path = document.path()->string();
+    const std::string path = pathText(*document.path());
     const std::size_t length = std::min(path.size(), path_buffer_.size() - 1);
     std::memcpy(path_buffer_.data(), path.data(), length);
   }
@@ -354,21 +477,27 @@ void EditorUi::drawObjects(EditorDocument& document) {
   ImGui::BeginDisabled(document.solidIds().size() >= level_maximum_solid_count);
   if (ImGui::Button("Add solid")) {
     const auto& terrain = document.document()->terrain;
-    WorldPosition center{terrain.origin.x + 24.0F, 0, terrain.origin.z + 24.0F};
-    center.y = prototypeTerrainHeightAt(terrain, center.x, center.z) + 0.5F;
+    WorldPosition center{0, 0.5F, 0};
+    if (terrain) {
+      center = {terrain->origin.x + 24.0F, 0, terrain->origin.z + 24.0F};
+      center.y = prototypeTerrainHeightAt(*terrain, center.x, center.z) + 0.5F;
+    }
     static_cast<void>(
         document.addSolid({center, {0.5F, 0.5F, 0.5F}, {180, 180, 180, 255}}));
   }
   ImGui::EndDisabled();
-  const bool selected_solid = document.selection() >= editor_first_solid;
+  auto selected_value = document.object(document.selection());
+  const bool selected_solid =
+      selected_value && std::holds_alternative<PrototypeSolid>(*selected_value);
+  const bool selected_entry =
+      selected_value && std::holds_alternative<LevelEntry>(*selected_value);
   ImGui::SameLine();
-  ImGui::BeginDisabled(!selected_solid ||
-                       document.solidIds().size() >= level_maximum_solid_count);
+  ImGui::BeginDisabled(!(selected_solid || selected_entry));
   if (ImGui::Button("Duplicate"))
     static_cast<void>(document.duplicateSelected());
   ImGui::EndDisabled();
   ImGui::SameLine();
-  ImGui::BeginDisabled(!selected_solid &&
+  ImGui::BeginDisabled(!selected_solid && !selected_entry &&
                        document.selection() != editor_light_switch);
   if (ImGui::Button("Delete")) static_cast<void>(document.removeSelected());
   ImGui::EndDisabled();
@@ -377,24 +506,90 @@ void EditorUi::drawObjects(EditorDocument& document) {
     if (document.addLightSwitch()) sculpting_ = false;
   }
   ImGui::EndDisabled();
+  selected_value = document.object(document.selection());
   if (!document.object(document.selection())) placing_ = false;
   ImGui::BeginDisabled(document.selection() == editor_no_object);
-  if (ImGui::Checkbox("Place on terrain", &placing_) && placing_) {
+  if (ImGui::Checkbox("Place on surface", &placing_) && placing_) {
     static_cast<void>(document.finishTerrainStroke());
     sculpting_ = false;
   }
   ImGui::EndDisabled();
-  ImGui::TextWrapped(placing_
-                         ? "Click terrain to place the selected object. Escape "
-                           "cancels placement."
-                         : "Click an object here or in the scene to select. "
-                           "Right mouse starts camera navigation.");
+  if (placement_object_ != document.selection()) {
+    placement_object_ = document.selection();
+    placement_hit_.reset();
+    placement_offsets_ = {
+        selected_value &&
+                std::holds_alternative<PrototypeLightSwitch>(*selected_value)
+            ? 1.4F
+            : 2.0F,
+        0.1F};
+    if (selected_value && document.document()->terrain) {
+      std::visit(
+          [&](const auto& value) {
+            using T = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<T, PrototypePointLight> ||
+                          std::is_same_v<T, PrototypeLightSwitch>) {
+              const float h =
+                  prototypeTerrainHeightAt(*document.document()->terrain,
+                                           value.position.x, value.position.z);
+              if (std::isfinite(h))
+                placement_offsets_.height = value.position.y - h;
+            }
+          },
+          *selected_value);
+    }
+  }
+  if (placing_) {
+    int mode = static_cast<int>(placement_mode_);
+    if (ImGui::Combo("Placement surfaces", &mode,
+                     "Scene surfaces\0Terrain only\0")) {
+      placement_mode_ = static_cast<EditorPlacementMode>(mode);
+      placement_hit_.reset();
+    }
+    if (placement_mode_ == EditorPlacementMode::TerrainOnly &&
+        !document.document()->terrain)
+      ImGui::TextUnformatted(
+          "Terrain-only placement is unavailable in this interior.");
+    if (selected_value &&
+        (std::holds_alternative<PrototypePointLight>(*selected_value) ||
+         std::holds_alternative<PrototypeLightSwitch>(*selected_value))) {
+      ImGui::InputFloat("Height above floor (m)", &placement_offsets_.height);
+      if (std::holds_alternative<PrototypePointLight>(*selected_value))
+        ImGui::InputFloat("Wall offset (m)", &placement_offsets_.outward);
+    }
+    if (placement_hit_) {
+      const char* faces[] = {"Terrain", "Top",     "Underside", "-X wall",
+                             "+X wall", "-Z wall", "+Z wall"};
+      ImGui::Text("Target %llu: %s, Y %.3f",
+                  static_cast<unsigned long long>(placement_hit_->target),
+                  faces[static_cast<int>(placement_hit_->face)],
+                  placement_hit_->position.y);
+      showPosition("Normal", placement_hit_->normal);
+      if (selected_value &&
+          !editorPlacedObject(*selected_value, *placement_hit_,
+                              placement_offsets_))
+        ImGui::TextUnformatted("This face cannot place the selected object.");
+    }
+  }
+  ImGui::TextWrapped(
+      placing_ ? "Click a surface to place the selected object. Escape "
+                 "cancels placement."
+               : "Click an object here or in the scene to select. "
+                 "Right mouse starts camera navigation.");
   ImGui::Separator();
   const auto entry = [&](EditorObjectId id, const std::string& label) {
     if (ImGui::Selectable(label.c_str(), document.selection() == id))
       document.select(id);
   };
-  entry(editor_spawn, "Player spawn");
+  if (ImGui::Button("Add entry")) {
+    const auto& level = *document.document();
+    static_cast<void>(document.addEntry(level.entries.empty()
+                                            ? PrototypePlayerSpawn{}
+                                            : level.entries.front().pose));
+  }
+  for (std::size_t i = 0; i < document.entryIds().size(); ++i)
+    entry(document.entryIds()[i],
+          "Entry: " + document.document()->entries[i].id);
   entry(editor_first_light, "Point light 1");
   entry(editor_first_light + 1, "Point light 2");
   entry(editor_prop, "Chair / box proxy");
@@ -435,13 +630,19 @@ std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
     if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
       static_cast<void>(document.removeSelected());
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false) &&
-        document.valid())
-      static_cast<void>(document.save());
+        document.valid()) {
+      if (document.path())
+        static_cast<void>(document.save());
+      else
+        openPathModal(true, document);
+    }
   }
   const ImGuiViewport* viewport = ImGui::GetMainViewport();
   const auto ray = editorPointerRay(camera, io.MousePos.x - viewport->Pos.x,
                                     io.MousePos.y - viewport->Pos.y,
                                     viewport->Size.x, viewport->Size.y);
+  if (sculpting_ && (!document.document() || !document.document()->terrain))
+    sculpting_ = false;
   if (sculpting_) {
     return updateEditorTerrainViewport(
         document, ray,
@@ -451,6 +652,17 @@ std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
         ImGui::IsMouseDown(ImGuiMouseButton_Left),
         io.MouseDelta.x != 0 || io.MouseDelta.y != 0);
   }
+  if (placing_) {
+    placement_hit_ = updateEditorPlacementViewport(
+        document, ray,
+        io.WantCaptureMouse ||
+            ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) || popup,
+        navigating, ImGui::IsMouseClicked(ImGuiMouseButton_Left),
+        placement_mode_, placement_offsets_);
+    return placement_hit_ ? std::optional{placement_hit_->position}
+                          : std::nullopt;
+  }
+  placement_hit_.reset();
   return updateEditorViewport(
       document, ray,
       io.WantCaptureMouse ||

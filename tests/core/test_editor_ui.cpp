@@ -2,7 +2,11 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <chrono>
+#include <filesystem>
+
 #include "editor/editor_camera.hpp"
+#include "editor/editor_overlay.hpp"
 #include "editor/editor_ui.hpp"
 
 namespace {
@@ -24,8 +28,8 @@ class EditorUiInteraction : public testing::Test {
   void frame(bool navigating = false) {
     ImGui::NewFrame();
     ui.draw(document);
-    static_cast<void>(ui.updateViewport(
-        document, EditorCamera{}.frame(1600.0F / 900), navigating));
+    static_cast<void>(
+        ui.updateViewport(document, camera.frame(1600.0F / 900), navigating));
     ui.finishFrame();
   }
   void click(ImVec2 point) {
@@ -52,6 +56,7 @@ class EditorUiInteraction : public testing::Test {
   }
   EditorDocument document;
   EditorUi ui;
+  EditorCamera camera;
 };
 }  // namespace
 
@@ -80,8 +85,8 @@ TEST_F(EditorUiInteraction,
 TEST_F(EditorUiInteraction,
        FixedObjectsAndCameraNavigationSuppressMutationShortcuts) {
   const auto original = *document.document();
-  for (const auto id : {editor_spawn, editor_first_light,
-                        editor_first_light + 1, editor_prop}) {
+  for (const auto id :
+       {editor_first_light, editor_first_light + 1, editor_prop}) {
     document.select(id);
     frame();
     key(ImGuiKey_Delete);
@@ -119,7 +124,7 @@ TEST_F(EditorUiInteraction, NumericDragCommitsOnceOnRelease) {
   click({properties->Pos.x + 40, top + 8});
   const float row = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
   const ImVec2 yaw{properties->Pos.x + properties->WindowPadding.x + 40,
-                   top + 2 * row + 8};
+                   top + 3 * row + 8};
   ImGui::GetIO().AddMousePosEvent(yaw.x, yaw.y);
   frame();
   ImGui::GetIO().AddMouseButtonEvent(0, true);
@@ -131,11 +136,140 @@ TEST_F(EditorUiInteraction, NumericDragCommitsOnceOnRelease) {
   }
   ImGui::GetIO().AddMouseButtonEvent(0, false);
   frame();
-  EXPECT_NE(document.document()->player_spawn.yaw_degrees,
-            original.player_spawn.yaw_degrees);
+  EXPECT_NE(document.document()->entries.front().pose.yaw_degrees,
+            original.entries.front().pose.yaw_degrees);
   ASSERT_TRUE(document.undo());
   EXPECT_EQ(*document.document(), original);
   EXPECT_FALSE(document.canUndo());
+}
+
+TEST_F(EditorUiInteraction, NewlyAddedSwitchUsesItsOwnFloorPlacementOffset) {
+  document.requestNewInterior();
+  frame();
+  frame();
+  document.select(document.solidIds().front());
+  frame();
+  const auto add = addButtonCenter();
+  const auto row = ImGui::GetFrameHeightWithSpacing();
+  click({add.x, add.y + row});
+  ASSERT_EQ(document.selection(), editor_light_switch);
+  click({add.x, add.y + 2 * row});
+  click({800, 700});
+  ASSERT_TRUE(document.document()->light_switch);
+  EXPECT_FLOAT_EQ(document.document()->light_switch->position.y, 1.4F);
+  EXPECT_NE(document.document()->light_switch->position.z, 2.0F);
+}
+
+TEST_F(EditorUiInteraction,
+       NewInteriorClearsTerrainToolsAndPlayDialogsConsumeOneSaveAs) {
+  const auto* properties = ImGui::FindWindowByName("Properties");
+  const float top = properties->Pos.y + properties->TitleBarHeight +
+                    properties->WindowPadding.y;
+  click({properties->Pos.x + 40, top + ImGui::GetFrameHeightWithSpacing() +
+                                     3 * ImGui::GetTextLineHeightWithSpacing() +
+                                     8});
+  ASSERT_TRUE(ui.sculpting());
+  document.requestNewInterior();
+  frame();
+  frame();
+  EXPECT_FALSE(ui.sculpting());
+  EXPECT_FALSE(document.document()->terrain);
+  const auto content = [](const char* name) {
+    const auto* window = ImGui::FindWindowByName(name);
+    return ImVec2{
+        window->Pos.x + window->WindowPadding.x,
+        window->Pos.y + window->TitleBarHeight + window->WindowPadding.y};
+  };
+  const auto activatePlay = [&] {
+    const auto origin = content("Playtest");
+    click({origin.x + 20, origin.y + ImGui::GetFrameHeightWithSpacing() + 8});
+    frame();
+  };
+  activatePlay();
+  ASSERT_TRUE(ImGui::IsPopupOpen("Save and Play", ImGuiPopupFlags_AnyPopupId));
+  EXPECT_FALSE(ui.takeLaunchRequest());
+  const auto confirm = content("Save and Play");
+  click({confirm.x + ImGui::CalcTextSize("Save and Play").x +
+             ImGui::GetStyle().FramePadding.x * 2 +
+             ImGui::GetStyle().ItemSpacing.x + 20,
+         confirm.y + ImGui::GetTextLineHeightWithSpacing() + 8});
+  EXPECT_FALSE(ui.takeLaunchRequest());
+  EXPECT_TRUE(document.dirty());
+  activatePlay();
+  const auto save_confirm = content("Save and Play");
+  click({save_confirm.x + 35,
+         save_confirm.y + ImGui::GetTextLineHeightWithSpacing() + 8});
+  frame();
+  frame();
+  ASSERT_TRUE(ImGui::IsPopupOpen("Save Level As", ImGuiPopupFlags_AnyPopupId));
+  const auto save_as = content("Save Level As");
+  click({save_as.x + 35, save_as.y + 8});
+  const auto path =
+      std::filesystem::temp_directory_path() /
+      ("near_laugh_ui_play_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()) +
+       ".json");
+  const auto native = path.u8string();
+  const std::string text(native.begin(), native.end());
+  ImGui::GetIO().AddInputCharactersUTF8(text.c_str());
+  frame();
+  click({save_as.x + 20, save_as.y + ImGui::GetFrameHeightWithSpacing() + 8});
+  const auto launch = ui.takeLaunchRequest();
+  ASSERT_TRUE(launch);
+  EXPECT_EQ(launch->level_path, path);
+  EXPECT_EQ(launch->entry_id, "default");
+  EXPECT_FALSE(ui.takeLaunchRequest());
+  EXPECT_FALSE(document.dirty());
+  EXPECT_TRUE(std::filesystem::exists(path));
+  std::filesystem::remove(path);
+  ASSERT_TRUE(document.open("resources/levels/prototype.level.json"));
+  frame();
+  EXPECT_TRUE(document.document()->terrain);
+  EXPECT_FALSE(ui.sculpting());
+}
+
+TEST_F(EditorUiInteraction, UpperSurfacePreviewAndClickUseTheSameCandidate) {
+  document.requestNewInterior();
+  frame();
+  ASSERT_TRUE(document.addSolid({{0, 2.75F, 0},
+                                 {5, .25F, 5},
+                                 {150, 150, 150, 255},
+                                 PrototypeSolidKind::Floor,
+                                 PrototypeSurface::Floor}));
+  document.select(document.entryIds()[0]);
+  EditorNavigationInput up;
+  up.move_up = true;
+  for (int i = 0; i < 12; ++i) camera.update(up, .1);
+  frame();
+  const auto* objects = ImGui::FindWindowByName("Objects");
+  const float top =
+      objects->Pos.y + objects->TitleBarHeight + objects->WindowPadding.y;
+  click(
+      {objects->Pos.x + 30, top + 2 * ImGui::GetFrameHeightWithSpacing() + 8});
+  const WorldPosition target{1, 3, -3};
+  const auto projection =
+      projectEditorLine(camera.frame(1600.0F / 900), target, target, {});
+  ASSERT_TRUE(projection);
+  const ImVec2 pointer{projection->first[0] * 1600, projection->first[1] * 900};
+  ImGui::GetIO().AddMousePosEvent(pointer.x, pointer.y);
+  frame();
+  const auto before = *document.document();
+  ImGui::NewFrame();
+  ui.draw(document);
+  const auto preview =
+      ui.updateViewport(document, camera.frame(1600.0F / 900), false);
+  ui.finishFrame();
+  ASSERT_TRUE(preview);
+  EXPECT_NEAR(preview->y, 3, .0001F);
+  EXPECT_EQ(*document.document(), before);
+  click(pointer);
+  const auto placed = document.document()->entries[0].pose.foot_position;
+  EXPECT_EQ(placed, *preview);
+  EXPECT_TRUE(document.valid());
+  key(ImGuiKey_Escape);
+  click({pointer.x + 20, pointer.y});
+  EXPECT_EQ(document.document()->entries[0].pose.foot_position, placed);
 }
 
 TEST_F(EditorUiInteraction,

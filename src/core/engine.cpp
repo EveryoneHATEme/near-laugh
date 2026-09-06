@@ -1,19 +1,35 @@
 #include "core/engine.hpp"
 
 #include <chrono>
+#include <stdexcept>
 #include <utility>
 
 #include "core/render/validation_diagnostics.hpp"
+
+namespace {
+const LevelEntry& selectedEntry(const PrototypeLevel& level,
+                                const near_laugh::RuntimeConfig& config,
+                                const std::filesystem::path& path) {
+  const auto& id = config.entry_id ? *config.entry_id : level.defaultEntryId();
+  if (const auto* entry = level.entry(id)) return *entry;
+  const auto native_text = path.u8string();
+  throw std::runtime_error("Selected level '" +
+                           std::string(native_text.begin(), native_text.end()) +
+                           "' has no entry '" + id + "'");
+}
+}  // namespace
 
 Engine::Engine(const near_laugh::RuntimeConfig& config,
                ValidationDiagnostics& diagnostics)
     : platform_(),
       window_(platform_, config.window_width, config.window_height,
               config.window_title),
-      resources_(resolveRuntimeResources(config.resource_root)),
+      resources_(
+          resolveRuntimeResources(config.resource_root, config.level_path)),
       level_(loadPrototypeLevel(resources_.prototype_level)),
-      physics_(level_),
-      player_(physics_, level_.playerSpawn().yaw_degrees),
+      entry_(selectedEntry(level_, config, resources_.prototype_level)),
+      physics_(level_, entry_),
+      player_(physics_, entry_.pose.yaw_degrees),
       light_switch_(level_.lightSwitch()),
       renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources_.scene_vertex_shader),

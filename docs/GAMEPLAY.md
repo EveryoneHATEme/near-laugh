@@ -186,13 +186,23 @@ actually need rather than trying to model every possible game object.
 
 ### Current Prototype
 
-The current prototype loads a versioned packaged level representation
-during startup.
+Startup loads a versioned level, using the packaged prototype by default or
+an explicitly selected authored file. Each level has named entries and an
+authored default. The selected entry supplies the initial foot position and
+yaw, including both presentation snapshots before the first frame. Every
+entry must have height-specific support and standing clearance.
 
 The level currently contains static world geometry, authored point lights,
 a fixed prop with a simplified collision proxy, and an optional light switch.
 
 The current collision world is primarily static.
+
+Interior levels may omit terrain and use authored boxes for floors, walls,
+ceilings, and stairs. The packaged `apartment-stairs.level.json` blockout joins
+Lena's room, a corridor, a kitchen, rear stairs, and a lower landing. Its
+`apartment` and `lower-landing` entries exercise walking the route in both
+directions with the current controller, without jumping or crouching. These
+entries are authoring starts, not checkpoints or persistent progression.
 
 Dynamic rigid bodies, moving platforms, interactive doors, and other
 world behavior should be added only when required by gameplay.

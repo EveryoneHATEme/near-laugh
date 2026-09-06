@@ -15,11 +15,19 @@ class PrototypeLevel {
   [[nodiscard]] const std::vector<PrototypeSolid>& solids() const noexcept {
     return solids_;
   }
-  [[nodiscard]] const PrototypeTerrain& terrain() const noexcept {
+  [[nodiscard]] const std::optional<PrototypeTerrain>& terrain()
+      const noexcept {
     return terrain_;
   }
+  [[nodiscard]] const std::vector<LevelEntry>& entries() const noexcept {
+    return entries_;
+  }
+  [[nodiscard]] const std::string& defaultEntryId() const noexcept {
+    return default_entry_;
+  }
+  [[nodiscard]] const LevelEntry* entry(std::string_view id) const noexcept;
   [[nodiscard]] const PrototypePlayerSpawn& playerSpawn() const noexcept {
-    return player_spawn_;
+    return entry(default_entry_)->pose;
   }
   [[nodiscard]] const PrototypeEnvironmentLight& environmentLight()
       const noexcept {
@@ -38,9 +46,10 @@ class PrototypeLevel {
 
   friend PrototypeLevel makePrototypeLevel(const LevelDocument& document);
 
-  PrototypeTerrain terrain_;
+  std::optional<PrototypeTerrain> terrain_;
   std::vector<PrototypeSolid> solids_;
-  PrototypePlayerSpawn player_spawn_;
+  std::vector<LevelEntry> entries_;
+  std::string default_entry_;
   PrototypeEnvironmentLight environment_light_;
   PrototypeStaticProp static_prop_;
   std::optional<PrototypeLightSwitch> light_switch_;
@@ -71,7 +80,7 @@ class PrototypeLevel {
     std::size_t sample_z) noexcept;
 [[nodiscard]] float prototypeTerrainMinimumHeight(
     const PrototypeTerrain& terrain) noexcept;
-[[nodiscard]] bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept;
+[[nodiscard]] bool prototypeLevelIsValid(const PrototypeLevel& level);
 [[nodiscard]] bool prototypeSpawnIsClear(const PrototypeLevel& level,
                                          float player_radius,
                                          float player_height) noexcept;

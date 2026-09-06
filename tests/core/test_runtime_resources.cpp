@@ -45,6 +45,33 @@ void expectMissingPathReported(const std::filesystem::path& root,
 }
 }  // namespace
 
+TEST(RuntimeResources, ExplicitLevelDoesNotRequireTheUnselectedPrototype) {
+  const auto root = makeCompleteRuntimeRoot();
+  const auto selected = root / "authored.json";
+  std::filesystem::copy_file("resources/levels/apartment-stairs.level.json",
+                             selected);
+  std::filesystem::remove(root / "levels/prototype.level.json");
+  const auto previous_directory = std::filesystem::current_path();
+  std::filesystem::current_path(root);
+  RuntimeResources resources;
+  try {
+    resources = resolveRuntimeResources(root, selected);
+  } catch (...) {
+    std::filesystem::current_path(previous_directory);
+    throw;
+  }
+  std::filesystem::current_path(previous_directory);
+  EXPECT_EQ(resources.prototype_level, selected);
+  EXPECT_EQ(resources.scene_vertex_shader,
+            root / "shaders/prototype_scene_vertex.spv");
+  EXPECT_THROW(static_cast<void>(resolveRuntimeResources(root)),
+               std::runtime_error);
+  EXPECT_THROW(
+      static_cast<void>(resolveRuntimeResources(root, root / "missing.json")),
+      std::runtime_error);
+  std::filesystem::remove_all(root);
+}
+
 TEST(RuntimeResources, ResolvesShadersIndependentlyOfWorkingDirectory) {
   const std::filesystem::path resource_root =
       std::filesystem::absolute("resources").lexically_normal();

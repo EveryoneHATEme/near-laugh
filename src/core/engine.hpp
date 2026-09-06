@@ -37,6 +37,7 @@ class Engine {
   Window window_;
   RuntimeResources resources_;
   PrototypeLevel level_;
+  const LevelEntry& entry_;
   PhysicsWorld physics_;
   PlayerController player_;
   PlayerFlashlight flashlight_{};

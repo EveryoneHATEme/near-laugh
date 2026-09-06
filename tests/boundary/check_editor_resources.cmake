@@ -5,7 +5,8 @@ foreach(REQUIRED_RESOURCE IN ITEMS
         "textures/prototype_boundary.png"
         "textures/prototype_obstacle.png"
         "models/prototype_chair.glb"
-        "levels/prototype.level.json")
+        "levels/prototype.level.json"
+        "levels/apartment-stairs.level.json")
     if(NOT EXISTS "${ROOT}/${REQUIRED_RESOURCE}")
         message(FATAL_ERROR
             "level_editor is missing executable-relative resource: "

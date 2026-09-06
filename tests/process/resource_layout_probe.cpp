@@ -23,6 +23,8 @@ int main(int argc, char** argv) {
     const std::filesystem::path chair = root / "models" / "prototype_chair.glb";
     const std::filesystem::path level =
         root / "levels" / "prototype.level.json";
+    const std::filesystem::path interior =
+        root / "levels" / "apartment-stairs.level.json";
     if (!std::filesystem::is_regular_file(vertex) ||
         !std::filesystem::is_regular_file(fragment)) {
       std::cerr << "Executable-relative shader resources are missing beneath: "
@@ -41,7 +43,8 @@ int main(int argc, char** argv) {
                 << '\n';
       return 1;
     }
-    if (!std::filesystem::is_regular_file(level)) {
+    if (!std::filesystem::is_regular_file(level) ||
+        !std::filesystem::is_regular_file(interior)) {
       std::cerr << "Executable-relative level resource is missing: " << level
                 << '\n';
       return 1;

@@ -75,8 +75,8 @@ TEST_F(EditorCommands, AllPropertiesAreUndoableAndPersistSemantically) {
   solid.kind = PrototypeSolidKind::Obstacle;
   solid.surface = PrototypeSurface::Obstacle;
   ASSERT_TRUE(editor.replaceObject(id, solid));
-  auto spawn = original.player_spawn;
-  spawn.yaw_degrees += 35.0F;
+  auto spawn = original.entries.front();
+  spawn.pose.yaw_degrees += 35.0F;
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   for (EditorObjectId light_id : {editor_first_light, editor_first_light + 1}) {
     auto light = std::get<PrototypePointLight>(*editor.object(light_id));
@@ -136,9 +136,9 @@ TEST_F(EditorCommands,
     reject(solid_id, s);
   }
   for (int field = 0; field < 2; ++field) {
-    auto s = original.player_spawn;
-    if (field == 0) s.foot_position.x = inf;
-    if (field == 1) s.yaw_degrees = nan;
+    auto s = original.entries.front();
+    if (field == 0) s.pose.foot_position.x = inf;
+    if (field == 1) s.pose.yaw_degrees = nan;
     reject(editor_spawn, s);
   }
   for (int field = 0; field < 5; ++field) {
@@ -162,13 +162,13 @@ TEST_F(EditorCommands,
     reject(editor_prop, p);
   }
   reject(editor_spawn, original.solids[0]);
-  reject(999999, original.player_spawn);
+  reject(999999, original.entries.front());
 }
 
 TEST_F(EditorCommands, InvalidGameplayRemainsEditableButSaveIsGated) {
   const auto original = *editor.document();
   auto solid = original.solids[0];
-  solid.center = original.player_spawn.foot_position;
+  solid.center = original.entries.front().pose.foot_position;
   solid.center.y += 0.5F;
   solid.half_extent = {1, 1, 1};
   ASSERT_TRUE(editor.replaceObject(editor.solidIds()[0], solid));
@@ -187,17 +187,17 @@ TEST_F(EditorCommands, InvalidGameplayRemainsEditableButSaveIsGated) {
 
 TEST_F(EditorCommands,
        SavedRevisionSurvivesUndoAndBranchesNeverBecomeFalselyClean) {
-  auto spawn = editor.document()->player_spawn;
-  spawn.yaw_degrees += 1;
+  auto spawn = editor.document()->entries.front();
+  spawn.pose.yaw_degrees += 1;
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   ASSERT_TRUE(editor.saveAs(root / "saved.json"));
-  spawn.yaw_degrees += 1;
+  spawn.pose.yaw_degrees += 1;
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   ASSERT_TRUE(editor.undo());
   EXPECT_FALSE(editor.dirty());
   ASSERT_TRUE(editor.undo());
   EXPECT_TRUE(editor.dirty());
-  spawn.yaw_degrees += 2;
+  spawn.pose.yaw_degrees += 2;
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   EXPECT_TRUE(editor.dirty());
   EXPECT_FALSE(editor.canRedo());
@@ -208,10 +208,10 @@ TEST_F(EditorCommands,
 
 TEST_F(EditorCommands,
        HistoryRetainsNewest128OperationsAndRefreshesPreviewOnUndoRedo) {
-  auto spawn = editor.document()->player_spawn;
-  const float initial_yaw = spawn.yaw_degrees;
+  auto spawn = editor.document()->entries.front();
+  const float initial_yaw = spawn.pose.yaw_degrees;
   for (int i = 0; i < 130; ++i) {
-    spawn.yaw_degrees += 1;
+    spawn.pose.yaw_degrees += 1;
     ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   }
   auto generation = editor.revision();
@@ -221,16 +221,19 @@ TEST_F(EditorCommands,
     generation = editor.revision();
   }
   EXPECT_FALSE(editor.undo());
-  EXPECT_FLOAT_EQ(editor.document()->player_spawn.yaw_degrees, initial_yaw + 2);
+  EXPECT_FLOAT_EQ(editor.document()->entries.front().pose.yaw_degrees,
+                  initial_yaw + 2);
   for (int i = 0; i < 128; ++i) ASSERT_TRUE(editor.redo());
   EXPECT_FALSE(editor.redo());
-  EXPECT_FLOAT_EQ(editor.document()->player_spawn.yaw_degrees,
+  EXPECT_FLOAT_EQ(editor.document()->entries.front().pose.yaw_degrees,
                   initial_yaw + 130);
 }
 
 TEST_F(EditorCommands, SolidCountBoundAndFixedObjectsAreProtected) {
-  for (const auto id : {editor_spawn, editor_first_light,
-                        editor_first_light + 1, editor_prop}) {
+  editor.select(editor_spawn);
+  EXPECT_FALSE(editor.removeSelected());
+  for (const auto id :
+       {editor_first_light, editor_first_light + 1, editor_prop}) {
     editor.select(id);
     EXPECT_FALSE(editor.removeSelected());
     EXPECT_FALSE(editor.duplicateSelected());
@@ -270,9 +273,9 @@ TEST_F(EditorCommands, TerrainGestureUsesPressSettingsAndOneMixedHistoryEntry) {
   const auto sculpted = *editor.document();
   EXPECT_EQ(sculpted.solids, original.solids);
   EXPECT_EQ(sculpted.environment_light, original.environment_light);
-  EXPECT_EQ(sculpted.player_spawn, original.player_spawn);
+  EXPECT_EQ(sculpted.entries.front(), original.entries.front());
   EXPECT_EQ(sculpted.static_prop, original.static_prop);
-  auto expected = original.terrain;
+  auto expected = *original.terrain;
   EditorTerrainStroke replay;
   replay.brush = brush;
   ASSERT_TRUE(replay.advance(expected, {{10, 0, 10}}));
@@ -293,8 +296,8 @@ TEST_F(EditorCommands, TerrainGestureUsesPressSettingsAndOneMixedHistoryEntry) {
   EXPECT_TRUE(changed_height);
   EXPECT_TRUE(changed_normal);
 
-  auto spawn = original.player_spawn;
-  spawn.yaw_degrees += 10;
+  auto spawn = original.entries.front();
+  spawn.pose.yaw_degrees += 10;
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   const auto mixed = *editor.document();
   ASSERT_TRUE(editor.saveAs(root / "sculpted.json"));
@@ -354,7 +357,7 @@ TEST_F(EditorCommands, TerrainDiagnosticsIdentifySlopeCellsAndRefreshOnRepair) {
   brush.radius = 0.5F;
   brush.strength = 1;
   ASSERT_TRUE(editor.setTerrainBrush(brush));
-  const auto& terrain = original.terrain;
+  const auto& terrain = *original.terrain;
   const auto hit = prototypeTerrainSamplePosition(terrain, 40, 40);
   editor.beginTerrainStroke(hit);
   ASSERT_TRUE(editor.finishTerrainStroke());
@@ -388,7 +391,7 @@ TEST_F(EditorCommands, TerrainDiagnosticsIdentifySlopeCellsAndRefreshOnRepair) {
   EXPECT_TRUE(editor.valid()) << formatLevelDiagnostics(editor.diagnostics());
 
   auto invalid = original;
-  invalid.terrain.heights[40 * prototype_terrain_sample_count + 41] = NAN;
+  invalid.terrain->heights[40 * prototype_terrain_sample_count + 41] = NAN;
   const auto diagnostics = validateLevelDocument(invalid);
   ASSERT_FALSE(diagnostics.empty());
   ASSERT_TRUE(diagnostics.front().terrain_location);
@@ -399,7 +402,7 @@ TEST_F(EditorCommands, TerrainDiagnosticsIdentifySlopeCellsAndRefreshOnRepair) {
 
 TEST_F(EditorCommands, TerrainSpawnSupportAndCloseRefreshEvenDuringAStroke) {
   const auto original = *editor.document();
-  editor.beginTerrainStroke(original.player_spawn.foot_position);
+  editor.beginTerrainStroke(original.entries.front().pose.foot_position);
   editor.requestClose();
   EXPECT_FALSE(editor.terrainStrokeActive());
   EXPECT_EQ(editor.pendingAction().kind, EditorPendingActionKind::Close);
@@ -407,7 +410,7 @@ TEST_F(EditorCommands, TerrainSpawnSupportAndCloseRefreshEvenDuringAStroke) {
   EXPECT_TRUE(std::any_of(editor.diagnostics().begin(),
                           editor.diagnostics().end(), [](const auto& d) {
                             return d.document_path ==
-                                   "player_spawn.foot_position.y";
+                                   "entries[0].foot_position";
                           }));
   EXPECT_FALSE(editor.resolvePending(EditorPendingDecision::Save));
   ASSERT_TRUE(editor.resolvePending(EditorPendingDecision::Cancel));
@@ -454,7 +457,7 @@ TEST_F(EditorCommands,
     EXPECT_TRUE(state.supported());
     EXPECT_NEAR(
         state.foot_position.y,
-        prototypeTerrainHeightAt(authored.terrain, state.foot_position.x,
+        prototypeTerrainHeightAt(*authored.terrain, state.foot_position.x,
                                  state.foot_position.z),
         0.03F);
     EXPECT_GT(state.foot_position.y, 0.2F);
@@ -483,7 +486,7 @@ TEST_F(EditorCommands, SwitchSingletonIdentityHistoryAndDirtyState) {
   EXPECT_EQ(editor.document()->light_switch->point_light_index, 0U);
   EXPECT_TRUE(editor.document()->light_switch->initially_on);
   EXPECT_NEAR(editor.document()->light_switch->position.y -
-                  original.player_spawn.foot_position.y,
+                  original.entries.front().pose.foot_position.y,
               1.65F, 0.00001F);
   ASSERT_TRUE(editor.undo());
   ASSERT_TRUE(editor.addLightSwitch());
@@ -544,9 +547,9 @@ TEST_F(EditorCommands, SwitchPreviewLinkRemovalValidationAndTerrainHistory) {
   EXPECT_EQ(editor.document()->light_switch, before_stroke.light_switch);
   value.position.x = -24;
   ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
-  EXPECT_FALSE(editor.valid());
-  EXPECT_FALSE(editor.saveAs(root / "invalid.json"));
-  EXPECT_FALSE(editor.diagnostics().empty());
+  EXPECT_TRUE(editor.valid());
+  EXPECT_TRUE(editor.saveAs(root / "outside-terrain.json"));
+  EXPECT_TRUE(editor.diagnostics().empty());
   ASSERT_TRUE(editor.undo());
   EXPECT_TRUE(editor.valid());
   const auto before_invalid_field = *editor.document();
@@ -561,15 +564,15 @@ TEST_F(EditorCommands, SwitchPreviewLinkRemovalValidationAndTerrainHistory) {
   EXPECT_FALSE(editor.replaceObject(editor_light_switch, value));
 }
 
-TEST_F(EditorCommands, VersionTwoOpensCleanAndSavesSwitchAsVersionThree) {
+TEST_F(EditorCommands, VersionTwoOpensCleanAndSavesSwitchAsVersionFour) {
   auto old = *editor.document();
   old.light_switch.reset();
   const auto path = root / "old.json";
   ASSERT_TRUE(saveLevelDocument(path, old));
-  auto source = bytes(path);
+  auto source = bytes("tests/fixtures/levels/prototype-v3.level.json");
   source.replace(source.find("\"version\": 3"), 12, "\"version\": 2");
-  const std::string field = ",\n  \"light_switch\": null";
-  source.erase(source.find(field), field.size());
+  source.erase(source.find(",\n  \"light_switch\""));
+  source += "\n}\n";
   {
     std::ofstream output(path, std::ios::binary);
     output << source;
@@ -585,7 +588,7 @@ TEST_F(EditorCommands, VersionTwoOpensCleanAndSavesSwitchAsVersionThree) {
   value.initially_on = false;
   ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
   ASSERT_TRUE(editor.save());
-  EXPECT_NE(bytes(path).find("\"version\": 3"), std::string::npos);
+  EXPECT_NE(bytes(path).find("\"version\": 4"), std::string::npos);
   ASSERT_TRUE(editor.open(path));
   EXPECT_FALSE(editor.dirty());
   EXPECT_EQ(editor.document()->light_switch, value);

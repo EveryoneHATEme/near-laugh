@@ -7,11 +7,15 @@ Defines the one local first-person player's collision-constrained movement, stan
 ## Requirements
 
 ### Requirement: Single grounded player
-The runtime SHALL maintain exactly one local player represented by an upright gameplay-oriented capsule, SHALL spawn that player at a non-overlapping scene-facing position above the prototype floor, and SHALL derive grounded state from physics contacts rather than camera position.
+The runtime SHALL maintain exactly one local player represented by an upright gameplay-oriented capsule, SHALL initialize that player at the validated selected entry's foot position and yaw, and SHALL derive grounded state from physics contacts rather than camera position. Starting on an upper floor or in a terrain-free interior SHALL NOT change the player movement or stance policy.
 
 #### Scenario: Player starts
-- **WHEN** the prototype physics world and static level collision have initialized
-- **THEN** one standing player capsule starts at the configured spawn without intersecting static geometry and settles onto the floor under gravity
+- **WHEN** physics and static collision for the selected level have initialized
+- **THEN** one standing player capsule starts at the resolved entry without intersecting static geometry and establishes grounded state from its supporting surface under gravity
+
+#### Scenario: Alternate entry is selected
+- **WHEN** the same level is started with a different valid named entry
+- **THEN** the first player view uses that entry's position and yaw while retaining the same walking, step, gravity, and stance behavior
 
 ### Requirement: Ground movement
 While first-person control is active, the player SHALL move horizontally relative to current yaw from the forward, backward, left, and right player actions, SHALL use a faster configured speed while sprint is active, and SHALL normalize combined movement axes so diagonal input does not exceed the selected speed. Ground movement SHALL collide with and slide along static geometry, traverse the prototype's configured walkable step, and SHALL NOT pass through blocking structures.

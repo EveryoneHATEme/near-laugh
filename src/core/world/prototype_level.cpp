@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -61,6 +62,188 @@ bool overlaps(float first_min, float first_max, float second_min,
   return first_min < second_max && first_max > second_min;
 }
 
+constexpr float support_tolerance = 0.0001F;
+
+bool finite(WorldPosition p) {
+  return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
+}
+
+bool finiteBounds(WorldPosition p, WorldExtent e) {
+  return finite({p.x - e.x, p.y - e.y, p.z - e.z}) &&
+         finite({p.x + e.x, p.y + e.y, p.z + e.z}) &&
+         finite({2 * e.x, 2 * e.y, 2 * e.z});
+}
+
+// Local double-precision geometry keeps validation independent of Jolt.
+struct Vec {
+  double x, y, z;
+  Vec operator+(Vec b) const { return {x + b.x, y + b.y, z + b.z}; }
+  Vec operator-(Vec b) const { return {x - b.x, y - b.y, z - b.z}; }
+  Vec operator*(double s) const { return {x * s, y * s, z * s}; }
+};
+Vec vec(WorldPosition p) { return {p.x, p.y, p.z}; }
+double dot(Vec a, Vec b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+Vec cross(Vec a, Vec b) {
+  return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+double pointTriangleDistanceSquared(Vec p, Vec a, Vec b, Vec c) {
+  const Vec ab = b - a, ac = c - a, ap = p - a;
+  const double d1 = dot(ab, ap), d2 = dot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return dot(ap, ap);
+  const Vec bp = p - b;
+  const double d3 = dot(ab, bp), d4 = dot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return dot(bp, bp);
+  const double vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+    const Vec delta = p - (a + ab * (d1 / (d1 - d3)));
+    return dot(delta, delta);
+  }
+  const Vec cp = p - c;
+  const double d5 = dot(ab, cp), d6 = dot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return dot(cp, cp);
+  const double vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+    const Vec delta = p - (a + ac * (d2 / (d2 - d6)));
+    return dot(delta, delta);
+  }
+  const double va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 >= d3 && d5 >= d6) {
+    const Vec delta = p - (b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6))));
+    return dot(delta, delta);
+  }
+  const double denominator = va + vb + vc;
+  if (!(denominator > 0)) return 0;  // Degenerate data is never admitted.
+  const Vec delta = p - (a + ab * (vb / denominator) + ac * (vc / denominator));
+  return dot(delta, delta);
+}
+double segmentDistanceSquared(Vec p, Vec q, Vec a, Vec b) {
+  const Vec u = q - p, v = b - a, w = p - a;
+  const double uu = dot(u, u), vv = dot(v, v), uv = dot(u, v);
+  const double uw = dot(u, w), vw = dot(v, w);
+  if (!(vv > 0)) return dot(w, w);
+  const double denominator = uu * vv - uv * uv;
+  double s = denominator > 0
+                 ? std::clamp((uv * vw - vv * uw) / denominator, 0.0, 1.0)
+                 : 0;
+  double t = (uv * s + vw) / vv;
+  if (t < 0) {
+    t = 0;
+    s = uu > 0 ? std::clamp(-uw / uu, 0.0, 1.0) : 0;
+  }
+  if (t > 1) {
+    t = 1;
+    s = uu > 0 ? std::clamp((uv - uw) / uu, 0.0, 1.0) : 0;
+  }
+  const Vec delta = w + u * s - v * t;
+  return dot(delta, delta);
+}
+double segmentTriangleDistanceSquared(Vec p, Vec q, Vec a, Vec b, Vec c) {
+  const Vec normal = cross(b - a, c - a);
+  const double denominator = dot(normal, q - p);
+  if (std::abs(denominator) > 1e-15) {
+    const double t = dot(normal, a - p) / denominator;
+    if (t >= 0 && t <= 1 &&
+        pointTriangleDistanceSquared(p + (q - p) * t, a, b, c) < 1e-16)
+      return 0;
+  }
+  return std::min({pointTriangleDistanceSquared(p, a, b, c),
+                   pointTriangleDistanceSquared(q, a, b, c),
+                   segmentDistanceSquared(p, q, a, b),
+                   segmentDistanceSquared(p, q, b, c),
+                   segmentDistanceSquared(p, q, c, a)});
+}
+
+bool spawnSupported(const PrototypeTerrain* terrain,
+                    std::span<const PrototypeSolid> solids, WorldPosition p) {
+  if (!finite(p)) return false;
+  if (terrain && prototypeTerrainContains(*terrain, p.x, p.z)) {
+    const float h = prototypeTerrainHeightAt(*terrain, p.x, p.z);
+    if (p.y < h - support_tolerance) return false;
+    if (std::abs(p.y - h) < support_tolerance) return true;
+  }
+  return std::any_of(solids.begin(), solids.end(), [p](const auto& solid) {
+    return prototypeSolidIsValid(solid) &&
+           std::abs(p.x - solid.center.x) <= solid.half_extent.x &&
+           std::abs(p.z - solid.center.z) <= solid.half_extent.z &&
+           std::abs(p.y - (solid.center.y + solid.half_extent.y)) <
+               support_tolerance;
+  });
+}
+
+bool spawnClear(const PrototypeTerrain* terrain,
+                std::span<const PrototypeSolid> solids,
+                const PrototypeStaticProp& prop, WorldPosition p, float radius,
+                float height) {
+  if (!finite(p) || !std::isfinite(radius) || !std::isfinite(height) ||
+      !(radius > 0) || !(height >= 2 * radius) || !std::isfinite(p.y + height))
+    return false;
+  const float min_y = p.y + support_tolerance;
+  const float max_y = p.y + height - support_tolerance;
+  for (const auto& solid : solids) {
+    if (overlaps(p.x - radius, p.x + radius,
+                 solid.center.x - solid.half_extent.x,
+                 solid.center.x + solid.half_extent.x) &&
+        overlaps(min_y, max_y, solid.center.y - solid.half_extent.y,
+                 solid.center.y + solid.half_extent.y) &&
+        overlaps(p.z - radius, p.z + radius,
+                 solid.center.z - solid.half_extent.z,
+                 solid.center.z + solid.half_extent.z))
+      return false;
+  }
+  const auto center = prototypeStaticPropProxyWorldCenter(prop);
+  const auto extent = prototypeStaticPropProxyWorldHalfExtent(prop);
+  if (overlaps(min_y, max_y, center.y - extent.y, center.y + extent.y)) {
+    const double yaw =
+        static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
+    const double co = std::cos(yaw), si = std::sin(yaw);
+    const double dx = static_cast<double>(p.x) - center.x,
+                 dz = static_cast<double>(p.z) - center.z;
+    const double projected_radius = radius * (std::abs(co) + std::abs(si));
+    if (std::abs(dx) <
+            radius + std::abs(co) * extent.x + std::abs(si) * extent.z &&
+        std::abs(dz) <
+            radius + std::abs(si) * extent.x + std::abs(co) * extent.z &&
+        std::abs(co * dx - si * dz) < extent.x + projected_radius &&
+        std::abs(si * dx + co * dz) < extent.z + projected_radius)
+      return false;
+  }
+  if (!terrain) return true;
+  const bool on_terrain =
+      prototypeTerrainContains(*terrain, p.x, p.z) &&
+      std::abs(p.y - prototypeTerrainHeightAt(*terrain, p.x, p.z)) <
+          support_tolerance;
+  const Vec top{p.x, static_cast<double>(p.y) + height - radius, p.z};
+  // A foot authored on a supported slope starts with ordinary bottom-cap
+  // contact. Allow its bounded vertical separation (r / cos(slope) - r),
+  // while keeping the standing top and structural clearance unchanged.
+  const double ground_radius =
+      on_terrain ? radius / std::cos(prototype_terrain_maximum_slope_degrees *
+                                     std::numbers::pi / 180)
+                 : radius;
+  const Vec bottom{
+      p.x, std::min(top.y, static_cast<double>(p.y) + ground_radius), p.z};
+  for (std::size_t z = 0; z < prototype_terrain_cell_count; ++z) {
+    for (std::size_t x = 0; x < prototype_terrain_cell_count; ++x) {
+      const Vec a = vec(prototypeTerrainSamplePosition(*terrain, x, z));
+      const Vec c = vec(prototypeTerrainSamplePosition(*terrain, x + 1, z + 1));
+      if (c.x < p.x - radius || a.x > p.x + radius || c.z < p.z - radius ||
+          a.z > p.z + radius)
+        continue;
+      const Vec b = vec(prototypeTerrainSamplePosition(*terrain, x, z + 1));
+      const Vec d = vec(prototypeTerrainSamplePosition(*terrain, x + 1, z));
+      for (const auto& triangle :
+           {std::array<Vec, 3>{a, b, c}, std::array<Vec, 3>{a, c, d}}) {
+        const double distance = segmentTriangleDistanceSquared(
+            bottom, top, triangle[0], triangle[1], triangle[2]);
+        if (distance <
+            (radius - support_tolerance) * (radius - support_tolerance))
+          return false;
+      }
+    }
+  }
+  return true;
+}
+
 bool solidKindIsValid(PrototypeSolidKind kind) noexcept {
   switch (kind) {
     case PrototypeSolidKind::Floor:
@@ -98,10 +281,34 @@ void addValidation(std::vector<LevelDiagnostic>& diagnostics,
 PrototypeLevel::PrototypeLevel(LevelDocument document)
     : terrain_(std::move(document.terrain)),
       solids_(std::move(document.solids)),
-      player_spawn_(std::move(document.player_spawn)),
+      entries_(std::move(document.entries)),
+      default_entry_(std::move(document.default_entry)),
       environment_light_(std::move(document.environment_light)),
       static_prop_(std::move(document.static_prop)),
       light_switch_(std::move(document.light_switch)) {}
+
+bool levelEntryIdIsValid(std::string_view id) noexcept {
+  return !id.empty() && id.size() <= level_maximum_entry_id_length &&
+         id.front() >= 'a' && id.front() <= 'z' &&
+         std::all_of(id.begin(), id.end(), [](char c) {
+           return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
+         });
+}
+
+const LevelEntry* findLevelEntry(const LevelDocument& document,
+                                 std::string_view id) noexcept {
+  const auto it =
+      std::find_if(document.entries.begin(), document.entries.end(),
+                   [id](const auto& entry) { return entry.id == id; });
+  return it == document.entries.end() ? nullptr : &*it;
+}
+
+const LevelEntry* PrototypeLevel::entry(std::string_view id) const noexcept {
+  const auto it =
+      std::find_if(entries_.begin(), entries_.end(),
+                   [id](const auto& entry) { return entry.id == id; });
+  return it == entries_.end() ? nullptr : &*it;
+}
 
 PrototypeLevel makePrototypeLevel(const LevelDocument& document) {
   const std::vector<LevelDiagnostic> diagnostics =
@@ -163,6 +370,7 @@ bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept {
          std::isfinite(solid.half_extent.y) &&
          std::isfinite(solid.half_extent.z) && solid.half_extent.x > 0.0F &&
          solid.half_extent.y > 0.0F && solid.half_extent.z > 0.0F &&
+         finiteBounds(solid.center, solid.half_extent) &&
          solidKindIsValid(solid.kind) &&
          prototypeSurfaceIsValid(solid.surface) &&
          solid.surface == expectedSurface(solid.kind);
@@ -191,6 +399,12 @@ WorldExtent prototypeStaticPropProxyWorldHalfExtent(
 bool prototypeStaticPropIsValid(const PrototypeStaticProp& prop) noexcept {
   const WorldPosition center = prototypeStaticPropProxyWorldCenter(prop);
   const WorldExtent half_extent = prototypeStaticPropProxyWorldHalfExtent(prop);
+  const double yaw =
+      static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
+  const float c = static_cast<float>(std::abs(std::cos(yaw)));
+  const float s = static_cast<float>(std::abs(std::sin(yaw)));
+  const WorldExtent bounds{c * half_extent.x + s * half_extent.z, half_extent.y,
+                           s * half_extent.x + c * half_extent.z};
   return std::isfinite(prop.translation.x) &&
          std::isfinite(prop.translation.y) &&
          std::isfinite(prop.translation.z) && std::isfinite(prop.yaw_degrees) &&
@@ -202,7 +416,8 @@ bool prototypeStaticPropIsValid(const PrototypeStaticProp& prop) noexcept {
          std::isfinite(center.y) && std::isfinite(center.z) &&
          std::isfinite(half_extent.x) && std::isfinite(half_extent.y) &&
          std::isfinite(half_extent.z) && half_extent.x > 0.0F &&
-         half_extent.y > 0.0F && half_extent.z > 0.0F;
+         half_extent.y > 0.0F && half_extent.z > 0.0F &&
+         finiteBounds(center, bounds);
 }
 
 WorldPosition prototypeTerrainSamplePosition(const PrototypeTerrain& terrain,
@@ -282,52 +497,55 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                   "unsupported level format version");
   }
 
-  const PrototypeTerrain& terrain = document.terrain;
-  if (!std::isfinite(terrain.origin.x)) {
-    addValidation(diagnostics, source_path, "terrain.origin.x",
-                  "must be finite");
-  }
-  if (!std::isfinite(terrain.origin.y)) {
-    addValidation(diagnostics, source_path, "terrain.origin.y",
-                  "must be finite");
-  }
-  if (!std::isfinite(terrain.origin.z)) {
-    addValidation(diagnostics, source_path, "terrain.origin.z",
-                  "must be finite");
-  }
-  if (!std::isfinite(terrain.sample_spacing) ||
-      terrain.sample_spacing != prototype_terrain_sample_spacing) {
-    addValidation(diagnostics, source_path, "terrain.sample_spacing",
-                  "must equal the fixed 0.5 metre spacing");
-  }
-  for (std::size_t index = 0; index < terrain.heights.size(); ++index) {
-    if (!std::isfinite(terrain.heights[index])) {
-      addValidation(diagnostics, source_path,
-                    "terrain.heights[" + std::to_string(index) + "]",
+  if (document.terrain) {
+    const PrototypeTerrain& terrain = *document.terrain;
+    if (!std::isfinite(terrain.origin.x)) {
+      addValidation(diagnostics, source_path, "terrain.origin.x",
                     "must be finite");
-      diagnostics.back().terrain_location = TerrainDiagnosticLocation{
-          index % prototype_terrain_sample_count,
-          index / prototype_terrain_sample_count, std::nullopt};
     }
-  }
-  if (std::isfinite(terrain.sample_spacing) && terrain.sample_spacing > 0.0F &&
-      std::all_of(terrain.heights.begin(), terrain.heights.end(),
-                  [](float height) { return std::isfinite(height); })) {
-    for (std::size_t sample_z = 0; sample_z < prototype_terrain_cell_count;
-         ++sample_z) {
-      for (std::size_t sample_x = 0; sample_x < prototype_terrain_cell_count;
-           ++sample_x) {
-        for (const bool first : {true, false}) {
-          if (!terrainTriangleHasSupportedSlope(terrain, sample_x, sample_z,
-                                                first)) {
-            addValidation(diagnostics, source_path,
-                          "terrain.cells[" + std::to_string(sample_z) + "][" +
-                              std::to_string(sample_x) + "]",
-                          first
-                              ? "first triangle exceeds the supported slope"
-                              : "second triangle exceeds the supported slope");
-            diagnostics.back().terrain_location =
-                TerrainDiagnosticLocation{sample_x, sample_z, first ? 0U : 1U};
+    if (!std::isfinite(terrain.origin.y)) {
+      addValidation(diagnostics, source_path, "terrain.origin.y",
+                    "must be finite");
+    }
+    if (!std::isfinite(terrain.origin.z)) {
+      addValidation(diagnostics, source_path, "terrain.origin.z",
+                    "must be finite");
+    }
+    if (!std::isfinite(terrain.sample_spacing) ||
+        terrain.sample_spacing != prototype_terrain_sample_spacing) {
+      addValidation(diagnostics, source_path, "terrain.sample_spacing",
+                    "must equal the fixed 0.5 metre spacing");
+    }
+    for (std::size_t index = 0; index < terrain.heights.size(); ++index) {
+      if (!std::isfinite(terrain.heights[index])) {
+        addValidation(diagnostics, source_path,
+                      "terrain.heights[" + std::to_string(index) + "]",
+                      "must be finite");
+        diagnostics.back().terrain_location = TerrainDiagnosticLocation{
+            index % prototype_terrain_sample_count,
+            index / prototype_terrain_sample_count, std::nullopt};
+      }
+    }
+    if (std::isfinite(terrain.sample_spacing) &&
+        terrain.sample_spacing > 0.0F &&
+        std::all_of(terrain.heights.begin(), terrain.heights.end(),
+                    [](float height) { return std::isfinite(height); })) {
+      for (std::size_t sample_z = 0; sample_z < prototype_terrain_cell_count;
+           ++sample_z) {
+        for (std::size_t sample_x = 0; sample_x < prototype_terrain_cell_count;
+             ++sample_x) {
+          for (const bool first : {true, false}) {
+            if (!terrainTriangleHasSupportedSlope(terrain, sample_x, sample_z,
+                                                  first)) {
+              addValidation(
+                  diagnostics, source_path,
+                  "terrain.cells[" + std::to_string(sample_z) + "][" +
+                      std::to_string(sample_x) + "]",
+                  first ? "first triangle exceeds the supported slope"
+                        : "second triangle exceeds the supported slope");
+              diagnostics.back().terrain_location = TerrainDiagnosticLocation{
+                  sample_x, sample_z, first ? 0U : 1U};
+            }
           }
         }
       }
@@ -336,7 +554,7 @@ std::vector<LevelDiagnostic> validateLevelDocument(
 
   if (document.solids.empty()) {
     addValidation(diagnostics, source_path, "solids",
-                  "must contain the prototype scene solids");
+                  "must contain at least one structural solid");
   }
   if (document.solids.size() > level_maximum_solid_count) {
     addValidation(diagnostics, source_path, "solids",
@@ -364,6 +582,9 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       addValidation(diagnostics, source_path, path + ".half_extent",
                     "all components must be positive");
     }
+    if (!finiteBounds(solid.center, solid.half_extent))
+      addValidation(diagnostics, source_path, path + ".bounds",
+                    "transformed bounds must remain finite");
     if (!solidKindIsValid(solid.kind)) {
       addValidation(diagnostics, source_path, path + ".kind",
                     "is not a supported solid kind");
@@ -375,32 +596,6 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                solid.surface != expectedSurface(solid.kind)) {
       addValidation(diagnostics, source_path, path + ".surface",
                     "does not match the fixed role for this solid kind");
-    }
-  }
-
-  const PrototypePlayerSpawn& spawn = document.player_spawn;
-  if (!std::isfinite(spawn.foot_position.x) ||
-      !std::isfinite(spawn.foot_position.y) ||
-      !std::isfinite(spawn.foot_position.z)) {
-    addValidation(diagnostics, source_path, "player_spawn.foot_position",
-                  "all components must be finite");
-  }
-  if (!std::isfinite(spawn.yaw_degrees)) {
-    addValidation(diagnostics, source_path, "player_spawn.yaw_degrees",
-                  "must be finite");
-  }
-  const bool spawn_in_terrain = prototypeTerrainContains(
-      terrain, spawn.foot_position.x, spawn.foot_position.z);
-  if (!spawn_in_terrain) {
-    addValidation(diagnostics, source_path, "player_spawn.foot_position",
-                  "must lie within the terrain");
-  } else {
-    const float support = prototypeTerrainHeightAt(
-        terrain, spawn.foot_position.x, spawn.foot_position.z);
-    if (!std::isfinite(spawn.foot_position.y) || !std::isfinite(support) ||
-        std::abs(spawn.foot_position.y - support) >= 0.0001F) {
-      addValidation(diagnostics, source_path, "player_spawn.foot_position.y",
-                    "must be supported by the terrain surface");
     }
   }
 
@@ -477,58 +672,62 @@ std::vector<LevelDiagnostic> validateLevelDocument(
   const WorldPosition proxy_center = prototypeStaticPropProxyWorldCenter(prop);
   const WorldExtent proxy_extent =
       prototypeStaticPropProxyWorldHalfExtent(prop);
+  if (!prototypeStaticPropIsValid(prop))
+    addValidation(
+        diagnostics, source_path, "static_prop.box_proxy",
+        "proxy and its transformed bounds must remain finite and positive");
   if (!std::isfinite(proxy_center.x) || !std::isfinite(proxy_center.y) ||
       !std::isfinite(proxy_center.z) || !std::isfinite(proxy_extent.x) ||
       !std::isfinite(proxy_extent.y) || !std::isfinite(proxy_extent.z)) {
     addValidation(diagnostics, source_path, "static_prop.box_proxy",
                   "world transform must remain finite");
-  } else if (!prototypeTerrainContains(terrain, proxy_center.x,
-                                       proxy_center.z)) {
-    addValidation(diagnostics, source_path, "static_prop.box_proxy.center",
-                  "world-space proxy center must lie within the terrain");
   }
 
-  if (spawn_in_terrain && std::isfinite(spawn.foot_position.y)) {
-    const float player_min_y = spawn.foot_position.y;
-    const float player_max_y =
-        spawn.foot_position.y + prototype_spawn_validation_height;
-    bool clear = true;
-    for (const PrototypeSolid& solid : document.solids) {
-      if (overlaps(spawn.foot_position.x - prototype_spawn_validation_radius,
-                   spawn.foot_position.x + prototype_spawn_validation_radius,
-                   solid.center.x - solid.half_extent.x,
-                   solid.center.x + solid.half_extent.x) &&
-          overlaps(player_min_y, player_max_y,
-                   solid.center.y - solid.half_extent.y,
-                   solid.center.y + solid.half_extent.y) &&
-          overlaps(spawn.foot_position.z - prototype_spawn_validation_radius,
-                   spawn.foot_position.z + prototype_spawn_validation_radius,
-                   solid.center.z - solid.half_extent.z,
-                   solid.center.z + solid.half_extent.z)) {
-        clear = false;
+  if (document.entries.empty() ||
+      document.entries.size() > level_maximum_entry_count)
+    addValidation(diagnostics, source_path, "entries",
+                  "must contain between 1 and 16 entries");
+  if (!levelEntryIdIsValid(document.default_entry) ||
+      !findLevelEntry(document, document.default_entry))
+    addValidation(diagnostics, source_path, "default_entry",
+                  "must identify an existing entry");
+  const PrototypeTerrain* support_terrain =
+      document.terrain && prototypeTerrainIsValid(*document.terrain)
+          ? &*document.terrain
+          : nullptr;
+  for (std::size_t i = 0; i < document.entries.size(); ++i) {
+    const auto& entry = document.entries[i];
+    const std::string path = "entries[" + std::to_string(i) + "]";
+    const std::string label =
+        entry.id.empty() ? "" : "entry '" + entry.id + "': ";
+    if (!levelEntryIdIsValid(entry.id))
+      addValidation(diagnostics, source_path, path + ".id",
+                    "must match [a-z][a-z0-9-]{0,63}");
+    for (std::size_t j = 0; j < i; ++j) {
+      if (document.entries[j].id == entry.id) {
+        addValidation(diagnostics, source_path, path + ".id",
+                      label + "duplicate identifier");
         break;
       }
     }
-    if (clear && std::isfinite(proxy_center.x) &&
-        std::isfinite(proxy_center.y) && std::isfinite(proxy_center.z) &&
-        std::isfinite(proxy_extent.x) && std::isfinite(proxy_extent.y) &&
-        std::isfinite(proxy_extent.z)) {
-      clear = !(
-          overlaps(spawn.foot_position.x - prototype_spawn_validation_radius,
-                   spawn.foot_position.x + prototype_spawn_validation_radius,
-                   proxy_center.x - proxy_extent.x,
-                   proxy_center.x + proxy_extent.x) &&
-          overlaps(player_min_y, player_max_y, proxy_center.y - proxy_extent.y,
-                   proxy_center.y + proxy_extent.y) &&
-          overlaps(spawn.foot_position.z - prototype_spawn_validation_radius,
-                   spawn.foot_position.z + prototype_spawn_validation_radius,
-                   proxy_center.z - proxy_extent.z,
-                   proxy_center.z + proxy_extent.z));
-    }
-    if (!clear) {
-      addValidation(diagnostics, source_path, "player_spawn.foot_position",
-                    "standing player clearance overlaps blocking geometry");
-    }
+    if (!finite(entry.pose.foot_position))
+      addValidation(diagnostics, source_path, path + ".foot_position",
+                    label + "must be finite");
+    if (!std::isfinite(entry.pose.yaw_degrees))
+      addValidation(diagnostics, source_path, path + ".yaw_degrees",
+                    label + "must be finite");
+    if (!spawnSupported(support_terrain, document.solids,
+                        entry.pose.foot_position))
+      addValidation(diagnostics, source_path, path + ".foot_position",
+                    label +
+                        "must match a supporting terrain surface or solid top "
+                        "at its authored height");
+    if (!spawnClear(support_terrain, document.solids, prop,
+                    entry.pose.foot_position, prototype_spawn_validation_radius,
+                    prototype_spawn_validation_height))
+      addValidation(
+          diagnostics, source_path, path + ".foot_position",
+          label + "standing player clearance overlaps blocking geometry");
   }
 
   if (document.light_switch) {
@@ -545,11 +744,9 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                     "must select point light 0 or 1");
     for (const auto& corner : lightSwitchCorners(value)) {
       if (!std::isfinite(corner.x) || !std::isfinite(corner.y) ||
-          !std::isfinite(corner.z) ||
-          !prototypeTerrainContains(terrain, corner.x, corner.z)) {
+          !std::isfinite(corner.z)) {
         addValidation(diagnostics, source_path, "light_switch.position",
-                      "transformed bounds must be finite and horizontally "
-                      "inside the terrain footprint");
+                      "transformed bounds must be finite");
         break;
       }
     }
@@ -580,50 +777,18 @@ bool prototypeTerrainIsValid(const PrototypeTerrain& terrain) noexcept {
   return true;
 }
 
-bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
-  const LevelDocument document{level_format_version,     level.terrain(),
-                               level.solids(),           level.playerSpawn(),
-                               level.environmentLight(), level.staticProp(),
-                               level.lightSwitch()};
+bool prototypeLevelIsValid(const PrototypeLevel& level) {
+  const LevelDocument document{level_format_version,   level.terrain(),
+                               level.solids(),         level.entries(),
+                               level.defaultEntryId(), level.environmentLight(),
+                               level.staticProp(),     level.lightSwitch()};
   return validateLevelDocument(document).empty();
 }
 
 bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,
                            float player_height) noexcept {
-  if (!(player_radius > 0.0F) || !(player_height > 0.0F)) {
-    return false;
-  }
-  const WorldPosition spawn = level.playerSpawn().foot_position;
-  const float player_min_y = spawn.y;
-  const float player_max_y = spawn.y + player_height;
-  for (const PrototypeSolid& solid : level.solids()) {
-    const float solid_min_x = solid.center.x - solid.half_extent.x;
-    const float solid_max_x = solid.center.x + solid.half_extent.x;
-    const float solid_min_y = solid.center.y - solid.half_extent.y;
-    const float solid_max_y = solid.center.y + solid.half_extent.y;
-    const float solid_min_z = solid.center.z - solid.half_extent.z;
-    const float solid_max_z = solid.center.z + solid.half_extent.z;
-    if (overlaps(spawn.x - player_radius, spawn.x + player_radius, solid_min_x,
-                 solid_max_x) &&
-        overlaps(player_min_y, player_max_y, solid_min_y, solid_max_y) &&
-        overlaps(spawn.z - player_radius, spawn.z + player_radius, solid_min_z,
-                 solid_max_z)) {
-      return false;
-    }
-  }
-  const PrototypeStaticProp& prop = level.staticProp();
-  const WorldPosition prop_center = prototypeStaticPropProxyWorldCenter(prop);
-  const WorldExtent prop_half_extent =
-      prototypeStaticPropProxyWorldHalfExtent(prop);
-  if (overlaps(spawn.x - player_radius, spawn.x + player_radius,
-               prop_center.x - prop_half_extent.x,
-               prop_center.x + prop_half_extent.x) &&
-      overlaps(player_min_y, player_max_y, prop_center.y - prop_half_extent.y,
-               prop_center.y + prop_half_extent.y) &&
-      overlaps(spawn.z - player_radius, spawn.z + player_radius,
-               prop_center.z - prop_half_extent.z,
-               prop_center.z + prop_half_extent.z)) {
-    return false;
-  }
-  return true;
+  return spawnClear(level.terrain() ? &*level.terrain() : nullptr,
+                    level.solids(), level.staticProp(),
+                    level.playerSpawn().foot_position, player_radius,
+                    player_height);
 }

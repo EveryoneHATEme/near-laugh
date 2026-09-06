@@ -81,8 +81,8 @@ TEST_F(EditorPlacement, PicksYawedScaledOffsetPropProxyAndMarkers) {
             editor_first_light);
   EXPECT_EQ(pickEditorObject(editor, {{0, 20, -2}, {0, 0, -1}}),
             editor_first_light);
-  auto spawn = editor.document()->player_spawn;
-  spawn.foot_position = {0, 20 - editor_marker_radius, -1};
+  auto spawn = editor.document()->entries.front();
+  spawn.pose.foot_position = {0, 20 - editor_marker_radius, -1};
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   EXPECT_EQ(pickEditorObject(editor, {{0, 20, 0}, {0, 0, -1}}), editor_spawn);
 }
@@ -110,7 +110,7 @@ TEST_F(EditorPlacement,
        PlacementPreservesPropertiesAndObjectSpecificVerticalAnchors) {
   const WorldPosition hit{8.3F, 100, 8.2F};
   const float height =
-      prototypeTerrainHeightAt(editor.document()->terrain, hit.x, hit.z);
+      prototypeTerrainHeightAt(*editor.document()->terrain, hit.x, hit.z);
   const auto solid_id = editor.solidIds()[0];
   const auto original_solid = editor.document()->solids[0];
   editor.select(solid_id);
@@ -122,10 +122,10 @@ TEST_F(EditorPlacement,
   EXPECT_FALSE(editor.placeSelected(hit));
   EXPECT_EQ(editor.revision(), generation);
   editor.select(editor_spawn);
-  auto expected_spawn = editor.document()->player_spawn;
-  expected_spawn.foot_position = {hit.x, height, hit.z};
+  auto expected_spawn = editor.document()->entries.front();
+  expected_spawn.pose.foot_position = {hit.x, height, hit.z};
   ASSERT_TRUE(editor.placeSelected(hit));
-  EXPECT_EQ(editor.document()->player_spawn, expected_spawn);
+  EXPECT_EQ(editor.document()->entries.front(), expected_spawn);
   editor.select(editor_prop);
   auto expected_prop = editor.document()->static_prop;
   expected_prop.translation = {hit.x, height, hit.z};
@@ -134,7 +134,7 @@ TEST_F(EditorPlacement,
   editor.select(editor_first_light);
   auto expected_light = editor.document()->environment_light.point_lights[0];
   const float offset = expected_light.position.y -
-                       prototypeTerrainHeightAt(editor.document()->terrain,
+                       prototypeTerrainHeightAt(*editor.document()->terrain,
                                                 expected_light.position.x,
                                                 expected_light.position.z);
   expected_light.position = {hit.x, height + offset, hit.z};
@@ -195,7 +195,7 @@ TEST_F(EditorPlacement, PropertyDragCreatesOneCommandAndRejectsStaleDrafts) {
   EditorPropertyEdit edit;
   edit.synchronize(editor);
   for (int i = 0; i < 20; ++i) {
-    std::get<PrototypePlayerSpawn>(*edit.value()).yaw_degrees += 1;
+    std::get<LevelEntry>(*edit.value()).pose.yaw_degrees += 1;
     edit.synchronize(editor);
     EXPECT_EQ(editor.revision(), generation);
     EXPECT_EQ(*editor.document(), original);
@@ -205,16 +205,16 @@ TEST_F(EditorPlacement, PropertyDragCreatesOneCommandAndRejectsStaleDrafts) {
   EXPECT_EQ(*editor.document(), original);
   EXPECT_FALSE(editor.canUndo());
   edit.synchronize(editor);
-  std::get<PrototypePlayerSpawn>(*edit.value()).yaw_degrees += 10;
+  std::get<LevelEntry>(*edit.value()).pose.yaw_degrees += 10;
   editor.select(editor_prop);
   EXPECT_FALSE(edit.commit(editor));
   EXPECT_EQ(*editor.document(), original);
   editor.select(editor_spawn);
   edit.synchronize(editor);
-  std::get<PrototypePlayerSpawn>(*edit.value()).yaw_degrees =
+  std::get<LevelEntry>(*edit.value()).pose.yaw_degrees =
       std::numeric_limits<float>::infinity();
   EXPECT_FALSE(edit.commit(editor));
-  EXPECT_EQ(*edit.value(), EditorObjectValue(original.player_spawn));
+  EXPECT_EQ(*edit.value(), EditorObjectValue(original.entries.front()));
   EXPECT_FALSE(editor.editError().empty());
 }
 
@@ -246,8 +246,8 @@ TEST_F(EditorPlacement, SafeInvalidPreviewAndOverlayReflectEditedGeometry) {
     }
   }
   EXPECT_EQ(selected_edges, 12U);
-  auto spawn = editor.document()->player_spawn;
-  spawn.foot_position.y += 5;
+  auto spawn = editor.document()->entries.front();
+  spawn.pose.foot_position.y += 5;
   ASSERT_TRUE(editor.replaceObject(editor_spawn, spawn));
   EXPECT_FALSE(editor.valid());
   EXPECT_THROW(static_cast<void>(makePrototypeLevel(*editor.document())),
@@ -288,7 +288,7 @@ TEST_F(EditorPlacement,
   EXPECT_FALSE(update(std::optional<EditorRay>{}, false, false, false, true));
   EXPECT_TRUE(update(b, false, false, false, true));
   EXPECT_TRUE(update(b, false, false, false, false));
-  auto expected = original.terrain;
+  auto expected = *original.terrain;
   for (auto p : {WorldPosition{10, 0, 10}, WorldPosition{12, 0, 10}})
     for (auto e : editorTerrainStamp(expected, {}, p))
       expected.heights[e.index] = e.after;
@@ -319,14 +319,14 @@ TEST_F(EditorPlacement, BrushFootprintAndInvalidTriangleOverlaysFollowTerrain) {
                             0,         1.0F / 30, 0, 0, 0, 0, 0.5F,        1};
   EditorTerrainBrush brush;
   const auto center =
-      prototypeTerrainSamplePosition(editor.document()->terrain, 40, 40);
+      prototypeTerrainSamplePosition(*editor.document()->terrain, 40, 40);
   const auto footprint = buildEditorOverlay(editor, camera, center, &brush);
   EXPECT_GT(footprint.size(), buildEditorOverlay(editor, camera).size() + 300);
   brush.falloff = 0;
   const auto hard = buildEditorOverlay(editor, camera, center, &brush);
   EXPECT_NE(footprint.front().color, hard.front().color);
   const auto edge = buildEditorOverlay(
-      editor, camera, editor.document()->terrain.origin, &brush);
+      editor, camera, editor.document()->terrain->origin, &brush);
   EXPECT_LT(edge.size(), hard.size());
   brush.radius = 0.5F;
   brush.strength = 1;
@@ -369,7 +369,7 @@ TEST_F(EditorPlacement, SwitchYawPickingPlacementAndDraftValidation) {
       updateEditorViewport(editor, ray, false, false, true, false));
   ASSERT_EQ(editor.selection(), editor_light_switch);
   const float height =
-      value.position.y - prototypeTerrainHeightAt(editor.document()->terrain,
+      value.position.y - prototypeTerrainHeightAt(*editor.document()->terrain,
                                                   value.position.x,
                                                   value.position.z);
   const auto before = *editor.document();

@@ -256,8 +256,10 @@ void EditorRenderer::Impl::replaceDocument(const LevelDocument& level) {
   const std::vector<PositionColorVertex> chair_vertices =
       loadStaticModelVertices(resources_.prototype_chair_model,
                               level.static_prop);
-  auto world_mesh = std::make_unique<ImmutableMeshBuffer>(
-      context_.device(), context_.physicalDevice(), world_vertices, "world");
+  std::unique_ptr<ImmutableMeshBuffer> world_mesh;
+  if (!world_vertices.empty())
+    world_mesh = std::make_unique<ImmutableMeshBuffer>(
+        context_.device(), context_.physicalDevice(), world_vertices, "world");
   auto chair_mesh = std::make_unique<ImmutableMeshBuffer>(
       context_.device(), context_.physicalDevice(), chair_vertices, "chair");
   auto lighting_resources = std::make_unique<LightingResources>(
@@ -300,8 +302,10 @@ void EditorRenderer::Impl::replaceTerrain(const LevelDocument& level) {
       "Wait for editor terrain buffer readers");
   const auto vertices = buildPrototypeSceneVertices(level.terrain, level.solids,
                                                     level.light_switch);
-  auto mesh = std::make_unique<ImmutableMeshBuffer>(
-      context_.device(), context_.physicalDevice(), vertices, "world");
+  std::unique_ptr<ImmutableMeshBuffer> mesh;
+  if (!vertices.empty())
+    mesh = std::make_unique<ImmutableMeshBuffer>(
+        context_.device(), context_.physicalDevice(), vertices, "world");
   world_mesh_ = std::move(mesh);
   ++terrain_replacement_count_;
   recordLifecycleEvent("editor.terrain-resources.replaced");
@@ -653,7 +657,7 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   if (pipeline_ != nullptr) {
     pipeline_->bindSceneState(command_buffer, request.camera,
                               request.spot_light, request.point_light_enabled);
-    world_mesh_->bindAndDraw(command_buffer);
+    if (world_mesh_) world_mesh_->bindAndDraw(command_buffer);
     chair_mesh_->bindAndDraw(command_buffer);
   }
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);

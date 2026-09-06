@@ -45,14 +45,14 @@ test/write with `LESS`.
 
 ## Authored Scene Input
 
-Runtime composition resolves and validates
-`resources/levels/prototype.level.json` before renderer construction. The
+Runtime composition resolves and validates the selected level (defaulting to
+`resources/levels/prototype.level.json`) and entry before renderer construction. The
 renderer receives an immutable `PrototypeLevel`; it does not parse JSON, save
 documents, hot-reload levels, or select paths from level data.
 
 The current scene uses two immutable world-space triangle streams:
 
-- generated terrain, axis-aligned solids, and the optional yawed switch; and
+- generated optional terrain, axis-aligned solids, and the optional yawed switch; and
 - the one packaged chair flattened synchronously from
   `resources/models/prototype_chair.glb`.
 
@@ -130,6 +130,10 @@ Chair geometry, lighting resources, textures, and pipeline remain in place
 during sculpting. A failed replacement retains the previous resources and
 reports the error. This uses the existing immutable buffer owner for each
 replacement; the game renderer and its meshes remain immutable.
+An invalid editor interior with no solids, terrain, or switch has no generated
+world buffer or world draw. Chair geometry, entry/light markers, and UI remain
+available. Replacement between absent and present world meshes uses the same
+transactional resource path, including recovery after a failed upload.
 
 The switch is a pale plate with a contrasting fixed rocker, generated with the
 obstacle texture and opaque tints. Its shared yawed bounds are 0.18 by 0.26 by
@@ -137,7 +141,7 @@ obstacle texture and opaque tints. Its shared yawed bounds are 0.18 by 0.26 by
 The editor supplies the authored initial light state, safely omitting an
 unusable switch; changing/removing its link restores the previous slot.
 
-Editor-only selection bounds, light/spawn spheres, brush footprints, invalid
+Editor-only selection bounds, light/entry spheres, brush footprints, invalid
 terrain triangle outlines, and placement feedback are CPU-projected and clipped
 to the Vulkan view volume. The editor renderer draws
 these lines through the ImGui background draw list, above scene geometry and

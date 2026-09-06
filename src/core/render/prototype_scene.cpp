@@ -125,11 +125,14 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
 }
 
 std::vector<PositionColorVertex> buildPrototypeSceneVertices(
-    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids,
+    const std::optional<PrototypeTerrain>& terrain,
+    std::span<const PrototypeSolid> solids,
     const std::optional<PrototypeLightSwitch>& light_switch) {
   std::vector<PositionColorVertex> vertices;
-  vertices.reserve(solids.size() * 36 + prototype_terrain_cell_count *
-                                            prototype_terrain_cell_count * 6);
+  vertices.reserve(
+      solids.size() * 36 +
+      (terrain ? prototype_terrain_cell_count * prototype_terrain_cell_count * 6
+               : 0));
   for (std::size_t solid_index = 0; solid_index < solids.size();
        ++solid_index) {
     const PrototypeSolid& solid = solids[solid_index];
@@ -142,7 +145,7 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     appendBox(vertices, minimum, maximum, solid.color,
               static_cast<std::uint32_t>(solid.surface));
   }
-  appendTerrain(vertices, terrain);
+  if (terrain) appendTerrain(vertices, *terrain);
   if (light_switch && lightSwitchIsValid(*light_switch)) {
     const auto first = vertices.size();
     constexpr auto h = light_switch_half_extent;

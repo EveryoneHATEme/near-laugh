@@ -3,6 +3,7 @@
 
 #include <array>
 #include <filesystem>
+#include <optional>
 
 struct RuntimeResources {
   std::filesystem::path root{};
@@ -14,6 +15,7 @@ struct RuntimeResources {
 };
 
 [[nodiscard]] RuntimeResources resolveRuntimeResources(
-    const std::filesystem::path& resource_root);
+    const std::filesystem::path& resource_root,
+    const std::optional<std::filesystem::path>& level_path = std::nullopt);
 
 #endif

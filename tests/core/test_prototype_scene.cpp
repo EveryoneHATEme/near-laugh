@@ -58,7 +58,7 @@ TEST(PrototypeScene, ContainsTerrainBoundariesAndMultipleColoredObjects) {
 
 TEST(PrototypeScene, AppendsContinuousWorldScaledTerrainTriangles) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
-  const PrototypeTerrain& terrain = level.terrain();
+  const PrototypeTerrain& terrain = *level.terrain();
   const auto vertices = buildPrototypeSceneVertices(level);
   const std::size_t terrain_first_vertex = level.solids().size() * 36U;
   const WorldPosition p00 = prototypeTerrainSamplePosition(terrain, 0, 0);
@@ -272,7 +272,7 @@ TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {
   const auto without =
       buildPrototypeSceneVertices(document.terrain, document.solids);
   ASSERT_GT(vertices.size(), without.size());
-  auto terrain = document.terrain;
+  auto terrain = *document.terrain;
   terrain.heights[0] += 0.01F;
   const auto rebuilt = buildPrototypeSceneVertices(terrain, document.solids,
                                                    document.light_switch);

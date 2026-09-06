@@ -7,14 +7,14 @@
 
 namespace {
 void changeYaw(EditorDocument& document) {
-  auto spawn = document.document()->player_spawn;
-  spawn.yaw_degrees += 1.0F;
+  auto spawn = document.document()->entries.front();
+  spawn.pose.yaw_degrees += 1.0F;
   ASSERT_TRUE(document.replaceObject(editor_spawn, spawn));
 }
 
 void invalidateSpawn(EditorDocument& document) {
-  auto spawn = document.document()->player_spawn;
-  spawn.foot_position.y += 1.0F;
+  auto spawn = document.document()->entries.front();
+  spawn.pose.foot_position.y += 1.0F;
   ASSERT_TRUE(document.replaceObject(editor_spawn, spawn));
 }
 

@@ -7,15 +7,18 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 3;
+inline constexpr std::uint32_t level_format_version = 4;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t prototype_point_light_count = 2;
 inline constexpr std::size_t prototype_terrain_sample_count = 97;
 inline constexpr std::size_t prototype_terrain_cell_count =
     prototype_terrain_sample_count - 1;
 inline constexpr std::size_t level_maximum_solid_count = 240;
+inline constexpr std::size_t level_maximum_entry_count = 16;
+inline constexpr std::size_t level_maximum_entry_id_length = 64;
 inline constexpr float prototype_terrain_sample_spacing = 0.5F;
 inline constexpr float prototype_terrain_maximum_slope_degrees = 50.0F;
 inline constexpr float prototype_maximum_ambient_intensity = 0.20F;
@@ -76,6 +79,12 @@ struct PrototypePlayerSpawn {
   float yaw_degrees{};
 };
 
+struct LevelEntry {
+  bool operator==(const LevelEntry&) const = default;
+  std::string id{};
+  PrototypePlayerSpawn pose{};
+};
+
 struct PrototypePointLight {
   bool operator==(const PrototypePointLight&) const = default;
   WorldPosition position{};
@@ -111,9 +120,10 @@ struct PrototypeLightSwitch {
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
-  PrototypeTerrain terrain{};
+  std::optional<PrototypeTerrain> terrain{};
   std::vector<PrototypeSolid> solids{};
-  PrototypePlayerSpawn player_spawn{};
+  std::vector<LevelEntry> entries{};
+  std::string default_entry{};
   PrototypeEnvironmentLight environment_light{};
   PrototypeStaticProp static_prop{};
   std::optional<PrototypeLightSwitch> light_switch{};
@@ -144,11 +154,16 @@ struct LevelDiagnostic {
 struct LevelDocumentLoadResult {
   std::optional<LevelDocument> document{};
   std::vector<LevelDiagnostic> diagnostics{};
+  std::uint32_t source_version{};
 
   [[nodiscard]] explicit operator bool() const noexcept {
     return document.has_value() && diagnostics.empty();
   }
 };
+
+[[nodiscard]] bool levelEntryIdIsValid(std::string_view id) noexcept;
+[[nodiscard]] const LevelEntry* findLevelEntry(const LevelDocument& document,
+                                               std::string_view id) noexcept;
 
 struct LevelDocumentSaveResult {
   std::vector<LevelDiagnostic> diagnostics{};

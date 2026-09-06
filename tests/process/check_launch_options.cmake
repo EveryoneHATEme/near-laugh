@@ -1,0 +1,15 @@
+foreach(CASE IN ITEMS missing unknown repeated)
+    if(CASE STREQUAL "missing")
+        set(ARGS --entry)
+    elseif(CASE STREQUAL "unknown")
+        set(ARGS --unknown)
+    else()
+        set(ARGS --entry default --entry default)
+    endif()
+    execute_process(COMMAND "${GAME}" ${ARGS}
+        RESULT_VARIABLE RESULT OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR
+        TIMEOUT 10)
+    if(RESULT EQUAL 0 OR NOT ERROR MATCHES "Usage:")
+        message(FATAL_ERROR "${CASE} options did not fail with usage before startup: ${OUTPUT}${ERROR}")
+    endif()
+endforeach()

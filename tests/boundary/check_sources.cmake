@@ -371,7 +371,7 @@ endforeach()
 
 
 file(READ "${SOURCE_ROOT}/src/main.cpp" LAUNCHER_CONTENT)
-if(LAUNCHER_CONTENT MATCHES "argv[ \\t\\r\\n]*\\[")
+if(LAUNCHER_CONTENT MATCHES "argv[ \\t\\r\\n]*\\[[ \\t]*0[ \\t]*\\]")
     message(FATAL_ERROR
         "Launcher must not derive its runtime layout from argv[0]")
 endif()

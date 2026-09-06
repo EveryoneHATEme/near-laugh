@@ -35,7 +35,7 @@ The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-3 level document, version-2 read
+- `near_laugh_world` owns the bounded version-4 level document, version-2/3 read
   compatibility, strict private JSON codec, shared validation, and immutable
   level data. It privately links
   `nlohmann/json`.
@@ -49,9 +49,10 @@ The concrete targets have these responsibilities:
   fixed-step player policy, flashlight and switch state, frame interpolation,
   and the main-thread loop.
 - `near_laugh` is the game launcher. It discovers its native executable path,
-  supplies the adjacent resource root, and links only `near_laugh_runtime`.
-- `near_laugh_editor_core` owns editable document workflow and the free-fly
-  editor camera.
+  supplies the adjacent resource root and optional level/entry selection, and
+  links only `near_laugh_runtime`.
+- `near_laugh_editor_core` owns editable document workflow, saved-file play
+  preparation, native game-process ownership, and the free-fly editor camera.
 - `near_laugh_editor_ui` owns Dear ImGui and the editor workspace.
 - `near_laugh_editor_render` owns editor Vulkan presentation, active-document
   scene resources, and the ImGui Vulkan backend.
@@ -71,7 +72,7 @@ not establish a reusable engine layer. It constructs, in dependency order:
 
 ```text
 Platform -> Window -> RuntimeResources -> PrototypeLevel
-         -> PhysicsWorld -> PlayerController -> PlayerFlashlight
+         -> selected LevelEntry -> PhysicsWorld -> PlayerController -> PlayerFlashlight
          -> LightSwitchController -> Renderer
 ```
 
@@ -79,11 +80,13 @@ RAII destruction reverses that order. Raw pointers and references are
 non-owning; exclusive dynamic Vulkan owners use `std::unique_ptr`. Mutable
 global subsystem ownership is not used.
 
-Startup resolves shaders, the floor/boundary/obstacle textures, the chair GLB,
-and `levels/prototype.level.json` beneath the executable-relative resource
-root. A version-2 or version-3 document is parsed and validated before physics
-or renderer construction. Neither the process working directory nor
-level-authored paths participate in resource discovery.
+Startup resolves shaders, the floor/boundary/obstacle textures, and the chair
+GLB beneath the executable-relative resource root. The level defaults to
+`levels/prototype.level.json`; `--level` selects another file and `--entry`
+selects a named start. Relative level arguments resolve once against the
+launcher's working directory. Only the selected level must exist. All entries
+are validated before the selected pose reaches physics, the player, or the
+renderer. Selection leaves the immutable authored default and order intact.
 
 The main-thread loop owns event processing, close and minimize decisions,
 player-input sampling, elapsed-time accumulation, fixed simulation steps,
@@ -107,8 +110,8 @@ no runtime job system.
 
 ## World Boundary
 
-The bounded level document contains one 97-by-97 heightfield, at most 240
-axis-aligned solids, one player spawn, exactly two point lights and an ambient
+The bounded level document contains an optional 97-by-97 heightfield, 1–240
+axis-aligned solids, 1–16 named entries with an explicit default, exactly two point lights and an ambient
 intensity, one packaged chair placement with an authored box collision
 proxy, and an optional singleton light switch. Solids use the fixed floor,
 boundary, or obstacle surface roles. The document contains no resource paths.
@@ -118,8 +121,15 @@ construction of an immutable `PrototypeLevel` both use the same field-aware
 validation. The running game loads once and does not mutate, save, discover, or
 hot-reload level documents.
 
-The private codec normalizes the exact version-2 shape into version 3 with no
-switch. Opening never rewrites a source file; explicit saves use version 3.
+The private codec normalizes exact version-2/3 shapes to version 4, mapping the
+old spawn to the `default` entry and preserving terrain and authored values.
+Version 2 has no switch field; version 3 requires a nullable switch. Version 4
+requires nullable terrain, entries, and `default_entry`. Opening never rewrites
+a source file; explicit saves use canonical version 4. Entry support matches
+the authored foot height against a solid top or present terrain. Standing
+clearance checks structural boxes, the yawed chair proxy, and terrain, allowing
+ordinary supported-slope capsule contact. Solid support may lie above or
+outside terrain. The world/editor validation path has no Jolt dependency.
 The switch definition and authored lights remain immutable during play.
 `LightSwitchController` borrows the definition and owns input arming and light
 enable state. It tests shared yawed plate bounds, then queries a bounded static
@@ -129,7 +139,7 @@ with a 0.1 mm numerical extension. Jolt types remain private to physics.
 Rendering expands terrain, solids, and the fixed switch into an immutable
 world triangle stream and flattens the validated chair GLB into a separate
 immutable stream. Physics
-builds matching terrain and solid collision plus the chair's authored box
+builds matching optional terrain and solid collision plus the chair's authored box
 proxy; it does not derive collision from renderer geometry. Shared level data
 contains no Vulkan, Jolt, parser, or filesystem types.
 
@@ -155,11 +165,13 @@ and updates samples immediately while validating at stroke completion.
 Saved-state identity uses document revisions; a separate preview generation
 changes on edits, undo/redo, and document replacement. Property widgets edit a
 draft and commit once when editing ends. CPU rays pick authored boxes and
-light/spawn markers; placement intersects the exact heightfield triangles.
+light/entry markers; placement uses the nearest visible structural face or
+present terrain triangle, excluding the moved solid. An unsuitable nearest
+face blocks placement. Terrain-only mode remains available for terrain files.
 
 The editor renderer draws structurally safe document fields, then selection
 overlays and Dear ImGui in the same Dynamic Rendering pass. Full gameplay
-validation gates saving and runtime construction, allowing an invalid spawn
+validation gates saving, playtesting, and runtime construction, allowing an invalid entry
 placement to remain visible during repair. Replacement GPU resources are built
 temporarily and swapped in only after success.
 Terrain diagnostics also carry sample or cell coordinates and triangle identity
@@ -172,6 +184,22 @@ IDs and shares property commands, placement, selection, and history. Preview
 uses its authored initial state; changing its link or removing it restores
 the previously linked light. Successful resource replacement also installs
 the preview light state; a failed replacement retains the prior preview.
+New Interior creates a valid floor, default entry, lights, and chair without
+terrain. Durable entry strings are separate from transient selection IDs;
+renaming a default entry updates its reference in one undoable command.
+
+Play prepares the current document and selected entry, completes pending edits,
+and requires Save and Play or Cancel when dirty. Unsaved work uses Save As.
+After saving, or for a clean document, the editor rereads and validates the
+file and compares normalized content before consuming one launch request.
+External mismatches require an explicit Save or Open. A native process owner
+launches the sibling game with literal Unicode-capable arguments, monitors at
+most one child without blocking normal authoring, and reports exit status.
+Creating a process is distinct from successful game startup. Editor shutdown
+releases the handle or detaches the POSIX reaping obligation without killing
+or waiting for the game. No readiness protocol or hot reload is introduced;
+the child independently validates its file after the ordinary filesystem race
+between preflight and load.
 The editor is a concrete tool for this game, not a runtime mode or general
 scene-editor framework.
 

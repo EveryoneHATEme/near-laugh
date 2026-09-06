@@ -257,11 +257,12 @@ JPH::RefConst<JPH::Shape> makeTerrainShape(const PrototypeTerrain& terrain) {
 
 class PhysicsWorld::Impl {
  public:
-  explicit Impl(const PrototypeLevel& level)
+  Impl(const PrototypeLevel& level, const LevelEntry& entry)
       : job_system_(JPH::cMaxPhysicsJobs),
         standing_shape_(makePlayerCapsule(player_standing_height)),
         crouched_shape_(makePlayerCapsule(player_crouched_height)) {
-    if (!prototypeLevelIsValid(level)) {
+    if (!prototypeLevelIsValid(level) || !level.entry(entry.id) ||
+        *level.entry(entry.id) != entry) {
       throw std::invalid_argument(
           "Physics world requires a valid immutable prototype level");
     }
@@ -278,23 +279,21 @@ class PhysicsWorld::Impl {
     static_solids_.reserve(level.solids().size() + 1);
     static_body_ids_.reserve(level.solids().size() + 2);
     try {
-      const JPH::RefConst<JPH::Shape> terrain_shape =
-          makeTerrainShape(level.terrain());
-      JPH::BodyCreationSettings terrain_settings(
-          terrain_shape, {0.0F, 0.0F, 0.0F}, JPH::Quat::sIdentity(),
-          JPH::EMotionType::Static, layers::non_moving);
-      const JPH::BodyID terrain_id =
-          physics_system_.GetBodyInterface().CreateAndAddBody(
-              terrain_settings, JPH::EActivation::DontActivate);
-      if (terrain_id.IsInvalid()) {
-        throw std::runtime_error("Create static terrain collision body failed");
-      }
-      static_body_ids_.push_back(terrain_id);
-      terrain_collision_installed_ = true;
-      if (forcedFailureAt("static-bodies")) {
-        throw std::runtime_error(
-            "Physics initialization forced to fail during static collision "
-            "creation");
+      if (level.terrain()) {
+        const JPH::RefConst<JPH::Shape> terrain_shape =
+            makeTerrainShape(*level.terrain());
+        JPH::BodyCreationSettings terrain_settings(
+            terrain_shape, {0.0F, 0.0F, 0.0F}, JPH::Quat::sIdentity(),
+            JPH::EMotionType::Static, layers::non_moving);
+        const JPH::BodyID terrain_id =
+            physics_system_.GetBodyInterface().CreateAndAddBody(
+                terrain_settings, JPH::EActivation::DontActivate);
+        if (terrain_id.IsInvalid()) {
+          throw std::runtime_error(
+              "Create static terrain collision body failed");
+        }
+        static_body_ids_.push_back(terrain_id);
+        terrain_collision_installed_ = true;
       }
 
       for (std::size_t solid_index = 0; solid_index < level.solids().size();
@@ -317,6 +316,11 @@ class PhysicsWorld::Impl {
         static_body_ids_.push_back(id);
         static_solids_.push_back(
             {solid.center, solid.half_extent, solid.kind, 0.0F});
+        if (forcedFailureAt("static-bodies")) {
+          throw std::runtime_error(
+              "Physics initialization forced to fail during static collision "
+              "creation");
+        }
       }
       const PrototypeStaticProp& prop = level.staticProp();
       const WorldPosition prop_center =
@@ -356,8 +360,7 @@ class PhysicsWorld::Impl {
           JPH::Plane(JPH::Vec3::sAxisY(),
                      -(player_standing_height - player_capsule_radius));
       character_ = new JPH::CharacterVirtual(
-          &character_settings,
-          toJoltFootPosition(level.playerSpawn().foot_position),
+          &character_settings, toJoltFootPosition(entry.pose.foot_position),
           JPH::Quat::sIdentity(), 0, &physics_system_);
       if (forcedFailureAt("character")) {
         throw std::runtime_error(
@@ -455,7 +458,10 @@ class PhysicsWorld::Impl {
 };
 
 PhysicsWorld::PhysicsWorld(const PrototypeLevel& level)
-    : impl_(std::make_unique<Impl>(level)) {}
+    : PhysicsWorld(level, *level.entry(level.defaultEntryId())) {}
+
+PhysicsWorld::PhysicsWorld(const PrototypeLevel& level, const LevelEntry& entry)
+    : impl_(std::make_unique<Impl>(level, entry)) {}
 
 PhysicsWorld::~PhysicsWorld() = default;
 

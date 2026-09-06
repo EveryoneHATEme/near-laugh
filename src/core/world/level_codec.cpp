@@ -8,12 +8,15 @@
 #include <limits>
 #include <locale>
 #include <nlohmann/json.hpp>
+#include <numbers>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <system_error>
 
 #include "core/world/level_document.hpp"
+#include "core/world/light_switch.hpp"
+#include "core/world/prototype_level.hpp"
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -275,7 +278,7 @@ LevelDocument parseDocument(const Json& root) {
   if (!root.is_object()) fail("", "must be an object");
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
-  if (version != 2 && version != level_format_version) {
+  if (version != 2 && version != 3 && version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
   }
@@ -283,10 +286,15 @@ LevelDocument parseDocument(const Json& root) {
     requireObjectFields(root, "",
                         {"version", "terrain", "solids", "player_spawn",
                          "environment_light", "static_prop"});
-  } else {
+  } else if (version == 3) {
     requireObjectFields(root, "",
                         {"version", "terrain", "solids", "player_spawn",
                          "environment_light", "static_prop", "light_switch"});
+  } else {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "static_prop", "light_switch"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -300,14 +308,76 @@ LevelDocument parseDocument(const Json& root) {
   for (std::size_t index = 0; index < solids_json.size(); ++index) {
     solids.push_back(parseSolid(solids_json[index], index));
   }
-  return {
-      level_format_version,
-      parseTerrain(root.at("terrain")),
-      std::move(solids),
-      parseSpawn(root.at("player_spawn")),
-      parseEnvironmentLight(root.at("environment_light")),
-      parseStaticProp(root.at("static_prop")),
-      version == 2 ? std::nullopt : parseLightSwitch(root.at("light_switch"))};
+  LevelDocument document;
+  if (version < 4 || !root.at("terrain").is_null())
+    document.terrain = parseTerrain(root.at("terrain"));
+  document.solids = std::move(solids);
+  if (version < 4) {
+    document.entries.push_back(
+        {"default", parseSpawn(root.at("player_spawn"))});
+    document.default_entry = "default";
+  } else {
+    const auto& entries = root.at("entries");
+    if (!entries.is_array() || entries.size() > level_maximum_entry_count)
+      fail("entries", "must be an array of at most 16 entries");
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+      const auto path = "entries[" + std::to_string(i) + "]";
+      const auto& value = entries[i];
+      requireObjectFields(value, path, {"id", "foot_position", "yaw_degrees"});
+      auto id = parseString(value.at("id"), path + ".id");
+      if (id.size() > level_maximum_entry_id_length)
+        fail(path + ".id", "must contain at most 64 characters");
+      document.entries.push_back(
+          {std::move(id),
+           {parsePosition(value.at("foot_position"), path + ".foot_position"),
+            parseFloat(value.at("yaw_degrees"), path + ".yaw_degrees")}});
+    }
+    document.default_entry =
+        parseString(root.at("default_entry"), "default_entry");
+    if (document.default_entry.size() > level_maximum_entry_id_length)
+      fail("default_entry", "must contain at most 64 characters");
+  }
+  document.environment_light =
+      parseEnvironmentLight(root.at("environment_light"));
+  document.static_prop = parseStaticProp(root.at("static_prop"));
+  if (version != 2)
+    document.light_switch = parseLightSwitch(root.at("light_switch"));
+  const auto finite = [](WorldPosition p) {
+    return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
+  };
+  const auto requireBounds = [&](WorldPosition p, WorldExtent e,
+                                 const std::string& field) {
+    if (!finite({p.x - e.x, p.y - e.y, p.z - e.z}) ||
+        !finite({p.x + e.x, p.y + e.y, p.z + e.z}) ||
+        !finite({2 * e.x, 2 * e.y, 2 * e.z}))
+      fail(field, "derived preview bounds must remain finite");
+  };
+  for (std::size_t i = 0; i < document.solids.size(); ++i)
+    requireBounds(document.solids[i].center, document.solids[i].half_extent,
+                  "solids[" + std::to_string(i) + "].bounds");
+  const auto& prop = document.static_prop;
+  const auto extent = prototypeStaticPropProxyWorldHalfExtent(prop);
+  const double yaw =
+      static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
+  const float c = static_cast<float>(std::abs(std::cos(yaw)));
+  const float s = static_cast<float>(std::abs(std::sin(yaw)));
+  requireBounds(
+      prototypeStaticPropProxyWorldCenter(prop),
+      {c * extent.x + s * extent.z, extent.y, s * extent.x + c * extent.z},
+      "static_prop.box_proxy");
+  if (document.light_switch)
+    for (const auto point : lightSwitchCorners(*document.light_switch))
+      if (!finite(point))
+        fail("light_switch.position",
+             "derived preview bounds must remain finite");
+  if (document.terrain) {
+    const auto& terrain = *document.terrain;
+    for (std::size_t z = 0; z < prototype_terrain_sample_count; ++z)
+      for (std::size_t x = 0; x < prototype_terrain_sample_count; ++x)
+        if (!finite(prototypeTerrainSamplePosition(terrain, x, z)))
+          fail("terrain", "derived preview samples must remain finite");
+  }
+  return document;
 }
 
 Json positionJson(const WorldPosition& value) {
@@ -354,14 +424,14 @@ std::string serializeDocument(const LevelDocument& document) {
   Json root = Json::object();
   root["version"] = document.version;
 
-  Json terrain = Json::object();
-  terrain["origin"] = positionJson(document.terrain.origin);
-  terrain["sample_spacing"] = document.terrain.sample_spacing;
-  terrain["heights"] = Json::array();
-  for (const float height : document.terrain.heights) {
-    terrain["heights"].push_back(height);
+  root["terrain"] = nullptr;
+  if (document.terrain) {
+    Json terrain = Json::object();
+    terrain["origin"] = positionJson(document.terrain->origin);
+    terrain["sample_spacing"] = document.terrain->sample_spacing;
+    terrain["heights"] = document.terrain->heights;
+    root["terrain"] = std::move(terrain);
   }
-  root["terrain"] = std::move(terrain);
 
   Json solids = Json::array();
   for (const PrototypeSolid& solid : document.solids) {
@@ -375,10 +445,15 @@ std::string serializeDocument(const LevelDocument& document) {
   }
   root["solids"] = std::move(solids);
 
-  Json spawn = Json::object();
-  spawn["foot_position"] = positionJson(document.player_spawn.foot_position);
-  spawn["yaw_degrees"] = document.player_spawn.yaw_degrees;
-  root["player_spawn"] = std::move(spawn);
+  root["entries"] = Json::array();
+  for (const auto& entry : document.entries) {
+    Json value = Json::object();
+    value["id"] = entry.id;
+    value["foot_position"] = positionJson(entry.pose.foot_position);
+    value["yaw_degrees"] = entry.pose.yaw_degrees;
+    root["entries"].push_back(std::move(value));
+  }
+  root["default_entry"] = document.default_entry;
 
   Json lighting = Json::object();
   lighting["point_lights"] = Json::array();
@@ -425,8 +500,9 @@ std::filesystem::path temporaryPathFor(
   for (int attempt = 0; attempt < 100; ++attempt) {
     const std::filesystem::path candidate =
         destination.parent_path() /
-        (destination.filename().string() + ".tmp-" +
-         std::to_string(sequence.fetch_add(1, std::memory_order_relaxed)));
+        std::filesystem::path(destination.filename())
+            .concat(".tmp-" + std::to_string(sequence.fetch_add(
+                                  1, std::memory_order_relaxed)));
     if (!std::filesystem::exists(candidate)) {
       return candidate;
     }
@@ -470,8 +546,9 @@ LevelDocumentLoadResult loadLevelDocument(const std::filesystem::path& path) {
             {filesystemDiagnostic(resolved, "could not read level document")}};
   }
   try {
-    LevelDocument document = parseDocument(Json::parse(bytes));
-    return {std::move(document), {}};
+    const Json root = Json::parse(bytes);
+    LevelDocument document = parseDocument(root);
+    return {std::move(document), {}, root.at("version").get<std::uint32_t>()};
   } catch (const nlohmann::json::parse_error& error) {
     return {std::nullopt,
             {{LevelDiagnosticCategory::Parse, resolved,
@@ -548,7 +625,8 @@ std::string formatLevelDiagnostics(
     const LevelDiagnostic& diagnostic = diagnostics[index];
     if (index != 0) output << '\n';
     if (!diagnostic.source_path.empty()) {
-      output << diagnostic.source_path.string();
+      const auto text = diagnostic.source_path.u8string();
+      output << std::string(text.begin(), text.end());
     } else {
       output << "level document";
     }

@@ -41,6 +41,7 @@ class EditorApplication {
   EditorDocument document_{};
   EditorRenderer renderer_;
   EditorUi ui_{};
+  EditorGameProcess game_process_{};
   EditorCamera camera_{};
   EditorFrameClock frame_clock_{};
   std::uint64_t rendered_document_revision_{};
