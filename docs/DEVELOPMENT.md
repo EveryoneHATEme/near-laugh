@@ -81,10 +81,15 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-The level uses format version 2. Its bounded profile contains one 97-by-97
+The level uses format version 3. Its bounded profile contains one 97-by-97
 heightfield, at most 240 solids, one spawn, exactly two point lights and one
-ambient intensity, and one chair placement with a box proxy. The document has
-no resource paths and is loaded once before physics and renderer construction.
+ambient intensity, one chair placement with a box proxy, and zero or one
+light switch. Version 3 requires `light_switch` as null or an object with
+`position`, `yaw_degrees`, `point_light_index` (0/1), and `initially_on` (boolean).
+The exact previous version-2 shape loads with no switch and without rewriting
+the source. Explicit saves always write version 3, which older builds cannot
+read. Version 1 remains unsupported. The document has no resource paths and is
+loaded once before physics and renderer construction.
 
 The three textures form a fixed sRGB array in floor/boundary/obstacle order.
 Terrain and solid faces use outward normals, world-scaled UVs, authored tints,
@@ -101,6 +106,8 @@ The prototype starts with the cursor captured:
 - Left Shift: sprint;
 - Left Control: crouch;
 - Space: jump while grounded;
+- E: toggle the switch's linked light while looking at its plate within
+  2 metres and with an unobstructed view;
 - Escape: release the cursor;
 - left mouse button: toggle the flashlight while captured, or recapture the
   cursor while released.
@@ -110,6 +117,15 @@ flashlight. Movement uses fixed-step gravity and static collision, slides along
 walls, traverses the authored low step, and checks standing clearance beneath
 the low passage. These are current prototype behaviors, not permanent product
 requirements.
+
+The packaged switch is the pale plate on the central obstacle facing spawn.
+Walk forward from spawn to reach it. It controls Point light 1, initially on,
+and adds no collision body. Static collision, including the chair's box proxy,
+blocks interaction. E requires a release before the first press and between
+presses; holding it through a miss, cursor transition, or minimization cannot
+trigger a later toggle. The light state persists through presentation recovery
+and resets on restart without modifying the level file. Flashlight controls
+and ambient remain independent.
 
 ## Current Editor Behavior
 
@@ -127,6 +143,16 @@ can be added, duplicated, deleted, and edited. The single spawn, two point
 lights, and single packaged chair can be selected and edited but cannot be
 added, duplicated, or removed. Ambient intensity and terrain layout remain
 read-only.
+
+**Add light switch** creates the optional singleton near the spawn at standing
+interaction height. Select **Light switch** in Objects or click its plate in
+the viewport. Delete removes it; duplication is unavailable. Properties expose
+Position, Yaw, Linked light (Point light 1/2), and Initially on. Exact numeric
+placement supports mounting it just in front of a wall. Place on terrain
+preserves its prior height above terrain. All switch edits share undo/redo,
+validation, and dirty state. Finite out-of-terrain placements stay editable but
+block saving. Preview follows the initial state, including link changes,
+removal, sculpting, and recovery. The editor does not run E interaction.
 
 The Properties panel edits position, dimensions, tint, solid kind/surface,
 spawn yaw, light color/intensity/radius, and chair translation/yaw/uniform
@@ -202,8 +228,8 @@ work separately or deliberately update the source asset.
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-2 level data, private JSON codec, validation, and
-  immutable runtime handoff.
+- `near_laugh_world`: version-3 level data with version-2 read compatibility,
+  private JSON codec, validation, and immutable runtime handoff.
 - `near_laugh_physics`: Jolt lifetime, static collision, and one virtual
   character.
 - `near_laugh_render`: Vulkan renderer, resource loading, and immutable scene
@@ -239,6 +265,17 @@ real ImGui button, shortcut, capture, and numeric-drag behavior without a GPU.
 Terrain smoke coverage includes active multi-stamp strokes, coalesced buffer
 replacement, smoothing, undo/redo, sculpted save/reload, and resize/minimize
 recovery followed by an unsaved exit decision.
+
+Light-switch coverage includes all point-light/spotlight enable combinations,
+editor add/remove and link changes, initial-state preview, and terrain rebuilds.
+After shader changes, regenerate and validate both packaged stages:
+
+```sh
+glslc -fshader-stage=vert --target-env=vulkan1.3 resources/shaders/prototype_scene_vertex.glsl -o resources/shaders/prototype_scene_vertex.spv
+glslc -fshader-stage=frag --target-env=vulkan1.3 resources/shaders/prototype_scene_fragment.glsl -o resources/shaders/prototype_scene_fragment.spv
+spirv-val --target-env vulkan1.3 resources/shaders/prototype_scene_vertex.spv
+spirv-val --target-env vulkan1.3 resources/shaders/prototype_scene_fragment.spv
+```
 
 For visual inspection, confirm stable one-metre texture scale across face
 orientations, outward-normal lighting, mip stability at distance, the distinct

@@ -7,7 +7,7 @@ Defines the concrete platform-independent action state needed by the one local f
 ## Requirements
 
 ### Requirement: Player action snapshot
-The input component SHALL expose a per-iteration snapshot containing movement, jump, sprint, crouch, menu, primary-action, secondary-action, and first-person look-delta state for exactly one local player.
+The input component SHALL expose a per-iteration snapshot containing movement, jump, sprint, crouch, menu, interact, primary-action, secondary-action, and first-person look-delta state for exactly one local player.
 
 #### Scenario: Movement and stance actions are sampled
 - **WHEN** the player holds the configured movement, jump, sprint, or crouch controls during an event batch
@@ -17,8 +17,12 @@ The input component SHALL expose a per-iteration snapshot containing movement, j
 - **WHEN** the player holds the primary or secondary mouse control
 - **THEN** the corresponding primary-action or secondary-action state is active in the next input snapshot
 
+#### Scenario: Interaction is sampled
+- **WHEN** the player holds the configured interaction key during an event batch
+- **THEN** the interact state is active in the next player snapshot without changing either mouse action
+
 ### Requirement: Default player controls
-The runtime SHALL map W, A, S, and D to forward, left, backward, and right movement; Space to jump; Left Shift to sprint; Left Control to crouch; Escape to menu; and the left and right mouse buttons to primary and secondary actions.
+The runtime SHALL map W, A, S, and D to forward, left, backward, and right movement; Space to jump; Left Shift to sprint; Left Control to crouch; Escape to menu; E to interact; and the left and right mouse buttons to primary and secondary actions.
 
 #### Scenario: Default keyboard mapping
 - **WHEN** physical W, Space, and Left Shift are down in the platform snapshot
@@ -27,6 +31,10 @@ The runtime SHALL map W, A, S, and D to forward, left, backward, and right movem
 #### Scenario: Default mouse mapping
 - **WHEN** the physical left mouse button is down
 - **THEN** the primary player action is active
+
+#### Scenario: Default interaction mapping
+- **WHEN** physical E is down in the platform snapshot
+- **THEN** the player interact action is active independently of the flashlight's primary action
 
 ### Requirement: First-person look delta
 The input component SHALL report mouse look movement accumulated during the current processed event batch and SHALL reset that delta before the next batch without clearing held action state.

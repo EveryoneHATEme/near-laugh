@@ -8,6 +8,7 @@
 #include <limits>
 #include <numbers>
 
+#include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 
 namespace {
@@ -131,6 +132,13 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
                   inverseYaw(vec(ray.direction)),
                   prototypeStaticPropProxyWorldHalfExtent(prop)));
   consider(editor_spawn, sphereHit(ray, editorSpawnMarker(level.player_spawn)));
+  if (level.light_switch) {
+    if (const auto hit = lightSwitchRayDistance(*level.light_switch, ray.origin,
+                                                ray.direction)) {
+      // Other editor intersections return the ray parameter, not metres.
+      consider(editor_light_switch, *hit / glm::length(vec(ray.direction)));
+    }
+  }
   for (std::size_t i = 0; i < level.environment_light.point_lights.size();
        ++i) {
     consider(editor_first_light + i,

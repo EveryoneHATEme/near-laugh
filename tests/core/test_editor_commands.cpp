@@ -9,6 +9,7 @@
 
 #include "core/physics/physics_world.hpp"
 #include "core/render/prototype_scene.hpp"
+#include "core/world/light_switch.hpp"
 #include "editor/editor_document.hpp"
 
 namespace {
@@ -435,8 +436,8 @@ TEST_F(EditorCommands,
     const auto level = loadPrototypeLevel(root / "runtime.json");
     EXPECT_EQ(level.terrain(), authored.terrain);
     const auto vertices = buildPrototypeSceneVertices(level);
-    const auto preview =
-        buildPrototypeSceneVertices(authored.terrain, authored.solids);
+    const auto preview = buildPrototypeSceneVertices(
+        authored.terrain, authored.solids, authored.light_switch);
     ASSERT_EQ(vertices.size(), preview.size());
     for (std::size_t i = 0; i < vertices.size(); ++i)
       for (int axis = 0; axis < 3; ++axis) {
@@ -458,4 +459,134 @@ TEST_F(EditorCommands,
         0.03F);
     EXPECT_GT(state.foot_position.y, 0.2F);
   }
+}
+
+TEST_F(EditorCommands, SwitchSingletonIdentityHistoryAndDirtyState) {
+  const auto original = *editor.document();
+  const auto ids = editor.solidIds();
+  EXPECT_LT(editor_light_switch, editor_first_solid);
+  editor.select(editor_light_switch);
+  ASSERT_TRUE(editor.object(editor_light_switch));
+  EXPECT_FALSE(editor.addLightSwitch());
+  EXPECT_FALSE(editor.duplicateSelected());
+  EXPECT_FALSE(editor.dirty());
+  ASSERT_TRUE(editor.removeSelected());
+  EXPECT_FALSE(editor.document()->light_switch);
+  EXPECT_EQ(editor.selection(), editor_no_object);
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(*editor.document(), original);
+  EXPECT_EQ(editor.selection(), editor_light_switch);
+  EXPECT_FALSE(editor.dirty());
+  ASSERT_TRUE(editor.redo());
+  ASSERT_TRUE(editor.addLightSwitch());
+  EXPECT_EQ(editor.selection(), editor_light_switch);
+  EXPECT_EQ(editor.document()->light_switch->point_light_index, 0U);
+  EXPECT_TRUE(editor.document()->light_switch->initially_on);
+  EXPECT_NEAR(editor.document()->light_switch->position.y -
+                  original.player_spawn.foot_position.y,
+              1.65F, 0.00001F);
+  ASSERT_TRUE(editor.undo());
+  ASSERT_TRUE(editor.addLightSwitch());
+  EXPECT_FALSE(editor.canRedo());
+  EXPECT_EQ(editor.solidIds(), ids);
+  for (const auto id : ids) EXPECT_NE(id, editor_light_switch);
+  ASSERT_TRUE(editor.saveAs(root / "switch.json"));
+  const auto saved = *editor.document();
+  auto edited = *saved.light_switch;
+  edited.yaw_degrees = 64;
+  edited.point_light_index = 1;
+  edited.initially_on = false;
+  ASSERT_TRUE(editor.replaceObject(editor_light_switch, edited));
+  EXPECT_EQ(editor.document()->environment_light, original.environment_light);
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(*editor.document(), saved);
+  EXPECT_FALSE(editor.dirty());
+  ASSERT_TRUE(editor.redo());
+  ASSERT_TRUE(editor.save());
+  ASSERT_TRUE(editor.open(root / "switch.json"));
+  EXPECT_EQ(editor.document()->light_switch, edited);
+  EXPECT_FALSE(editor.dirty());
+}
+
+TEST_F(EditorCommands, SwitchPreviewLinkRemovalValidationAndTerrainHistory) {
+  const auto original = *editor.document();
+  auto value = *original.light_switch;
+  value.initially_on = false;
+  ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
+  EXPECT_EQ(initialPointLightEnabled(editor.document()->light_switch),
+            (std::array<bool, 2>{false, true}));
+  value.point_light_index = 1;
+  ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
+  EXPECT_EQ(initialPointLightEnabled(editor.document()->light_switch),
+            (std::array<bool, 2>{true, false}));
+  editor.select(editor_light_switch);
+  ASSERT_TRUE(editor.removeSelected());
+  EXPECT_EQ(initialPointLightEnabled(editor.document()->light_switch),
+            (std::array<bool, 2>{true, true}));
+  ASSERT_TRUE(editor.undo());
+  const auto before_stroke = *editor.document();
+  editor.beginTerrainStroke({{15, 0, 15}});
+  editor.extendTerrainStroke({{16, 0, 15}});
+  ASSERT_TRUE(editor.finishTerrainStroke());
+  EXPECT_EQ(editor.document()->light_switch, before_stroke.light_switch);
+  EXPECT_EQ(initialPointLightEnabled(editor.document()->light_switch),
+            (std::array<bool, 2>{true, false}));
+  EXPECT_GT(buildPrototypeSceneVertices(editor.document()->terrain,
+                                        editor.document()->solids,
+                                        editor.document()->light_switch)
+                .size(),
+            buildPrototypeSceneVertices(editor.document()->terrain,
+                                        editor.document()->solids)
+                .size());
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(*editor.document(), before_stroke);
+  ASSERT_TRUE(editor.redo());
+  EXPECT_EQ(editor.document()->light_switch, before_stroke.light_switch);
+  value.position.x = -24;
+  ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
+  EXPECT_FALSE(editor.valid());
+  EXPECT_FALSE(editor.saveAs(root / "invalid.json"));
+  EXPECT_FALSE(editor.diagnostics().empty());
+  ASSERT_TRUE(editor.undo());
+  EXPECT_TRUE(editor.valid());
+  const auto before_invalid_field = *editor.document();
+  value.point_light_index = 2;
+  EXPECT_FALSE(editor.replaceObject(editor_light_switch, value));
+  EXPECT_FALSE(editor.editError().empty());
+  EXPECT_EQ(*editor.document(), before_invalid_field);
+  EXPECT_EQ(initialPointLightEnabled(value), (std::array<bool, 2>{true, true}));
+  value.point_light_index = 0;
+  value.yaw_degrees = std::numeric_limits<float>::infinity();
+  EXPECT_EQ(initialPointLightEnabled(value), (std::array<bool, 2>{true, true}));
+  EXPECT_FALSE(editor.replaceObject(editor_light_switch, value));
+}
+
+TEST_F(EditorCommands, VersionTwoOpensCleanAndSavesSwitchAsVersionThree) {
+  auto old = *editor.document();
+  old.light_switch.reset();
+  const auto path = root / "old.json";
+  ASSERT_TRUE(saveLevelDocument(path, old));
+  auto source = bytes(path);
+  source.replace(source.find("\"version\": 3"), 12, "\"version\": 2");
+  const std::string field = ",\n  \"light_switch\": null";
+  source.erase(source.find(field), field.size());
+  {
+    std::ofstream output(path, std::ios::binary);
+    output << source;
+  }
+  ASSERT_TRUE(editor.open(path));
+  EXPECT_FALSE(editor.dirty());
+  EXPECT_EQ(*editor.document(), old);
+  EXPECT_EQ(bytes(path), source);
+  ASSERT_TRUE(editor.addLightSwitch());
+  auto value = *editor.document()->light_switch;
+  value.yaw_degrees = -31;
+  value.point_light_index = 1;
+  value.initially_on = false;
+  ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
+  ASSERT_TRUE(editor.save());
+  EXPECT_NE(bytes(path).find("\"version\": 3"), std::string::npos);
+  ASSERT_TRUE(editor.open(path));
+  EXPECT_FALSE(editor.dirty());
+  EXPECT_EQ(editor.document()->light_switch, value);
 }

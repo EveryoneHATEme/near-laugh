@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "core/render/prototype_scene.hpp"
+#include "core/world/light_switch.hpp"
 #include "prototype_level_fixture.hpp"
 
 namespace {
@@ -43,7 +44,8 @@ TEST(PrototypeScene, ContainsTerrainBoundariesAndMultipleColoredObjects) {
   EXPECT_EQ(vertices.size() % 3, 0U);
   EXPECT_EQ(vertices.size(), level.solids().size() * 36U +
                                  prototype_terrain_cell_count *
-                                     prototype_terrain_cell_count * 6U);
+                                     prototype_terrain_cell_count * 6U +
+                                 72U);
   EXPECT_TRUE(hasColor(vertices, {86, 91, 101, 255}));
   EXPECT_TRUE(hasColor(vertices, {55, 78, 122, 255}));
   EXPECT_TRUE(hasColor(vertices, {205, 63, 73, 255}));
@@ -252,9 +254,87 @@ TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
           expected_layer);
     }
   }
-  for (std::size_t vertex = terrain_first_vertex; vertex < vertices.size();
+  const auto terrain_end =
+      terrain_first_vertex +
+      prototype_terrain_cell_count * prototype_terrain_cell_count * 6U;
+  for (std::size_t vertex = terrain_first_vertex; vertex < terrain_end;
        ++vertex) {
     EXPECT_EQ(vertices[vertex].texture_layer,
               static_cast<std::uint32_t>(PrototypeSurface::Floor));
   }
+}
+
+TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {
+  auto document = prototypeLevelDocument();
+  document.light_switch->yaw_degrees = 37;
+  const auto level = makePrototypeLevel(document);
+  const auto vertices = buildPrototypeSceneVertices(level);
+  const auto without =
+      buildPrototypeSceneVertices(document.terrain, document.solids);
+  ASSERT_GT(vertices.size(), without.size());
+  auto terrain = document.terrain;
+  terrain.heights[0] += 0.01F;
+  const auto rebuilt = buildPrototypeSceneVertices(terrain, document.solids,
+                                                   document.light_switch);
+  ASSERT_EQ(rebuilt.size(), vertices.size());
+  WorldPosition minimum{100, 100, 100}, maximum{-100, -100, -100};
+  for (std::size_t i = without.size(); i < vertices.size(); ++i) {
+    const auto& v = vertices[i];
+    const auto& r = rebuilt[i];
+    for (int axis = 0; axis < 3; ++axis) {
+      EXPECT_TRUE(std::isfinite(v.position[axis]));
+      EXPECT_TRUE(std::isfinite(v.normal[axis]));
+      EXPECT_FLOAT_EQ(v.position[axis], r.position[axis]);
+      EXPECT_FLOAT_EQ(v.normal[axis], r.normal[axis]);
+    }
+    EXPECT_EQ(v.color[3], 255);
+    EXPECT_EQ(v.texture_layer,
+              static_cast<std::uint32_t>(PrototypeSurface::Obstacle));
+    EXPECT_NEAR(v.normal[0] * v.normal[0] + v.normal[1] * v.normal[1] +
+                    v.normal[2] * v.normal[2],
+                1, 0.00001F);
+    minimum.x = std::min(minimum.x, v.position[0]);
+    maximum.x = std::max(maximum.x, v.position[0]);
+    minimum.y = std::min(minimum.y, v.position[1]);
+    maximum.y = std::max(maximum.y, v.position[1]);
+    minimum.z = std::min(minimum.z, v.position[2]);
+    maximum.z = std::max(maximum.z, v.position[2]);
+  }
+  WorldPosition bound_min{100, 100, 100}, bound_max{-100, -100, -100};
+  for (const auto p : lightSwitchCorners(*document.light_switch)) {
+    bound_min.x = std::min(bound_min.x, p.x);
+    bound_max.x = std::max(bound_max.x, p.x);
+    bound_min.y = std::min(bound_min.y, p.y);
+    bound_max.y = std::max(bound_max.y, p.y);
+    bound_min.z = std::min(bound_min.z, p.z);
+    bound_max.z = std::max(bound_max.z, p.z);
+  }
+  // The full plate footprint and rear surface use the shared bounds. The
+  // narrower rocker extends to the front bound; all geometry stays inside.
+  EXPECT_GE(minimum.x, bound_min.x - 0.00001F);
+  EXPECT_LE(maximum.x, bound_max.x + 0.00001F);
+  EXPECT_FLOAT_EQ(minimum.y, bound_min.y);
+  EXPECT_FLOAT_EQ(maximum.y, bound_max.y);
+  EXPECT_GE(minimum.z, bound_min.z - 0.00001F);
+  EXPECT_LE(maximum.z, bound_max.z + 0.00001F);
+  for (std::size_t i = without.size(); i < vertices.size(); i += 3) {
+    const auto& a = vertices[i];
+    const auto& b = vertices[i + 1];
+    const auto& c = vertices[i + 2];
+    const float ux = b.position[0] - a.position[0],
+                uy = b.position[1] - a.position[1],
+                uz = b.position[2] - a.position[2];
+    const float vx = c.position[0] - a.position[0],
+                vy = c.position[1] - a.position[1],
+                vz = c.position[2] - a.position[2];
+    EXPECT_GT((uy * vz - uz * vy) * a.normal[0] +
+                  (uz * vx - ux * vz) * a.normal[1] +
+                  (ux * vy - uy * vx) * a.normal[2],
+              0);
+  }
+  document.light_switch->point_light_index = 2;
+  EXPECT_EQ(buildPrototypeSceneVertices(document.terrain, document.solids,
+                                        document.light_switch)
+                .size(),
+            without.size());
 }

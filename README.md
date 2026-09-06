@@ -38,6 +38,7 @@ The current prototype provides the technical foundation for the game:
 * static world geometry and props
 * point lights
 * player-controlled flashlight
+* one authored light switch operated with E
 * depth-tested textured rendering
 * deterministic tests for core simulation and physics behavior
 * standalone level editing with object placement, terrain sculpting, property
@@ -83,6 +84,16 @@ Current prototype controls:
 * **Escape** — release the cursor
 
 Controls and movement behavior are still prototype-level and may change as the game develops.
+
+Press **E** while looking at the pale switch on the central obstacle, within
+2 metres of its plate. Each new press toggles Point light 1; holding E does
+not repeat. Static collision blocks interaction, and the flashlight remains
+independent. Restarting restores the authored light state.
+
+The editor supports adding/removing one switch, placement and yaw, either
+point-light link, and its initial on/off state. Levels save as version 3;
+version-2 levels still open without modification, but older executables cannot
+read version-3 saves.
 
 ## Build
 

@@ -3,6 +3,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_document.hpp"
 
@@ -59,6 +60,14 @@ std::string editorObjectFieldError(const EditorObjectValue& value) {
             return "Light intensity must be finite and positive.";
           if (!std::isfinite(v.radius) || v.radius <= 0.0F)
             return "Light radius must be finite and positive.";
+        } else if constexpr (std::is_same_v<T, PrototypeLightSwitch>) {
+          if (!finite(v.position)) return "Switch position must be finite.";
+          if (!std::isfinite(v.yaw_degrees))
+            return "Switch yaw must be finite.";
+          if (v.point_light_index >= prototype_point_light_count)
+            return "Switch must link Point light 1 or 2.";
+          if (!lightSwitchIsValid(v))
+            return "Switch bounds must remain finite.";
         } else {
           if (!finite(v.translation)) return "Prop translation must be finite.";
           if (!std::isfinite(v.yaw_degrees)) return "Prop yaw must be finite.";
@@ -124,6 +133,8 @@ std::optional<EditorObjectValue> EditorDocument::object(
     return document_->environment_light.point_lights[id - editor_first_light];
   }
   if (id == editor_prop) return document_->static_prop;
+  if (id == editor_light_switch && document_->light_switch)
+    return *document_->light_switch;
   if (const auto index = solidIndex(id)) return document_->solids[*index];
   return std::nullopt;
 }
@@ -168,8 +179,21 @@ bool EditorDocument::duplicateSelected() {
   return addSolid(solid);
 }
 
+bool EditorDocument::addLightSwitch() {
+  static_cast<void>(finishTerrainStroke());
+  if (!document_ || document_->light_switch) return false;
+  auto position = document_->player_spawn.foot_position;
+  position.y += 1.65F;
+  return commit({editor_light_switch, 0, std::nullopt,
+                 PrototypeLightSwitch{position, 0, 0, true}, selection_,
+                 editor_light_switch});
+}
+
 bool EditorDocument::removeSelected() {
   static_cast<void>(finishTerrainStroke());
+  if (selection_ == editor_light_switch && document_ && document_->light_switch)
+    return commit({editor_light_switch, 0, *document_->light_switch,
+                   std::nullopt, selection_, editor_no_object});
   const auto index = solidIndex(selection_);
   if (!index) return false;
   return commit({selection_, *index, document_->solids[*index], std::nullopt,
@@ -192,7 +216,8 @@ bool EditorDocument::placeSelected(WorldPosition terrain_hit) {
           v.center.y += v.half_extent.y;
         } else if constexpr (std::is_same_v<T, PrototypePlayerSpawn>) {
           v.foot_position = terrain_hit;
-        } else if constexpr (std::is_same_v<T, PrototypePointLight>) {
+        } else if constexpr (std::is_same_v<T, PrototypePointLight> ||
+                             std::is_same_v<T, PrototypeLightSwitch>) {
           const float offset = v.position.y - prototypeTerrainHeightAt(
                                                   document_->terrain,
                                                   v.position.x, v.position.z);
@@ -247,6 +272,10 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
     document_->player_spawn = std::get<PrototypePlayerSpawn>(*value);
   } else if (edit.id == editor_prop) {
     document_->static_prop = std::get<PrototypeStaticProp>(*value);
+  } else if (edit.id == editor_light_switch) {
+    document_->light_switch =
+        value ? std::optional{std::get<PrototypeLightSwitch>(*value)}
+              : std::nullopt;
   } else {
     document_->environment_light.point_lights[edit.id - editor_first_light] =
         std::get<PrototypePointLight>(*value);

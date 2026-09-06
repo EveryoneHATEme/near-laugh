@@ -52,7 +52,10 @@ TEST(ScenePipeline, SceneDataFitsTheSharedPushConstantRange) {
   EXPECT_EQ(range.offset, 0U);
   EXPECT_EQ(range.size, sizeof(ScenePushConstant));
   EXPECT_EQ(offsetof(ScenePushConstant, camera), 0U);
-  EXPECT_EQ(offsetof(ScenePushConstant, spot_light), sizeof(CameraFrame));
+  EXPECT_EQ(offsetof(ScenePushConstant, spot_position_and_range), 64U);
+  EXPECT_EQ(offsetof(ScenePushConstant, spot_direction_and_inner_cosine), 80U);
+  EXPECT_EQ(offsetof(ScenePushConstant, spot_color_and_intensity), 96U);
+  EXPECT_EQ(offsetof(ScenePushConstant, light_controls), 112U);
   EXPECT_EQ(sizeof(ScenePushConstant), 128U);
   EXPECT_EQ(sizeof(ScenePushConstant), vulkan_minimum_push_constant_size);
 }
@@ -68,14 +71,39 @@ TEST(ScenePipeline, PushConstantCarriesCameraAndGenericSpotLight) {
       makeScenePushConstant(camera, spot_light);
 
   EXPECT_FLOAT_EQ(push_constant.camera.view_projection[12], 3.5F);
-  EXPECT_EQ(push_constant.spot_light.position_and_range,
+  EXPECT_EQ(push_constant.spot_position_and_range,
             spot_light.position_and_range);
-  EXPECT_EQ(push_constant.spot_light.direction_and_inner_cosine,
+  EXPECT_EQ(push_constant.spot_direction_and_inner_cosine,
             spot_light.direction_and_inner_cosine);
-  EXPECT_EQ(push_constant.spot_light.color_and_intensity,
+  EXPECT_EQ(push_constant.spot_color_and_intensity,
             spot_light.color_and_intensity);
-  EXPECT_EQ(push_constant.spot_light.outer_cosine_and_enabled,
-            spot_light.outer_cosine_and_enabled);
+  EXPECT_EQ(push_constant.light_controls,
+            (std::array<float, 4>{0.85F, 1.0F, 1.0F, 1.0F}));
+}
+
+TEST(ScenePipeline, PointLightPackingIsIndependentOfSpotlight) {
+  for (const bool spot_on : {false, true}) {
+    SpotLightFrame spot{};
+    if (spot_on)
+      spot = {{1, 2, 3, 8},
+              {0, 0, -1, 0.95F},
+              {0.7F, 0.8F, 0.9F, 1.2F},
+              {0.85F, 1, 0, 0}};
+    for (const bool first : {false, true}) {
+      for (const bool second : {false, true}) {
+        const auto packed = makeScenePushConstant({}, spot, {first, second});
+        EXPECT_TRUE(spotLightFrameIsValid(spot));
+        EXPECT_EQ(packed.spot_position_and_range, spot.position_and_range);
+        EXPECT_EQ(packed.spot_color_and_intensity, spot.color_and_intensity);
+        EXPECT_EQ(packed.light_controls,
+                  (std::array<float, 4>{
+                      spot.outer_cosine_and_enabled[0], spot_on ? 1.0F : 0.0F,
+                      first ? 1.0F : 0.0F, second ? 1.0F : 0.0F}));
+      }
+    }
+  }
+  const FrameRequest frame;
+  EXPECT_EQ(frame.point_light_enabled, (std::array<bool, 2>{true, true}));
 }
 
 TEST(SceneLighting, MatchesStd140UploadAndDescriptorContract) {

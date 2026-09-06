@@ -100,6 +100,7 @@ struct FrameRequest {
   bool framebuffer_resized{};
   CameraFrame camera{};
   SpotLightFrame spot_light{};
+  std::array<bool, 2> point_light_enabled{true, true};
 };
 
 [[nodiscard]] constexpr bool frameRequestCanSubmit(

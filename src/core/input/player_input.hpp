@@ -12,6 +12,7 @@ struct PlayerActionSnapshot {
   bool sprint{};
   bool crouch{};
   bool menu{};
+  bool interact{};
   bool primary_action{};
   bool secondary_action{};
   double look_delta_x{};

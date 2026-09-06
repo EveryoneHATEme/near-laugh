@@ -22,7 +22,8 @@ GraphicsPipeline::GraphicsPipeline(
       texture_descriptor_set_(texture_descriptor_set),
       lighting_descriptor_layout_(lighting_descriptor_layout),
       lighting_descriptor_set_(lighting_descriptor_set) {
-  if (device_ == VK_NULL_HANDLE || texture_descriptor_layout_ == VK_NULL_HANDLE ||
+  if (device_ == VK_NULL_HANDLE ||
+      texture_descriptor_layout_ == VK_NULL_HANDLE ||
       texture_descriptor_set_ == VK_NULL_HANDLE ||
       lighting_descriptor_layout_ == VK_NULL_HANDLE ||
       lighting_descriptor_set_ == VK_NULL_HANDLE) {
@@ -178,11 +179,11 @@ void GraphicsPipeline::createPipeline(
   vkDestroyShaderModule(device_, vertex_shader, nullptr);
 }
 
-void GraphicsPipeline::bindSceneState(VkCommandBuffer command_buffer,
-                                      const CameraFrame& camera,
-                                      SpotLightFrame spot_light) const {
+void GraphicsPipeline::bindSceneState(
+    VkCommandBuffer command_buffer, const CameraFrame& camera,
+    SpotLightFrame spot_light, std::array<bool, 2> point_light_enabled) const {
   const ScenePushConstant push_constant =
-      makeScenePushConstant(camera, spot_light);
+      makeScenePushConstant(camera, spot_light, point_light_enabled);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
   const auto descriptor_sets =
       sceneDescriptorSets(texture_descriptor_set_, lighting_descriptor_set_);

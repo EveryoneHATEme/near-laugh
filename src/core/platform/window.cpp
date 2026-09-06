@@ -38,6 +38,9 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
   const bool down = action == GLFW_PRESS;
   auto& input = implementation(window).input;
   switch (key) {
+    case GLFW_KEY_E:
+      input.setKey(PhysicalKey::E, down);
+      break;
     case GLFW_KEY_W:
       input.setKey(PhysicalKey::W, down);
       break;

@@ -6,7 +6,7 @@ layout(push_constant) uniform ScenePushConstant
     vec4 spotPositionAndRange;
     vec4 spotDirectionAndInnerCosine;
     vec4 spotColorAndIntensity;
-    vec4 spotOuterCosineAndEnabled;
+    vec4 lightControls;
 } scene;
 
 layout(location = 0) in vec3 inPosition;

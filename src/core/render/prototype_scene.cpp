@@ -3,6 +3,8 @@
 #include <array>
 #include <cmath>
 
+#include "core/world/light_switch.hpp"
+
 namespace {
 using Point = std::array<float, 3>;
 using Normal = std::array<float, 3>;
@@ -118,11 +120,13 @@ void appendTerrain(std::vector<PositionColorVertex>& vertices,
 
 std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const PrototypeLevel& level) {
-  return buildPrototypeSceneVertices(level.terrain(), level.solids());
+  return buildPrototypeSceneVertices(level.terrain(), level.solids(),
+                                     level.lightSwitch());
 }
 
 std::vector<PositionColorVertex> buildPrototypeSceneVertices(
-    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids) {
+    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids,
+    const std::optional<PrototypeLightSwitch>& light_switch) {
   std::vector<PositionColorVertex> vertices;
   vertices.reserve(solids.size() * 36 + prototype_terrain_cell_count *
                                             prototype_terrain_cell_count * 6);
@@ -139,5 +143,31 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
               static_cast<std::uint32_t>(solid.surface));
   }
   appendTerrain(vertices, terrain);
+  if (light_switch && lightSwitchIsValid(*light_switch)) {
+    const auto first = vertices.size();
+    constexpr auto h = light_switch_half_extent;
+    constexpr auto layer =
+        static_cast<std::uint32_t>(PrototypeSurface::Obstacle);
+    appendBox(vertices, {-h.x, -h.y, -h.z}, {h.x, h.y, h.z * 0.5F},
+              {245, 240, 220, 255}, layer);
+    appendBox(vertices, {-h.x * 0.4F, -h.y * 0.55F, h.z * 0.5F},
+              {h.x * 0.4F, h.y * 0.55F, h.z}, {55, 60, 65, 255}, layer);
+    auto rotation = *light_switch;
+    rotation.position = {};
+    for (auto i = first; i < vertices.size(); ++i) {
+      auto& vertex = vertices[i];
+      const auto p = lightSwitchWorldPoint(
+          *light_switch,
+          {vertex.position[0], vertex.position[1], vertex.position[2]});
+      const auto n = lightSwitchWorldPoint(
+          rotation, {vertex.normal[0], vertex.normal[1], vertex.normal[2]});
+      vertex.position[0] = p.x;
+      vertex.position[1] = p.y;
+      vertex.position[2] = p.z;
+      vertex.normal[0] = n.x;
+      vertex.normal[1] = n.y;
+      vertex.normal[2] = n.z;
+    }
+  }
   return vertices;
 }

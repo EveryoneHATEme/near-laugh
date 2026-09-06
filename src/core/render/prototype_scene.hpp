@@ -24,6 +24,7 @@ static_assert(sizeof(PositionColorVertex) == sizeof(float) * 8 + 8);
 
 // The editor may preview renderable fields while gameplay constraints fail.
 [[nodiscard]] std::vector<PositionColorVertex> buildPrototypeSceneVertices(
-    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids);
+    const PrototypeTerrain& terrain, std::span<const PrototypeSolid> solids,
+    const std::optional<PrototypeLightSwitch>& light_switch = std::nullopt);
 
 #endif

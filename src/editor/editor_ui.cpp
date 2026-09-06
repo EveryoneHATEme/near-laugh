@@ -95,6 +95,8 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
                                : std::string("<unsaved>");
   ImGui::TextWrapped("Path: %s", path.c_str());
   ImGui::Text("Format version: %u", document.version);
+  ImGui::TextWrapped(
+      "Explicit saves write version 3; older builds cannot read it.");
   ImGui::Text("State: %s", editor_document.dirty() ? "dirty" : "clean");
   ImGui::Text("Terrain: %zu x %zu samples", prototype_terrain_sample_count,
               prototype_terrain_sample_count);
@@ -104,6 +106,7 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
               document.environment_light.point_lights.size());
   ImGui::TextUnformatted("Player spawn: 1");
   ImGui::TextUnformatted("Static prop: 1 packaged chair");
+  ImGui::Text("Light switch: %u / 1", document.light_switch ? 1U : 0U);
   ImGui::End();
 }
 
@@ -190,6 +193,18 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           commit |= ImGui::IsItemDeactivatedAfterEdit();
           scalar("Intensity", value.intensity);
           scalar("Radius", value.radius);
+        } else if constexpr (std::is_same_v<T, PrototypeLightSwitch>) {
+          triple("Position", value.position);
+          scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
+          int slot = value.point_light_index < prototype_point_light_count
+                         ? static_cast<int>(value.point_light_index)
+                         : -1;
+          if (ImGui::Combo("Linked light", &slot,
+                           "Point light 1\0Point light 2\0")) {
+            value.point_light_index = static_cast<std::uint32_t>(slot);
+            commit = true;
+          }
+          commit |= ImGui::Checkbox("Initially on", &value.initially_on);
         } else {
           triple("Translation", value.translation);
           scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
@@ -353,8 +368,14 @@ void EditorUi::drawObjects(EditorDocument& document) {
     static_cast<void>(document.duplicateSelected());
   ImGui::EndDisabled();
   ImGui::SameLine();
-  ImGui::BeginDisabled(!selected_solid);
+  ImGui::BeginDisabled(!selected_solid &&
+                       document.selection() != editor_light_switch);
   if (ImGui::Button("Delete")) static_cast<void>(document.removeSelected());
+  ImGui::EndDisabled();
+  ImGui::BeginDisabled(document.document()->light_switch.has_value());
+  if (ImGui::Button("Add light switch")) {
+    if (document.addLightSwitch()) sculpting_ = false;
+  }
   ImGui::EndDisabled();
   if (!document.object(document.selection())) placing_ = false;
   ImGui::BeginDisabled(document.selection() == editor_no_object);
@@ -377,6 +398,8 @@ void EditorUi::drawObjects(EditorDocument& document) {
   entry(editor_first_light, "Point light 1");
   entry(editor_first_light + 1, "Point light 2");
   entry(editor_prop, "Chair / box proxy");
+  if (document.document()->light_switch)
+    entry(editor_light_switch, "Light switch");
   for (std::size_t i = 0; i < document.solidIds().size(); ++i) {
     const auto& solid = document.document()->solids[i];
     const char* kinds[] = {"Floor", "Boundary", "Obstacle", "Walkable step",

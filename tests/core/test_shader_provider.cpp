@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <string>
 
+#include "core/render/graphics_pipeline.hpp"
 #include "core/resources/shader_provider.hpp"
 
 TEST(ShaderProvider, MissingAssetReportsItsPath) {
@@ -43,75 +46,38 @@ TEST(ShaderProvider, LoadsProjectShaders) {
   EXPECT_EQ(fragment.front(), 0x07230203U);
 }
 
-TEST(ShaderSources, MatchSpotLightVertexAndPushLayouts) {
-  const std::filesystem::path shaders =
-      std::filesystem::absolute("resources/shaders").lexically_normal();
-  auto readText = [](const std::filesystem::path& path) {
-    std::ifstream input(path);
-    return std::string{std::istreambuf_iterator<char>{input},
-                       std::istreambuf_iterator<char>{}};
-  };
-  const std::string vertex = readText(shaders / "prototype_scene_vertex.glsl");
-  const std::string fragment =
-      readText(shaders / "prototype_scene_fragment.glsl");
-
-  EXPECT_NE(vertex.find("layout(location = 3) in vec2 inTextureCoordinates"),
-            std::string::npos);
-  EXPECT_NE(vertex.find("layout(location = 4) in uint inTextureLayer"),
-            std::string::npos);
-  EXPECT_NE(vertex.find("layout(location = 2) out vec2 fragTextureCoordinates"),
-            std::string::npos);
-  EXPECT_NE(vertex.find("layout(location = 3) flat out uint fragTextureLayer"),
-            std::string::npos);
-  EXPECT_NE(vertex.find("layout(location = 4) out vec3 fragWorldPosition"),
-            std::string::npos);
-  EXPECT_NE(vertex.find("fragWorldPosition = inPosition"), std::string::npos);
-  EXPECT_EQ(vertex.find("SolidMask"), std::string::npos);
-  EXPECT_EQ(vertex.find("presentationMasks"), std::string::npos);
-
-  for (const std::string* source : {&vertex, &fragment}) {
-    EXPECT_NE(source->find("vec4 spotPositionAndRange"), std::string::npos);
-    EXPECT_NE(source->find("vec4 spotDirectionAndInnerCosine"),
-              std::string::npos);
-    EXPECT_NE(source->find("vec4 spotColorAndIntensity"), std::string::npos);
-    EXPECT_NE(source->find("vec4 spotOuterCosineAndEnabled"),
-              std::string::npos);
+TEST(ShaderProvider, PackagedStagesMatchHostPushConstantOffsets) {
+  for (const auto* file :
+       {"prototype_scene_vertex.spv", "prototype_scene_fragment.spv"}) {
+    const auto words =
+        readSpirvFile(std::filesystem::path("resources/shaders") / file);
+    std::map<std::uint32_t, std::uint32_t> pointers;
+    std::map<std::uint32_t, std::map<std::uint32_t, std::uint32_t>> offsets;
+    std::uint32_t push_pointer = 0;
+    for (std::size_t i = 5; i < words.size();) {
+      const auto count = words[i] >> 16;
+      const auto opcode = words[i] & 0xffff;
+      ASSERT_GT(count, 0U);
+      ASSERT_LE(i + count, words.size());
+      // OpTypePointer, OpVariable with PushConstant storage, and
+      // OpMemberDecorate with Offset. The ABI does not depend on names.
+      if (opcode == 32 && count == 4) pointers[words[i + 1]] = words[i + 3];
+      if (opcode == 59 && count >= 4 && words[i + 3] == 9)
+        push_pointer = words[i + 1];
+      if (opcode == 72 && count == 5 && words[i + 3] == 35)
+        offsets[words[i + 1]][words[i + 2]] = words[i + 4];
+      i += count;
+    }
+    ASSERT_NE(push_pointer, 0U) << file;
+    const auto& members = offsets[pointers.at(push_pointer)];
+    const std::array<std::size_t, 5> host{
+        offsetof(ScenePushConstant, camera),
+        offsetof(ScenePushConstant, spot_position_and_range),
+        offsetof(ScenePushConstant, spot_direction_and_inner_cosine),
+        offsetof(ScenePushConstant, spot_color_and_intensity),
+        offsetof(ScenePushConstant, light_controls)};
+    ASSERT_EQ(members.size(), host.size());
+    for (std::uint32_t i = 0; i < host.size(); ++i)
+      EXPECT_EQ(members.at(i), host[i]) << file;
   }
-
-  EXPECT_NE(
-      fragment.find("layout(set = 0, binding = 0) uniform sampler2DArray"),
-      std::string::npos);
-  EXPECT_NE(fragment.find("layout(std140, set = 1, binding = 0) uniform"),
-            std::string::npos);
-  EXPECT_NE(fragment.find("PointLight pointLights[2]"), std::string::npos);
-  EXPECT_NE(fragment.find("for (int lightIndex = 0; lightIndex < 2;"),
-            std::string::npos);
-  EXPECT_NE(fragment.find("spotOuterCosineAndEnabled.y > 0.5"),
-            std::string::npos);
-  EXPECT_NE(fragment.find("smoothstep("), std::string::npos);
-  EXPECT_NE(fragment.find("distanceToLight / scene.spotPositionAndRange.w"),
-            std::string::npos);
-  EXPECT_NE(fragment.find("max(dot(normal, -directionFromLight), 0.0)"),
-            std::string::npos);
-  EXPECT_NE(fragment.find("clamp(accumulatedLighting, vec3(0.0), vec3(1.0))"),
-            std::string::npos);
-  EXPECT_EQ(fragment.find("fragSolidMask"), std::string::npos);
-  EXPECT_EQ(fragment.find("presentationMasks"), std::string::npos);
-
-  const std::size_t sample = fragment.find("texture(");
-  const std::size_t tint = fragment.find("sampledColor * fragColor.rgb");
-  const std::size_t point_lighting = fragment.find("for (int lightIndex");
-  const std::size_t spot_lighting =
-      fragment.find("spotOuterCosineAndEnabled.y > 0.5");
-  const std::size_t output =
-      fragment.find("presentedColor * clamp(accumulatedLighting");
-  ASSERT_NE(sample, std::string::npos);
-  ASSERT_NE(tint, std::string::npos);
-  ASSERT_NE(point_lighting, std::string::npos);
-  ASSERT_NE(spot_lighting, std::string::npos);
-  ASSERT_NE(output, std::string::npos);
-  EXPECT_LT(sample, tint);
-  EXPECT_LT(tint, point_lighting);
-  EXPECT_LT(point_lighting, spot_lighting);
-  EXPECT_LT(spot_lighting, output);
 }

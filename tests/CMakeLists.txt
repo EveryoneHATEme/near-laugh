@@ -9,6 +9,7 @@ add_executable(engine_tests
     core/test_editor_loop.cpp
     core/test_input.cpp
     core/test_level_document.cpp
+    core/test_light_switch.cpp
     core/test_executable_path.cpp
     core/test_frame.cpp
     core/test_fixed_step.cpp

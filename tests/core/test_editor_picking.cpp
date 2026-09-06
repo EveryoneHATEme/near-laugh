@@ -349,3 +349,53 @@ TEST_F(EditorPlacement, BrushFootprintAndInvalidTriangleOverlaysFollowTerrain) {
   ASSERT_TRUE(editor.undo());
   EXPECT_EQ(count_red(buildEditorOverlay(editor, camera)), 0);
 }
+
+TEST_F(EditorPlacement, SwitchYawPickingPlacementAndDraftValidation) {
+  auto value = *editor.document()->light_switch;
+  value.position = {0, 15, 0};
+  value.yaw_degrees = 90;
+  value.point_light_index = 1;
+  value.initially_on = false;
+  ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
+  const EditorRay ray{{1, 15, 0}, {-2, 0, 0}};
+  EXPECT_EQ(pickEditorObject(editor, ray), editor_light_switch);
+  EXPECT_NE(pickEditorObject(editor, {{1, 15, 0.1F}, {-1, 0, 0}}),
+            editor_light_switch);
+  ASSERT_TRUE(editor.addSolid(
+      {{0.6F, 15, 0}, {0.1F, 0.1F, 0.1F}, {255, 255, 255, 255}}));
+  EXPECT_EQ(pickEditorObject(editor, ray), editor.selection());
+  ASSERT_TRUE(editor.undo());
+  static_cast<void>(
+      updateEditorViewport(editor, ray, false, false, true, false));
+  ASSERT_EQ(editor.selection(), editor_light_switch);
+  const float height =
+      value.position.y - prototypeTerrainHeightAt(editor.document()->terrain,
+                                                  value.position.x,
+                                                  value.position.z);
+  const auto before = *editor.document();
+  EXPECT_FALSE(updateEditorViewport(editor, EditorRay{{30, 10, 30}, {0, -1, 0}},
+                                    false, false, true, true));
+  EXPECT_EQ(*editor.document(), before);
+  const auto placed = updateEditorViewport(
+      editor, EditorRay{{-15, 10, -8}, {0, -1, 0}}, false, false, true, true);
+  ASSERT_TRUE(placed);
+  const auto moved = *editor.document()->light_switch;
+  EXPECT_NEAR(moved.position.y - placed->y, height, 0.00001F);
+  EXPECT_EQ(moved.yaw_degrees, value.yaw_degrees);
+  EXPECT_EQ(moved.point_light_index, value.point_light_index);
+  EXPECT_EQ(moved.initially_on, value.initially_on);
+  const auto revision = editor.revision();
+  EXPECT_FALSE(editor.placeSelected(*placed));
+  EXPECT_EQ(editor.revision(), revision);
+  EditorPropertyEdit draft;
+  draft.synchronize(editor);
+  std::get<PrototypeLightSwitch>(*draft.value()).position.y =
+      std::numeric_limits<float>::quiet_NaN();
+  EXPECT_FALSE(draft.commit(editor));
+  EXPECT_EQ(editor.document()->light_switch, moved);
+  EXPECT_FALSE(editor.editError().empty());
+  std::get<PrototypeLightSwitch>(*draft.value()).yaw_degrees = 12;
+  EXPECT_TRUE(draft.commit(editor));
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(editor.document()->light_switch, moved);
+}

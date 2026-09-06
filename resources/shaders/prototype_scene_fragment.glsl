@@ -27,7 +27,7 @@ layout(push_constant) uniform ScenePushConstant
     vec4 spotPositionAndRange;
     vec4 spotDirectionAndInnerCosine;
     vec4 spotColorAndIntensity;
-    vec4 spotOuterCosineAndEnabled;
+    vec4 lightControls;
 } scene;
 
 void main()
@@ -50,9 +50,9 @@ void main()
         float falloff = 1.0 - normalizedDistance * normalizedDistance;
         falloff *= falloff;
         accumulatedLighting += light.colorAndIntensity.rgb *
-            light.colorAndIntensity.w * lambert * falloff;
+            light.colorAndIntensity.w * lambert * falloff * scene.lightControls[2 + lightIndex];
     }
-    if (scene.spotOuterCosineAndEnabled.y > 0.5)
+    if (scene.lightControls.y > 0.5)
     {
         vec3 vectorFromLight = fragWorldPosition - scene.spotPositionAndRange.xyz;
         float distanceToLight = length(vectorFromLight);
@@ -60,7 +60,7 @@ void main()
         vec3 spotDirection = normalize(scene.spotDirectionAndInnerCosine.xyz);
         float directionCosine = dot(directionFromLight, spotDirection);
         float angularFalloff = smoothstep(
-            scene.spotOuterCosineAndEnabled.x,
+            scene.lightControls.x,
             scene.spotDirectionAndInnerCosine.w,
             directionCosine);
         float normalizedDistance = clamp(

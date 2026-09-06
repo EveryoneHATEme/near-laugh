@@ -117,7 +117,7 @@ class EditorRenderer::Impl {
   void rebuildImGuiPipeline();
   void shutdownImGuiBackend() noexcept;
   void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index,
-                   const CameraFrame& camera, SpotLightFrame spot_light);
+                   const FrameRequest& request);
 
   VulkanContext context_;
   EditorRendererResources resources_{};
@@ -251,7 +251,8 @@ void EditorRenderer::Impl::replaceDocument(const LevelDocument& level) {
   requireVulkan(vkDeviceWaitIdle(context_.device()),
                 "Wait for editor frames before replacing the level");
   const std::vector<PositionColorVertex> world_vertices =
-      buildPrototypeSceneVertices(level.terrain, level.solids);
+      buildPrototypeSceneVertices(level.terrain, level.solids,
+                                  level.light_switch);
   const std::vector<PositionColorVertex> chair_vertices =
       loadStaticModelVertices(resources_.prototype_chair_model,
                               level.static_prop);
@@ -297,8 +298,8 @@ void EditorRenderer::Impl::replaceTerrain(const LevelDocument& level) {
                       static_cast<std::uint32_t>(fences.size()), fences.data(),
                       VK_TRUE, std::numeric_limits<std::uint64_t>::max()),
       "Wait for editor terrain buffer readers");
-  const auto vertices =
-      buildPrototypeSceneVertices(level.terrain, level.solids);
+  const auto vertices = buildPrototypeSceneVertices(level.terrain, level.solids,
+                                                    level.light_switch);
   auto mesh = std::make_unique<ImmutableMeshBuffer>(
       context_.device(), context_.physicalDevice(), vertices, "world");
   world_mesh_ = std::move(mesh);
@@ -560,8 +561,7 @@ void EditorRenderer::Impl::cleanupFrameSlots() noexcept {
 
 void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
                                        std::uint32_t image_index,
-                                       const CameraFrame& camera,
-                                       SpotLightFrame spot_light) {
+                                       const FrameRequest& request) {
   VkCommandBufferBeginInfo begin_info{};
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -651,7 +651,8 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
   if (pipeline_ != nullptr) {
-    pipeline_->bindSceneState(command_buffer, camera, spot_light);
+    pipeline_->bindSceneState(command_buffer, request.camera,
+                              request.spot_light, request.point_light_enabled);
     world_mesh_->bindAndDraw(command_buffer);
     chair_mesh_->bindAndDraw(command_buffer);
   }
@@ -713,8 +714,7 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
 
   requireVulkan(vkResetCommandPool(context_.device(), frame.command_pool, 0),
                 "Reset per-frame Vulkan command pool");
-  recordFrame(frame.command_buffer, image_index, request.camera,
-              request.spot_light);
+  recordFrame(frame.command_buffer, image_index, request);
   requireVulkan(vkResetFences(context_.device(), 1, &frame.completion),
                 "Reset Vulkan frame completion fence");
 

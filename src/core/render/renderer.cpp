@@ -104,7 +104,7 @@ class Renderer::Impl {
   void createFrameSlots();
   void cleanupFrameSlots() noexcept;
   void recordFrame(VkCommandBuffer command_buffer, std::uint32_t image_index,
-                   const CameraFrame& camera, SpotLightFrame spot_light);
+                   const FrameRequest& request);
 
   VulkanContext context_;
   const PrototypeLevel& level_;
@@ -411,8 +411,7 @@ void Renderer::Impl::cleanupFrameSlots() noexcept {
 
 void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
                                  std::uint32_t image_index,
-                                 const CameraFrame& camera,
-                                 SpotLightFrame spot_light) {
+                                 const FrameRequest& request) {
   VkCommandBufferBeginInfo begin_info{
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -497,7 +496,8 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   const VkRect2D scissor{{0, 0}, swapchain_extent_};
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-  pipeline_->bindSceneState(command_buffer, camera, spot_light);
+  pipeline_->bindSceneState(command_buffer, request.camera, request.spot_light,
+                            request.point_light_enabled);
   world_mesh_->bindAndDraw(command_buffer);
   chair_mesh_->bindAndDraw(command_buffer);
   vkCmdEndRendering(command_buffer);
@@ -556,8 +556,7 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
 
   requireVulkan(vkResetCommandPool(context_.device(), frame.command_pool, 0),
                 "Reset per-frame Vulkan command pool");
-  recordFrame(frame.command_buffer, image_index, request.camera,
-              request.spot_light);
+  recordFrame(frame.command_buffer, image_index, request);
   requireVulkan(vkResetFences(context_.device(), 1, &frame.completion),
                 "Reset Vulkan frame completion fence");
 

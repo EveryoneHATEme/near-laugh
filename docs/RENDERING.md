@@ -29,7 +29,8 @@ The runtime submits at most one `FrameRequest` per loop iteration. It contains:
 
 - the current framebuffer extent and resize state;
 - a standard-layout, column-major camera view-projection matrix; and
-- at most one source-independent dynamic `SpotLightFrame`.
+- at most one source-independent dynamic `SpotLightFrame`; and
+- independent enabled values for the two authored point-light slots.
 
 A zero extent is skipped before GPU submission. The renderer owns swapchain
 out-of-date and suboptimal handling and returns a backend-neutral `Rendered`,
@@ -51,7 +52,7 @@ documents, hot-reload levels, or select paths from level data.
 
 The current scene uses two immutable world-space triangle streams:
 
-- generated terrain and axis-aligned solids from the level; and
+- generated terrain, axis-aligned solids, and the optional yawed switch; and
 - the one packaged chair flattened synchronously from
   `resources/models/prototype_chair.glb`.
 
@@ -83,7 +84,9 @@ repeat/linear sampler, descriptor layout, pool, and immutable descriptor.
 lights plus ambient intensity to one 80-byte `std140` uniform buffer. The
 fragment shader combines texture color and tint with radius-bounded Lambert
 point lighting and the optional finite-range spot light over a near-black
-ambient floor. Spot distance and cone transitions are smooth; accumulated RGB
+ambient floor. Each point-light contribution is multiplied by its frame's
+enabled value. Ambient and the spotlight remain independent. Spot distance
+and cone transitions are smooth; accumulated RGB
 is clamped and alpha remains opaque.
 
 The pipeline binds two immutable descriptor sets once for the scene draws:
@@ -91,8 +94,12 @@ The pipeline binds two immutable descriptor sets once for the scene draws:
 - set 0, binding 0: combined texture-array sampler;
 - set 1, binding 0: authored lighting uniform buffer.
 
-A 128-byte push constant carries the camera matrix and four aligned spot-light
-vectors. Descriptors are written once during startup and survive swapchain
+A renderer-private 128-byte push constant carries the camera matrix, three
+aligned spotlight vectors, and `(outer cosine, spot enabled, point 0 enabled,
+point 1 enabled)`. The standalone `SpotLightFrame` retains its zeroed disabled
+representation. Both packaged shader stages share the packed layout.
+Point-light toggles require no resource rebuilds, descriptor updates, or GPU
+waits. Descriptors are written once during startup and survive swapchain
 recovery. The pipeline binds them and the push constant once, then draws the
 generated world followed by the chair.
 
@@ -123,6 +130,12 @@ Chair geometry, lighting resources, textures, and pipeline remain in place
 during sculpting. A failed replacement retains the previous resources and
 reports the error. This uses the existing immutable buffer owner for each
 replacement; the game renderer and its meshes remain immutable.
+
+The switch is a pale plate with a contrasting fixed rocker, generated with the
+obstacle texture and opaque tints. Its shared yawed bounds are 0.18 by 0.26 by
+0.04 metres. Both full and terrain-only editor rebuilds retain its geometry.
+The editor supplies the authored initial light state, safely omitting an
+unusable switch; changing/removing its link restores the previous slot.
 
 Editor-only selection bounds, light/spawn spheres, brush footprints, invalid
 terrain triangle outlines, and placement feedback are CPU-projected and clipped

@@ -7,6 +7,8 @@
 #include <string>
 #include <utility>
 
+#include "core/world/light_switch.hpp"
+
 namespace {
 std::size_t terrainSampleIndex(std::size_t sample_x,
                                std::size_t sample_z) noexcept {
@@ -98,7 +100,8 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       solids_(std::move(document.solids)),
       player_spawn_(std::move(document.player_spawn)),
       environment_light_(std::move(document.environment_light)),
-      static_prop_(std::move(document.static_prop)) {}
+      static_prop_(std::move(document.static_prop)),
+      light_switch_(std::move(document.light_switch)) {}
 
 PrototypeLevel makePrototypeLevel(const LevelDocument& document) {
   const std::vector<LevelDiagnostic> diagnostics =
@@ -528,6 +531,29 @@ std::vector<LevelDiagnostic> validateLevelDocument(
     }
   }
 
+  if (document.light_switch) {
+    const auto& value = *document.light_switch;
+    if (!std::isfinite(value.position.x) || !std::isfinite(value.position.y) ||
+        !std::isfinite(value.position.z))
+      addValidation(diagnostics, source_path, "light_switch.position",
+                    "all components must be finite");
+    if (!std::isfinite(value.yaw_degrees))
+      addValidation(diagnostics, source_path, "light_switch.yaw_degrees",
+                    "must be finite");
+    if (value.point_light_index >= prototype_point_light_count)
+      addValidation(diagnostics, source_path, "light_switch.point_light_index",
+                    "must select point light 0 or 1");
+    for (const auto& corner : lightSwitchCorners(value)) {
+      if (!std::isfinite(corner.x) || !std::isfinite(corner.y) ||
+          !std::isfinite(corner.z) ||
+          !prototypeTerrainContains(terrain, corner.x, corner.z)) {
+        addValidation(diagnostics, source_path, "light_switch.position",
+                      "transformed bounds must be finite and horizontally "
+                      "inside the terrain footprint");
+        break;
+      }
+    }
+  }
   return diagnostics;
 }
 
@@ -557,7 +583,8 @@ bool prototypeTerrainIsValid(const PrototypeTerrain& terrain) noexcept {
 bool prototypeLevelIsValid(const PrototypeLevel& level) noexcept {
   const LevelDocument document{level_format_version,     level.terrain(),
                                level.solids(),           level.playerSpawn(),
-                               level.environmentLight(), level.staticProp()};
+                               level.environmentLight(), level.staticProp(),
+                               level.lightSwitch()};
   return validateLevelDocument(document).empty();
 }
 

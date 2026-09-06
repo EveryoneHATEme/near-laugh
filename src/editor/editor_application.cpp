@@ -6,6 +6,7 @@
 #include <thread>
 #include <utility>
 
+#include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_loop.hpp"
 #include "editor/editor_overlay.hpp"
@@ -94,6 +95,9 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
                   return d.category == LevelDiagnosticCategory::Filesystem;
                 }),
             "Editor reported a preview resource failure");
+    require(preview_point_light_enabled_ ==
+                initialPointLightEnabled(document_.document()->light_switch),
+            "Editor preview lost authored point-light state");
   };
   require(document_.saveAs(temporary.path / "working.level.json"),
           "Editor smoke Save As failed");
@@ -109,6 +113,47 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   preview();
   require(*document_.document() == original && !document_.dirty(),
           "Editor smoke undo did not restore saved content");
+
+  document_.select(editor_light_switch);
+  require(document_.removeSelected(), "Editor smoke switch removal failed");
+  preview();
+  require(document_.addLightSwitch(), "Editor smoke switch creation failed");
+  require(!document_.addLightSwitch() && !document_.duplicateSelected(),
+          "Editor smoke allowed another switch");
+  preview();
+  require(document_.undo() && document_.undo(),
+          "Editor smoke switch restoration failed");
+  preview();
+  auto light_switch = *document_.document()->light_switch;
+  light_switch.yaw_degrees += 25;
+  for (const auto slot : {0U, 1U}) {
+    for (const bool on : {false, true}) {
+      light_switch.point_light_index = slot;
+      light_switch.initially_on = on;
+      require(document_.replaceObject(editor_light_switch, light_switch),
+              "Editor smoke switch properties failed");
+      preview();
+    }
+  }
+  light_switch.initially_on = false;
+  require(document_.replaceObject(editor_light_switch, light_switch),
+          "Editor smoke initially-off switch failed");
+  preview();
+  require(document_.save(), "Editor smoke switch save failed");
+  // Exercise every point/spot combination. Normal frames restore the
+  // document's initial-state preview without mutating authored values.
+  for (int mask = 0; mask < 8; ++mask) {
+    preview();
+    FrameRequest frame;
+    frame.framebuffer = window_.framebufferExtent();
+    frame.camera = camera_.frame(16.0F / 9.0F);
+    frame.point_light_enabled = {(mask & 1) != 0, (mask & 2) != 0};
+    if (mask & 4)
+      frame.spot_light = {
+          {0, 2, 4, 10}, {0, 0, -1, 0.95F}, {1, 1, 1, 1}, {0.85F, 1, 0, 0}};
+    static_cast<void>(renderer_.renderFrame(frame));
+  }
+  const auto before_terrain = *document_.document();
 
   EditorTerrainBrush brush;
   brush.radius = 3;
@@ -137,7 +182,7 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   const auto sculpted = *document_.document();
   require(document_.undo(), "Editor smoke terrain undo failed");
   preview();
-  require(*document_.document() == original && !document_.dirty(),
+  require(*document_.document() == before_terrain && !document_.dirty(),
           "Terrain undo did not restore the saved document");
   require(document_.redo(), "Editor smoke terrain redo failed");
   preview();
@@ -276,6 +321,7 @@ bool EditorApplication::tick() {
   frame.framebuffer = framebuffer;
   frame.framebuffer_resized = window_.consumeFramebufferResize();
   frame.camera = camera;
+  frame.point_light_enabled = preview_point_light_enabled_;
   const FrameOutcome outcome = renderer_.renderFrame(frame);
   return editorContinuesAfter(outcome) && !document_.exitRequested();
 }
@@ -315,6 +361,9 @@ void EditorApplication::synchronizeDocumentResources() {
       renderer_.clearDocument();
     }
     scene_resources_installed_ = document_.document().has_value();
+    preview_point_light_enabled_ = initialPointLightEnabled(
+        document_.document() ? document_.document()->light_switch
+                             : std::nullopt);
     rendered_document_revision_ = document_.revision();
     rendered_object_revision_ = document_.objectRevision();
   } catch (const std::exception& error) {

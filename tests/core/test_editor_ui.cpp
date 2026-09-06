@@ -184,3 +184,78 @@ TEST_F(EditorUiInteraction,
   key(ImGuiKey_Escape);
   EXPECT_FALSE(ui.sculpting());
 }
+
+TEST_F(EditorUiInteraction, SwitchButtonsPropertiesAndInputCapture) {
+  document.select(editor_light_switch);
+  frame();
+  key(ImGuiKey_D, true);
+  EXPECT_FALSE(document.dirty());
+  key(ImGuiKey_Delete, false, true);
+  EXPECT_TRUE(document.document()->light_switch);
+  key(ImGuiKey_Delete);
+  ASSERT_FALSE(document.document()->light_switch);
+  const auto* objects = ImGui::FindWindowByName("Objects");
+  const float object_top =
+      objects->Pos.y + objects->TitleBarHeight + objects->WindowPadding.y;
+  const float row = ImGui::GetFrameHeightWithSpacing();
+  click({objects->Pos.x + 60, object_top + row + 8});
+  ASSERT_TRUE(document.document()->light_switch);
+  EXPECT_EQ(document.selection(), editor_light_switch);
+  const auto created = *document.document();
+  click({objects->Pos.x + 60, object_top + row + 8});
+  EXPECT_EQ(*document.document(), created);
+  const auto* properties = ImGui::FindWindowByName("Properties");
+  const float top = properties->Pos.y + properties->TitleBarHeight +
+                    properties->WindowPadding.y;
+  click({properties->Pos.x + 40, top + 8});  // collapse Terrain
+  click({properties->Pos.x + 40, top + 4 * row + 8});
+  ASSERT_FALSE(document.document()->light_switch->initially_on);
+  EXPECT_FALSE(document.terrainStrokeActive());
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), created);
+  // Select Point light 2 through the real combo popup.
+  click({properties->Pos.x + 70, top + 3 * row + 8});
+  frame();
+  frame();
+  const ImGuiWindow* popup = nullptr;
+  for (auto* window : ImGui::GetCurrentContext()->Windows)
+    if (window->Active && (window->Flags & ImGuiWindowFlags_Popup))
+      popup = window;
+  ASSERT_NE(popup, nullptr);
+  click({popup->Pos.x + 60, popup->Pos.y + popup->WindowPadding.y +
+                                ImGui::GetTextLineHeightWithSpacing() + 6});
+  ASSERT_EQ(document.document()->light_switch->point_light_index, 1U);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), created);
+  // A yaw drag edits a draft and commits once when released.
+  const ImVec2 yaw{properties->Pos.x + 40, top + 2 * row + 8};
+  ImGui::GetIO().AddMousePosEvent(yaw.x, yaw.y);
+  frame();
+  ImGui::GetIO().AddMouseButtonEvent(0, true);
+  frame();
+  ImGui::GetIO().AddMousePosEvent(yaw.x + 40, yaw.y);
+  frame();
+  EXPECT_EQ(*document.document(), created);
+  ImGui::GetIO().AddMouseButtonEvent(0, false);
+  frame();
+  EXPECT_NE(document.document()->light_switch->yaw_degrees,
+            created.light_switch->yaw_degrees);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), created);
+  // Ctrl-click exact entry, including rejection of a non-finite value.
+  for (const auto* text : {"1e39", "45"}) {
+    ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
+    click(yaw);
+    ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+    frame();
+    ImGui::GetIO().AddInputCharactersUTF8(text);
+    frame();
+    key(ImGuiKey_Enter);
+    if (text[0] == '1') {
+      EXPECT_EQ(*document.document(), created);
+      EXPECT_FALSE(document.editError().empty());
+    } else {
+      EXPECT_FLOAT_EQ(document.document()->light_switch->yaw_degrees, 45);
+    }
+  }
+}

@@ -11,6 +11,7 @@ PlayerActionSnapshot PlayerInputMapper::map(
       physical.isKeyDown(PhysicalKey::LeftShift),
       physical.isKeyDown(PhysicalKey::LeftControl),
       physical.isKeyDown(PhysicalKey::Escape),
+      physical.isKeyDown(PhysicalKey::E),
       physical.isMouseButtonDown(PhysicalMouseButton::Left),
       physical.isMouseButtonDown(PhysicalMouseButton::Right),
       physical.cursor_delta_x,

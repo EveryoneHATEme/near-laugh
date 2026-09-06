@@ -63,6 +63,11 @@ class PhysicsWorld {
   [[nodiscard]] PhysicsStaticSolid staticBody(std::size_t index) const;
   [[nodiscard]] bool hasTerrainCollision() const noexcept;
   [[nodiscard]] bool usesSingleThreadedJobs() const noexcept;
+  // Tests only the static world, including the chair box proxy. Extends the
+  // endpoint by 0.1 mm so a surface at the target counts as obstruction.
+  // Invalid/zero-length segments and origins inside solid collision block.
+  [[nodiscard]] bool staticSegmentBlocked(WorldPosition origin,
+                                          WorldPosition endpoint) const;
 
  private:
   class Impl;

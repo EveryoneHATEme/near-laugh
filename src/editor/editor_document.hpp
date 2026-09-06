@@ -24,10 +24,11 @@ inline constexpr EditorObjectId editor_no_object = 0;
 inline constexpr EditorObjectId editor_spawn = 1;
 inline constexpr EditorObjectId editor_first_light = 2;
 inline constexpr EditorObjectId editor_prop = 4;
-inline constexpr EditorObjectId editor_first_solid = 5;
+inline constexpr EditorObjectId editor_light_switch = 5;
+inline constexpr EditorObjectId editor_first_solid = 6;
 using EditorObjectValue =
     std::variant<PrototypeSolid, PrototypePlayerSpawn, PrototypePointLight,
-                 PrototypeStaticProp>;
+                 PrototypeStaticProp, PrototypeLightSwitch>;
 
 // Field-level checks permit safe intermediate gameplay-invalid documents.
 [[nodiscard]] std::string editorObjectFieldError(
@@ -53,6 +54,7 @@ class EditorDocument {
   void select(EditorObjectId id);
   [[nodiscard]] bool replaceObject(EditorObjectId id, EditorObjectValue value);
   [[nodiscard]] bool addSolid(PrototypeSolid solid);
+  [[nodiscard]] bool addLightSwitch();
   [[nodiscard]] bool duplicateSelected();
   [[nodiscard]] bool removeSelected();
   [[nodiscard]] bool placeSelected(WorldPosition terrain_hit);

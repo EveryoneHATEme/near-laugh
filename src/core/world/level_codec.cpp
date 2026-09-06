@@ -5,6 +5,7 @@
 #include <fstream>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <locale>
 #include <nlohmann/json.hpp>
 #include <sstream>
@@ -93,6 +94,8 @@ std::uint32_t parseUnsigned(const Json& value, const std::string& path) {
     fail(path, "must be an unsigned integer");
   }
   try {
+    if (value.get<std::uint64_t>() > std::numeric_limits<std::uint32_t>::max())
+      fail(path, "is outside the supported integer range");
     return value.get<std::uint32_t>();
   } catch (const nlohmann::json::exception&) {
     fail(path, "is outside the supported integer range");
@@ -251,14 +254,39 @@ PrototypeStaticProp parseStaticProp(const Json& value) {
                       "static_prop.box_proxy.half_extent")};
 }
 
+std::optional<PrototypeLightSwitch> parseLightSwitch(const Json& value) {
+  if (value.is_null()) return std::nullopt;
+  requireObjectFields(
+      value, "light_switch",
+      {"position", "yaw_degrees", "point_light_index", "initially_on"});
+  const auto index = parseUnsigned(value.at("point_light_index"),
+                                   "light_switch.point_light_index");
+  if (index >= prototype_point_light_count)
+    fail("light_switch.point_light_index", "must select point light 0 or 1");
+  if (!value.at("initially_on").is_boolean())
+    fail("light_switch.initially_on", "must be a boolean");
+  return PrototypeLightSwitch{
+      parsePosition(value.at("position"), "light_switch.position"),
+      parseFloat(value.at("yaw_degrees"), "light_switch.yaw_degrees"), index,
+      value.at("initially_on").get<bool>()};
+}
+
 LevelDocument parseDocument(const Json& root) {
-  requireObjectFields(root, "",
-                      {"version", "terrain", "solids", "player_spawn",
-                       "environment_light", "static_prop"});
+  if (!root.is_object()) fail("", "must be an object");
+  if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
-  if (version != level_format_version) {
+  if (version != 2 && version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
+  }
+  if (version == 2) {
+    requireObjectFields(root, "",
+                        {"version", "terrain", "solids", "player_spawn",
+                         "environment_light", "static_prop"});
+  } else {
+    requireObjectFields(root, "",
+                        {"version", "terrain", "solids", "player_spawn",
+                         "environment_light", "static_prop", "light_switch"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -272,12 +300,14 @@ LevelDocument parseDocument(const Json& root) {
   for (std::size_t index = 0; index < solids_json.size(); ++index) {
     solids.push_back(parseSolid(solids_json[index], index));
   }
-  return {version,
-          parseTerrain(root.at("terrain")),
-          std::move(solids),
-          parseSpawn(root.at("player_spawn")),
-          parseEnvironmentLight(root.at("environment_light")),
-          parseStaticProp(root.at("static_prop"))};
+  return {
+      level_format_version,
+      parseTerrain(root.at("terrain")),
+      std::move(solids),
+      parseSpawn(root.at("player_spawn")),
+      parseEnvironmentLight(root.at("environment_light")),
+      parseStaticProp(root.at("static_prop")),
+      version == 2 ? std::nullopt : parseLightSwitch(root.at("light_switch"))};
 }
 
 Json positionJson(const WorldPosition& value) {
@@ -374,6 +404,17 @@ std::string serializeDocument(const LevelDocument& document) {
   proxy["half_extent"] = extentJson(document.static_prop.box_proxy_half_extent);
   prop["box_proxy"] = std::move(proxy);
   root["static_prop"] = std::move(prop);
+
+  root["light_switch"] = nullptr;
+  if (document.light_switch) {
+    const auto& light_switch = *document.light_switch;
+    Json value = Json::object();
+    value["position"] = positionJson(light_switch.position);
+    value["yaw_degrees"] = light_switch.yaw_degrees;
+    value["point_light_index"] = light_switch.point_light_index;
+    value["initially_on"] = light_switch.initially_on;
+    root["light_switch"] = std::move(value);
+  }
 
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }

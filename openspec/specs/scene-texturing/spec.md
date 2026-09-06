@@ -48,11 +48,15 @@ Prototype textures SHALL repeat outside normalized coordinates, SHALL provide a 
 - **THEN** the selected surface texture repeats across the face
 
 ### Requirement: Textured prototype surface appearance
-Every prototype surface SHALL combine its sampled texture color with its authored tint, the immutable point-light and ambient environment, and any active dynamic spot-light contribution without target-specific highlight, dimming, or presentation state.
+Every prototype surface SHALL combine its sampled texture color with its authored tint, the authored ambient environment, each currently enabled authored point light, and any active dynamic spot-light contribution without target-specific highlight, dimming, or presentation state.
 
 #### Scenario: Prototype surface is rendered
 - **WHEN** a textured prototype solid is visible in a renderable frame
 - **THEN** it displays its fixed texture modulated by its authored tint and the bounded point-plus-optional-spot lighting
+
+#### Scenario: Point-light state changes
+- **WHEN** one authored point light is disabled by a frame's lighting state
+- **THEN** texture sampling, tint, depth visibility, ambient, and other active lights retain their behavior while that point light's contribution is absent
 
 ### Requirement: Fixed imported-prop appearance
 The imported static prop SHALL preserve its finite `TEXCOORD_0` values, SHALL use opaque white vertex tint and the fixed obstacle surface texture, and SHALL be sampled through the same immutable repeating, filtered texture array as generated prototype geometry. File-defined glTF materials, images, samplers, vertex colors, and texture transforms SHALL NOT change its appearance.

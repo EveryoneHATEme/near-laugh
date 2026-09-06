@@ -47,19 +47,36 @@ sceneVertexAttributeDescriptions() noexcept {
 
 struct alignas(16) ScenePushConstant {
   CameraFrame camera{};
-  SpotLightFrame spot_light{};
+  std::array<float, 4> spot_position_and_range{};
+  std::array<float, 4> spot_direction_and_inner_cosine{};
+  std::array<float, 4> spot_color_and_intensity{};
+  // outer cosine, spotlight enabled, point light 0 enabled, point light 1
+  // enabled
+  std::array<float, 4> light_controls{};
 };
 
 inline constexpr std::size_t vulkan_minimum_push_constant_size = 128;
 static_assert(std::is_standard_layout_v<ScenePushConstant>);
 static_assert(offsetof(ScenePushConstant, camera) == 0);
-static_assert(offsetof(ScenePushConstant, spot_light) == sizeof(CameraFrame));
+static_assert(offsetof(ScenePushConstant, spot_position_and_range) == 64);
+static_assert(offsetof(ScenePushConstant, spot_direction_and_inner_cosine) ==
+              80);
+static_assert(offsetof(ScenePushConstant, spot_color_and_intensity) == 96);
+static_assert(offsetof(ScenePushConstant, light_controls) == 112);
 static_assert(sizeof(ScenePushConstant) == 128);
 static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
 
 [[nodiscard]] constexpr ScenePushConstant makeScenePushConstant(
-    const CameraFrame& camera, SpotLightFrame spot_light = {}) noexcept {
-  return {camera, spot_light};
+    const CameraFrame& camera, SpotLightFrame spot_light = {},
+    std::array<bool, 2> point_light_enabled = {true, true}) noexcept {
+  return {camera,
+          spot_light.position_and_range,
+          spot_light.direction_and_inner_cosine,
+          spot_light.color_and_intensity,
+          {spot_light.outer_cosine_and_enabled[0],
+           spot_light.outer_cosine_and_enabled[1],
+           point_light_enabled[0] ? 1.0F : 0.0F,
+           point_light_enabled[1] ? 1.0F : 0.0F}};
 }
 
 [[nodiscard]] constexpr float spotLightDistanceFalloff(float distance,
@@ -135,9 +152,9 @@ class GraphicsPipeline {
   GraphicsPipeline(GraphicsPipeline&&) = delete;
   GraphicsPipeline& operator=(GraphicsPipeline&&) = delete;
 
-  void bindSceneState(VkCommandBuffer command_buffer,
-                      const CameraFrame& camera,
-                      SpotLightFrame spot_light) const;
+  void bindSceneState(VkCommandBuffer command_buffer, const CameraFrame& camera,
+                      SpotLightFrame spot_light,
+                      std::array<bool, 2> point_light_enabled) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(

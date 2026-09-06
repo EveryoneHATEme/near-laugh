@@ -8,13 +8,11 @@ TEST(InputAccumulator, TracksEngineOwnedKeysAndButtons) {
   input.setKey(PhysicalKey::W, true);
   input.setMouseButton(PhysicalMouseButton::Left, true);
   EXPECT_TRUE(input.snapshot().isKeyDown(PhysicalKey::W));
-  EXPECT_TRUE(
-      input.snapshot().isMouseButtonDown(PhysicalMouseButton::Left));
+  EXPECT_TRUE(input.snapshot().isMouseButtonDown(PhysicalMouseButton::Left));
   input.setKey(PhysicalKey::W, false);
   input.setMouseButton(PhysicalMouseButton::Left, false);
   EXPECT_FALSE(input.snapshot().isKeyDown(PhysicalKey::W));
-  EXPECT_FALSE(
-      input.snapshot().isMouseButtonDown(PhysicalMouseButton::Left));
+  EXPECT_FALSE(input.snapshot().isMouseButtonDown(PhysicalMouseButton::Left));
 }
 
 TEST(PlayerInputMapper, MapsEveryRequiredDefaultControl) {
@@ -22,7 +20,7 @@ TEST(PlayerInputMapper, MapsEveryRequiredDefaultControl) {
   for (const PhysicalKey key :
        {PhysicalKey::W, PhysicalKey::A, PhysicalKey::S, PhysicalKey::D,
         PhysicalKey::Space, PhysicalKey::LeftShift, PhysicalKey::LeftControl,
-        PhysicalKey::Escape}) {
+        PhysicalKey::Escape, PhysicalKey::E}) {
     input.setKey(key, true);
   }
   input.setMouseButton(PhysicalMouseButton::Left, true);
@@ -30,7 +28,8 @@ TEST(PlayerInputMapper, MapsEveryRequiredDefaultControl) {
   input.addCursorPosition(10.0, 20.0);
   input.addCursorPosition(13.0, 24.0);
 
-  const PlayerActionSnapshot actions = PlayerInputMapper{}.map(input.snapshot());
+  const PlayerActionSnapshot actions =
+      PlayerInputMapper{}.map(input.snapshot());
   EXPECT_TRUE(actions.move_forward);
   EXPECT_TRUE(actions.move_backward);
   EXPECT_TRUE(actions.move_left);
@@ -39,6 +38,7 @@ TEST(PlayerInputMapper, MapsEveryRequiredDefaultControl) {
   EXPECT_TRUE(actions.sprint);
   EXPECT_TRUE(actions.crouch);
   EXPECT_TRUE(actions.menu);
+  EXPECT_TRUE(actions.interact);
   EXPECT_TRUE(actions.primary_action);
   EXPECT_TRUE(actions.secondary_action);
   EXPECT_DOUBLE_EQ(actions.look_delta_x, 3.0);
@@ -53,7 +53,8 @@ TEST(PlayerInputMapper, NewBatchClearsLookAndPreservesHeldActions) {
   input.addCursorPosition(2.0, 3.0);
   input.beginEventBatch();
 
-  const PlayerActionSnapshot actions = PlayerInputMapper{}.map(input.snapshot());
+  const PlayerActionSnapshot actions =
+      PlayerInputMapper{}.map(input.snapshot());
   EXPECT_TRUE(actions.move_forward);
   EXPECT_TRUE(actions.primary_action);
   EXPECT_DOUBLE_EQ(actions.look_delta_x, 0.0);
@@ -102,4 +103,17 @@ TEST(InputAccumulator, CaptureResetDiscardsCursorJump) {
   input.addCursorPosition(100.0, 200.0);
   EXPECT_DOUBLE_EQ(input.snapshot().cursor_delta_x, 0.0);
   EXPECT_DOUBLE_EQ(input.snapshot().cursor_delta_y, 0.0);
+}
+
+TEST(PlayerInputMapper, InteractionIsIndependentOfMouseActions) {
+  InputAccumulator input;
+  input.setKey(PhysicalKey::E, true);
+  const auto actions = PlayerInputMapper{}.map(input.snapshot());
+  EXPECT_TRUE(actions.interact);
+  EXPECT_FALSE(actions.primary_action);
+  EXPECT_FALSE(actions.secondary_action);
+  input.setKey(PhysicalKey::E, false);
+  input.setMouseButton(PhysicalMouseButton::Left, true);
+  EXPECT_FALSE(PlayerInputMapper{}.map(input.snapshot()).interact);
+  EXPECT_TRUE(PlayerInputMapper{}.map(input.snapshot()).primary_action);
 }

@@ -4,6 +4,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <numbers>
 
+#include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_picking.hpp"
 
@@ -144,6 +145,13 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
                                                           : light_color);
   }
   if (const auto value = document.object(document.selection())) {
+    if (const auto* light_switch = std::get_if<PrototypeLightSwitch>(&*value);
+        light_switch && lightSwitchIsValid(*light_switch)) {
+      const auto corners = lightSwitchCorners(*light_switch);
+      for (int i = 0; i < 8; ++i)
+        for (int bit : {1, 2, 4})
+          if (!(i & bit)) line(corners[i], corners[i | bit], selected_color);
+    }
     if (const auto* solid = std::get_if<PrototypeSolid>(&*value))
       box(solid->center, solid->half_extent, 0);
     if (const auto* prop = std::get_if<PrototypeStaticProp>(&*value)) {

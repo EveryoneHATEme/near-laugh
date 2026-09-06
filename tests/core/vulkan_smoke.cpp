@@ -462,8 +462,11 @@ int main(int argc, char** argv) {
         if (!spotLightFrameIsValid(spot_light)) {
           throw std::runtime_error("Smoke generated an invalid spot light");
         }
-        const FrameRequest request{extent, window.consumeFramebufferResize(),
-                                   camera, spot_light};
+        const FrameRequest request{extent,
+                                   window.consumeFramebufferResize(),
+                                   camera,
+                                   spot_light,
+                                   {(frame & 1) == 0, (frame & 2) == 0}};
         static_cast<void>(renderer.renderFrame(request));
       }
       if (inject_validation_error) {

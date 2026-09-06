@@ -313,6 +313,7 @@ foreach(LIFETIME_MEMBER IN ITEMS
         "PhysicsWorld physics_"
         "PlayerController player_"
         "PlayerFlashlight flashlight_"
+        "LightSwitchController light_switch_"
         "Renderer renderer_")
     string(FIND "${ENGINE_HEADER_CONTENT}" "${LIFETIME_MEMBER}"
            LIFETIME_POSITION)
@@ -328,11 +329,24 @@ if(NOT ENGINE_CONTENT MATCHES
     message(FATAL_ERROR
         "Engine must sample the waited input batch immediately after dispatch")
 endif()
-if(NOT ENGINE_CONTENT MATCHES
-   "window_\\.waitEvents\\(\\)[^;]*;[^}]*input_[^;]*window_\\.input\\(\\)[^}]*samplePlayerInput\\(input_\\)[^}]*fixed_step_\\.reset\\(\\)")
-    message(FATAL_ERROR
-        "Engine must apply waited input before resetting fixed-step timing")
+# Inspect semantic call order within the waited branch. Value initialization
+# and nested blocks must not be mistaken for the end of that branch.
+string(FIND "${ENGINE_CONTENT}" "case LoopAction::WaitForEvents:" WAIT_BEGIN)
+string(FIND "${ENGINE_CONTENT}" "case LoopAction::Render:" WAIT_END)
+if(WAIT_BEGIN LESS 0 OR WAIT_END LESS WAIT_BEGIN)
+    message(FATAL_ERROR "Engine is missing its minimized event branch")
 endif()
+math(EXPR WAIT_LENGTH "${WAIT_END} - ${WAIT_BEGIN}")
+string(SUBSTRING "${ENGINE_CONTENT}" ${WAIT_BEGIN} ${WAIT_LENGTH} WAIT_CONTENT)
+set(PREVIOUS_WAIT_POSITION -1)
+foreach(WAIT_CALL IN ITEMS "window_.waitEvents()" "input_mapper_.map"
+                           "samplePlayerInput(input_)" "fixed_step_.reset()")
+    string(FIND "${WAIT_CONTENT}" "${WAIT_CALL}" WAIT_POSITION)
+    if(WAIT_POSITION LESS 0 OR WAIT_POSITION LESS PREVIOUS_WAIT_POSITION)
+        message(FATAL_ERROR "Engine must sample waited input before resetting timing")
+    endif()
+    set(PREVIOUS_WAIT_POSITION ${WAIT_POSITION})
+endforeach()
 if(ENGINE_CONTENT MATCHES
    "static_cast<void>\\([^)]*renderFrame|[\r\n][ \t]*renderer_\\.renderFrame")
     message(FATAL_ERROR
@@ -354,11 +368,7 @@ foreach(REQUIRED_RUNTIME_CAMERA_TOKEN IN ITEMS
             "${REQUIRED_RUNTIME_CAMERA_TOKEN}")
     endif()
 endforeach()
-if(NOT ENGINE_CONTENT MATCHES
-   "window_\\.waitEvents\\(\\)[^;]*;[^}]*fixed_step_\\.reset\\(\\)")
-    message(FATAL_ERROR
-        "Engine must reset frame timing after a blocking window wait")
-endif()
+
 
 file(READ "${SOURCE_ROOT}/src/main.cpp" LAUNCHER_CONTENT)
 if(LAUNCHER_CONTENT MATCHES "argv[ \\t\\r\\n]*\\[")

@@ -1,6 +1,7 @@
 #ifndef CORE_ENGINE_HPP
 #define CORE_ENGINE_HPP
 
+#include "core/gameplay/light_switch_controller.hpp"
 #include "core/gameplay/player_flashlight.hpp"
 #include "core/input/player_input.hpp"
 #include "core/physics/physics_world.hpp"
@@ -30,7 +31,7 @@ class Engine {
   [[nodiscard]] bool tick();
 
  private:
-  void samplePlayerInput(const PlayerActionSnapshot& input);
+  bool samplePlayerInput(const PlayerActionSnapshot& input);
 
   Platform platform_;
   Window window_;
@@ -39,6 +40,7 @@ class Engine {
   PhysicsWorld physics_;
   PlayerController player_;
   PlayerFlashlight flashlight_{};
+  LightSwitchController light_switch_;
   Renderer renderer_;
   PlayerInputMapper input_mapper_{};
   PlayerActionSnapshot input_{};

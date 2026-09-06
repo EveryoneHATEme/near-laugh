@@ -14,6 +14,7 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
       level_(loadPrototypeLevel(resources_.prototype_level)),
       physics_(level_),
       player_(physics_, level_.playerSpawn().yaw_degrees),
+      light_switch_(level_.lightSwitch()),
       renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources_.scene_vertex_shader),
                  std::move(resources_.scene_fragment_shader),
@@ -37,15 +38,18 @@ bool Engine::tick() {
       window_.shouldClose(), framebuffer, window_.consumeFramebufferResize());
   switch (decision.action) {
     case LoopAction::Stop:
+      light_switch_.update(input_.interact, false, {}, physics_);
       return false;
     case LoopAction::WaitForEvents:
+      light_switch_.update(input_.interact, false, {}, physics_);
       window_.waitEvents();
       input_ = input_mapper_.map(window_.input());
       samplePlayerInput(input_);
+      light_switch_.update(input_.interact, false, {}, physics_);
       fixed_step_.reset();
       return !window_.shouldClose();
     case LoopAction::Render: {
-      samplePlayerInput(input_);
+      const bool controls_active = samplePlayerInput(input_);
       const FixedStepBatch simulation =
           fixed_step_.sample(FixedStepAccumulator::Clock::now());
       for (int step = 0; step < simulation.complete_steps; ++step) {
@@ -60,6 +64,8 @@ bool Engine::tick() {
           player_.viewPose(simulation.interpolation_alpha);
       frame.camera = player_.cameraFrame(aspect, view);
       frame.spot_light = flashlight_.spotLight(view);
+      light_switch_.update(input_.interact, controls_active, view, physics_);
+      frame.point_light_enabled = light_switch_.pointLightEnabled();
       const FrameOutcome outcome = renderer_.renderFrame(frame);
       return runtimeContinuesAfter(outcome) && !window_.shouldClose();
     }
@@ -67,7 +73,7 @@ bool Engine::tick() {
   return false;
 }
 
-void Engine::samplePlayerInput(const PlayerActionSnapshot& input) {
+bool Engine::samplePlayerInput(const PlayerActionSnapshot& input) {
   const bool was_captured = window_.cursorCaptured();
   const PlayerCursorCaptureTransition transition =
       playerCursorTransition(was_captured, input);
@@ -84,4 +90,5 @@ void Engine::samplePlayerInput(const PlayerActionSnapshot& input) {
   const bool controls_active = playerControlsActive(was_captured, transition);
   player_.sampleInput(input, controls_active);
   flashlight_.samplePrimaryAction(input.primary_action, controls_active);
+  return controls_active;
 }

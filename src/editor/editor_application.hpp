@@ -46,6 +46,7 @@ class EditorApplication {
   std::uint64_t rendered_document_revision_{};
   std::uint64_t rendered_object_revision_{};
   bool scene_resources_installed_{};
+  std::array<bool, 2> preview_point_light_enabled_{true, true};
 };
 
 #endif

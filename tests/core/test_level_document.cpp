@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/world/level_document.hpp"
+#include "core/world/light_switch.hpp"
 #include "prototype_level_fixture.hpp"
 
 namespace {
@@ -60,6 +61,7 @@ void expectPositionEqual(const WorldPosition& actual,
 void expectDocumentEqual(const LevelDocument& actual,
                          const LevelDocument& expected) {
   EXPECT_EQ(actual.version, expected.version);
+  EXPECT_EQ(actual.light_switch, expected.light_switch);
   expectPositionEqual(actual.terrain.origin, expected.terrain.origin);
   EXPECT_FLOAT_EQ(actual.terrain.sample_spacing,
                   expected.terrain.sample_spacing);
@@ -116,7 +118,7 @@ class CommaDecimalPoint final : public std::numpunct<char> {
 }  // namespace
 
 TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
-  static_assert(level_format_version == 2);
+  static_assert(level_format_version == 3);
   static_assert(prototype_terrain_sample_count == 97);
   static_assert(level_maximum_solid_count == 240);
   static_assert(prototype_point_light_count == 2);
@@ -187,7 +189,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"malformed", "{", "byte"});
 
   std::string version_one = canonical;
-  replaceOnce(version_one, "\"version\": 2", "\"version\": 1");
+  replaceOnce(version_one, "\"version\": 3", "\"version\": 1");
   cases.push_back({"version_one", std::move(version_one), "version"});
 
   std::string unknown = canonical;
@@ -196,7 +198,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"path", std::move(unknown), "model_path"});
 
   std::string missing = canonical;
-  replaceOnce(missing, "  \"version\": 2,\n", "");
+  replaceOnce(missing, "  \"version\": 3,\n", "");
   cases.push_back({"missing", std::move(missing), "version"});
 
   std::string invalid_heights = canonical;
@@ -215,8 +217,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   std::string removed_kind = canonical;
   replaceOnce(removed_kind, "\"kind\": \"boundary\"",
               "\"kind\": \"shooting_target\"");
-  cases.push_back(
-      {"removed_kind", std::move(removed_kind), "solids[0].kind"});
+  cases.push_back({"removed_kind", std::move(removed_kind), "solids[0].kind"});
 
   std::string removed_surface = canonical;
   replaceOnce(removed_surface, "\"surface\": \"boundary\"",
@@ -350,5 +351,123 @@ TEST(LevelDocument, InvalidAndFilesystemFailuresDoNotReplacePriorData) {
   EXPECT_EQ(replacement.diagnostics.front().category,
             LevelDiagnosticCategory::Filesystem);
   EXPECT_TRUE(std::filesystem::is_directory(directory_destination));
+  std::filesystem::remove_all(root);
+}
+
+TEST(LightSwitchWorld, OptionalHandoffBoundsAndFieldValidation) {
+  auto document = prototypeLevelDocument();
+  document.light_switch.reset();
+  EXPECT_FALSE(makePrototypeLevel(document).lightSwitch());
+  document.light_switch =
+      PrototypeLightSwitch{{0.0F, 1.6F, 1.05F}, 90, 1, false};
+  ASSERT_TRUE(validateLevelDocument(document).empty());
+  const auto level = makePrototypeLevel(document);
+  EXPECT_EQ(level.lightSwitch(), document.light_switch);
+  const auto corners = lightSwitchCorners(*document.light_switch);
+  for (const auto p : corners) {
+    EXPECT_NEAR(std::abs(p.x), light_switch_half_extent.z, 0.000001F);
+    EXPECT_NEAR(std::abs(p.z - 1.05F), light_switch_half_extent.x, 0.000001F);
+    EXPECT_TRUE(std::isfinite(p.y));
+  }
+  document.light_switch->point_light_index = 2;
+  EXPECT_TRUE(hasField(validateLevelDocument(document),
+                       "light_switch.point_light_index"));
+  EXPECT_FALSE(lightSwitchIsValid(*document.light_switch));
+  document.light_switch = *level.lightSwitch();
+  document.light_switch->position.x = document.terrain.origin.x;
+  EXPECT_TRUE(
+      hasField(validateLevelDocument(document), "light_switch.position"));
+  document.light_switch->position.x = std::numeric_limits<float>::infinity();
+  EXPECT_FALSE(lightSwitchIsValid(*document.light_switch));
+  document.light_switch = *level.lightSwitch();
+  document.light_switch->yaw_degrees = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_TRUE(
+      hasField(validateLevelDocument(document), "light_switch.yaw_degrees"));
+  EXPECT_EQ(level.lightSwitch()->point_light_index, 1U);
+}
+
+TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
+  const auto root = testDirectory("switch_versions");
+  const auto path = root / "level.json";
+  auto document = prototypeLevelDocument();
+  for (const bool present : {false, true}) {
+    document.light_switch = present ? std::optional{PrototypeLightSwitch{
+                                          {0, 1.6F, 1.05F}, 37.5F, 1, false}}
+                                    : std::nullopt;
+    ASSERT_TRUE(saveLevelDocument(path, document));
+    const auto bytes = readBytes(path);
+    const auto loaded = loadLevelDocument(path);
+    ASSERT_TRUE(loaded);
+    EXPECT_EQ(*loaded.document, document);
+    ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
+    EXPECT_EQ(readBytes(path), bytes);
+  }
+  document.light_switch.reset();
+  ASSERT_TRUE(saveLevelDocument(path, document));
+  auto old_bytes = readBytes(path);
+  replaceOnce(old_bytes, "\"version\": 3", "\"version\": 2");
+  replaceOnce(old_bytes, ",\n  \"light_switch\": null", "");
+  writeBytes(path, old_bytes);
+  const auto loaded = loadLevelDocument(path);
+  ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
+  EXPECT_EQ(*loaded.document, document);
+  EXPECT_EQ(readBytes(path), old_bytes);
+  ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
+  EXPECT_NE(readBytes(path).find("\"version\": 3"), std::string::npos);
+  EXPECT_NE(readBytes(path).find("\"light_switch\": null"), std::string::npos);
+  const auto current = readBytes(path);
+  ASSERT_TRUE(saveLevelDocument(path, *loadLevelDocument(path).document));
+  EXPECT_EQ(readBytes(path), current);
+  std::filesystem::remove_all(root);
+}
+
+TEST(LevelDocument, SwitchParserRequiresExactShapeAndTypes) {
+  const auto root = testDirectory("switch_parse");
+  const auto path = root / "level.json";
+  auto document = prototypeLevelDocument();
+  document.light_switch = PrototypeLightSwitch{{0, 1.6F, 1.05F}, 0, 0, true};
+  ASSERT_TRUE(saveLevelDocument(path, document));
+  const auto canonical = readBytes(path);
+  for (const auto* bad : {"-1", "2", "0.0", "true", "\"0\"", "4294967296"}) {
+    auto bytes = canonical;
+    replaceOnce(bytes, "\"point_light_index\": 0",
+                std::string("\"point_light_index\": ") + bad);
+    writeBytes(path, bytes);
+    const auto loaded = loadLevelDocument(path);
+    EXPECT_FALSE(loaded) << bad;
+    EXPECT_TRUE(hasField(loaded.diagnostics, "light_switch.point_light_index"));
+  }
+  for (const auto* bad : {"0", "1", "null", "\"false\""}) {
+    auto bytes = canonical;
+    replaceOnce(bytes, "\"initially_on\": true",
+                std::string("\"initially_on\": ") + bad);
+    writeBytes(path, bytes);
+    EXPECT_TRUE(hasField(loadLevelDocument(path).diagnostics,
+                         "light_switch.initially_on"));
+  }
+  for (const auto* replacement : {"\"unknown\": true", "\"version\": true"}) {
+    auto bytes = canonical;
+    replaceOnce(bytes, "\"initially_on\": true", replacement);
+    writeBytes(path, bytes);
+    EXPECT_FALSE(loadLevelDocument(path));
+  }
+  document.light_switch.reset();
+  ASSERT_TRUE(saveLevelDocument(path, document));
+  const auto absent = readBytes(path);
+  for (const auto* bad : {"[]", "{}", "false", "1"}) {
+    auto bytes = absent;
+    replaceOnce(bytes, "\"light_switch\": null",
+                std::string("\"light_switch\": ") + bad);
+    writeBytes(path, bytes);
+    EXPECT_FALSE(loadLevelDocument(path));
+  }
+  auto missing = absent;
+  replaceOnce(missing, ",\n  \"light_switch\": null", "");
+  writeBytes(path, missing);
+  EXPECT_TRUE(hasField(loadLevelDocument(path).diagnostics, "light_switch"));
+  auto mixed = absent;
+  replaceOnce(mixed, "\"version\": 3", "\"version\": 2");
+  writeBytes(path, mixed);
+  EXPECT_TRUE(hasField(loadLevelDocument(path).diagnostics, "light_switch"));
   std::filesystem::remove_all(root);
 }

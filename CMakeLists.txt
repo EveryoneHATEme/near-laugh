@@ -155,6 +155,7 @@ endfunction()
 near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
+    src/core/world/light_switch.cpp
     src/core/world/level_codec.cpp
     src/core/world/prototype_level.cpp
 )
@@ -224,6 +225,7 @@ add_library(near_laugh_runtime STATIC
     src/core/application.cpp
     src/core/engine.cpp
     src/core/gameplay/player_flashlight.cpp
+    src/core/gameplay/light_switch_controller.cpp
     src/core/input/player_input.cpp
     src/core/player/player_controller.cpp
     src/core/runtime_resources.cpp

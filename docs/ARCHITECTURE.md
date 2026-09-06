@@ -35,8 +35,9 @@ The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-2 level document, strict private
-  JSON codec, shared validation, and immutable level data. It privately links
+- `near_laugh_world` owns the bounded version-3 level document, version-2 read
+  compatibility, strict private JSON codec, shared validation, and immutable
+  level data. It privately links
   `nlohmann/json`.
 - `near_laugh_physics` owns Jolt lifetime, the static collision world, and one
   virtual character. It consumes immutable world data and privately links
@@ -45,8 +46,8 @@ The concrete targets have these responsibilities:
   immutable world data and uses the narrow internal GLFW/Vulkan surface bridge.
   Image decoding and the one bounded GLB loader remain renderer-private.
 - `near_laugh_runtime` owns application composition, player input mapping,
-  fixed-step player policy, flashlight state, frame interpolation, and the
-  main-thread loop.
+  fixed-step player policy, flashlight and switch state, frame interpolation,
+  and the main-thread loop.
 - `near_laugh` is the game launcher. It discovers its native executable path,
   supplies the adjacent resource root, and links only `near_laugh_runtime`.
 - `near_laugh_editor_core` owns editable document workflow and the free-fly
@@ -70,7 +71,8 @@ not establish a reusable engine layer. It constructs, in dependency order:
 
 ```text
 Platform -> Window -> RuntimeResources -> PrototypeLevel
-         -> PhysicsWorld -> PlayerController -> PlayerFlashlight -> Renderer
+         -> PhysicsWorld -> PlayerController -> PlayerFlashlight
+         -> LightSwitchController -> Renderer
 ```
 
 RAII destruction reverses that order. Raw pointers and references are
@@ -79,22 +81,23 @@ global subsystem ownership is not used.
 
 Startup resolves shaders, the floor/boundary/obstacle textures, the chair GLB,
 and `levels/prototype.level.json` beneath the executable-relative resource
-root. The version-2 document is parsed and validated before physics or renderer
-construction. Neither the process working directory nor level-authored paths
-participate in resource discovery.
+root. A version-2 or version-3 document is parsed and validated before physics
+or renderer construction. Neither the process working directory nor
+level-authored paths participate in resource discovery.
 
 The main-thread loop owns event processing, close and minimize decisions,
 player-input sampling, elapsed-time accumulation, fixed simulation steps,
-cursor-capture transitions, camera interpolation, flashlight updates, and the
-decision to request a frame. Blocking event waits form and sample their own
+cursor-capture transitions, camera interpolation, flashlight and switch
+updates, and the decision to request a frame. Blocking event waits form and sample their own
 input batch before another poll can clear relative mouse movement; timing is
 reset after the wait.
 
 The renderer receives immutable level data at construction and a
 backend-neutral `FrameRequest` at runtime. A request contains framebuffer
-state, a column-major camera matrix, and at most one source-independent spot
-light. Rendering returns `Rendered`, `Skipped`, or `Recovered`; the runtime
-handles every outcome and retains application-lifetime control. Rendering does
+state, a column-major camera matrix, at most one source-independent spot
+light, and enabled values for the two point-light slots. Rendering returns
+`Rendered`, `Skipped`, or `Recovered`; the runtime handles every outcome and
+retains application-lifetime control. Rendering does
 not interpret player actions, update simulation, poll events, or decide when
 the game exits.
 
@@ -106,17 +109,26 @@ no runtime job system.
 
 The bounded level document contains one 97-by-97 heightfield, at most 240
 axis-aligned solids, one player spawn, exactly two point lights and an ambient
-intensity, and one packaged chair placement with an authored box collision
-proxy. Solids use the fixed floor, boundary, or obstacle surface roles. The
-document contains no resource paths.
+intensity, one packaged chair placement with an authored box collision
+proxy, and an optional singleton light switch. Solids use the fixed floor,
+boundary, or obstacle surface roles. The document contains no resource paths.
 
 The editable `LevelDocument` may temporarily contain invalid data. Saving and
 construction of an immutable `PrototypeLevel` both use the same field-aware
 validation. The running game loads once and does not mutate, save, discover, or
 hot-reload level documents.
 
-Rendering expands terrain and solids into an immutable world triangle stream
-and flattens the validated chair GLB into a separate immutable stream. Physics
+The private codec normalizes the exact version-2 shape into version 3 with no
+switch. Opening never rewrites a source file; explicit saves use version 3.
+The switch definition and authored lights remain immutable during play.
+`LightSwitchController` borrows the definition and owns input arming and light
+enable state. It tests shared yawed plate bounds, then queries a bounded static
+segment through `PhysicsWorld`; collision at the endpoint counts as blocked
+with a 0.1 mm numerical extension. Jolt types remain private to physics.
+
+Rendering expands terrain, solids, and the fixed switch into an immutable
+world triangle stream and flattens the validated chair GLB into a separate
+immutable stream. Physics
 builds matching terrain and solid collision plus the chair's authored box
 proxy; it does not derive collision from renderer geometry. Shared level data
 contains no Vulkan, Jolt, parser, or filesystem types.
@@ -155,8 +167,13 @@ for the validation panel and red viewport outlines. Terrain preview changes
 coalesce once per editor frame and replace the world buffer after both frame
 fences complete, preserving the chair, lighting, and pipeline owners.
 Swapchain recovery preserves the document, UI state, texture owner, and camera.
-The editor is a concrete tool for this
-game, not a runtime mode or general scene-editor framework.
+The optional switch uses one reserved transient ID below the allocated solid
+IDs and shares property commands, placement, selection, and history. Preview
+uses its authored initial state; changing its link or removing it restores
+the previously linked light. Successful resource replacement also installs
+the preview light state; a failed replacement retains the prior preview.
+The editor is a concrete tool for this game, not a runtime mode or general
+scene-editor framework.
 
 ## Architectural Constraints
 

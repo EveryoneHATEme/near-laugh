@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 2;
+inline constexpr std::uint32_t level_format_version = 3;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t prototype_point_light_count = 2;
 inline constexpr std::size_t prototype_terrain_sample_count = 97;
@@ -100,6 +100,14 @@ struct PrototypeStaticProp {
   WorldExtent box_proxy_half_extent{};
 };
 
+struct PrototypeLightSwitch {
+  bool operator==(const PrototypeLightSwitch&) const = default;
+  WorldPosition position{};
+  float yaw_degrees{};
+  std::uint32_t point_light_index{};
+  bool initially_on{true};
+};
+
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
@@ -108,6 +116,7 @@ struct LevelDocument {
   PrototypePlayerSpawn player_spawn{};
   PrototypeEnvironmentLight environment_light{};
   PrototypeStaticProp static_prop{};
+  std::optional<PrototypeLightSwitch> light_switch{};
 };
 
 enum class LevelDiagnosticCategory {

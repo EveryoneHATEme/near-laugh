@@ -145,6 +145,26 @@ item/action/component abstraction.
 A generalized inventory or equipment system must not be introduced unless
 the actual game design requires one.
 
+### Current Prototype Light Switch
+
+The level may contain one fixed, non-blocking switch plate. A new E press
+toggles its linked point light when the displayed eye ray hits the plate
+within 2 metres, inclusive, and static collision does not obstruct it. Terrain,
+solids, and the chair's authored box proxy are the blockers; the plate adds no
+character collision. Targeting from inside the plate or blocking geometry is
+rejected. The packaged example is on the spawn-facing central obstacle.
+
+Interaction requires an observed release before the first press and between
+presses. Held, missed, out-of-range, cursor-released, capture-transition,
+minimized, and closing input cannot become a delayed activation. Each event
+batch is evaluated once after simulation, even with zero fixed steps.
+
+Only the linked light's run-local enable bit changes. Ambient, the other point
+light, flashlight, authored intensities, and level files remain independent.
+Presentation recovery preserves the current state; restarting restores the
+authored initial state. This interaction has no HUD, animation, audio, or
+save-game persistence.
+
 ## World
 
 Levels primarily consist of authored content such as:
@@ -170,7 +190,7 @@ The current prototype loads a versioned packaged level representation
 during startup.
 
 The level currently contains static world geometry, authored point lights,
-and a fixed prop with a simplified collision proxy.
+a fixed prop with a simplified collision proxy, and an optional light switch.
 
 The current collision world is primarily static.
 

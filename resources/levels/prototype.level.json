@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9683,5 +9683,15 @@
         "z": 0.48
       }
     }
+  },
+  "light_switch": {
+    "position": {
+      "x": 0.0,
+      "y": 1.6,
+      "z": 1.05
+    },
+    "yaw_degrees": 0.0,
+    "point_light_index": 0,
+    "initially_on": true
   }
 }

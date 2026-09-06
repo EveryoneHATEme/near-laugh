@@ -1,6 +1,8 @@
 #include "core/physics/physics_world.hpp"
 
+// Jolt's configuration header must precede its other headers.
 #include <Jolt/Jolt.h>
+
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/IssueReporting.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
@@ -8,7 +10,10 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
+#include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
@@ -181,6 +186,13 @@ class ObjectVsBroadPhaseLayerFilter final
   }
 };
 
+class StaticVisibilityFilter final : public JPH::ObjectLayerFilter {
+ public:
+  bool ShouldCollide(JPH::ObjectLayer layer) const override {
+    return layer == layers::non_moving;
+  }
+};
+
 JPH::RVec3 toJoltFootPosition(WorldPosition position) {
   return {position.x, position.y, position.z};
 }
@@ -235,8 +247,9 @@ JPH::RefConst<JPH::Shape> makeTerrainShape(const PrototypeTerrain& terrain) {
   settings.mBitsPerSample = 16;
   const JPH::ShapeSettings::ShapeResult result = settings.Create();
   if (result.HasError()) {
-    throw std::runtime_error(std::string{"Create terrain heightfield failed: "} +
-                             result.GetError().c_str());
+    throw std::runtime_error(
+        std::string{"Create terrain heightfield failed: "} +
+        result.GetError().c_str());
   }
   return result.Get();
 }
@@ -311,14 +324,13 @@ class PhysicsWorld::Impl {
       const WorldExtent prop_half_extent =
           prototypeStaticPropProxyWorldHalfExtent(prop);
       JPH::BodyCreationSettings prop_settings(
-          new JPH::BoxShape({prop_half_extent.x, prop_half_extent.y,
-                             prop_half_extent.z}),
+          new JPH::BoxShape(
+              {prop_half_extent.x, prop_half_extent.y, prop_half_extent.z}),
           {prop_center.x, prop_center.y, prop_center.z},
           JPH::Quat::sRotation(JPH::Vec3::sAxisY(),
-                              JPH::DegreesToRadians(prop.yaw_degrees)),
+                               JPH::DegreesToRadians(prop.yaw_degrees)),
           JPH::EMotionType::Static, layers::non_moving);
-      prop_settings.mUserData =
-          static_cast<JPH::uint64>(level.solids().size());
+      prop_settings.mUserData = static_cast<JPH::uint64>(level.solids().size());
       const JPH::BodyID prop_id =
           physics_system_.GetBodyInterface().CreateAndAddBody(
               prop_settings, JPH::EActivation::DontActivate);
@@ -473,4 +485,22 @@ bool PhysicsWorld::hasTerrainCollision() const noexcept {
 
 bool PhysicsWorld::usesSingleThreadedJobs() const noexcept {
   return impl_->job_system_.GetMaxConcurrency() == 1;
+}
+
+bool PhysicsWorld::staticSegmentBlocked(WorldPosition origin,
+                                        WorldPosition endpoint) const {
+  const JPH::RVec3 start{origin.x, origin.y, origin.z};
+  const JPH::Vec3 delta{endpoint.x - origin.x, endpoint.y - origin.y,
+                        endpoint.z - origin.z};
+  const float length = delta.Length();
+  if (!std::isfinite(origin.x) || !std::isfinite(origin.y) ||
+      !std::isfinite(origin.z) || !std::isfinite(length) || !(length > 0.0F))
+    return true;
+  const JPH::RRayCast ray{start, delta * (1.0F + 0.0001F / length)};
+  JPH::RayCastResult hit;
+  // The closest-hit overload treats convex shapes as solid at the origin
+  // and includes back-facing terrain triangles. CharacterVirtual has no
+  // static body; the explicit layer filter also excludes moving bodies.
+  return impl_->physics_system_.GetNarrowPhaseQuery().CastRay(
+      ray, hit, {}, StaticVisibilityFilter{});
 }

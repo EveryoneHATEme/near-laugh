@@ -112,6 +112,8 @@ inline LevelDocument prototypeLevelDocument() {
       PrototypeSurface::Obstacle,
       {0.0F, 0.91F, 0.0F},
       {0.55F, 0.91F, 0.48F}};
+  document.light_switch =
+      PrototypeLightSwitch{{0.0F, 1.6F, 1.05F}, 0.0F, 0, true};
   return document;
 }
 

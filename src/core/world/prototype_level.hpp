@@ -28,6 +28,10 @@ class PrototypeLevel {
   [[nodiscard]] const PrototypeStaticProp& staticProp() const noexcept {
     return static_prop_;
   }
+  [[nodiscard]] const std::optional<PrototypeLightSwitch>& lightSwitch()
+      const noexcept {
+    return light_switch_;
+  }
 
  private:
   explicit PrototypeLevel(LevelDocument document);
@@ -39,6 +43,7 @@ class PrototypeLevel {
   PrototypePlayerSpawn player_spawn_;
   PrototypeEnvironmentLight environment_light_;
   PrototypeStaticProp static_prop_;
+  std::optional<PrototypeLightSwitch> light_switch_;
 };
 
 [[nodiscard]] PrototypeLevel makePrototypeLevel(const LevelDocument& document);
