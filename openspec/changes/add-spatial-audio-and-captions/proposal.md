@@ -55,7 +55,7 @@ formats, authored cue behavior, captions, and audio validation.
 
 ## Dependencies and Boundaries
 
-P04; requires [P03](../add-interactive-doors/proposal.md).
+P04; requires [P03](../archive/2026-09-06-add-interactive-doors/proposal.md).
 P03 supplies authoritative door states. P05 later decides story sequencing;
 this change validates sound/text behavior through a bounded cue fixture.
 Full session menus/settings belong to P12.

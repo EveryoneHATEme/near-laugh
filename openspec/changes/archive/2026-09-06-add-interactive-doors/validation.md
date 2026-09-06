@@ -160,7 +160,7 @@ Screenshots are local inspection artifacts under build/:
 - Restarts restored authored closed/unlocked doors and light state. Repeated
   runs with authored-open inspection copies started open without prior locks.
 
-Task 7.3 remains open: the full manual matrix was not completed. In particular,
+At the earlier automated/desktop audit, task 7.3 remained open: the full manual matrix was not completed. In particular,
 the single-fixed-step vacated-space stop is covered deterministically but was
 not visually resolved; the outside unlock refusal was not separately exercised
 with an initially locked copy. Complete walking routes from both starts are
@@ -171,8 +171,16 @@ These limits do not replace or weaken the specified acceptance criteria.
 
 ## Handoff
 
-Both active changes pass strict OpenSpec validation. P03 and P02 remain active;
-their main specs have not been synchronized or archived. Finalize in order:
-sync P03, archive P03, then sync P02 (including stale Purpose updates), archive
-P02. Syncing both while keeping P03 active makes its modified requirements
-appear to drop the subsequent P02 scenarios in this CLI's baseline check.
+P03 passed strict OpenSpec validation, its ten capability deltas were merged
+into the main specs and verified, and it was archived before the P02 sync.
+P02 then extended the shared requirements to the final v6 profile. This order
+preserves P03's reviewed baseline without rewriting it around its successor.
+
+## User acceptance on 2026-09-06
+
+After the remaining manual checks were explicitly listed in the conversation,
+the user confirmed that they had checked the changes, were satisfied, and
+requested closure of P02 and P03. This closes manual acceptance task 7.3.
+This is user-reported acceptance; no new agent-observed screenshots or
+per-scenario measurements are claimed. The earlier audit limitations above
+remain a historical record of the agent-run checks.

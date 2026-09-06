@@ -86,7 +86,7 @@ The editor SHALL require an explicit discard or successful save decision before 
 - **THEN** no file is saved, no process is launched, and the document, path, selected entry, and dirty state remain unchanged
 
 ### Requirement: Actionable validation presentation
-The editor SHALL preserve the current usable document when opening another document fails and SHALL present parse, validation, resource, save, and process-launch errors without terminating the editor. Structurally safe gameplay-invalid documents SHALL be admitted for repair under the document lifecycle requirement. Each reported level error SHALL include the path and field or object context supplied by level persistence when available. Launch feedback SHALL distinguish process creation from successful gameplay initialization and report unsuccessful child exit with the launched path and entry.
+The editor SHALL preserve the current usable document when opening another document fails and SHALL present parse, validation, resource, save, and process-launch errors without terminating the editor. Structurally safe gameplay-invalid documents SHALL be admitted for repair under the document lifecycle requirement. Each reported level error SHALL include the path and field or object context supplied by level persistence when available. Resource errors SHALL include the model/material identity and affected placement where available. Unknown references SHALL remain editable and selectable with diagnostics. Failed asset decoding or GPU preview replacement SHALL retain the last usable preview resources and clearly identify any preview that is stale relative to the active document; such failure SHALL NOT erase the active document or be presented as successful replacement. Launch feedback SHALL distinguish process creation from successful gameplay initialization and report unsuccessful child exit with the launched path and entry.
 
 #### Scenario: Invalid document is selected
 - **WHEN** the user attempts to open a malformed, unsupported, or structurally unsafe level while another level is open
@@ -100,8 +100,12 @@ The editor SHALL preserve the current usable document when opening another docum
 - **WHEN** the game executable is absent or process creation fails
 - **THEN** the editor reports the attempted executable, level, entry, and available failure reason while keeping the active document usable
 
+#### Scenario: Packaged prop fails during editing
+- **WHEN** a candidate preview references a missing, unsupported or corrupt packaged model or material
+- **THEN** the editor remains usable, identifies that asset and placement, retains the editable values and last usable preview, and allows correction or undo without claiming the stale preview matches the document
+
 ### Requirement: Saved-document playtest transaction
-The editor SHALL launch playtests in a separate game process using the sibling game executable, the active document's resolved absolute path, and the chosen entry identifier. The playtest entry SHALL initially follow the document default; changing the launch selection alone SHALL NOT modify authored data or dirty state. The editor SHALL finish active edits, validate the complete current document, resolve any required save decision, and verify the saved file and selected entry before process creation. A document without a path SHALL require successful Save As. Failed validation, failed or canceled saving, an unknown entry, or a saved file that no longer matches the prepared authored contents SHALL prevent launch and remain diagnosable. A launch request SHALL be consumed once and SHALL NOT be replayed on a later UI frame or recovery. At most one editor-launched game process SHALL be active per editor instance; the editor SHALL remain responsive and allow authoring while it runs. Later document edits and saves SHALL NOT change the running level, and closing the editor SHALL NOT forcibly terminate an already launched game.
+The editor SHALL launch playtests in a separate game process using the sibling game executable, the active document's resolved absolute path, and the chosen entry identifier. The playtest entry SHALL initially follow the document default; changing the launch selection alone SHALL NOT modify authored data or dirty state. The editor SHALL finish active edits, validate the complete current document, resolve any required save decision, and verify the saved file, selected entry and required selected-scene assets before process creation. A document without a path SHALL require successful Save As. Failed validation, failed or canceled saving, an unknown entry, a missing or unsupported required asset, or a saved file that no longer matches the prepared authored contents SHALL prevent launch and remain diagnosable. A launch request SHALL be consumed once and SHALL NOT be replayed on a later UI frame or recovery. At most one editor-launched game process SHALL be active per editor instance; the editor SHALL remain responsive and allow authoring while it runs. Later document edits and saves SHALL NOT change the running level, and closing the editor SHALL NOT forcibly terminate an already launched game.
 
 #### Scenario: Clean document is played
 - **WHEN** the user plays a valid saved document with a valid selected entry and no active playtest
@@ -130,3 +134,7 @@ The editor SHALL launch playtests in a separate game process using the sibling g
 #### Scenario: File path contains spaces or non-ASCII characters
 - **WHEN** the saved level path contains spaces, non-ASCII characters, or shell-significant characters valid in the host filesystem
 - **THEN** process launch preserves the literal path as one argument and does not interpret any part of it as a shell command
+
+#### Scenario: Selected model fails play preflight
+- **WHEN** the saved level is semantically valid but a required model or material cannot be loaded under the configured package root
+- **THEN** the editor reports the asset/placement context and creates no game process

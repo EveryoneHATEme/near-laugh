@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the first concrete authored world interaction: one nearby light switch that changes an environment light while preserving authored data and predictable player input.
+Defines the optional authored light switch and its participation in nearest-target interaction, preserving independent light state, immutable authored data and predictable player input.
 
 ## Requirements
 
@@ -15,10 +15,10 @@ A level SHALL contain zero or one light switch. When present, the switch SHALL d
 
 #### Scenario: Level has no switch
 - **WHEN** a valid level has no switch
-- **THEN** both authored point lights start enabled and interaction presses have no effect
+- **THEN** both authored point lights start enabled and interaction cannot change point lights and any door action follows authored-interaction
 
 ### Requirement: Nearby unobstructed view targeting
-Interaction SHALL target the switch only when the forward ray from the player eye used for the current displayed camera intersects its plate bounds within 2 metres, inclusive. The player eye SHALL be outside those bounds. Existing static collision between the eye and the plate, including terrain, solids, and the authored prop proxy, SHALL prevent activation; collision at the target surface SHALL count as obstruction subject only to numerical tolerance. The player's own collision representation SHALL NOT obstruct the query. A rejected interaction SHALL leave light state unchanged.
+Interaction SHALL target the switch only when the forward ray from the player eye used for the current displayed camera intersects its plate bounds within 2 metres, inclusive. The player eye SHALL be outside those bounds. Collision between the eye and the plate, including terrain, solids, the authored prop proxy, and current door leaves, SHALL prevent activation; collision at the target surface SHALL count as obstruction subject only to numerical tolerance. The player's own collision representation SHALL NOT obstruct the query. A rejected interaction SHALL leave light state unchanged. The switch SHALL participate in authored-interaction nearest-target arbitration, so an interaction consumed or refused by a nearer door SHALL NOT toggle it.
 
 #### Scenario: Switch is within reach
 - **WHEN** the player looks at an unobstructed switch with a ray-to-plate distance of at most 2 metres and presses interaction
@@ -37,11 +37,11 @@ Interaction SHALL target the switch only when the forward ray from the player ey
 - **THEN** the wall behind the plate does not prevent interaction
 
 #### Scenario: Eye is inside blocking geometry
-- **WHEN** a target query begins inside blocking static collision or inside the switch plate
+- **WHEN** a target query begins inside blocking static or door collision or inside the switch plate
 - **THEN** the switch cannot be activated by that query
 
 ### Requirement: Edge-triggered active interaction
-One eligible sampled interaction press SHALL toggle at most once, independently of the number of fixed simulation steps or rendered frames. Interaction SHALL require a sampled release before arming at startup and between presses. Presses sampled while the cursor is released, during a capture transition, while minimized, or while closing SHALL be consumed without activation. A missed, out-of-range, obstructed, or inactive press SHALL NOT remain pending for later targeting or restoration.
+One eligible sampled interaction press selected for the switch by authored-interaction SHALL toggle at most once, independently of the number of fixed simulation steps or rendered frames. Interaction SHALL require a sampled release before arming at startup and between presses. Presses sampled while the cursor is released, during a capture transition, while minimized, or while closing SHALL be consumed without activation. A missed, out-of-range, obstructed, or inactive press SHALL NOT remain pending for later targeting or restoration.
 
 #### Scenario: Interaction remains held
 - **WHEN** the player keeps interaction held after a valid activation
@@ -62,6 +62,15 @@ One eligible sampled interaction press SHALL toggle at most once, independently 
 #### Scenario: Simulation batch size varies
 - **WHEN** an eligible interaction press occurs in a renderable iteration with zero, one, or several fixed simulation steps
 - **THEN** the runtime evaluates that press once using the iteration's player view
+
+
+#### Scenario: Door blocks the plate
+- **WHEN** a current visible leaf blocks an otherwise in-range switch
+- **THEN** the switch does not activate until the leaf clears the view and a new eligible press targets the plate
+
+#### Scenario: Lock or knock targets the switch
+- **WHEN** lock or knock action selects the switch as the nearest target
+- **THEN** neither its light nor an object behind it changes and the action is consumed
 
 ### Requirement: Independent run-local light state
 At application startup the linked point light SHALL use the switch's authored initial state and the other point light SHALL be enabled. Each accepted activation SHALL invert only the linked light's enabled state. Turning it off SHALL suppress its complete contribution while preserving authored intensity, color, radius, and position; ambient, the other point light, and flashlight state SHALL remain independent. Runtime interaction SHALL NOT modify or save the authored level.

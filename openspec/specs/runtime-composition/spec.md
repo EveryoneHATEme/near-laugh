@@ -18,18 +18,18 @@ Runtime and gameplay consumers SHALL be able to use the application and engine A
 - **THEN** Vulkan, GLFW, and Jolt dependencies terminate at their implementation targets and are not part of the runtime consumer interface
 
 ### Requirement: Explicit runtime configuration
-The application SHALL supply the runtime with an explicit resource root and optional explicit level path and entry identifier using backend-neutral configuration. Required runtime shaders, fixed prototype textures, and the static model SHALL resolve from that root independently of the process working directory. With no level override, the packaged prototype level SHALL resolve from that root; with an override, only the selected external level SHALL be required. The launcher SHALL derive its default resource root from the actual executable location rather than the textual form of the process invocation and SHALL resolve a relative level argument once before passing it to runtime composition. Entry resolution SHALL use the explicit identifier or the selected document's default and SHALL finish before level-dependent physics, player, or renderer construction. An invalid explicit selection SHALL NOT fall back to packaged content or another entry.
+The application SHALL supply the runtime with an explicit resource root and optional explicit level path and entry identifier using backend-neutral configuration. Required runtime shaders and the selected level's referenced models and materials SHALL resolve from that root independently of the process working directory. With no level override, the packaged prototype level SHALL resolve from that root; with an override, only the selected external level SHALL be required. The launcher SHALL derive its default resource root from the actual executable location rather than the textual form of the process invocation and SHALL resolve a relative level argument once before passing it to runtime composition. Entry resolution SHALL use the explicit identifier or the selected document's default and SHALL finish before level-dependent physics, player, or renderer construction. An invalid explicit selection SHALL NOT fall back to packaged content or another entry.
 
 #### Scenario: Runtime starts from another working directory
 - **WHEN** the executable starts with a valid resource root and either no level override or a resolved absolute level override while the process working directory is elsewhere
-- **THEN** the runtime finds the selected level, shaders, fixed prototype textures, and packaged static GLB and starts normally at the resolved entry
+- **THEN** the runtime finds the selected level, shaders, and referenced packaged models/materials and starts normally at the resolved entry
 
 #### Scenario: Launcher is invoked through an indirect path
 - **WHEN** the project launcher is started through a search path, alias, or invocation string that does not contain the executable directory
 - **THEN** it derives the resource root from the actual executable location and finds the copied runtime assets
 
 #### Scenario: Configured resource is missing
-- **WHEN** the selected level or a required shader, fixed prototype texture, or static GLB is absent
+- **WHEN** the selected level or a required shader, model or material resource is absent
 - **THEN** startup fails with an actionable error containing the resolved missing asset path
 
 #### Scenario: Unselected packaged level is absent
@@ -39,6 +39,10 @@ The application SHALL supply the runtime with an explicit resource root and opti
 #### Scenario: Entry selection fails
 - **WHEN** the requested entry cannot be resolved in the validated selected document
 - **THEN** startup reports the path and identifier, constructs no level-dependent consumer, and releases already-created runtime owners in dependency-safe order
+
+#### Scenario: Unselected model is unavailable
+- **WHEN** the catalog contains an unavailable model that the selected level does not reference
+- **THEN** startup succeeds from its own complete dependency set without reading or requiring that model or the raw source pack
 
 ### Requirement: Explicit subsystem lifetime
 The runtime SHALL initialize its platform owner before creating a window, create the immutable prototype world before the physics state and renderer that consume it, and destroy those subsystems in reverse dependency order. A partially completed startup SHALL release every successfully initialized subsystem exactly once.
@@ -56,11 +60,11 @@ The runtime SHALL initialize its platform owner before creating a window, create
 - **THEN** physics, world, window, and platform are released in dependency-safe order without entering the main loop
 
 ### Requirement: Main-thread loop ownership
-The runtime SHALL keep event processing, close decisions, minimized-window waiting, input sampling, bounded elapsed-time accumulation, fixed-step physics/player updates, look and cursor-capture updates, render-state interpolation, concrete switch interaction and run-local light state, and render coordination under the runtime-owned main-thread loop. Physics SHALL NOT control events, rendering, or application lifetime, and rendering SHALL NOT poll or wait for platform events, interpret player actions, update simulation or camera state, or decide whether the application exits.
+The runtime SHALL keep event processing, close decisions, minimized-window waiting, input sampling, bounded elapsed-time accumulation, fixed-step physics/player and door updates, look and cursor-capture updates, render-state interpolation, shared concrete interaction dispatch, run-local light and door state and feedback, and render coordination under the runtime-owned main-thread loop. Physics SHALL NOT control events, rendering, or application lifetime, and rendering SHALL NOT poll or wait for platform events, interpret player actions, update simulation or camera state, or decide whether the application exits.
 
 #### Scenario: Normal loop iteration
 - **WHEN** the window is open and has a non-zero framebuffer extent
-- **THEN** the runtime processes events and input, advances every complete bounded fixed simulation step, interpolates the player camera from the remaining fraction, evaluates any eligible interaction press once using that view, and supplies the resulting backend-neutral camera frame before requesting at most one rendered frame for that iteration
+- **THEN** the runtime processes events and input, advances every complete bounded fixed simulation step, interpolates the player camera from the remaining fraction, selects the current accepted door poses for both presentation and targeting, evaluates any eligible interaction press once using that view, and supplies the resulting backend-neutral camera, light, and changing opaque presentation before requesting at most one rendered frame for that iteration
 
 #### Scenario: Close is requested
 - **WHEN** event processing reports a window close request
@@ -110,3 +114,25 @@ For every scene frame, the runtime SHALL supply backend-neutral enabled state fo
 #### Scenario: Default frame has no overrides
 - **WHEN** a caller supplies no explicit point-light enable overrides
 - **THEN** both authored point lights are enabled independently of whether a spotlight is present
+
+### Requirement: Explicit run-local door coordination
+The runtime SHALL own mutable door motion, lock state, and temporary feedback independently from immutable authored definitions and renderer/physics resources. It SHALL advance motion and feedback only within the bounded fixed simulation steps, dispatch each sampled action batch once after simulation, and provide the same accepted leaf pose to collision, target queries, and presentation. Player camera interpolation SHALL remain safe with these current leaf poses. Minimized waits SHALL pause door motion and feedback and SHALL NOT accumulate catch-up or delayed actions. Presentation outcomes SHALL NOT reset state or replay concrete results.
+
+#### Scenario: Frame has no fixed step
+- **WHEN** an eligible door action occurs in a renderable batch containing zero fixed steps
+- **THEN** its request is consumed once without immediate angular movement and later fixed steps advance that request
+
+#### Scenario: Multiple doors move
+- **WHEN** more than one authored door requests movement in a fixed step
+- **THEN** accepted poses are deterministic and collision and presentation agree without modifying authored definitions
+
+#### Scenario: Interpolated player view trails movement
+- **WHEN** a door could move into space between the player's previous and current presentation poses
+- **THEN** accepted motion preserves a clear displayed player view rather than putting its interpolated eye inside the leaf
+
+### Requirement: Gameplay-independent changing opaque request
+Frame data SHALL contain only bounded backend-neutral geometric presentation data for changing opaque content, without door actions, locks, durable gameplay identifiers, controllers, physics hits, native bodies, or Vulkan types. Gameplay SHALL resolve temporary feedback to presentation before submission; rendering SHALL only consume that presentation. Authored immutable scene resources SHALL remain separately owned.
+
+#### Scenario: Door frame is prepared
+- **WHEN** runtime state changes a door pose or temporary visual feedback
+- **THEN** the next frame request describes the resulting geometry and appearance without asking the renderer to interpret the gameplay result

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the direct Vulkan 1.3 renderer foundation, including device selection, validation, frame synchronization, swapchain recovery, resource lifetime, and the initial triangle smoke output.
+Defines the direct Vulkan 1.3 presentation of authored static geometry, bounded materials and changing door geometry, including validation, frame synchronization, swapchain recovery and explicit resource lifetime.
 
 ## Requirements
 
@@ -101,11 +101,11 @@ The renderer SHALL validate the current surface capabilities required for swapch
 - **THEN** the renderer completes safe work and schedules swapchain recreation without terminating the application
 
 ### Requirement: Camera-transformed prototype scene rendering
-The renderer SHALL load the scene SPIR-V shaders, fixed prototype surface textures, and validated static model mesh from the explicit runtime resources; upload correctly described immutable opaque vertex and sampled texture data; bind the immutable texture and lighting descriptors; apply the runtime-owned camera frame in the vertex stage; clear the swapchain image; and render the selected level's generated world mesh followed by the imported prop mesh through the same Vulkan graphics pipeline. World geometry SHALL include authored solid structures and the optional switch, and terrain triangles only when terrain exists. The editor SHALL use the same optional-terrain geometry behavior for structurally safe document previews without requiring successful gameplay validation. An empty generated stream in an invalid editable document SHALL omit the world draw safely while retaining other renderable scene content and UI.
+The renderer SHALL load scene SPIR-V shaders and required selected model/material resources from the explicit package root, upload correctly described static triangle and sampled material data, apply the runtime camera and current bounded lighting, clear the swapchain image, and render all selected generated geometry and static placements with correct depth and OPAQUE/MASK coverage. World geometry SHALL include authored solids and the optional switch, terrain only when present, and separately supplied P03 changing opaque presentation. Materials SHALL NOT change door motion, targeting or frame ownership. The editor SHALL preview renderable safe document fields without requiring successful gameplay validation. Empty generated or prop streams SHALL omit their allocations/draws safely while retaining other renderable content and UI. Aggregate expanded vertex/image byte counts and draw ranges SHALL be checked for overflow and supported allocation/draw limits before upload.
 
 #### Scenario: First visible scene frame
 - **WHEN** renderer initialization succeeds with valid runtime resources and the window has a non-zero framebuffer extent
-- **THEN** the application presents the selected textured generated world and imported static prop from the supplied camera pose over the configured clear color
+- **THEN** the application presents the selected material-assigned generated world, static placements and supplied doors from the supplied camera pose over the configured clear color
 
 #### Scenario: Camera frame changes
 - **WHEN** the renderer receives a different valid camera frame
@@ -116,31 +116,31 @@ The renderer SHALL load the scene SPIR-V shaders, fixed prototype surface textur
 - **THEN** startup fails with an error identifying the resolved shader asset path and releases all previously created Vulkan resources
 
 #### Scenario: Scene texture asset is unavailable or invalid
-- **WHEN** a required fixed prototype texture cannot be read or decoded beneath the configured resource root
+- **WHEN** a required selected material texture cannot be read or decoded beneath the configured resource root
 - **THEN** startup fails with an error identifying the resolved texture asset path and releases all previously created Vulkan resources
 
 #### Scenario: Static model asset is unavailable or invalid
-- **WHEN** the required static GLB cannot be read, validated, converted, or uploaded
+- **WHEN** any required selected static GLB cannot be read, validated, converted, or uploaded
 - **THEN** startup fails with an error identifying the resolved model asset path and releases all previously created Vulkan resources
 
 #### Scenario: Interior has no terrain
 - **WHEN** a valid interior is rendered in the game or editor
-- **THEN** its slabs, walls, stairs, chair, and any switch appear through the existing depth-tested textured lighting path without an invented terrain surface
+- **THEN** its slabs, walls, stairs, authored static placements, switch and doors appear through the existing depth-tested textured lighting path without an invented terrain surface
 
 #### Scenario: Invalid interior has no generated geometry
 - **WHEN** an editable terrain-free document has no solids and no switch
-- **THEN** the editor still displays its chair, markers, validation feedback, and UI without allocating a zero-sized world buffer or submitting an invalid draw
+- **THEN** the editor still displays any renderable props/doors, markers, validation feedback, and UI without allocating a zero-sized world buffer or submitting an invalid draw
 
 ### Requirement: Immutable opaque mesh buffer ownership
-The renderer SHALL give each non-empty generated world mesh and imported prop mesh an explicit renderer-lifetime buffer owner. Each owner SHALL keep its vertex buffer and allocation valid until every dependent draw is complete, SHALL release partial construction exactly once, and SHALL survive swapchain recreation when the graphics pipeline format remains compatible. An absent generated stream SHALL require neither an empty allocation nor a world draw. Editor document replacement between terrain-bearing and terrain-free scenes SHALL install replacement resources transactionally after dependent GPU work completes and SHALL retain the previous usable resources if replacement fails.
+Every non-empty static generated or model-placement mesh SHALL have an explicit resource owner whose buffers and allocations remain valid until dependent draws finish. Static resource creation SHALL release partial construction exactly once and survive swapchain recreation when pipeline format remains compatible. Empty static streams SHALL require neither empty allocations nor draws. Model/material resources shared by repeated placements SHALL outlive all their users. Editor replacement between scene contents SHALL install resources transactionally after dependent GPU work completes and retain prior usable resources on failure. P03 changing geometry SHALL retain its separate frame-slot lifetime and SHALL NOT turn static meshes into per-frame mutable resources.
 
 #### Scenario: Opaque scene frame is recorded
-- **WHEN** both immutable mesh buffers have initialized successfully
-- **THEN** the renderer binds and draws each buffer once through the same opaque pipeline and descriptors
+- **WHEN** the selected non-empty static mesh resources have initialized successfully
+- **THEN** the renderer presents all intended static ranges with their correct material bindings and current bounded scene lighting
 
 #### Scenario: Swapchain is recreated without a format change
 - **WHEN** resize, out-of-date acquisition, or suboptimal presentation recreates swapchain-dependent resources with the existing format
-- **THEN** neither immutable mesh buffer is rebuilt or re-uploaded
+- **THEN** no immutable static mesh is rebuilt or re-uploaded
 
 #### Scenario: Model buffer creation fails partway
 - **WHEN** imported mesh buffer creation, memory allocation, binding, mapping, or upload fails
@@ -185,11 +185,11 @@ Every Vulkan handle SHALL have one explicit owner, non-owning references SHALL b
 - **THEN** the Vulkan validation layer reports no errors
 
 ### Requirement: Sampled prototype texture lifetime
-The renderer SHALL decode the fixed prototype texture set before entering the frame loop, SHALL upload it into device-local sampled image storage with a complete mip chain, and SHALL own the image memory, image view, sampler, descriptor layout, descriptor pool, and descriptor set explicitly. The sampled texture resources SHALL remain immutable after startup and SHALL outlive every draw or descriptor that refers to them.
+The renderer SHALL decode only textures required by the selected scene before entering the frame loop, upload their validated OPAQUE/MASK base-color data into device-local sampled storage with complete mip chains, and own images, memory, views, samplers and material descriptors explicitly. Sampled material resources SHALL remain immutable during runtime and outlive every draw or descriptor that refers to them, including repeated placements and generated doors. Camera, door, point-light and spotlight updates SHALL NOT require texture decoding, texture upload or mutable material descriptors. Material data SHALL fit the existing Vulkan baseline without increasing mandatory push-constant capacity.
 
 #### Scenario: Textured renderer starts
-- **WHEN** all fixed texture assets decode successfully and the selected device supports their required sampled and transfer operations
-- **THEN** renderer initialization uploads a complete sampled texture resource and binds one immutable texture descriptor for the opaque scene pipeline
+- **WHEN** all required selected material textures decode successfully and the selected device supports their required sampled and transfer operations
+- **THEN** renderer initialization uploads complete sampled textures and binds the correct immutable material descriptors for the corresponding scene ranges
 
 #### Scenario: Texture upload fails partway
 - **WHEN** decoding, staging, image allocation, transfer, mip generation, image-view creation, sampler creation, or descriptor creation fails
@@ -197,11 +197,15 @@ The renderer SHALL decode the fixed prototype texture set before entering the fr
 
 #### Scenario: Swapchain is recreated
 - **WHEN** resize, out-of-date acquisition, or suboptimal presentation recreates swapchain-dependent resources
-- **THEN** the immutable sampled texture image, view, sampler, and decoded surface assignment remain valid without being decoded or uploaded again
+- **THEN** the immutable sampled texture images, views, samplers, and decoded material assignments remain valid without being decoded or uploaded again
 
 #### Scenario: Required texture format operation is unavailable
-- **WHEN** the selected physical device cannot sample, transfer, or generate the required mip chain for the fixed texture format
+- **WHEN** the selected physical device cannot sample, transfer, or generate the required mip chain for the selected supported texture format
 - **THEN** renderer startup fails with an actionable message identifying the missing texture-format capability
+
+#### Scenario: Cutout overlaps geometry during recovery
+- **WHEN** the phone cord overlaps a contrasting surface while the game or editor resizes or restores
+- **THEN** MASK-discarded fragments write no depth and surviving fragments retain correct occlusion, material sampling and lighting after recovery
 
 ### Requirement: Per-frame spot-light presentation
 The renderer SHALL accept at most one valid optional source-independent spot-light description with each frame request and SHALL apply changes in its pose, parameters, or enabled state to the next submitted opaque scene draw. Updating the spot light SHALL NOT recreate the graphics pipeline, swapchain, immutable scene geometry, sampled textures, or immutable point-light resources; SHALL NOT add another scene draw; and SHALL remain safe for the current frames-in-flight model.
@@ -232,3 +236,26 @@ Each successfully presented scene frame SHALL apply its requested enabled state 
 #### Scenario: Presentation recovers after a toggle
 - **WHEN** resize, swapchain recovery, or minimize/restore occurs after a point light is disabled
 - **THEN** the next presented frame uses the requested current light state and retained immutable scene resources without validation errors
+
+### Requirement: Bounded changing opaque presentation
+The renderer SHALL present the bounded changing opaque geometry supplied for each scene frame, including this milestone's generated door leaves and temporary feedback geometry, with correct world-space normals, opaque depth visibility, existing textures, and the current point-light, ambient, and optional spotlight state. Changing a door pose or feedback SHALL NOT rebuild or reupload the immutable world or prop meshes or recreate textures, immutable lighting resources, pipeline, or swapchain. The renderer SHALL NOT infer movement, locks, targeting, or feedback timing from gameplay. Per-frame changing geometry SHALL remain within the existing Vulkan baseline and frames-in-flight lifetime guarantees.
+
+#### Scenario: Doors move repeatedly
+- **WHEN** consecutive frames contain changing accepted leaf poses and feedback
+- **THEN** each submitted frame uses its own supplied geometry with correct lighting and depth while static resources remain valid
+
+#### Scenario: No doors are authored
+- **WHEN** a scene frame has no changing opaque geometry
+- **THEN** no empty allocation or invalid door draw is required and the static scene remains available
+
+#### Scenario: Frame slot is reused
+- **WHEN** a frame slot carrying earlier door vertices is reused
+- **THEN** the earlier GPU work completes before those vertices or their allocations can be overwritten or destroyed
+
+#### Scenario: Presentation recovers during door motion
+- **WHEN** repeated motion spans resize, minimize/restore, out-of-date acquisition, or suboptimal presentation
+- **THEN** the next submitted frame uses current supplied poses without stale vertices, resetting runtime state, or validation errors
+
+#### Scenario: Changing geometry allocation fails
+- **WHEN** allocation, mapping, upload, or scene replacement for door presentation fails
+- **THEN** the failure is actionable, partial owners are released exactly once, and failed editor replacement retains the preceding usable resources

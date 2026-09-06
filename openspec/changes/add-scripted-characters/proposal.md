@@ -57,7 +57,7 @@ animation machinery. Document the character export and scene-blocking workflow.
 
 ## Dependencies and Boundaries
 
-P07; requires [P02](../add-authored-scene-assets/proposal.md) and
+P07; requires [P02](../archive/2026-09-06-add-authored-scene-assets/proposal.md) and
 [P09](../add-checkpoint-resume/proposal.md), including their story/audio/door
 prerequisites. P08 owns the escape encounter; this change supplies its concrete
 actors. Confirm visibility/clip requirements before choosing animation details.

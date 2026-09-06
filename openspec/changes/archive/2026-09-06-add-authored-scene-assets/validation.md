@@ -128,7 +128,7 @@ when rendered later; the covered phone remains in front. This supplies actual
 GPU color/depth evidence beyond the CPU alpha helper. Original packaged levels,
 models and source pack were unchanged by the inspection copies.
 
-Task 7.5 remains open only for the full manual furnished route from both named
+At the earlier automated/desktop audit, task 7.5 remained open only for the full manual furnished route from both named
 starts. Both complete routes pass the standing-player/door deterministic test;
 desktop input covered the doorway, kitchen and upward stairs in separate runs,
 but no reliable complete manual route record was obtained. See P03 validation
@@ -138,16 +138,29 @@ for two-sided door, player-stop, light and restart observations and limits.
 
 ARCHITECTURE, GAMEPLAY, RENDERING, DEVELOPMENT, ROADMAP and selected-asset
 preparation/provenance docs describe the final composed v6 implementation.
-Task 7.6 remains open for main-spec synchronization and stale Purpose text.
-No sync/archive was performed. Both current active changes pass strict
-validation against their reviewed baseline. The installed CLI rejects P03's
-modified requirements after a full P02 sync because eight of them lack the
-new P02 scenarios; it has no applied-baseline marker or suppression flag.
-The sequential handoff is sync/archive P03, then sync P02, explicitly update
-stale main Purpose text, and archive P02. This keeps the two change scopes
-separate without rewriting P03 around its successor.
+Task 7.6 is closed: after P03 synchronization and archive, all thirteen P02
+capability deltas were merged and verified against the main specs. Stale
+Purpose descriptions were updated for the final authored scene, materials,
+placements, physics and rendering profile. P02 passed strict validation and
+was archived; roadmap and dependency links now point to both archives.
 
 Final git diff review and git diff --check passed. The raw house_interior_pack
 and unrelated plot.md remain untouched and untracked. There is no generalized
 asset registry, hierarchy editor, PBR pipeline, runtime prop mutation or new
 Vulkan device feature requirement.
+
+## User acceptance on 2026-09-06
+
+After the remaining manual checks were explicitly listed in the conversation,
+the user confirmed that they had checked the changes, were satisfied, and
+requested closure of P02 and P03. This closes manual acceptance task 7.5.
+This is user-reported acceptance; no new agent-observed screenshots or
+per-scenario measurements are claimed. The earlier audit limitations above
+remain a historical record of the agent-run checks.
+
+## Archive verification on 2026-09-06
+
+All 23 main specs passed strict validation after the ordered sync. Closure
+changes only documentation, task records and specifications; runtime code,
+assets and build configuration are unchanged. The recorded build, CPU tests
+and Vulkan smoke results above were not rerun for this documentation handoff.

@@ -58,7 +58,7 @@ identified target hardware/resolution before substantial optimization.
 
 ## Dependencies and Boundaries
 
-P10; requires [P02](../add-authored-scene-assets/proposal.md) and
+P10; requires [P02](../archive/2026-09-06-add-authored-scene-assets/proposal.md) and
 [P05](../add-narrative-state-and-sequences/proposal.md).
 Investigation may start after P01. Final M6 acceptance uses P07 actors and P09
 checkpoints when integrated; those are integration checks, not prerequisites

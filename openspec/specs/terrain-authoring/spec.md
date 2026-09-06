@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines deterministic, undoable terrain-brush behavior for editing the bounded version-2 game heightfield while keeping `near_laugh` runtime terrain immutable and non-voxel.
+Defines deterministic, undoable heightfield-brush behavior for authored terrain while preserving material assignments, unrelated level objects and immutable runtime terrain.
 
 ## Requirements
 
@@ -92,8 +92,8 @@ Terrain edits SHALL refresh the shared level validation result after each comple
 - **THEN** the upper entry remains valid at its unchanged authored pose
 
 ### Requirement: Heightfield-only authoring boundary
-Terrain authoring SHALL modify only height samples in the single bounded heightfield and SHALL preserve the fixed floor, boundary, and obstacle surface roles. It SHALL NOT create holes, caves, overhangs, additional terrain surfaces, voxel data, texture paint, procedural or erosion output, or runtime-deformable terrain.
+Terrain brushes SHALL modify only height samples in the single bounded heightfield and SHALL preserve all authored terrain/solid material assignments and unrelated props and doors. The separate terrain material property SHALL choose one packaged opaque structural material for the whole terrain and SHALL NOT become a texture-paint brush. It SHALL NOT create holes, caves, overhangs, additional terrain surfaces, voxel data, texture paint, procedural or erosion output, or runtime-deformable terrain.
 
 #### Scenario: Terrain tools are inspected
 - **WHEN** the terrain-authoring controls and saved level data are inspected
-- **THEN** they expose only heightfield brush operations and the existing fixed terrain representation
+- **THEN** brushes expose only heightfield operations, any separate material choice applies uniformly, and the saved heightfield layout remains bounded

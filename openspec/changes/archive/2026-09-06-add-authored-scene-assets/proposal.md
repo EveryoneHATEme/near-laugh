@@ -71,7 +71,7 @@ Do not choose a larger rendering architecture merely to support more props.
 ## Dependencies and Boundaries
 
 P02; its feature prerequisite is
-[P01](../archive/2026-09-06-add-interior-level-authoring/proposal.md).
+[P01](../2026-09-06-add-interior-level-authoring/proposal.md).
 Planning and isolated importer/material work can run alongside P03. The chosen
 integration order is P03 then P02, so the shared codec, editor, physics, and
 renderer deltas compose against P03's final version-5 contracts before apply.

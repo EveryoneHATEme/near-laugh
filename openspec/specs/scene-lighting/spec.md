@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the small, deterministic environment-lighting model that makes the built-in opaque game prototype scene spatially readable without external art assets.
+Defines bounded ambient, point and optional spot lighting for authored game geometry and supported materials, with independent runtime light enables.
 
 ## Requirements
 
@@ -64,8 +64,8 @@ The opaque prototype scene SHALL combine its readable ambient contribution with 
 - **THEN** that light contributes zero while ambient, the other enabled point light, and an active spotlight continue to be evaluated normally
 
 ### Requirement: Packaged lighting shaders
-The lit prototype scene SHALL remain executable from the existing explicit runtime resource root and SHALL require only the packaged level, scene shaders, fixed prototype surface textures, and required static GLB. It SHALL NOT require a general material or a separate external lighting data file beyond the packaged level.
+The lit scene SHALL execute from the explicit runtime resource root using the selected level, scene shaders and referenced model/material resources. It SHALL retain the two authored point lights, their independent enabled state, ambient and optional spotlight behavior for all generated geometry, doors and surviving OPAQUE/MASK prop fragments. It SHALL NOT require a general material framework, a separate lighting data file, or the raw source pack. Base-color materials SHALL NOT implicitly add emission, roughness/specular lighting or extra lights.
 
 #### Scenario: Executable-relative resources are complete
-- **WHEN** the launcher supplies a valid executable-relative resource root containing the packaged level, lit scene shaders, fixed surface textures, and static GLB
-- **THEN** renderer startup can construct the lit textured scene pipeline and both opaque mesh draws without consulting the process working directory or additional graphics assets
+- **WHEN** the launcher supplies a valid executable-relative resource root containing the selected level, lit scene shaders, and all referenced model/material resources
+- **THEN** renderer startup can construct the lit textured scene pipeline and its selected generated, prop and door draws without consulting the process working directory or unrelated graphics assets

@@ -12,12 +12,12 @@ This is a sequence of work, not a delivery-date commitment. P01 is implemented
 and archived, providing interior authoring and saved-file playtesting. Its automated checks and M1
 Windows desktop acceptance passed, as recorded in its
 [validation record](../openspec/changes/archive/2026-09-06-add-interior-level-authoring/validation.md).
-P02 and P03 are implemented together: generated interactive doors and selected
-apartment assets share the final v6 level format. The combined build, 281 debug
-tests and seven Vulkan smoke tests pass; their linked change directories record
-the desktop observations and remaining handoff work. Main-spec synchronization
-and archive remain ordered P03 then P02 so the active deltas retain their
-reviewed baseline. The remaining nine linked changes currently
+P02 and P03 are implemented and archived: generated interactive doors and
+selected apartment assets share the final v6 level format. Their validation
+records retain the successful combined build, 281 debug tests and seven Vulkan
+smoke tests, agent desktop observations, and user-confirmed manual acceptance
+on 2026-09-06. Main specs were synchronized in order P03 then P02, with each
+change archived before the next sync. The remaining nine linked changes
 capture proposals only; their designs, delta specs, and tasks must be developed
 and reviewed before implementation. Structural validation alone does not
 establish implementation readiness. Those proposal-only feature changes do
@@ -83,8 +83,8 @@ dependent change and rebase its artifacts on the resulting main specs.
 | ID | Proposal | Direct prerequisites |
 | --- | --- | --- |
 | P01 | [Interior level authoring](../openspec/changes/archive/2026-09-06-add-interior-level-authoring/proposal.md) | None |
-| P02 | [Authored scene assets](../openspec/changes/add-authored-scene-assets/proposal.md) | P01 |
-| P03 | [Interactive doors](../openspec/changes/add-interactive-doors/proposal.md) | P01 |
+| P02 | [Authored scene assets](../openspec/changes/archive/2026-09-06-add-authored-scene-assets/proposal.md) | P01 |
+| P03 | [Interactive doors](../openspec/changes/archive/2026-09-06-add-interactive-doors/proposal.md) | P01 |
 | P04 | [Spatial audio and captions](../openspec/changes/add-spatial-audio-and-captions/proposal.md) | P03 |
 | P05 | [Narrative state and sequences](../openspec/changes/add-narrative-state-and-sequences/proposal.md) | P04 |
 | P06 | [Household interactions](../openspec/changes/add-household-interactions/proposal.md) | P05 |

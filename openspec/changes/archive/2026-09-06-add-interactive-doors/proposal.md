@@ -60,7 +60,7 @@ controls and door-authoring documentation.
 
 ## Dependencies and Boundaries
 
-P03; requires [P01](../archive/2026-09-06-add-interior-level-authoring/proposal.md).
+P03; requires [P01](../2026-09-06-add-interior-level-authoring/proposal.md).
 Audio response is supplied by P04 and narrative control by P05. These later
 consumers use the same authoritative door state.
 
