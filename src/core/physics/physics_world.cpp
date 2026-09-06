@@ -1,7 +1,9 @@
 #include "core/physics/physics_world.hpp"
 
 // Jolt's configuration header must precede its other headers.
+// clang-format off
 #include <Jolt/Jolt.h>
+// clang-format on
 
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/IssueReporting.h>
@@ -11,6 +13,8 @@
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/RayCast.h>
@@ -21,16 +25,21 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "core/world/door.hpp"
+#include "core/world/scene_assets.hpp"
 
 namespace {
 namespace layers {
@@ -260,14 +269,15 @@ class PhysicsWorld::Impl {
   Impl(const PrototypeLevel& level, const LevelEntry& entry)
       : job_system_(JPH::cMaxPhysicsJobs),
         standing_shape_(makePlayerCapsule(player_standing_height)),
-        crouched_shape_(makePlayerCapsule(player_crouched_height)) {
+        crouched_shape_(makePlayerCapsule(player_crouched_height)),
+        doors_(level.doors()) {
     if (!prototypeLevelIsValid(level) || !level.entry(entry.id) ||
         *level.entry(entry.id) != entry) {
       throw std::invalid_argument(
           "Physics world requires a valid immutable prototype level");
     }
 
-    physics_system_.Init(256, 0, 1024, 1024, broad_phase_interface_,
+    physics_system_.Init(2048, 0, 4096, 4096, broad_phase_interface_,
                          object_vs_broad_phase_filter_,
                          object_layer_pair_filter_);
     physics_system_.SetGravity({0.0F, -18.0F, 0.0F});
@@ -276,8 +286,13 @@ class PhysicsWorld::Impl {
           "Physics initialization forced to fail after world creation");
     }
 
-    static_solids_.reserve(level.solids().size() + 1);
-    static_body_ids_.reserve(level.solids().size() + 2);
+    std::size_t static_count = level.solids().size();
+    for (const auto& prop : level.props())
+      static_count += prop.collision_boxes.size();
+    static_solids_.reserve(static_count);
+    static_body_ids_.reserve(static_count + 1);
+    door_body_ids_.reserve(doors_.size());
+    door_angles_.reserve(doors_.size());
     try {
       if (level.terrain()) {
         const JPH::RefConst<JPH::Shape> terrain_shape =
@@ -300,8 +315,9 @@ class PhysicsWorld::Impl {
            ++solid_index) {
         const PrototypeSolid& solid = level.solids()[solid_index];
         JPH::BodyCreationSettings settings(
-            new JPH::BoxShape({solid.half_extent.x, solid.half_extent.y,
-                               solid.half_extent.z}),
+            new JPH::BoxShape(
+                {solid.half_extent.x, solid.half_extent.y, solid.half_extent.z},
+                0),
             {solid.center.x, solid.center.y, solid.center.z},
             JPH::Quat::sIdentity(), JPH::EMotionType::Static,
             layers::non_moving);
@@ -322,38 +338,65 @@ class PhysicsWorld::Impl {
               "creation");
         }
       }
-      const PrototypeStaticProp& prop = level.staticProp();
-      const WorldPosition prop_center =
-          prototypeStaticPropProxyWorldCenter(prop);
-      const WorldExtent prop_half_extent =
-          prototypeStaticPropProxyWorldHalfExtent(prop);
-      JPH::BodyCreationSettings prop_settings(
-          new JPH::BoxShape(
-              {prop_half_extent.x, prop_half_extent.y, prop_half_extent.z}),
-          {prop_center.x, prop_center.y, prop_center.z},
-          JPH::Quat::sRotation(JPH::Vec3::sAxisY(),
-                               JPH::DegreesToRadians(prop.yaw_degrees)),
-          JPH::EMotionType::Static, layers::non_moving);
-      prop_settings.mUserData = static_cast<JPH::uint64>(level.solids().size());
-      const JPH::BodyID prop_id =
-          physics_system_.GetBodyInterface().CreateAndAddBody(
-              prop_settings, JPH::EActivation::DontActivate);
-      if (prop_id.IsInvalid()) {
-        throw std::runtime_error(
-            "Create static prototype chair proxy body failed");
+      for (const auto& prop : level.props()) {
+        for (const auto& box : prop.collision_boxes) {
+          const WorldPosition prop_center = propBoxWorldCenter(prop, box);
+          const WorldExtent prop_half_extent =
+              propBoxWorldHalfExtent(prop, box);
+          JPH::BodyCreationSettings prop_settings(
+              new JPH::BoxShape(
+                  {prop_half_extent.x, prop_half_extent.y, prop_half_extent.z},
+                  0),
+              {prop_center.x, prop_center.y, prop_center.z},
+              JPH::Quat::sRotation(JPH::Vec3::sAxisY(),
+                                   JPH::DegreesToRadians(prop.yaw_degrees)),
+              JPH::EMotionType::Static, layers::non_moving);
+          prop_settings.mUserData =
+              static_cast<JPH::uint64>(static_solids_.size());
+          const JPH::BodyID prop_id =
+              physics_system_.GetBodyInterface().CreateAndAddBody(
+                  prop_settings, JPH::EActivation::DontActivate);
+          if (prop_id.IsInvalid()) {
+            throw std::runtime_error("Create static prop proxy body failed: " +
+                                     prop.id);
+          }
+          static_body_ids_.push_back(prop_id);
+          static_solids_.push_back({prop_center, prop_half_extent,
+                                    PrototypeSolidKind::Obstacle,
+                                    prop.yaw_degrees});
+          if (forcedFailureAt("model-proxy")) {
+            throw std::runtime_error(
+                "Physics initialization forced to fail after model proxy "
+                "creation");
+          }
+        }
       }
-      static_body_ids_.push_back(prop_id);
-      static_solids_.push_back({prop_center, prop_half_extent,
-                                PrototypeSolidKind::Obstacle,
-                                prop.yaw_degrees});
-      if (forcedFailureAt("model-proxy")) {
-        throw std::runtime_error(
-            "Physics initialization forced to fail after model proxy creation");
+      for (const auto& door : doors_) {
+        const auto angle = doorInitialAngle(door);
+        const auto pose = doorLeafPose(door, angle);
+        JPH::BodyCreationSettings settings(
+            new JPH::BoxShape(
+                {pose.half_extent.x, pose.half_extent.y, pose.half_extent.z},
+                0),
+            {pose.center.x, pose.center.y, pose.center.z},
+            JPH::Quat::sRotation(JPH::Vec3::sAxisY(),
+                                 JPH::DegreesToRadians(pose.yaw_degrees)),
+            JPH::EMotionType::Kinematic, layers::moving);
+        const auto id = physics_system_.GetBodyInterface().CreateAndAddBody(
+            settings, JPH::EActivation::DontActivate);
+        if (id.IsInvalid())
+          throw std::runtime_error("Create door collision failed: " + door.id);
+        door_body_ids_.push_back(id);
+        door_angles_.push_back(angle);
       }
+      if (!door_body_ids_.empty() && forcedFailureAt("door-bodies"))
+        throw std::runtime_error(
+            "Physics initialization forced to fail after door bodies");
       physics_system_.OptimizeBroadPhase();
 
       JPH::CharacterVirtualSettings character_settings;
       character_settings.mShape = standing_shape_;
+      character_settings.mCharacterPadding = prototype_player_contact_padding;
       character_settings.mMaxSlopeAngle =
           JPH::DegreesToRadians(player_maximum_slope_degrees);
       character_settings.mSupportingVolume =
@@ -362,6 +405,7 @@ class PhysicsWorld::Impl {
       character_ = new JPH::CharacterVirtual(
           &character_settings, toJoltFootPosition(entry.pose.foot_position),
           JPH::Quat::sIdentity(), 0, &physics_system_);
+      previous_character_ = characterState();
       if (forcedFailureAt("character")) {
         throw std::runtime_error(
             "Physics initialization forced to fail after character creation");
@@ -385,6 +429,7 @@ class PhysicsWorld::Impl {
           "Physics character step requires a finite positive delta");
     }
 
+    previous_character_ = characterState();
     applyRequestedStance(motion.crouch_requested);
     physics_system_.Update(delta_seconds, 1, &temp_allocator_, &job_system_);
     const JPH::Vec3 gravity{motion.gravity.x, motion.gravity.y,
@@ -430,8 +475,129 @@ class PhysicsWorld::Impl {
     }
   }
 
+  DoorLeafPose playerEnvelope() const {
+    const auto now = characterState();
+    const auto a = previous_character_.foot_position;
+    const auto b = now.foot_position;
+    const float height =
+        previous_character_.stance == PhysicsPlayerStance::Standing ||
+                now.stance == PhysicsPlayerStance::Standing
+            ? player_standing_height
+            : player_crouched_height;
+    // CharacterVirtual raises the shape by padding and keeps an additional
+    // padding skin around it. Include both the collider and its contact skin.
+    const float padding = character_->GetCharacterPadding();
+    const float radius = player_capsule_radius + padding;
+    const float lo = std::min(a.y, b.y);
+    const float hi = std::max(a.y, b.y) + height + 2 * padding;
+    return {{(a.x + b.x) / 2, (lo + hi) / 2, (a.z + b.z) / 2},
+            {std::abs(a.x - b.x) / 2 + radius, (hi - lo) / 2,
+             std::abs(a.z - b.z) / 2 + radius},
+            0};
+  }
+
+  bool doorIntervalClear(std::size_t index, float from, float to) const {
+    const auto& door = doors_[index];
+    const float midpoint = (from + to) / 2;
+    WorldPosition lo{std::numeric_limits<float>::infinity(), 0,
+                     std::numeric_limits<float>::infinity()};
+    WorldPosition hi{-lo.x, door.height, -lo.z};
+    for (float angle : {from, to})
+      for (auto corner : doorCorners(door, angle)) {
+        const auto p = doorLocalPoint(door, midpoint, corner);
+        lo.x = std::min(lo.x, p.x);
+        lo.z = std::min(lo.z, p.z);
+        hi.x = std::max(hi.x, p.x);
+        hi.z = std::max(hi.z, p.z);
+      }
+    const double half_angle =
+        std::abs(double(to) - from) * std::numbers::pi / 360;
+    const float margin =
+        float(std::hypot(double(door.width), double(door.thickness) / 2) *
+              (1 - std::cos(half_angle))) +
+        0.0001F;
+    const auto center =
+        doorWorldPoint(door, midpoint,
+                       {(lo.x + hi.x) / 2, door.height / 2, (lo.z + hi.z) / 2});
+    const DoorLeafPose envelope{center,
+                                {(hi.x - lo.x) / 2 + margin, door.height / 2,
+                                 (hi.z - lo.z) / 2 + margin},
+                                doorLeafPose(door, midpoint).yaw_degrees};
+    if (yawedBoxesOverlap(envelope, playerEnvelope(), -0.0001F)) return false;
+    JPH::BoxShape shape({envelope.half_extent.x, envelope.half_extent.y,
+                         envelope.half_extent.z},
+                        0);
+    const JPH::RVec3 position{center.x, center.y, center.z};
+    const auto rotation = JPH::Quat::sRotation(
+        JPH::Vec3::sAxisY(), JPH::DegreesToRadians(envelope.yaw_degrees));
+    JPH::CollideShapeSettings settings;
+    settings.mBackFaceMode = JPH::EBackFaceMode::CollideWithBackFaces;
+    settings.mActiveEdgeMode = JPH::EActiveEdgeMode::CollideWithAll;
+    JPH::ClosestHitCollisionCollector<JPH::CollideShapeCollector> collector;
+    physics_system_.GetNarrowPhaseQuery().CollideShape(
+        &shape, JPH::Vec3::sReplicate(1),
+        JPH::RMat44::sRotationTranslation(rotation, position), settings,
+        position, collector, {}, {},
+        JPH::IgnoreSingleBodyFilter(door_body_ids_[index]));
+    return !collector.HadHit() || collector.mHit.mPenetrationDepth < 0;
+  }
+
+  PhysicsDoorAdvance advanceDoor(std::size_t index, float target) {
+    if (index >= doors_.size())
+      throw std::out_of_range("Unknown door collision index");
+    const auto& door = doors_[index];
+    if (!std::isfinite(target) ||
+        target < std::min(0.0F, door.open_angle_degrees) ||
+        target > std::max(0.0F, door.open_angle_degrees))
+      throw std::invalid_argument("Door angle exceeds authored limits");
+    float angle = door_angles_[index];
+    bool blocked = false;
+    const int intervals = int(std::ceil(std::abs(target - angle)));
+    for (int i = 0; i < intervals; ++i) {
+      const float end = i + 1 == intervals
+                            ? target
+                            : angle + std::copysign(1.0F, target - angle);
+      if (doorIntervalClear(index, angle, end)) {
+        angle = end;
+        continue;
+      }
+      float clear = angle, unsafe = end;
+      const float radius = std::hypot(door.width, door.thickness / 2);
+      for (int j = 0;
+           j < 12 &&
+           std::abs(unsafe - clear) * std::numbers::pi_v<float> / 180 * radius >
+               0.001F;
+           ++j) {
+        const float middle = (clear + unsafe) / 2;
+        if (doorIntervalClear(index, clear, middle))
+          clear = middle;
+        else
+          unsafe = middle;
+      }
+      angle = clear;
+      blocked = true;
+      break;
+    }
+    if (angle != door_angles_[index]) {
+      const auto pose = doorLeafPose(door, angle);
+      physics_system_.GetBodyInterface().SetPositionAndRotation(
+          door_body_ids_[index], {pose.center.x, pose.center.y, pose.center.z},
+          JPH::Quat::sRotation(JPH::Vec3::sAxisY(),
+                               JPH::DegreesToRadians(pose.yaw_degrees)),
+          JPH::EActivation::DontActivate);
+      door_angles_[index] = angle;
+    }
+    return {angle, blocked};
+  }
+
   void destroyStaticBodies() noexcept {
     JPH::BodyInterface& bodies = physics_system_.GetBodyInterface();
+    for (const auto id : door_body_ids_) {
+      bodies.RemoveBody(id);
+      bodies.DestroyBody(id);
+    }
+    door_body_ids_.clear();
+    door_angles_.clear();
     for (const JPH::BodyID id : static_body_ids_) {
       bodies.RemoveBody(id);
       bodies.DestroyBody(id);
@@ -452,6 +618,10 @@ class PhysicsWorld::Impl {
   JPH::RefConst<JPH::Shape> crouched_shape_{};
   std::vector<JPH::BodyID> static_body_ids_{};
   std::vector<PhysicsStaticSolid> static_solids_{};
+  const std::vector<DoorDefinition>& doors_;
+  std::vector<JPH::BodyID> door_body_ids_{};
+  std::vector<float> door_angles_{};
+  PhysicsCharacterState previous_character_{};
   JPH::Ref<JPH::CharacterVirtual> character_{};
   bool terrain_collision_installed_{};
   bool crouched_{};
@@ -509,4 +679,35 @@ bool PhysicsWorld::staticSegmentBlocked(WorldPosition origin,
   // static body; the explicit layer filter also excludes moving bodies.
   return impl_->physics_system_.GetNarrowPhaseQuery().CastRay(
       ray, hit, {}, StaticVisibilityFilter{});
+}
+
+bool PhysicsWorld::worldSegmentBlocked(WorldPosition origin,
+                                       WorldPosition endpoint,
+                                       std::string_view selected_door) const {
+  if (staticSegmentBlocked(origin, endpoint)) return true;
+  for (std::size_t i = 0; i < impl_->doors_.size(); ++i) {
+    const auto& door = impl_->doors_[i];
+    if (doorPointInside(door, impl_->door_angles_[i], origin)) return true;
+    if (door.id == selected_door) continue;
+    const WorldPosition delta{endpoint.x - origin.x, endpoint.y - origin.y,
+                              endpoint.z - origin.z};
+    const float length = std::hypot(delta.x, delta.y, delta.z);
+    const auto distance =
+        doorRayDistance(door, impl_->door_angles_[i], origin, delta);
+    if (distance && *distance <= length + 0.0001F) return true;
+  }
+  return false;
+}
+
+PhysicsDoorAdvance PhysicsWorld::advanceDoor(std::size_t index,
+                                             float requested_angle) {
+  return impl_->advanceDoor(index, requested_angle);
+}
+
+float PhysicsWorld::doorAngle(std::size_t index) const {
+  return impl_->door_angles_.at(index);
+}
+
+std::size_t PhysicsWorld::doorCount() const noexcept {
+  return impl_->doors_.size();
 }

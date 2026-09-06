@@ -4,8 +4,10 @@
 #include <type_traits>
 #include <utility>
 
+#include "core/world/door.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 #include "editor/editor_document.hpp"
 
 namespace {
@@ -30,7 +32,8 @@ std::optional<EditorObjectValue> editorPlacedObject(
     const EditorPlacementOffsets& offsets) {
   if (!finite(hit.position) || !finite(hit.normal) ||
       !std::isfinite(offsets.height) || !std::isfinite(offsets.outward) ||
-      offsets.outward < 0 || hit.face == EditorSurfaceFace::Bottom)
+      offsets.outward < 0 || !std::isfinite(offsets.door_clearance) ||
+      offsets.door_clearance < 0 || hit.face == EditorSurfaceFace::Bottom)
     return std::nullopt;
   const bool top = hit.face == EditorSurfaceFace::Top ||
                    hit.face == EditorSurfaceFace::Terrain;
@@ -50,6 +53,12 @@ std::optional<EditorObjectValue> editorPlacedObject(
           if (top)
             object.pose.foot_position = hit.position;
           else
+            available = false;
+        } else if constexpr (std::is_same_v<T, DoorDefinition>) {
+          if (top) {
+            object.hinge_position = hit.position;
+            object.hinge_position.y += offsets.door_clearance;
+          } else
             available = false;
         } else if constexpr (std::is_same_v<T, PrototypeStaticProp>) {
           if (top)
@@ -98,8 +107,7 @@ std::string editorObjectFieldError(const EditorObjectValue& value) {
             default:
               return "Unsupported solid kind.";
           }
-          if (!prototypeSurfaceIsValid(v.surface))
-            return "Unsupported solid surface.";
+          // Unknown material IDs remain repairable document diagnostics.
         } else if constexpr (std::is_same_v<T, LevelEntry>) {
           if (!finite(v.pose.foot_position))
             return "Spawn foot position must be finite.";
@@ -125,23 +133,40 @@ std::string editorObjectFieldError(const EditorObjectValue& value) {
             return "Switch must link Point light 1 or 2.";
           if (!lightSwitchIsValid(v))
             return "Switch bounds must remain finite.";
+        } else if constexpr (std::is_same_v<T, DoorDefinition>) {
+          if (!levelEntryIdIsValid(v.id))
+            return "Door ID must match [a-z][a-z0-9-]{0,63}.";
+          // Initial lock/open contradictions are cross-field validation errors.
+          if (auto error = doorFieldError(v); !error.empty()) return error;
         } else {
+          if (!levelEntryIdIsValid(v.id))
+            return "Prop ID must match [a-z][a-z0-9-]{0,63}.";
           if (!finite(v.translation)) return "Prop translation must be finite.";
           if (!std::isfinite(v.yaw_degrees)) return "Prop yaw must be finite.";
           if (!std::isfinite(v.uniform_scale) || v.uniform_scale <= 0.0F)
             return "Prop scale must be finite and positive.";
-          if (v.surface != PrototypeSurface::Obstacle)
-            return "The prop uses the obstacle surface.";
-          if (!finite(v.box_proxy_center))
-            return "Proxy center must be finite.";
-          if (!positive(v.box_proxy_half_extent))
-            return "Proxy half extents must be finite and positive.";
-          if (!prototypeStaticPropIsValid(v) ||
-              !finiteBounds(prototypeStaticPropProxyWorldCenter(v),
-                            prototypeStaticPropProxyWorldHalfExtent(v))) {
-            return "Transformed prop proxy overflows; reduce the transform or "
-                   "proxy dimensions.";
+          if (v.collision_boxes.size() > 8)
+            return "A prop supports at most eight collision boxes.";
+          const double yaw =
+              static_cast<double>(v.yaw_degrees) * std::numbers::pi / 180;
+          const float c = static_cast<float>(std::abs(std::cos(yaw)));
+          const float s = static_cast<float>(std::abs(std::sin(yaw)));
+          const auto safe_bounds = [&](const PropCollisionBox& bounds) {
+            const auto extent = propBoxWorldHalfExtent(v, bounds);
+            return finiteBounds(propBoxWorldCenter(v, bounds),
+                                {c * extent.x + s * extent.z, extent.y,
+                                 s * extent.x + c * extent.z});
+          };
+          for (const auto& proxy : v.collision_boxes) {
+            if (!finite(proxy.center) || !positive(proxy.half_extent))
+              return "Proxy centers must be finite and half extents positive.";
+            if (!safe_bounds(proxy))
+              return "Transformed prop proxy overflows; reduce transform or "
+                     "dimensions.";
           }
+          if (const auto* model = findSceneModel(v.model);
+              model && !safe_bounds(sceneModelBounds(*model)))
+            return "Transformed model bounds overflow; reduce the transform.";
         }
         return {};
       },
@@ -152,6 +177,8 @@ void EditorDocument::resetEditing() {
   ++generation_;
   solid_ids_.clear();
   entry_ids_.clear();
+  door_ids_.clear();
+  prop_ids_.clear();
   launch_entry_ = document_ ? document_->default_entry : std::string{};
   next_object_id_ = editor_first_solid;
   if (document_) {
@@ -162,6 +189,12 @@ void EditorDocument::resetEditing() {
   if (document_) {
     for (std::size_t i = 0; i < document_->entries.size(); ++i)
       entry_ids_.push_back(i == 0 ? editor_spawn : next_object_id_++);
+  }
+  if (document_) {
+    for (std::size_t i = 0; i < document_->doors.size(); ++i)
+      door_ids_.push_back(next_object_id_++);
+    for (std::size_t i = 0; i < document_->props.size(); ++i)
+      prop_ids_.push_back(i == 0 ? editor_prop : next_object_id_++);
   }
   selection_ = editor_no_object;
   history_.clear();
@@ -193,6 +226,71 @@ std::optional<std::size_t> EditorDocument::entryIndex(EditorObjectId id) const {
   const auto found = std::find(entry_ids_.begin(), entry_ids_.end(), id);
   if (found == entry_ids_.end()) return std::nullopt;
   return static_cast<std::size_t>(found - entry_ids_.begin());
+}
+
+std::optional<std::size_t> EditorDocument::doorIndex(EditorObjectId id) const {
+  const auto found = std::find(door_ids_.begin(), door_ids_.end(), id);
+  if (found == door_ids_.end()) return std::nullopt;
+  return static_cast<std::size_t>(found - door_ids_.begin());
+}
+
+std::optional<std::size_t> EditorDocument::propIndex(EditorObjectId id) const {
+  const auto found = std::find(prop_ids_.begin(), prop_ids_.end(), id);
+  if (found == prop_ids_.end()) return std::nullopt;
+  return static_cast<std::size_t>(found - prop_ids_.begin());
+}
+
+bool EditorDocument::addDoor() {
+  static_cast<void>(finishTerrainStroke());
+  if (!document_ || document_->doors.size() >= 32) return false;
+  DoorDefinition door;
+  for (std::size_t i = 1;; ++i) {
+    door.id = "door-" + std::to_string(i);
+    if (std::none_of(document_->doors.begin(), document_->doors.end(),
+                     [&](const auto& d) { return d.id == door.id; }))
+      break;
+  }
+  const auto* entry = findLevelEntry(*document_, document_->default_entry);
+  door.hinge_position = entry ? entry->pose.foot_position : WorldPosition{};
+  door.hinge_position.x += 1.5F;
+  door.hinge_position.y += 0.02F;
+  const auto id = next_object_id_++;
+  return commit(
+      {id, document_->doors.size(), std::nullopt, door, selection_, id});
+}
+
+bool EditorDocument::addProp(std::string_view model) {
+  static_cast<void>(finishTerrainStroke());
+  const auto* asset = findSceneModel(model);
+  if (!document_ || !asset || document_->props.size() >= 128) return false;
+  PrototypeStaticProp prop;
+  prop.model = model;
+  prop.collision_boxes.assign(asset->default_boxes.begin(),
+                              asset->default_boxes.end());
+  for (std::size_t i = 1;; ++i) {
+    prop.id = "prop-" + std::to_string(i);
+    if (std::none_of(document_->props.begin(), document_->props.end(),
+                     [&](const auto& p) { return p.id == prop.id; }))
+      break;
+  }
+  const auto* entry = findLevelEntry(*document_, document_->default_entry);
+  prop.translation = entry ? entry->pose.foot_position : WorldPosition{};
+  prop.translation.x += 1.5F;
+  const auto id = next_object_id_++;
+  return commit(
+      {id, document_->props.size(), std::nullopt, prop, selection_, id});
+}
+
+bool EditorDocument::setTerrainMaterial(std::string material) {
+  static_cast<void>(finishTerrainStroke());
+  if (!document_ || !document_->terrain || !findStructuralMaterial(material) ||
+      document_->terrain->material == material)
+    return false;
+  Edit edit;
+  edit.selection_before = edit.selection_after = selection_;
+  edit.terrain_material_before = document_->terrain->material;
+  edit.terrain_material_after = std::move(material);
+  return commit(std::move(edit));
 }
 
 bool EditorDocument::selectLaunchEntry(std::string_view id) {
@@ -239,7 +337,8 @@ std::optional<EditorObjectValue> EditorDocument::object(
   if (id >= editor_first_light && id < editor_prop) {
     return document_->environment_light.point_lights[id - editor_first_light];
   }
-  if (id == editor_prop) return document_->static_prop;
+  if (const auto index = propIndex(id)) return document_->props[*index];
+  if (const auto index = doorIndex(id)) return document_->doors[*index];
   if (id == editor_light_switch && document_->light_switch)
     return *document_->light_switch;
   if (const auto index = solidIndex(id)) return document_->solids[*index];
@@ -260,9 +359,13 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
   edit_error_ = editorObjectFieldError(value);
   if (!edit_error_.empty()) return false;
   if (*before == value) return false;
-  Edit edit{id,         solidIndex(id).value_or(entryIndex(id).value_or(0)),
-            before,     std::move(value),
-            selection_, selection_};
+  Edit edit{id,
+            solidIndex(id).value_or(entryIndex(id).value_or(
+                doorIndex(id).value_or(propIndex(id).value_or(0)))),
+            before,
+            std::move(value),
+            selection_,
+            selection_};
   if (const auto* entry = std::get_if<LevelEntry>(&*edit.after)) {
     const auto& old = std::get<LevelEntry>(*before);
     if (old.id != entry->id && findLevelEntry(*document_, entry->id)) {
@@ -272,6 +375,24 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
     if (old.id == document_->default_entry) {
       edit.default_before = old.id;
       edit.default_after = entry->id;
+    }
+  }
+  if (const auto* door = std::get_if<DoorDefinition>(&*edit.after)) {
+    const auto& old = std::get<DoorDefinition>(*before);
+    if (old.id != door->id &&
+        std::any_of(document_->doors.begin(), document_->doors.end(),
+                    [&](const auto& other) { return other.id == door->id; })) {
+      edit_error_ = "Door ID is already in use.";
+      return false;
+    }
+  }
+  if (const auto* prop = std::get_if<PrototypeStaticProp>(&*edit.after)) {
+    const auto& old = std::get<PrototypeStaticProp>(*before);
+    if (old.id != prop->id &&
+        std::any_of(document_->props.begin(), document_->props.end(),
+                    [&](const auto& other) { return other.id == prop->id; })) {
+      edit_error_ = "Prop ID is already in use.";
+      return false;
     }
   }
   return commit(std::move(edit));
@@ -292,6 +413,38 @@ bool EditorDocument::addSolid(PrototypeSolid solid) {
 }
 
 bool EditorDocument::duplicateSelected() {
+  static_cast<void>(finishTerrainStroke());
+  if (!document_) return false;
+  if (const auto index = doorIndex(selection_)) {
+    if (document_->doors.size() >= 32) return false;
+    auto copy = document_->doors[*index];
+    copy.hinge_position.x += copy.width + 0.5F;
+    for (std::size_t i = 1;; ++i) {
+      copy.id = "door-" + std::to_string(i);
+      if (std::none_of(document_->doors.begin(), document_->doors.end(),
+                       [&](const auto& d) { return d.id == copy.id; }))
+        break;
+    }
+    if (!editorObjectFieldError(copy).empty()) return false;
+    const auto id = next_object_id_++;
+    return commit(
+        {id, document_->doors.size(), std::nullopt, copy, selection_, id});
+  }
+  if (const auto index = propIndex(selection_)) {
+    if (document_->props.size() >= 128) return false;
+    auto copy = document_->props[*index];
+    copy.translation.x += 1.5F;
+    for (std::size_t i = 1;; ++i) {
+      copy.id = "prop-" + std::to_string(i);
+      if (std::none_of(document_->props.begin(), document_->props.end(),
+                       [&](const auto& p) { return p.id == copy.id; }))
+        break;
+    }
+    if (!editorObjectFieldError(copy).empty()) return false;
+    const auto id = next_object_id_++;
+    return commit(
+        {id, document_->props.size(), std::nullopt, copy, selection_, id});
+  }
   if (const auto index = entryIndex(selection_))
     return addEntry(document_->entries[*index].pose);
   const auto index = solidIndex(selection_);
@@ -315,6 +468,12 @@ bool EditorDocument::addLightSwitch() {
 
 bool EditorDocument::removeSelected() {
   static_cast<void>(finishTerrainStroke());
+  if (const auto index = doorIndex(selection_))
+    return commit({selection_, *index, document_->doors[*index], std::nullopt,
+                   selection_, editor_no_object});
+  if (const auto index = propIndex(selection_))
+    return commit({selection_, *index, document_->props[*index], std::nullopt,
+                   selection_, editor_no_object});
   if (selection_ == editor_light_switch && document_ && document_->light_switch)
     return commit({editor_light_switch, 0, *document_->light_switch,
                    std::nullopt, selection_, editor_no_object});
@@ -357,6 +516,9 @@ bool EditorDocument::placeSelected(WorldPosition terrain_hit) {
                                                   v.position.x, v.position.z);
           v.position = terrain_hit;
           v.position.y += offset;
+        } else if constexpr (std::is_same_v<T, DoorDefinition>) {
+          v.hinge_position = terrain_hit;
+          v.hinge_position.y += 0.02F;
         } else {
           v.translation = terrain_hit;
         }
@@ -408,6 +570,41 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
           entry_ids_.begin() + static_cast<std::ptrdiff_t>(edit.index),
           edit.id);
     }
+  } else if (edit.terrain_material_after) {
+    document_->terrain->material =
+        forward ? *edit.terrain_material_after : *edit.terrain_material_before;
+  } else if ((value && std::holds_alternative<DoorDefinition>(*value)) ||
+             doorIndex(edit.id)) {
+    const auto index = doorIndex(edit.id);
+    if (!value) {
+      document_->doors.erase(document_->doors.begin() +
+                             static_cast<std::ptrdiff_t>(*index));
+      door_ids_.erase(door_ids_.begin() + static_cast<std::ptrdiff_t>(*index));
+    } else if (index)
+      document_->doors[*index] = std::get<DoorDefinition>(*value);
+    else {
+      document_->doors.insert(
+          document_->doors.begin() + static_cast<std::ptrdiff_t>(edit.index),
+          std::get<DoorDefinition>(*value));
+      door_ids_.insert(
+          door_ids_.begin() + static_cast<std::ptrdiff_t>(edit.index), edit.id);
+    }
+  } else if ((value && std::holds_alternative<PrototypeStaticProp>(*value)) ||
+             propIndex(edit.id)) {
+    const auto index = propIndex(edit.id);
+    if (!value) {
+      document_->props.erase(document_->props.begin() +
+                             static_cast<std::ptrdiff_t>(*index));
+      prop_ids_.erase(prop_ids_.begin() + static_cast<std::ptrdiff_t>(*index));
+    } else if (index)
+      document_->props[*index] = std::get<PrototypeStaticProp>(*value);
+    else {
+      document_->props.insert(
+          document_->props.begin() + static_cast<std::ptrdiff_t>(edit.index),
+          std::get<PrototypeStaticProp>(*value));
+      prop_ids_.insert(
+          prop_ids_.begin() + static_cast<std::ptrdiff_t>(edit.index), edit.id);
+    }
   } else if (edit.id >= editor_first_solid) {
     const auto index = solidIndex(edit.id);
     if (!value) {
@@ -426,8 +623,6 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
           edit.id);
     }
 
-  } else if (edit.id == editor_prop) {
-    document_->static_prop = std::get<PrototypeStaticProp>(*value);
   } else if (edit.id == editor_light_switch) {
     document_->light_switch =
         value ? std::optional{std::get<PrototypeLightSwitch>(*value)}

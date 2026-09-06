@@ -85,8 +85,7 @@ TEST_F(EditorUiInteraction,
 TEST_F(EditorUiInteraction,
        FixedObjectsAndCameraNavigationSuppressMutationShortcuts) {
   const auto original = *document.document();
-  for (const auto id :
-       {editor_first_light, editor_first_light + 1, editor_prop}) {
+  for (const auto id : {editor_first_light, editor_first_light + 1}) {
     document.select(id);
     frame();
     key(ImGuiKey_Delete);
@@ -97,6 +96,27 @@ TEST_F(EditorUiInteraction,
   key(ImGuiKey_Delete, false, true);
   key(ImGuiKey_D, true, true);
   EXPECT_EQ(*document.document(), original);
+}
+
+TEST_F(EditorUiInteraction,
+       DoorButtonAndKeyboardEditsRetainIdentityThroughUndo) {
+  const auto start_count = document.doorIds().size();
+  const auto add = addButtonCenter();
+  click({add.x, add.y + 2 * ImGui::GetFrameHeightWithSpacing()});
+  ASSERT_EQ(document.doorIds().size(), start_count + 1);
+  const auto handle = document.selection();
+  const auto id = std::get<DoorDefinition>(*document.object(handle)).id;
+  key(ImGuiKey_D, true);
+  ASSERT_EQ(document.doorIds().size(), start_count + 2);
+  const auto duplicate = document.selection();
+  EXPECT_NE(std::get<DoorDefinition>(*document.object(duplicate)).id, id);
+  key(ImGuiKey_Delete);
+  EXPECT_EQ(document.doorIds().size(), start_count + 1);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(document.selection(), duplicate);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(document.selection(), handle);
+  EXPECT_EQ(std::get<DoorDefinition>(*document.object(handle)).id, id);
 }
 
 TEST_F(EditorUiInteraction, UnsavedModalBlocksUnderlyingViewportAndShortcuts) {
@@ -153,7 +173,7 @@ TEST_F(EditorUiInteraction, NewlyAddedSwitchUsesItsOwnFloorPlacementOffset) {
   const auto row = ImGui::GetFrameHeightWithSpacing();
   click({add.x, add.y + row});
   ASSERT_EQ(document.selection(), editor_light_switch);
-  click({add.x, add.y + 2 * row});
+  click({add.x, add.y + 4 * row});
   click({800, 700});
   ASSERT_TRUE(document.document()->light_switch);
   EXPECT_FLOAT_EQ(document.document()->light_switch->position.y, 1.4F);
@@ -165,7 +185,7 @@ TEST_F(EditorUiInteraction,
   const auto* properties = ImGui::FindWindowByName("Properties");
   const float top = properties->Pos.y + properties->TitleBarHeight +
                     properties->WindowPadding.y;
-  click({properties->Pos.x + 40, top + ImGui::GetFrameHeightWithSpacing() +
+  click({properties->Pos.x + 40, top + 2 * ImGui::GetFrameHeightWithSpacing() +
                                      3 * ImGui::GetTextLineHeightWithSpacing() +
                                      8});
   ASSERT_TRUE(ui.sculpting());
@@ -236,7 +256,7 @@ TEST_F(EditorUiInteraction, UpperSurfacePreviewAndClickUseTheSameCandidate) {
                                  {5, .25F, 5},
                                  {150, 150, 150, 255},
                                  PrototypeSolidKind::Floor,
-                                 PrototypeSurface::Floor}));
+                                 "prototype-floor"}));
   document.select(document.entryIds()[0]);
   EditorNavigationInput up;
   up.move_up = true;
@@ -246,7 +266,7 @@ TEST_F(EditorUiInteraction, UpperSurfacePreviewAndClickUseTheSameCandidate) {
   const float top =
       objects->Pos.y + objects->TitleBarHeight + objects->WindowPadding.y;
   click(
-      {objects->Pos.x + 30, top + 2 * ImGui::GetFrameHeightWithSpacing() + 8});
+      {objects->Pos.x + 30, top + 4 * ImGui::GetFrameHeightWithSpacing() + 8});
   const WorldPosition target{1, 3, -3};
   const auto projection =
       projectEditorLine(camera.frame(1600.0F / 900), target, target, {});
@@ -281,7 +301,7 @@ TEST_F(EditorUiInteraction,
   const float row = ImGui::GetTextLineHeightWithSpacing();
   // Header, origin, spacing and height range precede the tool checkbox.
   click({properties->Pos.x + 40,
-         top + ImGui::GetFrameHeightWithSpacing() + 3 * row + 8});
+         top + 2 * ImGui::GetFrameHeightWithSpacing() + 3 * row + 8});
   ASSERT_TRUE(ui.sculpting());
   EXPECT_EQ(*document.document(), original);
   const ImVec2 start{750, 620};

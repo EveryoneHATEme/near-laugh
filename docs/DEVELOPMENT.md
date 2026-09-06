@@ -90,24 +90,29 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-Levels use format version 4. The bounded profile contains an optional 97-by-97
-heightfield, 1–240 solids, 1–16 named entries and a default entry ID, exactly
-two point lights and one ambient intensity, one chair placement with a box
-proxy, and zero or one light switch. `light_switch` is null or an object with
-`position`, `yaw_degrees`, `point_light_index` (0/1), and `initially_on` (boolean).
-Exact previous version-2/3 shapes load without rewriting the source. The old
-spawn becomes the `default` entry; version 2 has no switch, while version 3
-retains its nullable switch. Explicit saves always write version 4. Version 1
-and unknown versions remain unsupported. The document has no resource paths
-and is loaded and validated once before physics and renderer construction.
-Every entry must have solid-top or terrain support at its authored height and
-standing clearance, including entries not chosen for the current launch.
+Levels write format version 6 and read exact versions 2–5 without modifying
+the source. The profile contains optional 97-by-97 terrain, 1–240 solids,
+1–16 entries/default, two lights/ambient, 0–128 props, an optional switch,
+and 0–32 doors. Prop/model/material IDs are logical names, never paths.
+Props have finite translation/yaw, positive uniform scale and 0–8 local boxes.
+Legacy chair/texture roles normalize to explicit legacy identities; v5 doors
+survive migration. New fields in old versions, unknown fields and v1 fail.
 
-The three textures form a fixed sRGB array in floor/boundary/obstacle order.
-Terrain and solid faces use outward normals, world-scaled UVs, authored tints,
-and the matching layer. The chair uses its authored UVs with the obstacle
-layer. Two authored point lights and a camera-mounted flashlight illuminate the
-scene.
+The selected apartment derivatives are `models/apartment_chair.glb`,
+`apartment_table.glb`, `apartment_phone.glb`, `apartment_radio.glb`, plus
+`textures/apartment_wood_floor.png` and `apartment_wallpaper.png`.
+See [asset preparation/provenance](../resources/models/APARTMENT_ASSETS.md).
+The raw `house_interior_pack/` is local source material, excluded from Git by
+the root `.gitignore` and not copied by builds. A checkout needs only the
+prepared files in `resources/`; the full pack is needed only for regeneration.
+Only models/materials referenced by the chosen level are loaded.
+
+Structural materials are independent of collision kind; terrain has one
+whole-surface material. Generated geometry keeps world-scaled UVs, while props
+keep authored UVs. Apartment textures use nearest sampling; legacy textures
+retain linear sampling. Phone cord alpha uses MASK cutoff 0.5; radio is OPAQUE.
+All surviving fragments use the existing two point lights/flashlight. There is
+no PBR, emission, blended transparency or texture-paint workflow.
 
 ## Current Game Controls
 
@@ -118,22 +123,22 @@ The prototype starts with the cursor captured:
 - Left Shift: sprint;
 - Left Control: crouch;
 - Space: jump while grounded;
-- E: toggle the switch's linked light while looking at its plate within
-  2 metres and with an unobstructed view;
+- E: operate the nearest switch or door within 2 metres;
+- R: lock/unlock a fully closed, stationary door from its authored bolt side;
+- right mouse: knock once on the nearest door;
 - Escape: release the cursor;
 - left mouse button: toggle the flashlight while captured, or recapture the
   cursor while released.
 
 A recapture press is suppressed until release so it does not also toggle the
-flashlight. Movement uses fixed-step gravity and static collision, slides along
+flashlight. Movement uses fixed-step gravity and static/accepted door collision, slides along
 walls, traverses the authored low step, and checks standing clearance beneath
 the low passage. These are current prototype behaviors, not permanent product
 requirements.
 
 The packaged switch is the pale plate on the central obstacle facing spawn.
 Walk forward from spawn to reach it. It controls Point light 1, initially on,
-and adds no collision body. Static collision, including the chair's box proxy,
-blocks interaction. E requires a release before the first press and between
+and adds no collision body. Terrain, solids, all prop boxes and door leaves block interaction. E/R/knock require a release before the first press and between
 presses; holding it through a miss, cursor transition, or minimization cannot
 trigger a later toggle. The light state persists through presentation recovery
 and resets on restart without modifying the level file. Flashlight controls
@@ -149,8 +154,8 @@ suppresses conflicting camera input.
 File > Open and File > Save As use explicit path-entry dialogs. Opening is
 transactional; Save and Save As use the shared validated deterministic codec;
 and dirty New, Open, Close, or Exit requests require Save, Discard, or Cancel.
-File > New Interior creates a valid starter floor, default entry, two lights,
-ambient 0.12, and the packaged chair without terrain or a switch. It begins
+File > New Interior creates a valid starter floor, default entry, two lights
+and ambient 0.12, with no terrain, props, doors or switch. It begins
 dirty and unsaved; Save uses Save As until a path has been chosen. Legacy files
 open clean with a migration notice. Safely decoded gameplay-invalid files
 remain editable with diagnostics; malformed or unsafe files preserve the
@@ -162,36 +167,41 @@ duplicated, renamed, and moved. IDs match `[a-z][a-z0-9-]{0,63}`; new entries us
 the first unused `entry-N`. Make default changes the authored startup entry.
 Renaming it updates the reference in one undoable edit. Choose another default
 before deleting the default entry; the last entry cannot be deleted. The two
-point lights and single packaged chair can be selected and edited but cannot
-be added, duplicated, or removed. Ambient and terrain layout remain read-only.
+point lights can be selected and edited but cannot be added, duplicated, or
+removed. Props and doors support independent add/duplicate/delete, durable
+IDs, finite property edits and undo/redo. Removing the last prop is valid.
+Changing a prop model preserves its boxes; Reset model collision boxes is
+explicit. Yellow render bounds and cyan proxy bounds distinguish appearance
+from collision. Missing model references retain red selectable markers.
+Ambient and terrain layout remain read-only; terrain material is separate.
 
 **Add light switch** creates the optional singleton near the spawn at standing
 interaction height. Select **Light switch** in Objects or click its plate in
 the viewport. Delete removes it; duplication is unavailable. Properties expose
 Position, Yaw, Linked light (Point light 1/2), and Initially on. Exact numeric
 placement is available alongside surface mounting. All switch edits share
-undo/redo, validation, and dirty state. Switches and the chair may lie outside
+undo/redo, validation, and dirty state. Switches, props and doors may lie outside
 terrain bounds. Preview follows the initial state, including link changes,
 removal, sculpting, and recovery. The editor does not run E interaction.
 
-The Properties panel edits position, dimensions, tint, solid kind/surface,
-entry ID and yaw, light color/intensity/radius, and chair translation/yaw/uniform
-scale plus its box proxy. Drag numeric values, or Ctrl-click a numeric field
-to type an exact value. Release or finish the field to commit one undo entry.
-Invalid numeric commits retain the previous value and report the field error.
-Changing a solid kind selects its matching surface; a manually changed surface
-must match the kind before saving.
+Properties expose solid geometry/tint/kind/material, entry ID/pose, lights,
+prop identity/model/transform/box list, and door ID, bottom hinge, closed yaw,
+leaf dimensions, opening angle/speed, lock side and initial state. Drag numeric
+values or Ctrl-click to type. Finishing a field commits one undo step. Unsafe
+fields retain their old values; safe cross-field errors remain repairable and
+block Save/Play. Door overlays show hinge, opening arc and lock side.
 
 Enable **Place on surface** with an object selected. **Scene surfaces** uses
 the nearest structural face or terrain triangle and displays the target,
 face, elevation, and normal. It excludes the moved solid. **Terrain only**
 retains terrain placement and is unavailable when terrain is absent.
 On top surfaces, solids rest their bottom at the hit, entries place their
-feet, and the chair places its translation. Lights and switches use the visible
+feet, and props place their translation anchor. Doors place their bottom hinge
+with the visible floor-clearance offset (default 0.02 m). Lights and switches use the visible
 height offset (initially 2 m and 1.4 m, or the previous terrain offset).
 Vertical faces support solids, lights with a visible outward offset, and
 switches with their back 1 mm outside the wall and front aligned outward.
-Entries and the chair cannot be wall-mounted. Undersides block placement;
+Entries, props and doors cannot be wall-mounted. Undersides block placement;
 the editor never searches through an unsuitable nearer face. Escape, a miss,
 UI capture, or navigation cancels/suppresses placement without an edit.
 Yellow bounds identify selected geometry; sphere markers identify lights and
@@ -201,8 +211,8 @@ Editor shortcuts (suppressed during camera navigation, active field editing,
 or modal dialogs):
 
 - Ctrl+Z: undo; Ctrl+Y or Ctrl+Shift+Z: redo.
-- Ctrl+D: duplicate a solid at a horizontal offset or an entry at the same pose.
-- Delete: remove the selected solid, removable entry, or switch.
+- Ctrl+D: duplicate a solid, door or prop at an offset, or an entry at the same pose.
+- Delete: remove the selected solid, removable entry, switch, prop or door.
 - Ctrl+S: save the current valid document.
 
 History retains up to 128 committed edits and clears on document replacement.
@@ -245,14 +255,15 @@ Clear upper-floor entries remain supported by their authored structural floors.
 Terrain tools and footprints clear when switching to an interior.
 
 Brushes edit only the fixed 97-by-97 height samples. They do not change layout,
-surface roles, textures, or runtime collision and cannot author holes, caves,
+material assignments, props/doors, or runtime collision and cannot author holes, caves,
 overhangs, voxel terrain, paint, procedural terrain, or erosion.
 
 In **Playtest**, choose **Start entry** and **Play**. The selection is editor
 state and does not change the authored default or dirty state. Play finishes
 pending edits and validates all entries. Dirty work requires **Save and Play**
 or **Cancel**; unsaved work then uses Save As. A fresh read must match the
-prepared editor document before launch. If the disk file changed externally,
+prepared editor document before launch. Required selected assets are decoded
+before creating the child; a missing/unsupported asset launches nothing. If the disk file changed externally,
 explicitly Save or Open it and try again. Errors and canceled dialogs launch
 nothing and leave no deferred request.
 
@@ -269,15 +280,29 @@ The M1 blockout has upper floors at Y=3 and the lower landing at Y=0. From
 the kitchen is east of the corridor at Z=-2.3. Follow the corridor north to
 the rear stairs at Z=-6 and descend to Z=-16.2. `lower-landing` faces back
 upstairs. Fourteen 0.6 m treads give fifteen 0.2 m rises in a 1.8 m-wide stair.
-This route uses ordinary walking. No doors, narrative events, or checkpoints
-are delivered by this authoring change.
+Open Lena's room door with E before crossing, using the doorway near Z=3.5.
+The hinge is (-1.12, 3.02, 3.07), width 1.26 m, closed yaw -90 degrees and
+opening angle -90 degrees. Roughly 4 cm jamb clearance accommodates the
+conservative angular query; the leaf opens west into the room. Positive local Z
+puts its bolt on the room side. E reverses mid-swing; blocked movement stops
+until another E press. Refusal/knock geometry lasts 0.3 seconds, without sound.
+
+The temporary switch post is at (-0.65, 3.7, 4.05); its plate is
+(-0.721, 4.3, 4.05). Open the door from the apartment start before approaching
+the switch-view position: standing in the swing arc correctly stops its motion.
+From room feet around (-2.3, 3, 4.05), aim down slightly
+toward the plate: the closed leaf blocks it, and opening permits interaction.
+The kitchen table is at (2.6, 3, -4); phone and radio sit on top. Cross the
+kitchen doorway at Z=-2.3, then turn toward Z=-1.9 to pass the nearer chair.
+Both authored starts support the full ordinary-walking route after opening.
+These are temporary acceptance positions, not narrative/progression content.
 
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-4 level data with version-2/3 read compatibility,
+- `near_laugh_world`: version-6 level data with exact version-2/3/4/5 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
-- `near_laugh_physics`: Jolt lifetime, static collision, and one virtual
+- `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors, and one virtual
   character.
 - `near_laugh_render`: Vulkan renderer, resource loading, and immutable scene
   GPU ownership.
@@ -315,7 +340,9 @@ replacement, smoothing, undo/redo, sculpted save/reload, and resize/minimize
 recovery followed by an unsaved exit decision.
 Interior smoke covers both named starts, runtime selected-entry failures,
 terrain/interior replacement, an empty world mesh, and failed replacement
-followed by rendering with the prior resources. Deterministic tests exercise
+followed by rendering with the prior resources. Furnished-scene smoke changes
+door open/lock previews, duplicates/deletes/restores shared-model placements,
+and exercises changing geometry through fenced frame slots and recovery. Deterministic tests exercise
 the saved-file Play transaction and a real native child argument probe.
 
 Light-switch coverage includes all point-light/spotlight enable combinations,
@@ -324,14 +351,17 @@ After shader changes, regenerate and validate both packaged stages:
 
 ```sh
 glslc -fshader-stage=vert --target-env=vulkan1.3 resources/shaders/prototype_scene_vertex.glsl -o resources/shaders/prototype_scene_vertex.spv
-glslc -fshader-stage=frag --target-env=vulkan1.3 resources/shaders/prototype_scene_fragment.glsl -o resources/shaders/prototype_scene_fragment.spv
+glslc -fshader-stage=frag --target-env=vulkan1.3 --target-spv=spv1.5 resources/shaders/prototype_scene_fragment.glsl -o resources/shaders/prototype_scene_fragment.spv
 spirv-val --target-env vulkan1.3 resources/shaders/prototype_scene_vertex.spv
 spirv-val --target-env vulkan1.3 resources/shaders/prototype_scene_fragment.spv
 ```
 
+The fragment stage deliberately targets SPIR-V 1.5: GLSL `discard` lowers to
+`OpKill` without requiring the optional `shaderDemoteToHelperInvocation`
+device feature. Keep the Vulkan 1.3 runtime feature baseline unchanged.
+
 For visual inspection, confirm stable one-metre texture scale across face
-orientations, outward-normal lighting, mip stability at distance, the distinct
-three surface roles, the dark transition between authored light pools,
+orientations, outward-normal lighting, mip stability at distance, independent structural materials, the phone cord cutout, the dark transition between authored light pools,
 flashlight cone/range behavior, chair rendering and collision, and persistence
 through resize/recovery.
 

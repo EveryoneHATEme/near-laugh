@@ -7,6 +7,7 @@
 #include <thread>
 #include <utility>
 
+#include "core/testing/test_controls.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_loop.hpp"
@@ -30,10 +31,7 @@ EditorRendererResources resolveEditorRendererResources(
       std::filesystem::absolute(resource_root).lexically_normal();
   return {requireEditorFile(root / "shaders" / "prototype_scene_vertex.spv"),
           requireEditorFile(root / "shaders" / "prototype_scene_fragment.spv"),
-          {requireEditorFile(root / "textures" / "prototype_floor.png"),
-           requireEditorFile(root / "textures" / "prototype_boundary.png"),
-           requireEditorFile(root / "textures" / "prototype_obstacle.png")},
-          requireEditorFile(root / "models" / "prototype_chair.glb")};
+          root};
 }
 }  // namespace
 
@@ -57,6 +55,11 @@ void EditorApplication::run() {
 }
 
 void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
+  struct FrameEventLog {
+    std::vector<std::string> events;
+    FrameEventLog() { setLifecycleLog(&events); }
+    ~FrameEventLog() { setLifecycleLog(nullptr); }
+  } frame_log;
   if (!document_.document()) {
     if (!document_.open(valid_level)) {
       throw std::runtime_error(
@@ -229,7 +232,7 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   require(document_.replaceObject(editor_first_light, light),
           "Editor smoke light edit failed");
   preview();
-  auto prop = original.static_prop;
+  auto prop = original.props.front();
   prop.yaw_degrees += 20;
   prop.uniform_scale *= 0.9F;
   document_.select(editor_prop);
@@ -252,7 +255,7 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   document_.select(document_.solidIds().front());
   require(document_.removeSelected(), "Interior floor removal failed");
   require(!document_.valid(), "Empty interior should remain invalid");
-  preview();  // Chair, entries and UI survive an absent world mesh.
+  preview();  // Entries and UI survive an entirely empty geometry stream.
 
   const auto apartment = loadLevelDocument(valid_level.parent_path() /
                                            "apartment-stairs.level.json");
@@ -286,6 +289,36 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   preview();
   require(document_.selectLaunchEntry("lower-landing"),
           "Alternate editor entry missing");
+  const auto furnished = *document_.document();
+  require(!document_.doorIds().empty() && document_.propIds().size() >= 4,
+          "Furnished scene is missing doors or selected props");
+  document_.select(document_.doorIds().front());
+  const auto door_id = document_.selection();
+  auto door = std::get<DoorDefinition>(*document_.object(door_id));
+  door.initially_open = true;
+  require(document_.replaceObject(door_id, door), "Door preview edit failed");
+  preview();
+  require(document_.undo(), "Door preview undo failed");
+  preview();
+  door.initially_open = false;
+  door.initially_locked = true;
+  require(document_.replaceObject(door_id, door), "Locked preview edit failed");
+  preview();
+  require(document_.undo(), "Locked preview undo failed");
+  document_.select(document_.propIds().front());
+  require(document_.duplicateSelected(), "Shared model duplication failed");
+  const auto prop_id = document_.selection();
+  preview();
+  require(document_.removeSelected(), "Shared model deletion failed");
+  preview();
+  require(document_.undo() && document_.selection() == prop_id,
+          "Shared model restoration lost identity");
+  preview();
+  require(document_.undo(), "Shared model duplication undo failed");
+  preview();
+  require(*document_.document() == furnished,
+          "Content history lost authored state");
+  renderer_.validateSceneAssets(*document_.document());
   window_.setSize(1200, 800);
   renderer_.requestSwapchainRecreation();
   preview();
@@ -327,6 +360,28 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   require(document_.resolvePending(EditorPendingDecision::Discard),
           "Editor smoke sculpted discard failed");
   static_cast<void>(tick());
+  bool in_frame = false;
+  bool ui_drawn = false;
+  std::size_t completed_frames = 0;
+  for (const auto& event : frame_log.events) {
+    if (event == "editor.frame.begin") {
+      require(!in_frame, "Editor began a frame before closing its predecessor");
+      in_frame = true;
+      ui_drawn = false;
+    } else if (event == "editor.ui.drawn") {
+      require(in_frame && !ui_drawn, "Editor must draw UI once in each frame");
+      ui_drawn = true;
+    } else if (event.ends_with(".mesh.drawn")) {
+      require(in_frame && !ui_drawn,
+              "Editor must draw scene geometry before UI");
+    } else if (event == "editor.frame.end") {
+      require(in_frame && ui_drawn, "Editor frame ended without UI");
+      in_frame = false;
+      ++completed_frames;
+    }
+  }
+  require(!in_frame && completed_frames > 0,
+          "Editor smoke recorded no complete frames");
 }
 
 bool EditorApplication::tick() {
@@ -357,8 +412,16 @@ bool EditorApplication::tick() {
       camera_.frame(static_cast<float>(framebuffer.width) /
                     static_cast<float>(framebuffer.height));
   ui_.draw(document_, game_process_.active(), game_process_.status());
-  if (auto launch = ui_.takeLaunchRequest())
-    static_cast<void>(game_process_.start(editorGameExecutable(), *launch));
+  if (auto launch = ui_.takeLaunchRequest()) {
+    try {
+      const auto saved = loadEditorPlayDocument(document_, *launch);
+      renderer_.validateSceneAssets(saved);
+      static_cast<void>(game_process_.start(editorGameExecutable(), *launch));
+    } catch (const std::exception& error) {
+      document_.reportResourceError(
+          std::string("Play asset validation failed: ") + error.what());
+    }
+  }
   const auto placement_hit =
       ui_.updateViewport(document_, camera, window_.cursorCaptured());
   renderer_.drawOverlays(buildEditorOverlay(
@@ -420,6 +483,7 @@ void EditorApplication::synchronizeDocumentResources() {
     // Replacement is transactional: retain the last usable preview on failure.
     rendered_document_revision_ = document_.revision();
     document_.reportResourceError(
-        std::string("Scene resource replacement failed: ") + error.what());
+        std::string("Preview is stale; scene resource replacement failed: ") +
+        error.what());
   }
 }

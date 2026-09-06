@@ -11,13 +11,17 @@ content-production workflow.
 This is a sequence of work, not a delivery-date commitment. P01 is implemented
 and archived, providing interior authoring and saved-file playtesting. Its automated checks and M1
 Windows desktop acceptance passed, as recorded in its
-[validation record](../openspec/changes/archive/2026-09-06-add-interior-level-authoring/validation.md). The
-other eleven linked changes currently capture proposals only. Their designs,
-delta specs, and tasks must be developed and reviewed before implementation.
-No change is implementation-ready merely because its proposal exists or
-passes structural validation. The eleven proposal-only feature changes still
-lack delta specs for strict OpenSpec validation. This is pending planning
-work; they do not qualify for the documentation-only `skip_specs` exemption.
+[validation record](../openspec/changes/archive/2026-09-06-add-interior-level-authoring/validation.md).
+P02 and P03 are implemented together: generated interactive doors and selected
+apartment assets share the final v6 level format. The combined build, 281 debug
+tests and seven Vulkan smoke tests pass; their linked change directories record
+the desktop observations and remaining handoff work. Main-spec synchronization
+and archive remain ordered P03 then P02 so the active deltas retain their
+reviewed baseline. The remaining nine linked changes currently
+capture proposals only; their designs, delta specs, and tasks must be developed
+and reviewed before implementation. Structural validation alone does not
+establish implementation readiness. Those proposal-only feature changes do
+not qualify for the documentation-only `skip_specs` exemption.
 
 The named characters, locations, and episode routes below are reference
 content for capability acceptance. Final names, dialogue, episode order,
@@ -91,9 +95,18 @@ dependent change and rebase its artifacts on the resulting main specs.
 | P11 | [Story playtest tools](../openspec/changes/add-story-playtest-tools/proposal.md) | P09 |
 | P12 | [Game session and packaging](../openspec/changes/add-game-session-and-packaging/proposal.md) | P08, P10 |
 
-A valid implementation order is P01, P03, P04, P05, P06, P09, P11, P02,
-P07, P08, P10, P12. P02 can move earlier after P01; P10 can proceed after
-P02/P05. Proposal numbering identifies scope, not a forced serial order.
+The selected implementation order is P01, P03, P02, P04, P05, P06, P09,
+P11, P07, P08, P10, P12. P10 can proceed after P02/P05. Proposal numbering
+identifies scope, not a forced serial order.
+
+P02 and P03 can be planned and developed in parallel where their work is
+independent. Integrate P03 before P02: the door plan introduces level version 5,
+then the asset plan introduces version 6 while preserving door definitions and
+behavior. Their shared codec, validation, editor, physics, and rendering changes
+used one coordinated integration and combined acceptance checks. P02's full
+modified requirements retain P03's scenarios. If another
+format change intervenes, revise the affected version/migration plan first;
+parallel branches must not assign incompatible shapes to the same version.
 
 ## Shared decisions
 

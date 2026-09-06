@@ -29,22 +29,13 @@ RuntimeResources resolveRuntimeResources(
                              pathText(root));
   }
 
-  RuntimeResources resources{root,
-                             root / "shaders" / "prototype_scene_vertex.spv",
-                             root / "shaders" / "prototype_scene_fragment.spv",
-                             {root / "textures" / "prototype_floor.png",
-                              root / "textures" / "prototype_boundary.png",
-                              root / "textures" / "prototype_obstacle.png"},
-                             root / "models" / "prototype_chair.glb",
-                             level_path
-                                 ? normalizedAbsolute(*level_path)
-                                 : root / "levels" / "prototype.level.json"};
+  RuntimeResources resources{
+      root, root / "shaders" / "prototype_scene_vertex.spv",
+      root / "shaders" / "prototype_scene_fragment.spv",
+      level_path ? normalizedAbsolute(*level_path)
+                 : root / "levels" / "prototype.level.json"};
   requireFile(resources.scene_vertex_shader);
   requireFile(resources.scene_fragment_shader);
-  for (const std::filesystem::path& texture : resources.scene_textures) {
-    requireFile(texture);
-  }
-  requireFile(resources.prototype_chair_model);
   requireFile(resources.prototype_level);
   return resources;
 }

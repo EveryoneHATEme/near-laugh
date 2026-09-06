@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
+#include <string_view>
 #include <vector>
 
 struct DecodedRgbaImage {
@@ -11,7 +13,9 @@ struct DecodedRgbaImage {
   std::vector<std::uint8_t> pixels{};
 };
 
+[[nodiscard]] DecodedRgbaImage decodePngRgba(const std::filesystem::path& path);
 [[nodiscard]] DecodedRgbaImage decodePngRgba(
-    const std::filesystem::path& path);
+    std::span<const std::uint8_t> encoded, std::string_view context,
+    std::uint32_t maximum_dimension = 2048);
 
 #endif

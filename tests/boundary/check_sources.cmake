@@ -163,27 +163,9 @@ if(RENDERER_CONTENT MATCHES "vkCmdDrawIndexed|vkUpdateDescriptorSets" OR
     message(FATAL_ERROR
         "Prototype scene introduced indexed geometry or mutable frame descriptors")
 endif()
-string(REGEX MATCHALL "vkCmdBindDescriptorSets\\(" DESCRIPTOR_BINDS
-       "${PIPELINE_CONTENT}")
-list(LENGTH DESCRIPTOR_BINDS DESCRIPTOR_BIND_COUNT)
-if(NOT DESCRIPTOR_BIND_COUNT EQUAL 1)
-    message(FATAL_ERROR
-        "Prototype scene must bind its immutable descriptor sets once")
-endif()
-string(REGEX MATCHALL "vkUpdateDescriptorSets\\(" DESCRIPTOR_UPDATES
-       "${SAMPLED_TEXTURE_CONTENT}")
-list(LENGTH DESCRIPTOR_UPDATES DESCRIPTOR_UPDATE_COUNT)
-if(NOT DESCRIPTOR_UPDATE_COUNT EQUAL 1)
-    message(FATAL_ERROR
-        "Prototype texture descriptor must be updated exactly once at startup")
-endif()
-string(REGEX MATCHALL "vkUpdateDescriptorSets\\(" LIGHTING_DESCRIPTOR_UPDATES
-       "${LIGHTING_RESOURCES_CONTENT}")
-list(LENGTH LIGHTING_DESCRIPTOR_UPDATES LIGHTING_DESCRIPTOR_UPDATE_COUNT)
-if(NOT LIGHTING_DESCRIPTOR_UPDATE_COUNT EQUAL 1)
-    message(FATAL_ERROR
-        "Prototype lighting descriptor must be updated exactly once at startup")
-endif()
+# Descriptor initialization counts, material rebinding, and static-resource reuse
+# are checked by the Vulkan lifecycle test. Source spelling is not an ownership
+# boundary and must not freeze the number of supported material draws.
 foreach(REQUIRED_LIGHTING_TOKEN IN ITEMS
         "VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT"
         "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT"
@@ -212,8 +194,7 @@ foreach(OBSOLETE_LIGHTING_TOKEN IN ITEMS
 endforeach()
 foreach(REQUIRED_TEXTURE_TOKEN IN ITEMS
         "VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER"
-        "descriptorCount = 1"
-        "VK_IMAGE_VIEW_TYPE_2D_ARRAY"
+        "VK_IMAGE_VIEW_TYPE_2D"
         "VK_SAMPLER_ADDRESS_MODE_REPEAT"
         "VK_SAMPLER_MIPMAP_MODE_LINEAR"
         "vkQueueSubmit2"
@@ -223,23 +204,6 @@ foreach(REQUIRED_TEXTURE_TOKEN IN ITEMS
             "Sampled texture owner is missing: ${REQUIRED_TEXTURE_TOKEN}")
     endif()
 endforeach()
-string(REGEX MATCHALL "vkCmdDraw\\(" SCENE_DRAW_CALLS
-       "${IMMUTABLE_MESH_CONTENT}")
-list(LENGTH SCENE_DRAW_CALLS SCENE_DRAW_CALL_COUNT)
-if(NOT SCENE_DRAW_CALL_COUNT EQUAL 1)
-    message(FATAL_ERROR
-        "Immutable mesh owner must issue the one non-indexed draw command")
-endif()
-string(FIND "${RENDERER_CONTENT}" "world_mesh_->bindAndDraw"
-       WORLD_DRAW_POSITION)
-string(FIND "${RENDERER_CONTENT}" "chair_mesh_->bindAndDraw"
-       CHAIR_DRAW_POSITION)
-if(WORLD_DRAW_POSITION LESS 0 OR CHAIR_DRAW_POSITION LESS 0 OR
-   WORLD_DRAW_POSITION GREATER CHAIR_DRAW_POSITION)
-    message(FATAL_ERROR
-        "Renderer must draw the generated world before the imported chair")
-endif()
-
 foreach(RUNTIME_SOURCE IN ITEMS
         "${SOURCE_ROOT}/src/core/application.cpp"
         "${SOURCE_ROOT}/src/core/engine.cpp"
@@ -467,14 +431,8 @@ endif()
 
 file(READ "${SOURCE_ROOT}/src/editor/editor_renderer.cpp"
      EDITOR_RENDERER_CONTENT)
-string(FIND "${EDITOR_RENDERER_CONTENT}" "world_mesh_->bindAndDraw"
-       EDITOR_SCENE_DRAW_POSITION)
-string(FIND "${EDITOR_RENDERER_CONTENT}" "ImGui_ImplVulkan_RenderDrawData"
-       EDITOR_IMGUI_DRAW_POSITION)
-if(EDITOR_SCENE_DRAW_POSITION LESS 0 OR EDITOR_IMGUI_DRAW_POSITION LESS 0 OR
-   EDITOR_SCENE_DRAW_POSITION GREATER EDITOR_IMGUI_DRAW_POSITION)
-    message(FATAL_ERROR "Editor renderer must draw scene before ImGui")
-endif()
+# The editor Vulkan smoke verifies actual frame draw events: all scene mesh
+# commands precede the one ImGui pass. Do not pin renderer member names here.
 foreach(REQUIRED_EDITOR_RENDER_TOKEN IN ITEMS
         "vkCmdBeginRendering" "vkCmdPipelineBarrier2"
         "VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL"

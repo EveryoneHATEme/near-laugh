@@ -155,6 +155,8 @@ endfunction()
 near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
+    src/core/world/door.cpp
+    src/core/world/scene_assets.cpp
     src/core/world/light_switch.cpp
     src/core/world/level_codec.cpp
     src/core/world/prototype_level.cpp
@@ -192,6 +194,9 @@ target_link_libraries(near_laugh_platform PRIVATE glfw)
 near_laugh_enable_warnings(near_laugh_platform)
 
 add_library(near_laugh_render STATIC
+    src/core/render/scene_assets.cpp
+    src/core/render/scene_resources.cpp
+    src/core/render/changing_mesh_buffer.cpp
     src/core/platform/glfw_vulkan_bridge.cpp
     src/core/render/cgltf_impl.cpp
     src/core/render/depth_attachment.cpp
@@ -222,6 +227,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 add_library(near_laugh_runtime STATIC
+    src/core/gameplay/door_controller.cpp
+    src/core/gameplay/authored_interaction.cpp
     src/core/application.cpp
     src/core/engine.cpp
     src/core/gameplay/player_flashlight.cpp

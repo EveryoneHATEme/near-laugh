@@ -2,17 +2,33 @@
 
 #include <limits>
 
-#include "core/gameplay/light_switch_controller.hpp"
+#include "core/gameplay/authored_interaction.hpp"
 #include "core/gameplay/player_flashlight.hpp"
 #include "core/simulation/fixed_step.hpp"
+#include "core/world/scene_assets.hpp"
 #include "prototype_level_fixture.hpp"
 
 namespace {
+struct SwitchRun {
+  explicit SwitchRun(const PrototypeLevel& world)
+      : level(world), light(world.lightSwitch()), doors(world.doors()) {}
+  void update(bool down, bool active, const PlayerViewPose& view,
+              const PhysicsWorld& physics) {
+    PlayerActionSnapshot input;
+    input.interact = down;
+    (void)interaction.update(input, active, view, level, physics, doors, light);
+  }
+  const auto& pointLightEnabled() const { return light.pointLightEnabled(); }
+  const PrototypeLevel& level;
+  LightSwitchController light;
+  DoorController doors;
+  AuthoredInteraction interaction;
+};
 PlayerViewPose approach(float distance = 1.0F) {
   return {{0.0F, 1.6F, 1.05F + light_switch_half_extent.z + distance},
           {0.0F, 0.0F, -1.0F}};
 }
-void press(LightSwitchController& controller, const PhysicsWorld& physics,
+void press(SwitchRun& controller, const PhysicsWorld& physics,
            PlayerViewPose view = approach()) {
   controller.update(false, true, view, physics);
   controller.update(true, true, view, physics);
@@ -35,13 +51,15 @@ TEST(StaticVisibility, SegmentIncludesEndpointAndSolidInteriorButNotBeyond) {
 TEST(StaticVisibility,
      TerrainRotatedProxyAndPlayerExclusionUsePhysicsFixtures) {
   auto document = prototypeLevelDocument();
-  document.static_prop.yaw_degrees = 90;
-  document.static_prop.box_proxy_half_extent = {0.2F, 0.8F, 1.0F};
+  document.props.front().yaw_degrees = 90;
+  document.props.front().collision_boxes.front().half_extent = {0.2F, 0.8F,
+                                                                1.0F};
   const auto level = makePrototypeLevel(document);
   const PhysicsWorld physics(level);
   EXPECT_TRUE(physics.staticSegmentBlocked({10, 1, 10}, {10, -1, 10}));
   EXPECT_TRUE(physics.staticSegmentBlocked({10, -1, 10}, {10, 1, 10}));
-  const auto center = prototypeStaticPropProxyWorldCenter(document.static_prop);
+  const auto center = propBoxWorldCenter(
+      document.props.front(), document.props.front().collision_boxes.front());
   // At +0.8 X this intersects the yawed proxy, outside its unrotated X extent.
   EXPECT_TRUE(
       physics.staticSegmentBlocked({center.x + 0.8F, center.y, center.z + 1},
@@ -78,14 +96,16 @@ TEST(LightSwitchTarget, InclusiveReachMissInsideAndYaw) {
 
 TEST(LightSwitchController,
      InitialValuesTogglesAndRestartPreserveAuthoredState) {
-  const auto level = makePrototypeLevel(prototypeLevelDocument());
-  const PhysicsWorld physics(level);
   for (const auto slot : {0U, 1U}) {
     for (const bool on : {false, true}) {
       const std::optional definition{
           PrototypeLightSwitch{{0, 1.6F, 1.05F}, 0, slot, on}};
       const auto original = definition;
-      LightSwitchController controller(definition);
+      auto document = prototypeLevelDocument();
+      document.light_switch = definition;
+      const auto level = makePrototypeLevel(document);
+      const PhysicsWorld physics(level);
+      SwitchRun controller(level);
       EXPECT_EQ(controller.pointLightEnabled()[slot], on);
       EXPECT_TRUE(controller.pointLightEnabled()[1 - slot]);
       controller.update(true, true, approach(), physics);  // unarmed startup
@@ -104,8 +124,11 @@ TEST(LightSwitchController,
       EXPECT_EQ(restarted.pointLightEnabled()[slot], on);
     }
   }
-  const std::optional<PrototypeLightSwitch> absent;
-  LightSwitchController none(absent);
+  auto document = prototypeLevelDocument();
+  document.light_switch.reset();
+  const auto level = makePrototypeLevel(document);
+  const PhysicsWorld physics(level);
+  SwitchRun none(level);
   press(none, physics);
   EXPECT_EQ(none.pointLightEnabled(), (std::array<bool, 2>{true, true}));
 }
@@ -113,7 +136,7 @@ TEST(LightSwitchController,
 TEST(LightSwitchController, RejectedAndInactivePressesCannotBeDeferred) {
   const auto level = makePrototypeLevel(prototypeLevelDocument());
   const PhysicsWorld physics(level);
-  LightSwitchController controller(level.lightSwitch());
+  SwitchRun controller(level);
   for (const auto view :
        {approach(2.01F), PlayerViewPose{{1, 1.6F, 3}, {0, 0, -1}},
         PlayerViewPose{{0, 1.6F, -0.81F}, {0, 0, 1}},
@@ -139,7 +162,7 @@ TEST(LightSwitchController, EventBatchesAndPresentationDoNotReplayPresses) {
   PhysicsWorld physics(level);
   PlayerController player(physics, -90);
   PlayerFlashlight flashlight;
-  LightSwitchController controller(level.lightSwitch());
+  SwitchRun controller(level);
   controller.update(false, true, player.viewPose(0), physics);
   FixedStepAccumulator clock;
   bool enabled = true;

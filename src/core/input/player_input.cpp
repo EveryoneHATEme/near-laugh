@@ -16,5 +16,6 @@ PlayerActionSnapshot PlayerInputMapper::map(
       physical.isMouseButtonDown(PhysicalMouseButton::Right),
       physical.cursor_delta_x,
       physical.cursor_delta_y,
+      physical.isKeyDown(PhysicalKey::R),
   };
 }

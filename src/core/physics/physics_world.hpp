@@ -46,6 +46,11 @@ struct PhysicsStaticSolid {
   float yaw_degrees{};
 };
 
+struct PhysicsDoorAdvance {
+  float angle{};
+  bool obstructed{};
+};
+
 class PhysicsWorld {
  public:
   explicit PhysicsWorld(const PrototypeLevel& level);
@@ -64,11 +69,18 @@ class PhysicsWorld {
   [[nodiscard]] PhysicsStaticSolid staticBody(std::size_t index) const;
   [[nodiscard]] bool hasTerrainCollision() const noexcept;
   [[nodiscard]] bool usesSingleThreadedJobs() const noexcept;
-  // Tests only the static world, including the chair box proxy. Extends the
+  // Tests only the static world, including all authored prop boxes. Extends the
   // endpoint by 0.1 mm so a surface at the target counts as obstruction.
   // Invalid/zero-length segments and origins inside solid collision block.
   [[nodiscard]] bool staticSegmentBlocked(WorldPosition origin,
                                           WorldPosition endpoint) const;
+  [[nodiscard]] bool worldSegmentBlocked(
+      WorldPosition origin, WorldPosition endpoint,
+      std::string_view selected_door = {}) const;
+  [[nodiscard]] PhysicsDoorAdvance advanceDoor(std::size_t index,
+                                               float requested_angle);
+  [[nodiscard]] float doorAngle(std::size_t index) const;
+  [[nodiscard]] std::size_t doorCount() const noexcept;
 
  private:
   class Impl;

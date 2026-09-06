@@ -73,7 +73,7 @@ TEST_F(EditorCommands, AllPropertiesAreUndoableAndPersistSemantically) {
   solid.half_extent.y += 0.1F;
   solid.color = {20, 30, 40, 255};
   solid.kind = PrototypeSolidKind::Obstacle;
-  solid.surface = PrototypeSurface::Obstacle;
+  solid.material = "prototype-obstacle";
   ASSERT_TRUE(editor.replaceObject(id, solid));
   auto spawn = original.entries.front();
   spawn.pose.yaw_degrees += 35.0F;
@@ -86,12 +86,12 @@ TEST_F(EditorCommands, AllPropertiesAreUndoableAndPersistSemantically) {
     light.radius += 1.0F;
     ASSERT_TRUE(editor.replaceObject(light_id, light));
   }
-  auto prop = original.static_prop;
+  auto prop = original.props.front();
   prop.translation.x += 0.1F;
   prop.yaw_degrees = 45.0F;
   prop.uniform_scale = 0.75F;
-  prop.box_proxy_center = {-0.1F, 0.6F, 0.0F};
-  prop.box_proxy_half_extent = {0.3F, 0.6F, 0.3F};
+  prop.collision_boxes.front().center = {-0.1F, 0.6F, 0.0F};
+  prop.collision_boxes.front().half_extent = {0.3F, 0.6F, 0.3F};
   ASSERT_TRUE(editor.replaceObject(editor_prop, prop));
   ASSERT_TRUE(editor.valid()) << formatLevelDiagnostics(editor.diagnostics());
   const auto edited = *editor.document();
@@ -126,13 +126,13 @@ TEST_F(EditorCommands,
     EXPECT_FALSE(editor.dirty());
     EXPECT_FALSE(editor.canUndo());
   };
-  for (int field = 0; field < 5; ++field) {
+  for (int field = 0; field < 4; ++field) {
     auto s = original.solids[0];
     if (field == 0) s.center.z = nan;
     if (field == 1) s.half_extent.x = 0;
     if (field == 2) s.half_extent.y = inf;
     if (field == 3) s.kind = static_cast<PrototypeSolidKind>(100);
-    if (field == 4) s.surface = static_cast<PrototypeSurface>(100);
+
     reject(solid_id, s);
   }
   for (int field = 0; field < 2; ++field) {
@@ -141,7 +141,7 @@ TEST_F(EditorCommands,
     if (field == 1) s.pose.yaw_degrees = nan;
     reject(editor_spawn, s);
   }
-  for (int field = 0; field < 5; ++field) {
+  for (int field = 0; field < 4; ++field) {
     auto l = original.environment_light.point_lights[0];
     if (field == 0) l.position.y = nan;
     if (field == 1) l.color[0] = -1;
@@ -151,13 +151,13 @@ TEST_F(EditorCommands,
     reject(editor_first_light, l);
   }
   for (int field = 0; field < 7; ++field) {
-    auto p = original.static_prop;
+    auto p = original.props.front();
     if (field == 0) p.translation.x = nan;
     if (field == 1) p.yaw_degrees = inf;
     if (field == 2) p.uniform_scale = 0;
-    if (field == 3) p.box_proxy_center.z = nan;
-    if (field == 4) p.box_proxy_half_extent.y = -1;
-    if (field == 5) p.surface = PrototypeSurface::Floor;
+    if (field == 3) p.collision_boxes.front().center.z = nan;
+    if (field == 4) p.collision_boxes.front().half_extent.y = -1;
+    if (field == 5) p.id = "invalid ID";
     if (field == 6) p.uniform_scale = std::numeric_limits<float>::max();
     reject(editor_prop, p);
   }
@@ -232,8 +232,7 @@ TEST_F(EditorCommands,
 TEST_F(EditorCommands, SolidCountBoundAndFixedObjectsAreProtected) {
   editor.select(editor_spawn);
   EXPECT_FALSE(editor.removeSelected());
-  for (const auto id :
-       {editor_first_light, editor_first_light + 1, editor_prop}) {
+  for (const auto id : {editor_first_light, editor_first_light + 1}) {
     editor.select(id);
     EXPECT_FALSE(editor.removeSelected());
     EXPECT_FALSE(editor.duplicateSelected());
@@ -274,7 +273,7 @@ TEST_F(EditorCommands, TerrainGestureUsesPressSettingsAndOneMixedHistoryEntry) {
   EXPECT_EQ(sculpted.solids, original.solids);
   EXPECT_EQ(sculpted.environment_light, original.environment_light);
   EXPECT_EQ(sculpted.entries.front(), original.entries.front());
-  EXPECT_EQ(sculpted.static_prop, original.static_prop);
+  EXPECT_EQ(sculpted.props.front(), original.props.front());
   auto expected = *original.terrain;
   EditorTerrainStroke replay;
   replay.brush = brush;
@@ -588,7 +587,7 @@ TEST_F(EditorCommands, VersionTwoOpensCleanAndSavesSwitchAsVersionFour) {
   value.initially_on = false;
   ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
   ASSERT_TRUE(editor.save());
-  EXPECT_NE(bytes(path).find("\"version\": 4"), std::string::npos);
+  EXPECT_NE(bytes(path).find("\"version\": 6"), std::string::npos);
   ASSERT_TRUE(editor.open(path));
   EXPECT_FALSE(editor.dirty());
   EXPECT_EQ(editor.document()->light_switch, value);

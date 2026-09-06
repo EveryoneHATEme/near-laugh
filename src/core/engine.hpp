@@ -1,6 +1,7 @@
 #ifndef CORE_ENGINE_HPP
 #define CORE_ENGINE_HPP
 
+#include "core/gameplay/authored_interaction.hpp"
 #include "core/gameplay/light_switch_controller.hpp"
 #include "core/gameplay/player_flashlight.hpp"
 #include "core/input/player_input.hpp"
@@ -42,6 +43,8 @@ class Engine {
   PlayerController player_;
   PlayerFlashlight flashlight_{};
   LightSwitchController light_switch_;
+  DoorController doors_;
+  AuthoredInteraction interaction_{};
   Renderer renderer_;
   PlayerInputMapper input_mapper_{};
   PlayerActionSnapshot input_{};

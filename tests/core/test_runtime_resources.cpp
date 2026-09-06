@@ -5,7 +5,9 @@
 #include <span>
 #include <string>
 
+#include "core/render/scene_assets.hpp"
 #include "core/runtime_resources.hpp"
+#include "core/world/level_document.hpp"
 
 namespace {
 const std::array<std::filesystem::path, 7> runtimeAssetPaths = {
@@ -36,7 +38,10 @@ void expectMissingPathReported(const std::filesystem::path& root,
   const std::filesystem::path missing = (root / relative).lexically_normal();
   std::filesystem::remove(missing);
   try {
-    static_cast<void>(resolveRuntimeResources(root));
+    const auto resources = resolveRuntimeResources(root);
+    const auto level = loadLevelDocument(resources.prototype_level);
+    ASSERT_TRUE(level.document.has_value());
+    validateSceneAssets(*level.document, root);
     FAIL() << "Expected missing runtime asset failure for " << missing;
   } catch (const std::runtime_error& error) {
     EXPECT_NE(std::string(error.what()).find(missing.string()),
@@ -84,14 +89,7 @@ TEST(RuntimeResources, ResolvesShadersIndependentlyOfWorkingDirectory) {
         std::filesystem::is_regular_file(resources.scene_vertex_shader));
     EXPECT_TRUE(
         std::filesystem::is_regular_file(resources.scene_fragment_shader));
-    for (const std::filesystem::path& texture : resources.scene_textures) {
-      EXPECT_TRUE(std::filesystem::is_regular_file(texture));
-      EXPECT_EQ(texture.parent_path(), resource_root / "textures");
-    }
-    EXPECT_TRUE(
-        std::filesystem::is_regular_file(resources.prototype_chair_model));
-    EXPECT_EQ(resources.prototype_chair_model,
-              resource_root / "models" / "prototype_chair.glb");
+    EXPECT_EQ(resources.root, resource_root);
     EXPECT_TRUE(std::filesystem::is_regular_file(resources.prototype_level));
     EXPECT_EQ(resources.prototype_level,
               resource_root / "levels" / "prototype.level.json");
@@ -137,5 +135,24 @@ TEST(RuntimeResources, MissingShaderReportsResolvedAbsolutePath) {
     EXPECT_NE(std::string(error.what()).find(missing.string()),
               std::string::npos);
   }
+  std::filesystem::remove_all(root);
+}
+
+TEST(RuntimeResources, SelectedDependenciesResolveFromAnotherWorkingDirectory) {
+  // This root deliberately contains no apartment models or textures.
+  const auto root = makeCompleteRuntimeRoot();
+  const auto previous = std::filesystem::current_path();
+  try {
+    std::filesystem::current_path(std::filesystem::temp_directory_path());
+    const auto resources = resolveRuntimeResources(root);
+    const auto loaded = loadLevelDocument(resources.prototype_level);
+    if (!loaded.document)
+      throw std::runtime_error("Selected dependency fixture failed to load");
+    validateSceneAssets(*loaded.document, resources.root);
+  } catch (...) {
+    std::filesystem::current_path(previous);
+    throw;
+  }
+  std::filesystem::current_path(previous);
   std::filesystem::remove_all(root);
 }

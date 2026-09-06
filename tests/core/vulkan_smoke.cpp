@@ -17,8 +17,13 @@
 #include "core/platform/window.hpp"
 #include "core/player/player_controller.hpp"
 #include "core/render/renderer.hpp"
+#include "core/render/sampled_texture.hpp"
+#include "core/render/scene_assets.hpp"
+#include "core/render/static_model_loader.hpp"
 #include "core/render/validation_diagnostics.hpp"
+#include "core/render/vulkan_context.hpp"
 #include "core/testing/test_controls.hpp"
+#include "core/world/door.hpp"
 #include "core/world/prototype_level.hpp"
 #include "prototype_level_fixture.hpp"
 
@@ -27,11 +32,7 @@ RendererResources smokeResources() {
   const std::filesystem::path resources =
       std::filesystem::absolute("resources").lexically_normal();
   return {resources / "shaders/prototype_scene_vertex.spv",
-          resources / "shaders/prototype_scene_fragment.spv",
-          {resources / "textures/prototype_floor.png",
-           resources / "textures/prototype_boundary.png",
-           resources / "textures/prototype_obstacle.png"},
-          resources / "models/prototype_chair.glb"};
+          resources / "shaders/prototype_scene_fragment.spv", resources};
 }
 
 void requireLifecycle(const std::vector<std::string>& actual,
@@ -92,6 +93,10 @@ void requireBalancedTextureLifecycle(const std::vector<std::string>& events,
   requireBalancedEvent(events, "texture.descriptor_pool.created",
                        "texture.descriptor_pool.destroyed", phase);
   requireBalancedEvent(events, "texture.created", "texture.destroyed", phase);
+  requireBalancedEvent(events, "material.buffer.created",
+                       "material.buffer.destroyed", phase);
+  requireBalancedEvent(events, "material.memory.allocated",
+                       "material.memory.freed", phase);
 }
 
 void requireBalancedLightingLifecycle(const std::vector<std::string>& events,
@@ -150,77 +155,91 @@ void runLifecycleSmoke() {
   ValidationDiagnostics diagnostics;
   std::vector<std::string> events;
   setLifecycleLog(&events);
+  std::size_t material_count = 0, world_count = 0, prop_count = 0;
   {
     Platform platform;
     Window window(platform, 320, 240, "near-laugh lifecycle smoke");
-    PrototypeLevel level = loadPackagedPrototypeLevel();
+    const auto level =
+        loadPrototypeLevel("resources/levels/apartment-stairs.level.json");
+    const auto prepared =
+        prepareSceneAssets(smokeResources().resource_root, level);
+    material_count = prepared.materials.size();
+    world_count = prepared.world.size();
+    prop_count = prepared.props.size();
+    if (level.doors().empty() || prop_count < 4)
+      throw std::runtime_error(
+          "Combined lifecycle scene requires selected props and a door");
     Renderer renderer(window, window.framebufferExtent(), level,
                       smokeResources(), diagnostics);
-    renderer.requestSwapchainRecreation();
-    const FrameRequest recovery_request{window.framebufferExtent(), false};
-    if (renderer.renderFrame(recovery_request) != FrameOutcome::Recovered) {
-      throw std::runtime_error(
-          "Forced swapchain recreation did not report recovery");
+    for (int frame = 0; frame < 8; ++frame) {
+      const auto boxes = doorPresentationBoxes(level.doors().front(),
+                                               static_cast<float>(frame) * 10,
+                                               frame < 2, 0.5F, 0.3F);
+      FrameRequest request{window.framebufferExtent(), false};
+      request.opaque_boxes = boxes;
+      request.point_light_enabled = {(frame & 1) != 0, (frame & 2) != 0};
+      if (frame == 3) {
+        renderer.requestSwapchainRecreation();
+        if (renderer.renderFrame(request) != FrameOutcome::Recovered)
+          throw std::runtime_error(
+              "Forced swapchain recreation did not report recovery");
+      }
+      if (renderer.renderFrame(request) == FrameOutcome::Skipped)
+        throw std::runtime_error(
+            "Lifecycle smoke skipped a changing scene draw");
     }
-    const FrameOutcome draw_outcome =
-        renderer.renderFrame({window.framebufferExtent(), false});
-    if (draw_outcome == FrameOutcome::Skipped) {
-      throw std::runtime_error("Lifecycle smoke skipped the two mesh draws");
-    }
+    // A frame without boxes must not redraw data retained by this frame slot.
+    static_cast<void>(
+        renderer.renderFrame({window.framebufferExtent(), false}));
   }
   setLifecycleLog(nullptr);
   requireBalancedDepthLifecycle(events, "normal shutdown");
   requireBalancedTextureLifecycle(events, "normal shutdown");
   requireBalancedLightingLifecycle(events, "normal shutdown");
-  requireBalancedMeshLifecycle(events, "world", "normal shutdown");
-  requireBalancedMeshLifecycle(events, "chair", "normal shutdown");
-  if (eventCount(events, "texture.image.created") != 1 ||
-      eventCount(events, "texture.sampler.created") != 1 ||
-      eventCount(events, "texture.descriptor_layout.created") != 1 ||
-      eventCount(events, "texture.descriptor_pool.created") != 1 ||
-      eventCount(events, "texture.descriptor.updated") != 1 ||
-      eventCount(events, "texture.uploaded.shader_read_only") != 1) {
-    throw std::runtime_error(
-        "Swapchain recreation rebuilt or incompletely initialized the "
-        "prototype texture");
-  }
-  if (eventCount(events, "lighting.buffer.created") != 1 ||
-      eventCount(events, "lighting.memory.allocated") != 1 ||
-      eventCount(events, "lighting.descriptor_layout.created") != 1 ||
-      eventCount(events, "lighting.descriptor_pool.created") != 1 ||
-      eventCount(events, "lighting.uploaded") != 1 ||
-      eventCount(events, "lighting.descriptor.updated") != 1) {
-    throw std::runtime_error(
-        "Swapchain recreation rebuilt or rewrote immutable prototype "
-        "lighting");
-  }
-  for (const std::string name : {"world", "chair"}) {
-    const std::string prefix = name + ".mesh.";
-    if (eventCount(events, prefix + "buffer.created") != 1 ||
-        eventCount(events, prefix + "memory.allocated") != 1 ||
-        eventCount(events, prefix + "uploaded") != 1 ||
-        eventCount(events, prefix + "drawn") != 1) {
+  for (const auto name : {"world", "prop", "changing"})
+    requireBalancedMeshLifecycle(events, name, "normal shutdown");
+  for (const auto event :
+       {"texture.image.created", "texture.sampler.created",
+        "texture.descriptor_layout.created", "texture.descriptor_pool.created",
+        "texture.descriptor.updated", "texture.uploaded.shader_read_only",
+        "material.buffer.created", "material.memory.allocated",
+        "material.uploaded"}) {
+    if (eventCount(events, event) != material_count)
       throw std::runtime_error(
-          "Swapchain recreation rebuilt, re-uploaded, or failed to draw the " +
-          name + " mesh exactly once");
-    }
+          "Recovery rebuilt or incompletely initialized scene materials");
   }
-  requireBefore(events, "pipeline.destroyed",
-                "texture.descriptor_pool.destroyed", "normal shutdown");
-  requireBefore(events, "pipeline.destroyed",
-                "lighting.descriptor_pool.destroyed", "normal shutdown");
-  requireBefore(events, "pipeline.destroyed", "world.mesh.destroyed",
-                "normal shutdown");
-  requireBefore(events, "pipeline.destroyed", "chair.mesh.destroyed",
-                "normal shutdown");
-  requireBefore(events, "world.mesh.destroyed", "device.destroyed",
-                "normal shutdown");
-  requireBefore(events, "chair.mesh.destroyed", "device.destroyed",
-                "normal shutdown");
-  requireBefore(events, "lighting.destroyed", "device.destroyed",
-                "normal shutdown");
-  requireBefore(events, "texture.destroyed", "device.destroyed",
-                "normal shutdown");
+  for (const auto event :
+       {"lighting.buffer.created", "lighting.memory.allocated",
+        "lighting.descriptor_layout.created",
+        "lighting.descriptor_pool.created", "lighting.uploaded",
+        "lighting.descriptor.updated"}) {
+    if (eventCount(events, event) != 1)
+      throw std::runtime_error(
+          "Recovery rebuilt or rewrote immutable lighting");
+  }
+  for (const std::string name : {"world", "prop"}) {
+    const auto expected = name == "world" ? world_count : prop_count;
+    const auto prefix = name + ".mesh.";
+    if (eventCount(events, prefix + "created") != expected ||
+        eventCount(events, prefix + "uploaded") != expected ||
+        eventCount(events, prefix + "drawn") < expected)
+      throw std::runtime_error(
+          "Changing presentation rebuilt or failed to draw static " + name);
+  }
+  if (eventCount(events, "changing.mesh.created") != 2 ||
+      eventCount(events, "changing.mesh.updated") != 8 ||
+      eventCount(events, "changing.mesh.drawn") != 8)
+    throw std::runtime_error(
+        "Changing presentation must reuse two fenced slots and omit empty "
+        "frames");
+  for (const auto event : {"texture.descriptor_pool.destroyed",
+                           "lighting.descriptor_pool.destroyed",
+                           "world.mesh.destroyed", "prop.mesh.destroyed"})
+    requireBefore(events, "pipeline.destroyed", event, "normal shutdown");
+  for (const auto event :
+       {"world.mesh.destroyed", "prop.mesh.destroyed",
+        "changing.mesh.destroyed", "lighting.destroyed", "texture.destroyed"})
+    requireBefore(events, event, "device.destroyed", "normal shutdown");
 
   events.clear();
   setForcedVulkanStage("instance");
@@ -269,11 +288,13 @@ void runLifecycleSmoke() {
   requireBalancedTextureLifecycle(events, "depth construction failure");
   requireBalancedLightingLifecycle(events, "depth construction failure");
 
-  constexpr std::array<const char*, 8> texture_failure_stages = {
+  constexpr std::array<const char*, 11> texture_failure_stages = {
       "texture_staging",         "texture_image",
       "texture_upload",          "texture_view",
       "texture_sampler",         "texture_descriptor_layout",
-      "texture_descriptor_pool", "texture_descriptor_set"};
+      "texture_descriptor_pool", "texture_descriptor_set",
+      "material_buffer",         "material_memory",
+      "material_upload"};
   for (const char* stage : texture_failure_stages) {
     events.clear();
     setForcedVulkanStage(stage);
@@ -339,9 +360,9 @@ void runLifecycleSmoke() {
 
   constexpr std::array<const char*, 10> mesh_failure_stages = {
       "world_mesh_buffer", "world_mesh_memory", "world_mesh_bind",
-      "world_mesh_map",    "world_mesh_upload", "chair_mesh_buffer",
-      "chair_mesh_memory", "chair_mesh_bind",   "chair_mesh_map",
-      "chair_mesh_upload"};
+      "world_mesh_map",    "world_mesh_upload", "prop_mesh_buffer",
+      "prop_mesh_memory",  "prop_mesh_bind",    "prop_mesh_map",
+      "prop_mesh_upload"};
   for (const char* stage : mesh_failure_stages) {
     events.clear();
     setForcedVulkanStage(stage);
@@ -364,17 +385,72 @@ void runLifecycleSmoke() {
           std::string(stage));
     }
     requireBalancedMeshLifecycle(events, "world", stage);
-    requireBalancedMeshLifecycle(events, "chair", stage);
+    requireBalancedMeshLifecycle(events, "prop", stage);
     requireBalancedTextureLifecycle(events, stage);
     requireBalancedLightingLifecycle(events, stage);
     const std::string failed_name =
-        std::string_view(stage).starts_with("world") ? "world" : "chair";
+        std::string_view(stage).starts_with("world") ? "world" : "prop";
     if (eventCount(events, failed_name + ".mesh.created") != 0) {
       throw std::runtime_error(
           "Partially constructed mesh reported complete ownership at " +
           std::string(stage));
     }
   }
+
+  for (const auto* stage : {"changing_mesh_buffer", "changing_mesh_upload"}) {
+    events.clear();
+    setLifecycleLog(&events);
+    renderer_failed = false;
+    try {
+      Platform platform;
+      Window window(platform, 320, 240, "near-laugh changing failure smoke");
+      const auto level =
+          loadPrototypeLevel("resources/levels/apartment-stairs.level.json");
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
+      const auto boxes =
+          doorPresentationBoxes(level.doors().front(), 30, false);
+      FrameRequest request{window.framebufferExtent(), false};
+      request.opaque_boxes = boxes;
+      setForcedVulkanStage(stage);
+      static_cast<void>(renderer.renderFrame(request));
+    } catch (const std::runtime_error&) {
+      renderer_failed = true;
+    }
+    setLifecycleLog(nullptr);
+    setForcedVulkanStage("");
+    if (!renderer_failed)
+      throw std::runtime_error("Changing opaque forced failure did not occur");
+    requireBalancedMeshLifecycle(events, "changing", stage);
+    requireBalancedMeshLifecycle(events, "world", stage);
+    requireBalancedMeshLifecycle(events, "prop", stage);
+    requireBalancedTextureLifecycle(events, stage);
+    requireBalancedLightingLifecycle(events, stage);
+  }
+
+  events.clear();
+  setLifecycleLog(&events);
+  {
+    Platform platform;
+    Window window(platform, 320, 240, "near-laugh material mip smoke");
+    VulkanContext context(window, diagnostics);
+    const SceneMaterialData constant_white;
+    SampledTexture white(context.device(), context.physicalDevice(),
+                         context.graphicsQueue(),
+                         context.queueFamilies().graphics, constant_white);
+    const auto phone = loadStaticModel(
+        sceneModelPath(smokeResources().resource_root, "apartment-phone"));
+    SampledTexture cutout(context.device(), context.physicalDevice(),
+                          context.graphicsQueue(),
+                          context.queueFamilies().graphics, phone.material);
+    if (white.mipLevelCount() != 1 || cutout.mipLevelCount() != 8 ||
+        !white.allSubresourcesShaderReadOnly() ||
+        !cutout.allSubresourcesShaderReadOnly())
+      throw std::runtime_error(
+          "White and cutout material mip chains were not fully uploaded");
+  }
+  setLifecycleLog(nullptr);
+  requireBalancedTextureLifecycle(events, "white and cutout mip uploads");
 
   if (diagnostics.errorCount() != 0) {
     throw std::runtime_error(
@@ -471,11 +547,20 @@ int main(int argc, char** argv) {
         if (!spotLightFrameIsValid(spot_light)) {
           throw std::runtime_error("Smoke generated an invalid spot light");
         }
-        const FrameRequest request{extent,
-                                   window.consumeFramebufferResize(),
-                                   camera,
-                                   spot_light,
-                                   {(frame & 1) == 0, (frame & 2) == 0}};
+        FrameRequest request{extent,
+                             window.consumeFramebufferResize(),
+                             camera,
+                             spot_light,
+                             {(frame & 1) == 0, (frame & 2) == 0}};
+        std::vector<OpaqueBoxFrame> boxes;
+        for (const auto& door : level.doors()) {
+          const auto geometry = doorPresentationBoxes(
+              door,
+              door.open_angle_degrees * static_cast<float>(frame % 60) / 59,
+              false, (frame % 12) / 12.0F, (frame % 10) / 10.0F);
+          boxes.insert(boxes.end(), geometry.begin(), geometry.end());
+        }
+        request.opaque_boxes = boxes;
         static_cast<void>(renderer.renderFrame(request));
       }
       if (inject_validation_error) {

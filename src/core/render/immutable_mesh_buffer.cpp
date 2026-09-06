@@ -20,9 +20,10 @@ ImmutableMeshBuffer::ImmutableMeshBuffer(
     throw std::invalid_argument(
         "Immutable mesh buffer requires valid Vulkan device handles");
   }
-  if (lifecycle_name_ != "world" && lifecycle_name_ != "chair") {
+  if (lifecycle_name_ != "world" && lifecycle_name_ != "chair" &&
+      lifecycle_name_ != "prop" && lifecycle_name_ != "door_preview") {
     throw std::invalid_argument(
-        "Immutable mesh buffer requires the concrete world or chair name");
+        "Immutable mesh buffer requires a concrete scene mesh name");
   }
 
   try {
@@ -46,11 +47,11 @@ ImmutableMeshBuffer::ImmutableMeshBuffer(
     allocation.allocationSize = requirements.size;
     VkPhysicalDeviceMemoryProperties memory_properties{};
     vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
-    allocation.memoryTypeIndex = chooseMemoryType(
-        requirements.memoryTypeBits, memory_properties,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        lifecycle_name_ + " immutable mesh vertices");
+    allocation.memoryTypeIndex =
+        chooseMemoryType(requirements.memoryTypeBits, memory_properties,
+                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                         lifecycle_name_ + " immutable mesh vertices");
     requireVulkan(vkAllocateMemory(device_, &allocation, nullptr, &memory_),
                   "Allocate " + lifecycle_name_ + " immutable mesh memory");
     recordLifecycleEvent(event("memory.allocated"));

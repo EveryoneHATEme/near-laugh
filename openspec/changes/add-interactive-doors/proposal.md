@@ -20,9 +20,10 @@ room.
   without introducing a general event bus or arbitrary action registry.
 - Add door creation, editing, selection, preview, validation, and undo/redo.
   Generated temporary door geometry is sufficient for this milestone.
-- **BREAKING:** Extend the then-current level profile and frame/physics
-  contracts for authored doors and changing poses. Keep source documents
-  immutable while playing.
+- **BREAKING:** Write level format 5 with an explicit bounded door array.
+  Read exact versions 2, 3, and 4 as levels without doors; opening never
+  rewrites a source document. Extend frame/physics contracts for changing
+  poses while keeping authored definitions immutable during play.
 - No general rigid-body sandbox, destructible doors, lock-picking system,
   character AI, or audio implementation in this change.
 
@@ -39,12 +40,16 @@ room.
 
 - `light-switch`: Participate in target arbitration and respect door blockers
   while preserving light independence and held-input suppression.
+- `player-input`: Add a concrete lock action alongside interaction and the
+  existing secondary mouse action used for knocking.
 - `level-persistence`: Persist door identities and initial configuration.
 - `level-object-placement`: Author door placement, hinge, bounds, and state.
 - `physics-simulation`: Include changing door collision and visibility blocking.
 - `runtime-composition`: Own door state and supply coherent presentation data.
 - `vulkan-renderer`: Present changing door poses without rebuilding the entire
   static scene or exposing gameplay policy in frame data.
+- `interior-level-authoring`: Extend the packaged apartment exercise with the
+  room door and an interaction obstruction case while retaining both starts.
 
 ## Impact
 
@@ -58,6 +63,12 @@ controls and door-authoring documentation.
 P03; requires [P01](../archive/2026-09-06-add-interior-level-authoring/proposal.md).
 Audio response is supplied by P04 and narrative control by P05. These later
 consumers use the same authoritative door state.
+
+P03 is integrated before the concurrently planned P02. P03 keeps the current
+single-chair and fixed-texture profile and uses generated doors. P02 then
+rebases its shared deltas on P03 and writes version 6 while preserving doors,
+their identities, and runtime behavior. This is the selected integration order,
+not a requirement that door behavior depend on imported assets.
 
 ## Acceptance Criteria
 

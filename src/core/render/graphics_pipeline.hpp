@@ -155,6 +155,8 @@ class GraphicsPipeline {
   void bindSceneState(VkCommandBuffer command_buffer, const CameraFrame& camera,
                       SpotLightFrame spot_light,
                       std::array<bool, 2> point_light_enabled) const;
+  void bindMaterial(VkCommandBuffer command_buffer,
+                    VkDescriptorSet material) const;
 
  private:
   [[nodiscard]] VkShaderModule createShaderModule(

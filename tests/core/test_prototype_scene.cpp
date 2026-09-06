@@ -4,8 +4,10 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include "core/render/prototype_scene.hpp"
+#include "core/world/door.hpp"
 #include "core/world/light_switch.hpp"
 #include "prototype_level_fixture.hpp"
 
@@ -234,7 +236,7 @@ TEST(PrototypeScene, FaceTextureAxesFollowEachOutwardNormal) {
   }
 }
 
-TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
+TEST(PrototypeScene, LargeSurfacesRepeatAndDrawKeysMatchAssignedMaterials) {
   const PrototypeLevel level = loadPackagedPrototypeLevel();
   const auto vertices = buildPrototypeSceneVertices(level);
   constexpr std::size_t vertices_per_solid = 36;
@@ -247,7 +249,7 @@ TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
   for (std::size_t solid_index = 0; solid_index < level.solids().size();
        ++solid_index) {
     const std::uint32_t expected_layer =
-        static_cast<std::uint32_t>(level.solids()[solid_index].surface);
+        structuralMaterialIndex(level.solids()[solid_index].material);
     for (std::size_t vertex = 0; vertex < vertices_per_solid; ++vertex) {
       EXPECT_EQ(
           vertices[solid_index * vertices_per_solid + vertex].texture_layer,
@@ -262,6 +264,75 @@ TEST(PrototypeScene, LargeSurfacesRepeatAndLayersMatchStableSurfaceRoles) {
     EXPECT_EQ(vertices[vertex].texture_layer,
               static_cast<std::uint32_t>(PrototypeSurface::Floor));
   }
+}
+
+TEST(PrototypeScene, StructuralAppearanceChangesWithoutChangingSolidGeometry) {
+  auto document = prototypeLevelDocument();
+  const auto before =
+      buildPrototypeSceneVertices(document.terrain, document.solids);
+  document.solids.front().material = "wallpaper";
+  document.terrain->material = "wood-floor";
+  const auto after =
+      buildPrototypeSceneVertices(document.terrain, document.solids);
+  ASSERT_EQ(after.size(), before.size());
+  for (std::size_t i = 0; i < after.size(); ++i) {
+    EXPECT_TRUE(samePositionAndUv(before[i], after[i]));
+    for (int axis = 0; axis < 3; ++axis)
+      EXPECT_FLOAT_EQ(before[i].normal[axis], after[i].normal[axis]);
+  }
+  EXPECT_EQ(after.front().texture_layer, structuralMaterialIndex("wallpaper"));
+  EXPECT_EQ(after.back().texture_layer, structuralMaterialIndex("wood-floor"));
+}
+
+TEST(ChangingGeometry, InitialAndMovingDoorBoxesHaveFiniteOutwardNormals) {
+  DoorDefinition door;
+  door.id = "test-door";
+  door.hinge_position = {3, 2, -4};
+  door.closed_yaw_degrees = 37;
+  for (const float angle : {0.0F, 23.0F, 90.0F}) {
+    const auto boxes =
+        doorPresentationBoxes(door, angle, angle == 0, 0.5F, 0.4F);
+    const auto vertices = buildOpaqueBoxVertices(boxes);
+    ASSERT_EQ(vertices.size(), boxes.size() * 36);
+    for (std::size_t box = 0; box < boxes.size(); ++box) {
+      for (std::size_t i = box * 36; i < (box + 1) * 36; ++i) {
+        const auto& v = vertices[i];
+        float normal_length = 0, outward_dot = 0;
+        for (int axis = 0; axis < 3; ++axis) {
+          EXPECT_TRUE(std::isfinite(v.position[axis]));
+          normal_length += v.normal[axis] * v.normal[axis];
+          outward_dot +=
+              v.normal[axis] * (v.position[axis] - boxes[box].center[axis]);
+        }
+        EXPECT_NEAR(normal_length, 1, 0.00001F);
+        EXPECT_GT(outward_dot, 0);
+        EXPECT_EQ(v.texture_layer,
+                  structuralMaterialIndex("prototype-obstacle"));
+      }
+    }
+  }
+}
+
+TEST(ChangingGeometry, RejectsInvalidAndUnboundedFrameData) {
+  EXPECT_TRUE(buildOpaqueBoxVertices({}).empty());
+  OpaqueBoxFrame box{{0, 0, 0}, {1, 1, 1}, 0, {255, 255, 255, 255}, 2};
+  std::vector<OpaqueBoxFrame> boxes(frame_maximum_opaque_box_count, box);
+  EXPECT_EQ(buildOpaqueBoxVertices(boxes).size(), boxes.size() * 36);
+  boxes.push_back(box);
+  EXPECT_THROW(static_cast<void>(buildOpaqueBoxVertices(boxes)),
+               std::runtime_error);
+  boxes = {box};
+  boxes[0].half_extent[1] = 0;
+  EXPECT_THROW(static_cast<void>(buildOpaqueBoxVertices(boxes)),
+               std::runtime_error);
+  boxes[0] = box;
+  boxes[0].yaw_degrees = std::numeric_limits<float>::infinity();
+  EXPECT_THROW(static_cast<void>(buildOpaqueBoxVertices(boxes)),
+               std::runtime_error);
+  boxes[0] = box;
+  boxes[0].surface = 0;
+  EXPECT_THROW(static_cast<void>(buildOpaqueBoxVertices(boxes)),
+               std::runtime_error);
 }
 
 TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {

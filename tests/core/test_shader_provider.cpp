@@ -46,6 +46,32 @@ TEST(ShaderProvider, LoadsProjectShaders) {
   EXPECT_EQ(fragment.front(), 0x07230203U);
 }
 
+TEST(ShaderProvider, PackagedStagesUseOnlyEnabledDeviceCapabilities) {
+  for (const auto* file :
+       {"prototype_scene_vertex.spv", "prototype_scene_fragment.spv"}) {
+    const auto words =
+        readSpirvFile(std::filesystem::path("resources/shaders") / file);
+    ASSERT_GE(words.size(), 5U);
+    bool shader = false;
+    for (std::size_t i = 5; i < words.size();) {
+      const auto count = words[i] >> 16;
+      const auto opcode = words[i] & 0xffff;
+      ASSERT_GT(count, 0U);
+      ASSERT_LE(count, words.size() - i);
+      if (opcode == 17) {  // OpCapability
+        ASSERT_EQ(count, 2U);
+        // The runtime enables basic Shader capability, without optional
+        // demote-to-helper-invocation or other shader device features.
+        EXPECT_EQ(words[i + 1], 1U)
+            << file << " requires an unenabled capability";
+        shader |= words[i + 1] == 1;
+      }
+      i += count;
+    }
+    EXPECT_TRUE(shader) << file;
+  }
+}
+
 TEST(ShaderProvider, PackagedStagesMatchHostPushConstantOffsets) {
   for (const auto* file :
        {"prototype_scene_vertex.spv", "prototype_scene_fragment.spv"}) {

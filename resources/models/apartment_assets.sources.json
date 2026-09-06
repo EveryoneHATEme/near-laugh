@@ -1,0 +1,38 @@
+{
+  "profile": 1,
+  "source": "User-supplied house_interior_pack",
+  "author": "DissonantVoid",
+  "source_url": "https://dissonantvoid.itch.io/psx-retro-interior-pack",
+  "assets": [
+    {
+      "source": "props/chair.glb",
+      "sha256": "d5118c9fa6947348c96456ee8a26d0a3a87c656b3d3f8a6884ccd54bf0f8d891",
+      "output": "models/apartment_chair.glb"
+    },
+    {
+      "source": "props/table.glb",
+      "sha256": "4c8f022411b3c9ba016fbc3aafdd4b227b7dc40f7f98e3d0b73fca87ccdad49a",
+      "output": "models/apartment_table.glb"
+    },
+    {
+      "source": "props/phone.glb",
+      "sha256": "4c854f446d72b17ce61688e65a1eef0f988f565aedce9b547d040681d521489c",
+      "output": "models/apartment_phone.glb"
+    },
+    {
+      "source": "props/radio.glb",
+      "sha256": "128472387bfb46c2dcf8b17dbca07dc301382c3820571b0e27e272705c75957d",
+      "output": "models/apartment_radio.glb"
+    },
+    {
+      "source": "geometry/floorWood.glb",
+      "sha256": "71b8139a3fe0d844a9fcbe7e6f98eec104c4f6ef5980e25e64a3195611a53867",
+      "output": "textures/apartment_wood_floor.png"
+    },
+    {
+      "source": "geometry/wallWallpaper.glb",
+      "sha256": "a5e1c387e18f829ca9ce9eed4ae62ac969acab54a850e4a69032c952f4319abb",
+      "output": "textures/apartment_wallpaper.png"
+    }
+  ]
+}

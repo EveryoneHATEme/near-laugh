@@ -14,6 +14,7 @@ enum class PhysicalKey : std::size_t {
   LeftControl,
   Escape,
   E,
+  R,
   Count
 };
 

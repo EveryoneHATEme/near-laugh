@@ -2,14 +2,18 @@
 
 #include <cgltf.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <numbers>
 #include <stdexcept>
 #include <string>
+
+#include "core/resources/shader_provider.hpp"
 
 namespace {
 using Matrix4 = std::array<float, 16>;
@@ -57,17 +61,24 @@ void requireBoundedStructure(const std::filesystem::path& path,
   if (data.file_type != cgltf_file_type_glb) {
     fail(path, "the asset is not a binary glTF 2.0 file");
   }
-  if (data.extensions_required_count != 0) {
+  if (data.extensions_required_count != 0 || data.extensions_used_count != 0) {
     fail(path, "required extensions are unsupported");
   }
   if (data.buffers_count != 1 || data.buffers[0].uri != nullptr) {
-    fail(path, "geometry must use one embedded GLB buffer without an external URI");
+    fail(path,
+         "geometry must use one embedded GLB buffer without an external URI");
   }
   for (cgltf_size index = 0; index < data.buffer_views_count; ++index) {
     if (data.buffer_views[index].has_meshopt_compression) {
       fail(path, "compressed buffer views are unsupported");
     }
+    const auto& view = data.buffer_views[index];
+    if (view.buffer != &data.buffers[0] || view.offset > view.buffer->size ||
+        view.size > view.buffer->size - view.offset)
+      fail(path, "buffer-view range exceeds the embedded buffer");
   }
+  if (data.buffers[0].size > data.bin_size)
+    fail(path, "embedded buffer length exceeds the GLB binary chunk");
   if (data.scenes_count != 1 || data.scene == nullptr ||
       data.scene != &data.scenes[0] || data.scene->nodes_count != 1) {
     fail(path, "exactly one default scene with one root node is required");
@@ -112,6 +123,100 @@ void requireBoundedStructure(const std::filesystem::path& path,
   }
 }
 
+SceneMaterialData readMaterial(const std::filesystem::path& path,
+                               const cgltf_data& data,
+                               const cgltf_primitive& primitive) {
+  SceneMaterialData result;
+  if (data.materials_count > 1 || data.images_count > 1 ||
+      data.textures_count > 1 || data.samplers_count > 1)
+    fail(path,
+         "material profile allows one material and one embedded base-color "
+         "image");
+  const auto* material = primitive.material;
+  if (material == nullptr) {
+    if (data.materials_count || data.images_count || data.textures_count ||
+        data.samplers_count)
+      fail(path,
+           "unused material or texture resources are outside the profile");
+    return result;
+  }
+  const std::string context =
+      std::string{"material "} + (material->name ? material->name : "0");
+  const auto& pbr = material->pbr_metallic_roughness;
+  if (!material->has_pbr_metallic_roughness || pbr.metallic_factor != 0.0F ||
+      pbr.roughness_factor != 1.0F || pbr.metallic_roughness_texture.texture ||
+      material->normal_texture.texture || material->occlusion_texture.texture ||
+      material->emissive_texture.texture || material->emissive_factor[0] != 0 ||
+      material->emissive_factor[1] != 0 || material->emissive_factor[2] != 0 ||
+      material->double_sided || material->unlit || material->extensions_count ||
+      material->has_pbr_specular_glossiness || material->has_clearcoat ||
+      material->has_transmission || material->has_volume || material->has_ior ||
+      material->has_specular || material->has_sheen ||
+      material->has_emissive_strength || material->has_iridescence ||
+      material->has_diffuse_transmission || material->has_anisotropy ||
+      material->has_dispersion)
+    fail(path, context +
+                   ": unsupported shading inputs; use the prepared base-color "
+                   "profile");
+  for (std::size_t i = 0; i < 4; ++i) {
+    const float value = pbr.base_color_factor[i];
+    if (!std::isfinite(value) || value < 0 || value > 1)
+      fail(path, context + ": base-color factor must be finite in [0,1]");
+    result.base_color_factor[i] = value;
+  }
+  if (material->alpha_mode != cgltf_alpha_mode_opaque &&
+      material->alpha_mode != cgltf_alpha_mode_mask)
+    fail(path,
+         context + ": BLEND and unsupported alpha modes are not supported");
+  result.alpha_mask = material->alpha_mode == cgltf_alpha_mode_mask;
+  if (!std::isfinite(material->alpha_cutoff) || material->alpha_cutoff < 0 ||
+      material->alpha_cutoff > 1)
+    fail(path, context + ": alpha cutoff must be finite in [0,1]");
+  result.alpha_cutoff = material->alpha_cutoff;
+  const auto& texture_view = pbr.base_color_texture;
+  if (texture_view.has_transform || texture_view.texcoord != 0)
+    fail(path, context + ": only untransformed TEXCOORD_0 is supported");
+  const auto* texture = texture_view.texture;
+  if (texture == nullptr) {
+    if (data.images_count || data.textures_count || data.samplers_count)
+      fail(path, context + ": unused texture resources are unsupported");
+    return result;
+  }
+  if (texture->has_basisu || texture->has_webp || texture->extensions_count)
+    fail(path,
+         context +
+             ": compressed or extended base-color textures are unsupported");
+  if (const auto* sampler = texture->sampler) {
+    const auto mag = sampler->mag_filter == cgltf_filter_type_undefined
+                         ? cgltf_filter_type_linear
+                         : sampler->mag_filter;
+    const auto min = sampler->min_filter == cgltf_filter_type_undefined
+                         ? cgltf_filter_type_linear_mipmap_linear
+                         : sampler->min_filter;
+    const bool nearest = mag == cgltf_filter_type_nearest &&
+                         min == cgltf_filter_type_nearest_mipmap_nearest;
+    const bool linear = mag == cgltf_filter_type_linear &&
+                        min == cgltf_filter_type_linear_mipmap_linear;
+    if ((!nearest && !linear) || sampler->wrap_s != cgltf_wrap_mode_repeat ||
+        sampler->wrap_t != cgltf_wrap_mode_repeat || sampler->extensions_count)
+      fail(path, context +
+                     ": unsupported sampler; use repeat nearest/nearest-mip or "
+                     "linear/trilinear");
+    result.nearest = nearest;
+  }
+  const auto* image = texture->image;
+  if (image == nullptr || image->uri || !image->mime_type ||
+      std::strcmp(image->mime_type, "image/png") != 0 || !image->buffer_view ||
+      image->extensions_count)
+    fail(path, context + ": base color must use an embedded PNG image");
+  const auto& view = *image->buffer_view;
+  const auto* bytes = static_cast<const std::uint8_t*>(view.buffer->data);
+  result.image =
+      decodePngRgba({bytes + view.offset, view.size},
+                    path.string() + " " + context + " base-color image");
+  return result;
+}
+
 const cgltf_accessor* findAttribute(const cgltf_primitive& primitive,
                                     cgltf_attribute_type type, int index) {
   const cgltf_accessor* found = nullptr;
@@ -145,28 +250,26 @@ void requireAccessor(const std::filesystem::path& path,
   }
 }
 
-Matrix4 multiply(const Matrix4& first, const Matrix4& second) noexcept {
-  Matrix4 result{};
-  for (std::size_t column = 0; column < 4; ++column) {
-    for (std::size_t row = 0; row < 4; ++row) {
-      for (std::size_t inner = 0; inner < 4; ++inner) {
-        result[column * 4 + row] +=
-            first[inner * 4 + row] * second[column * 4 + inner];
-      }
-    }
-  }
-  return result;
-}
-
 Matrix4 placementMatrix(const PrototypeStaticProp& placement) noexcept {
   const float yaw = placement.yaw_degrees * std::numbers::pi_v<float> / 180.0F;
   const float cosine = std::cos(yaw) * placement.uniform_scale;
   const float sine = std::sin(yaw) * placement.uniform_scale;
-  return {cosine, 0.0F, -sine, 0.0F,
-          0.0F, placement.uniform_scale, 0.0F, 0.0F,
-          sine, 0.0F, cosine, 0.0F,
-          placement.translation.x, placement.translation.y,
-          placement.translation.z, 1.0F};
+  return {cosine,
+          0.0F,
+          -sine,
+          0.0F,
+          0.0F,
+          placement.uniform_scale,
+          0.0F,
+          0.0F,
+          sine,
+          0.0F,
+          cosine,
+          0.0F,
+          placement.translation.x,
+          placement.translation.y,
+          placement.translation.z,
+          1.0F};
 }
 
 std::array<float, 9> normalMatrix(const std::filesystem::path& path,
@@ -181,9 +284,8 @@ std::array<float, 9> normalMatrix(const std::filesystem::path& path,
   const float h = matrix[6];
   const float i = matrix[10];
   const std::array<float, 9> cofactors = {
-      e * i - f * h, f * g - d * i, d * h - e * g,
-      c * h - b * i, a * i - c * g, b * g - a * h,
-      b * f - c * e, c * d - a * f, a * e - b * d};
+      e * i - f * h, f * g - d * i, d * h - e * g, c * h - b * i, a * i - c * g,
+      b * g - a * h, b * f - c * e, c * d - a * f, a * e - b * d};
   const float determinant =
       a * cofactors[0] + b * cofactors[1] + c * cofactors[2];
   if (!std::isfinite(determinant) || std::abs(determinant) < 1.0e-8F) {
@@ -214,17 +316,15 @@ std::array<float, 3> transformPosition(const std::filesystem::path& path,
   return result;
 }
 
-std::array<float, 3> transformNormal(
-    const std::filesystem::path& path, const std::array<float, 9>& matrix,
-    const std::array<float, 3>& value) {
+std::array<float, 3> transformNormal(const std::filesystem::path& path,
+                                     const std::array<float, 9>& matrix,
+                                     const std::array<float, 3>& value) {
   std::array<float, 3> result{};
   for (std::size_t row = 0; row < 3; ++row) {
-    result[row] = matrix[row * 3] * value[0] +
-                  matrix[row * 3 + 1] * value[1] +
+    result[row] = matrix[row * 3] * value[0] + matrix[row * 3 + 1] * value[1] +
                   matrix[row * 3 + 2] * value[2];
   }
-  const float length = std::sqrt(result[0] * result[0] +
-                                 result[1] * result[1] +
+  const float length = std::sqrt(result[0] * result[0] + result[1] * result[1] +
                                  result[2] * result[2]);
   if (!std::isfinite(length) || length < 1.0e-8F) {
     fail(path, "a transformed normal is non-finite or has zero length");
@@ -236,20 +336,20 @@ std::array<float, 3> transformNormal(
 }
 }  // namespace
 
-std::vector<PositionColorVertex> loadStaticModelVertices(
-    const std::filesystem::path& model_path,
-    const PrototypeStaticProp& placement) {
+StaticModelData loadStaticModel(const std::filesystem::path& model_path) {
   const std::filesystem::path path =
       std::filesystem::absolute(model_path).lexically_normal();
-  if (!prototypeStaticPropIsValid(placement)) {
-    fail(path, "the prototype placement or collision proxy is invalid");
-  }
+  std::error_code file_error;
+  const auto file_size = std::filesystem::file_size(path, file_error);
+  if (file_error)
+    fail(path, "model is missing or unreadable: " + file_error.message());
+  if (file_size > 16U * 1024U * 1024U) fail(path, "model exceeds 16 MiB");
+  const auto encoded = readBinaryFile(path);
 
   const cgltf_options options{};
   cgltf_data* parsed = nullptr;
-  const std::string path_string = path.string();
   const cgltf_result parse_result =
-      cgltf_parse_file(&options, path_string.c_str(), &parsed);
+      cgltf_parse(&options, encoded.data(), encoded.size(), &parsed);
   if (parse_result != cgltf_result_success) {
     fail(path, std::string{"parse failed: "} + resultName(parse_result));
   }
@@ -257,7 +357,7 @@ std::vector<PositionColorVertex> loadStaticModelVertices(
   requireBoundedStructure(path, *data);
 
   const cgltf_result load_result =
-      cgltf_load_buffers(&options, data.get(), path_string.c_str());
+      cgltf_load_buffers(&options, data.get(), nullptr);
   if (load_result != cgltf_result_success) {
     fail(path, std::string{"embedded buffer load failed: "} +
                    resultName(load_result));
@@ -272,6 +372,8 @@ std::vector<PositionColorVertex> loadStaticModelVertices(
   requireAccessor(path, positions, cgltf_type_vec3, "POSITION");
   requireAccessor(path, normals, cgltf_type_vec3, "NORMAL");
   requireAccessor(path, texture_coordinates, cgltf_type_vec2, "TEXCOORD_0");
+  if (primitive.attributes_count != 3)
+    fail(path, "only POSITION, NORMAL and TEXCOORD_0 attributes are supported");
   if (positions->count != normals->count ||
       positions->count != texture_coordinates->count) {
     fail(path, "POSITION, NORMAL, and TEXCOORD_0 counts do not match");
@@ -289,9 +391,25 @@ std::vector<PositionColorVertex> loadStaticModelVertices(
       fail(path, "indices must use unsigned 8-bit, 16-bit, or 32-bit values");
     }
   }
-  if (output_count == 0 || output_count % 3 != 0 ||
-      output_count > std::numeric_limits<std::uint32_t>::max()) {
+  if (output_count == 0 || output_count % 3 != 0 || output_count > 300000) {
     fail(path, "triangle vertex count is empty, incomplete, or too large");
+  }
+  // cgltf's general validator performs offset + stride * count arithmetic.
+  // Bound each range by subtraction/division first, including unused accessors,
+  // so crafted JSON integers cannot wrap before the library inspects them.
+  for (cgltf_size index = 0; index < data->accessors_count; ++index) {
+    const auto& accessor = data->accessors[index];
+    const auto element_size =
+        cgltf_calc_size(accessor.type, accessor.component_type);
+    if (accessor.is_sparse || !accessor.buffer_view || !accessor.count ||
+        !element_size || accessor.stride < element_size)
+      fail(path, "unsupported or empty accessor storage");
+    const auto available = accessor.buffer_view->size;
+    if (accessor.offset > available ||
+        element_size > available - accessor.offset ||
+        accessor.count - 1 >
+            (available - accessor.offset - element_size) / accessor.stride)
+      fail(path, "accessor byte range is invalid or too large");
   }
   const cgltf_result validation_result = cgltf_validate(data.get());
   if (validation_result != cgltf_result_success) {
@@ -306,10 +424,12 @@ std::vector<PositionColorVertex> loadStaticModelVertices(
       fail(path, "the root-node transform contains non-finite data");
     }
   }
-  const Matrix4 combined = multiply(placementMatrix(placement), node_matrix);
+  const Matrix4 combined = node_matrix;
   const std::array<float, 9> normals_matrix = normalMatrix(path, combined);
 
-  std::vector<PositionColorVertex> vertices;
+  StaticModelData result;
+  result.material = readMaterial(path, *data, primitive);
+  auto& vertices = result.vertices;
   vertices.reserve(output_count);
   for (std::size_t output_index = 0; output_index < output_count;
        ++output_index) {
@@ -326,8 +446,8 @@ std::vector<PositionColorVertex> loadStaticModelVertices(
                                    position.size()) ||
         !cgltf_accessor_read_float(normals, source_index, normal.data(),
                                    normal.size()) ||
-        !cgltf_accessor_read_float(texture_coordinates, source_index,
-                                   uv.data(), uv.size())) {
+        !cgltf_accessor_read_float(texture_coordinates, source_index, uv.data(),
+                                   uv.size())) {
       fail(path, "an accessor element could not be decoded");
     }
     if (!std::isfinite(position[0]) || !std::isfinite(position[1]) ||
@@ -342,7 +462,46 @@ std::vector<PositionColorVertex> loadStaticModelVertices(
                         {255, 255, 255, 255},
                         {normal[0], normal[1], normal[2]},
                         {uv[0], uv[1]},
-                        static_cast<std::uint32_t>(placement.surface)});
+                        0});
+    if (vertices.size() == 1) {
+      result.minimum = result.maximum = {position[0], position[1], position[2]};
+    } else {
+      result.minimum.x = std::min(result.minimum.x, position[0]);
+      result.minimum.y = std::min(result.minimum.y, position[1]);
+      result.minimum.z = std::min(result.minimum.z, position[2]);
+      result.maximum.x = std::max(result.maximum.x, position[0]);
+      result.maximum.y = std::max(result.maximum.y, position[1]);
+      result.maximum.z = std::max(result.maximum.z, position[2]);
+    }
+  }
+  return result;
+}
+
+std::vector<PositionColorVertex> placeStaticModelVertices(
+    const StaticModelData& model, const PrototypeStaticProp& placement) {
+  if (!std::isfinite(placement.translation.x) ||
+      !std::isfinite(placement.translation.y) ||
+      !std::isfinite(placement.translation.z) ||
+      !std::isfinite(placement.yaw_degrees) ||
+      !std::isfinite(placement.uniform_scale) || placement.uniform_scale <= 0)
+    throw std::runtime_error("Static model placement transform is invalid");
+  const auto matrix = placementMatrix(placement);
+  const auto normals = normalMatrix({}, matrix);
+  auto vertices = model.vertices;
+  for (auto& vertex : vertices) {
+    const auto p = transformPosition(
+        {}, matrix,
+        {vertex.position[0], vertex.position[1], vertex.position[2]});
+    const auto n = transformNormal(
+        {}, normals, {vertex.normal[0], vertex.normal[1], vertex.normal[2]});
+    std::copy(p.begin(), p.end(), vertex.position);
+    std::copy(n.begin(), n.end(), vertex.normal);
   }
   return vertices;
+}
+
+std::vector<PositionColorVertex> loadStaticModelVertices(
+    const std::filesystem::path& model_path,
+    const PrototypeStaticProp& placement) {
+  return placeStaticModelVertices(loadStaticModel(model_path), placement);
 }

@@ -9,6 +9,7 @@
 
 #include "core/physics/physics_world.hpp"
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 #include "prototype_level_fixture.hpp"
 
 namespace {
@@ -84,6 +85,38 @@ TEST(PhysicsLifetime, InteriorPartialConstructionAndWallsRetainOwnership) {
     EXPECT_TRUE(state.supported());
     EXPECT_LT(state.foot_position.x, 1.7F);
     EXPECT_TRUE(recovered.staticSegmentBlocked({0, 1, -16.2F}, {3, 1, -16.2F}));
+  }
+}
+
+TEST(PhysicsLifetime, FailureAfterSeveralDoorBodiesReleasesAllOwners) {
+  auto doc = prototypeLevelDocument();
+  doc.terrain.reset();
+  doc.props.clear();
+  doc.light_switch.reset();
+  doc.solids = {{{0, -.25F, 0},
+                 {10, .25F, 10},
+                 {160, 160, 160, 255},
+                 PrototypeSolidKind::Floor,
+                 "prototype-floor"}};
+  doc.entries = {{"start", {{0, 0, 3}, 0}}};
+  doc.default_entry = "start";
+  DoorDefinition first;
+  first.id = "first";
+  first.hinge_position = {-4, .02F, 0};
+  DoorDefinition second = first;
+  second.id = "second";
+  second.hinge_position.x = 4;
+  doc.doors = {first, second};
+  const auto level = makePrototypeLevel(doc);
+  for (int cycle = 0; cycle < 3; ++cycle) {
+    {
+      ScopedPhysicsFailure failure("door-bodies");
+      EXPECT_THROW(static_cast<void>(PhysicsWorld{level}), std::runtime_error);
+    }
+    PhysicsWorld recovered(level);
+    EXPECT_EQ(recovered.doorCount(), 2U);
+    EXPECT_TRUE(recovered.worldSegmentBlocked({-3.5F, 1, 1}, {-3.5F, 1, -1}));
+    EXPECT_TRUE(recovered.worldSegmentBlocked({4.5F, 1, 1}, {4.5F, 1, -1}));
   }
 }
 
@@ -192,24 +225,24 @@ TEST(PhysicsWorld, StaticChairProxyMatchesPlacementAndBlocksThePlayer) {
   PhysicsWorld physics(level);
   ASSERT_EQ(physics.staticBodyCount(), level.solids().size() + 1U);
   const PhysicsStaticSolid chair = physics.staticBody(level.solids().size());
-  const WorldPosition expected_center =
-      prototypeStaticPropProxyWorldCenter(level.staticProp());
-  const WorldExtent expected_half_extent =
-      prototypeStaticPropProxyWorldHalfExtent(level.staticProp());
+  const WorldPosition expected_center = propBoxWorldCenter(
+      level.props().front(), level.props().front().collision_boxes.front());
+  const WorldExtent expected_half_extent = propBoxWorldHalfExtent(
+      level.props().front(), level.props().front().collision_boxes.front());
   EXPECT_FLOAT_EQ(chair.center.x, expected_center.x);
   EXPECT_FLOAT_EQ(chair.center.y, expected_center.y);
   EXPECT_FLOAT_EQ(chair.center.z, expected_center.z);
   EXPECT_FLOAT_EQ(chair.half_extent.x, expected_half_extent.x);
   EXPECT_FLOAT_EQ(chair.half_extent.y, expected_half_extent.y);
   EXPECT_FLOAT_EQ(chair.half_extent.z, expected_half_extent.z);
-  EXPECT_FLOAT_EQ(chair.yaw_degrees, level.staticProp().yaw_degrees);
+  EXPECT_FLOAT_EQ(chair.yaw_degrees, level.props().front().yaw_degrees);
   EXPECT_EQ(chair.kind, PrototypeSolidKind::Obstacle);
 
   static_cast<void>(simulate(physics, {}, 120));
   static_cast<void>(simulate(physics, {4.0F, 0.0F, 0.0F}, 27));
   static_cast<void>(simulate(physics, {0.0F, 0.0F, -5.0F}, 72));
   const float yaw =
-      level.staticProp().yaw_degrees * std::numbers::pi_v<float> / 180.0F;
+      level.props().front().yaw_degrees * std::numbers::pi_v<float> / 180.0F;
   const float local_z_x = std::sin(yaw);
   const float local_z_z = std::cos(yaw);
   const PhysicsCharacterState blocked =

@@ -3,9 +3,11 @@
 
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
+#include "core/frame.hpp"
 #include "core/world/prototype_level.hpp"
 
 struct PositionColorVertex {
@@ -13,6 +15,8 @@ struct PositionColorVertex {
   std::uint8_t color[4];
   float normal[3];
   float texture_coordinates[2];
+  // CPU grouping key for structural materials; imported vertices use zero.
+  // Material descriptors now determine appearance, not an image-array layer.
   std::uint32_t texture_layer;
 };
 
@@ -27,5 +31,9 @@ static_assert(sizeof(PositionColorVertex) == sizeof(float) * 8 + 8);
     const std::optional<PrototypeTerrain>& terrain,
     std::span<const PrototypeSolid> solids,
     const std::optional<PrototypeLightSwitch>& light_switch = std::nullopt);
+
+[[nodiscard]] std::uint32_t structuralMaterialIndex(std::string_view id);
+[[nodiscard]] std::vector<PositionColorVertex> buildOpaqueBoxVertices(
+    std::span<const OpaqueBoxFrame> boxes);
 
 #endif

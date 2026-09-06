@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -12,7 +13,10 @@
 #include <string>
 #include <vector>
 
+#include "core/render/scene_assets.hpp"
 #include "core/render/static_model_loader.hpp"
+#include "core/resources/shader_provider.hpp"
+#include "core/world/scene_assets.hpp"
 #include "prototype_level_fixture.hpp"
 
 namespace {
@@ -222,6 +226,27 @@ std::vector<std::uint8_t> makeGlb(const FixtureOptions& options = {}) {
   return glb;
 }
 
+std::vector<std::uint8_t> replaceGlbJson(std::vector<std::uint8_t> bytes,
+                                         std::string_view from,
+                                         std::string_view to) {
+  std::uint32_t length = 0;
+  std::memcpy(&length, bytes.data() + 12, sizeof(length));
+  std::string json(bytes.begin() + 20, bytes.begin() + 20 + length);
+  const auto found = json.find(from);
+  if (found == std::string::npos)
+    throw std::runtime_error("Missing fixture JSON text");
+  json.replace(found, from.size(), to);
+  while (json.size() % 4) json.push_back(' ');
+  std::vector<std::uint8_t> result(bytes.begin(), bytes.begin() + 12);
+  append(result, static_cast<std::uint32_t>(json.size()));
+  append(result, std::uint32_t{0x4E4F534A});
+  result.insert(result.end(), json.begin(), json.end());
+  result.insert(result.end(), bytes.begin() + 20 + length, bytes.end());
+  const auto total = static_cast<std::uint32_t>(result.size());
+  std::memcpy(result.data() + 8, &total, sizeof(total));
+  return result;
+}
+
 class FixtureFile {
  public:
   explicit FixtureFile(const std::vector<std::uint8_t>& bytes) {
@@ -249,7 +274,7 @@ class FixtureFile {
 };
 
 PrototypeStaticProp identityPlacement() {
-  PrototypeStaticProp placement = loadPackagedPrototypeLevel().staticProp();
+  PrototypeStaticProp placement = loadPackagedPrototypeLevel().props().front();
   placement.translation = {};
   placement.yaw_degrees = 0.0F;
   placement.uniform_scale = 1.0F;
@@ -321,7 +346,7 @@ TEST(StaticModelLoader, ExpandsIndexedAndNonIndexedDataInDeclaredOrder) {
   }
   FixtureOptions indexed;
   indexed.indexed = true;
-  indexed.material = true;
+
   const FixtureFile fixture(makeGlb(indexed));
   const auto vertices =
       loadStaticModelVertices(fixture.path(), identityPlacement());
@@ -334,8 +359,7 @@ TEST(StaticModelLoader, ExpandsIndexedAndNonIndexedDataInDeclaredOrder) {
     EXPECT_EQ(vertex.color[1], 255U);
     EXPECT_EQ(vertex.color[2], 255U);
     EXPECT_EQ(vertex.color[3], 255U);
-    EXPECT_EQ(vertex.texture_layer,
-              static_cast<std::uint32_t>(PrototypeSurface::Obstacle));
+    EXPECT_EQ(vertex.texture_layer, 0U);
   }
 }
 
@@ -400,8 +424,8 @@ TEST(StaticModelLoader, LoadsPackagedPrototypeChairThroughProductionPath) {
   const std::filesystem::path path =
       std::filesystem::absolute("resources/models/prototype_chair.glb")
           .lexically_normal();
-  const auto vertices =
-      loadStaticModelVertices(path, loadPackagedPrototypeLevel().staticProp());
+  const auto vertices = loadStaticModelVertices(
+      path, loadPackagedPrototypeLevel().props().front());
   ASSERT_FALSE(vertices.empty());
   EXPECT_EQ(vertices.size() % 3, 0U);
   for (const PositionColorVertex& vertex : vertices) {
@@ -418,7 +442,183 @@ TEST(StaticModelLoader, LoadsPackagedPrototypeChairThroughProductionPath) {
     EXPECT_EQ(vertex.color[1], 255U);
     EXPECT_EQ(vertex.color[2], 255U);
     EXPECT_EQ(vertex.color[3], 255U);
-    EXPECT_EQ(vertex.texture_layer,
-              static_cast<std::uint32_t>(PrototypeSurface::Obstacle));
+    EXPECT_EQ(vertex.texture_layer, 0U);
   }
+}
+
+TEST(StaticModelLoader, LoadsTheSelectedPreparedMaterialsAndCatalogBounds) {
+  const auto root = std::filesystem::absolute("resources");
+  for (const auto id : {"apartment-chair", "apartment-table", "apartment-phone",
+                        "apartment-radio"}) {
+    SCOPED_TRACE(id);
+    const auto model = loadStaticModel(sceneModelPath(root, id));
+    ASSERT_FALSE(model.vertices.empty());
+    EXPECT_EQ(model.vertices.size() % 3, 0U);
+    EXPECT_EQ(model.material.image.width, 128U);
+    EXPECT_EQ(model.material.image.height, 128U);
+    EXPECT_TRUE(model.material.nearest);
+    EXPECT_EQ(model.material.base_color_factor,
+              (std::array<float, 4>{1, 1, 1, 1}));
+    EXPECT_EQ(model.material.alpha_mask,
+              std::string_view{id} == "apartment-phone");
+    EXPECT_FLOAT_EQ(model.material.alpha_cutoff, 0.5F);
+    const auto* catalog = findSceneModel(id);
+    ASSERT_NE(catalog, nullptr);
+    EXPECT_NEAR(model.minimum.x, catalog->bounds_min.x, 0.000002F);
+    EXPECT_NEAR(model.minimum.y, catalog->bounds_min.y, 0.000002F);
+    EXPECT_NEAR(model.minimum.z, catalog->bounds_min.z, 0.000002F);
+    EXPECT_NEAR(model.maximum.x, catalog->bounds_max.x, 0.000002F);
+    EXPECT_NEAR(model.maximum.y, catalog->bounds_max.y, 0.000002F);
+    EXPECT_NEAR(model.maximum.z, catalog->bounds_max.z, 0.000002F);
+  }
+  const auto phone = loadStaticModel(sceneModelPath(root, "apartment-phone"));
+  bool covered = false, discarded = false;
+  for (std::size_t i = 3; i < phone.material.image.pixels.size(); i += 4) {
+    const bool coverage = materialCoversSample(
+        phone.material,
+        static_cast<float>(phone.material.image.pixels[i]) / 255);
+    covered |= coverage;
+    discarded |= !coverage;
+  }
+  EXPECT_TRUE(covered);
+  EXPECT_TRUE(discarded);
+}
+
+TEST(StaticModelLoader, RejectsUnpreparedShadingAndBlendWithAssetContext) {
+  FixtureOptions options;
+  options.material = true;
+  expectFailure(options, "unsupported shading inputs");
+
+  const auto path =
+      sceneModelPath(std::filesystem::absolute("resources"), "apartment-phone");
+  const FixtureFile fixture(
+      replaceGlbJson(readBinaryFile(path), "\"MASK\"", "\"BLEND\""));
+  try {
+    static_cast<void>(loadStaticModel(fixture.path()));
+    FAIL() << "BLEND must fail the controlled profile";
+  } catch (const std::runtime_error& error) {
+    EXPECT_NE(std::string{error.what()}.find("BLEND"), std::string::npos);
+    EXPECT_NE(std::string{error.what()}.find(fixture.path().string()),
+              std::string::npos);
+  }
+}
+
+TEST(SceneAssets, RepeatedPlacementsShareMaterialAndKeepIndependentTransforms) {
+  LevelDocument document;
+  auto first = identityPlacement();
+  first.id = "chair-a";
+  first.model = "apartment-chair";
+  auto second = first;
+  second.id = "chair-b";
+  second.translation = {3, 2, -4};
+  second.yaw_degrees = 90;
+  second.uniform_scale = 2;
+  document.props = {first, second};
+  const auto root = std::filesystem::absolute("resources");
+  const auto prepared = prepareSceneAssets(root, document);
+  const auto model = loadStaticModel(sceneModelPath(root, first.model));
+  const auto placed = placeStaticModelVertices(model, second);
+  ASSERT_EQ(prepared.materials.size(), 1U);
+  ASSERT_EQ(prepared.props.size(), 1U);
+  ASSERT_EQ(prepared.props.front().vertices.size(), model.vertices.size() * 2);
+  const auto& vertices = prepared.props.front().vertices;
+  for (std::size_t i = 0; i < model.vertices.size(); ++i) {
+    for (int axis = 0; axis < 3; ++axis) {
+      EXPECT_FLOAT_EQ(vertices[i].position[axis],
+                      model.vertices[i].position[axis]);
+      EXPECT_FLOAT_EQ(vertices[i + model.vertices.size()].position[axis],
+                      placed[i].position[axis]);
+      EXPECT_FLOAT_EQ(vertices[i + model.vertices.size()].normal[axis],
+                      placed[i].normal[axis]);
+    }
+    for (int axis = 0; axis < 2; ++axis)
+      EXPECT_FLOAT_EQ(
+          vertices[i + model.vertices.size()].texture_coordinates[axis],
+          model.vertices[i].texture_coordinates[axis]);
+  }
+  EXPECT_TRUE(prepared.world.empty());
+}
+
+TEST(SceneAssets, SelectedOnlyPreflightAndEmptySceneNeedNoUnusedModelFiles) {
+  const auto absent_root =
+      std::filesystem::absolute("missing-assets-for-empty-scene");
+  LevelDocument document;
+  const auto empty = prepareSceneAssets(absent_root, document);
+  EXPECT_TRUE(empty.props.empty());
+  EXPECT_TRUE(empty.world.empty());
+  ASSERT_EQ(empty.materials.size(), 1U);
+  EXPECT_EQ(empty.materials[0].data.image.pixels,
+            (std::vector<std::uint8_t>{255, 255, 255, 255}));
+  auto prop = identityPlacement();
+  prop.id = "required-chair";
+  prop.model = "apartment-chair";
+  document.props.push_back(prop);
+  try {
+    validateSceneAssets(document, absent_root);
+    FAIL() << "Selected missing model must fail preflight";
+  } catch (const std::runtime_error& error) {
+    const std::string message{error.what()};
+    EXPECT_NE(message.find("required-chair"), std::string::npos);
+    EXPECT_NE(message.find("apartment-chair"), std::string::npos);
+    EXPECT_NE(message.find("apartment_chair.glb"), std::string::npos);
+  }
+  document.props.resize(level_maximum_prop_count + 1, prop);
+  EXPECT_THROW(static_cast<void>(prepareSceneAssets(absent_root, document)),
+               std::runtime_error);
+}
+
+TEST(SceneAssets,
+     LegacyChairUsesExplicitLegacyMaterialAndDoorAliasStaysOpaque) {
+  LevelDocument document;
+  document.props.push_back(identityPlacement());
+  document.doors.push_back(DoorDefinition{});
+  const auto prepared =
+      prepareSceneAssets(std::filesystem::absolute("resources"), document);
+  ASSERT_EQ(prepared.materials.size(), 1U);
+  ASSERT_EQ(prepared.props.size(), 1U);
+  ASSERT_TRUE(prepared.obstacle_material.has_value());
+  EXPECT_EQ(prepared.props.front().material, *prepared.obstacle_material);
+  EXPECT_EQ(prepared.materials[0].id, "prototype-obstacle");
+  EXPECT_FALSE(prepared.materials[0].data.nearest);
+  EXPECT_FALSE(prepared.materials[0].data.alpha_mask);
+}
+
+TEST(StaticModelLoader, RejectsOverflowingBufferAndAccessorRangesBeforeRead) {
+  for (const auto& replacement :
+       {replaceGlbJson(makeGlb(), "\"byteOffset\":0",
+                       "\"byteOffset\":18446744073709551615"),
+        replaceGlbJson(makeGlb(), "\"bufferView\":0,\"componentType\"",
+                       "\"bufferView\":0,\"byteOffset\":18446744073709551615,"
+                       "\"componentType\"")}) {
+    const FixtureFile fixture(replacement);
+    EXPECT_THROW(static_cast<void>(loadStaticModel(fixture.path())),
+                 std::runtime_error);
+  }
+}
+
+TEST(StaticModelLoader, RejectsExternalImagesUnsupportedSamplersAndShading) {
+  const auto bytes = readBinaryFile(sceneModelPath(
+      std::filesystem::absolute("resources"), "apartment-phone"));
+  const std::array<std::pair<std::string_view, std::string_view>, 5> changes{
+      {{"\"mimeType\":\"image/png\"",
+        "\"mimeType\":\"image/png\",\"uri\":\"outside.png\""},
+       {"\"magFilter\":9728", "\"magFilter\":9729"},
+       {"\"metallicFactor\":0", "\"metallicFactor\":1"},
+       {"\"alphaCutoff\":0.5", "\"alphaCutoff\":2"},
+       {"\"baseColorFactor\":[1,1,1,1]", "\"baseColorFactor\":[1,1,1,2]"}}};
+  for (const auto& [from, to] : changes) {
+    SCOPED_TRACE(from);
+    const FixtureFile fixture(replaceGlbJson(bytes, from, to));
+    EXPECT_THROW(static_cast<void>(loadStaticModel(fixture.path())),
+                 std::runtime_error);
+  }
+  auto corrupt_png = bytes;
+  const std::array<std::uint8_t, 8> signature{137, 80, 78, 71, 13, 10, 26, 10};
+  const auto png = std::search(corrupt_png.begin(), corrupt_png.end(),
+                               signature.begin(), signature.end());
+  ASSERT_NE(png, corrupt_png.end());
+  *png = 0;
+  const FixtureFile fixture(corrupt_png);
+  EXPECT_THROW(static_cast<void>(loadStaticModel(fixture.path())),
+               std::runtime_error);
 }

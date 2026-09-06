@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 6,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9417,7 +9417,8 @@
       -1.2170773e-21,
       -7.707906e-22,
       -4.762472e-22
-    ]
+    ],
+    "material": "prototype-floor"
   },
   "solids": [
     {
@@ -9438,7 +9439,7 @@
         255
       ],
       "kind": "boundary",
-      "surface": "boundary"
+      "material": "prototype-boundary"
     },
     {
       "center": {
@@ -9458,7 +9459,7 @@
         255
       ],
       "kind": "boundary",
-      "surface": "boundary"
+      "material": "prototype-boundary"
     },
     {
       "center": {
@@ -9478,7 +9479,7 @@
         255
       ],
       "kind": "boundary",
-      "surface": "boundary"
+      "material": "prototype-boundary"
     },
     {
       "center": {
@@ -9498,7 +9499,7 @@
         255
       ],
       "kind": "boundary",
-      "surface": "boundary"
+      "material": "prototype-boundary"
     },
     {
       "center": {
@@ -9518,7 +9519,7 @@
         255
       ],
       "kind": "obstacle",
-      "surface": "obstacle"
+      "material": "prototype-obstacle"
     },
     {
       "center": {
@@ -9538,7 +9539,7 @@
         255
       ],
       "kind": "obstacle",
-      "surface": "obstacle"
+      "material": "prototype-obstacle"
     },
     {
       "center": {
@@ -9558,7 +9559,7 @@
         255
       ],
       "kind": "obstacle",
-      "surface": "obstacle"
+      "material": "prototype-obstacle"
     },
     {
       "center": {
@@ -9578,7 +9579,7 @@
         255
       ],
       "kind": "obstacle",
-      "surface": "obstacle"
+      "material": "prototype-obstacle"
     },
     {
       "center": {
@@ -9598,7 +9599,7 @@
         255
       ],
       "kind": "walkable_step",
-      "surface": "obstacle"
+      "material": "prototype-obstacle"
     },
     {
       "center": {
@@ -9618,7 +9619,7 @@
         255
       ],
       "kind": "low_clearance",
-      "surface": "obstacle"
+      "material": "prototype-obstacle"
     }
   ],
   "entries": [
@@ -9666,28 +9667,33 @@
     ],
     "ambient_intensity": 0.12
   },
-  "static_prop": {
-    "translation": {
-      "x": 3.0,
-      "y": -5.4078348e-05,
-      "z": -2.0
-    },
-    "yaw_degrees": -25.0,
-    "uniform_scale": 1.0,
-    "surface": "obstacle",
-    "box_proxy": {
-      "center": {
-        "x": 0.0,
-        "y": 0.91,
-        "z": 0.0
+  "props": [
+    {
+      "id": "prototype-chair",
+      "model": "prototype-chair",
+      "translation": {
+        "x": 3.0,
+        "y": -5.4078348e-05,
+        "z": -2.0
       },
-      "half_extent": {
-        "x": 0.55,
-        "y": 0.91,
-        "z": 0.48
-      }
+      "yaw_degrees": -25.0,
+      "uniform_scale": 1.0,
+      "collision_boxes": [
+        {
+          "center": {
+            "x": 0.0,
+            "y": 0.91,
+            "z": 0.0
+          },
+          "half_extent": {
+            "x": 0.55,
+            "y": 0.91,
+            "z": 0.48
+          }
+        }
+      ]
     }
-  },
+  ],
   "light_switch": {
     "position": {
       "x": 0.0,
@@ -9697,5 +9703,6 @@
     "yaw_degrees": 0.0,
     "point_light_index": 0,
     "initially_on": true
-  }
+  },
+  "doors": []
 }

@@ -28,7 +28,7 @@ inline constexpr EditorObjectId editor_light_switch = 5;
 inline constexpr EditorObjectId editor_first_solid = 6;
 using EditorObjectValue =
     std::variant<PrototypeSolid, LevelEntry, PrototypePointLight,
-                 PrototypeStaticProp, PrototypeLightSwitch>;
+                 PrototypeStaticProp, PrototypeLightSwitch, DoorDefinition>;
 
 enum class EditorPlacementMode { SceneSurfaces, TerrainOnly };
 enum class EditorSurfaceFace {
@@ -50,6 +50,7 @@ struct EditorSurfaceHit {
 struct EditorPlacementOffsets {
   float height{2.0F};
   float outward{0.1F};
+  float door_clearance{0.02F};
 };
 [[nodiscard]] std::optional<EditorObjectValue> editorPlacedObject(
     EditorObjectValue value, const EditorSurfaceHit& hit,
@@ -81,6 +82,15 @@ class EditorDocument {
   [[nodiscard]] bool replaceObject(EditorObjectId id, EditorObjectValue value);
   [[nodiscard]] bool addSolid(PrototypeSolid solid);
   [[nodiscard]] bool addLightSwitch();
+  [[nodiscard]] bool addDoor();
+  [[nodiscard]] bool addProp(std::string_view model);
+  [[nodiscard]] bool setTerrainMaterial(std::string material);
+  [[nodiscard]] const std::vector<EditorObjectId>& doorIds() const noexcept {
+    return door_ids_;
+  }
+  [[nodiscard]] const std::vector<EditorObjectId>& propIds() const noexcept {
+    return prop_ids_;
+  }
   [[nodiscard]] bool addEntry(PrototypePlayerSpawn pose);
   [[nodiscard]] bool makeSelectedEntryDefault();
   [[nodiscard]] const std::vector<EditorObjectId>& entryIds() const noexcept {
@@ -161,11 +171,15 @@ class EditorDocument {
     std::optional<EditorTerrainBrush> brush{};
     std::optional<std::string> default_before{};
     std::optional<std::string> default_after{};
+    std::optional<std::string> terrain_material_before{};
+    std::optional<std::string> terrain_material_after{};
   };
   void resetEditing();
   void refreshValidation();
   [[nodiscard]] std::optional<std::size_t> solidIndex(EditorObjectId id) const;
   [[nodiscard]] std::optional<std::size_t> entryIndex(EditorObjectId id) const;
+  [[nodiscard]] std::optional<std::size_t> doorIndex(EditorObjectId id) const;
+  [[nodiscard]] std::optional<std::size_t> propIndex(EditorObjectId id) const;
   void newInterior();
   [[nodiscard]] bool commit(Edit edit);
   void applyEdit(const Edit& edit, bool forward);
@@ -182,6 +196,8 @@ class EditorDocument {
   EditorPendingAction pending_{};
   std::vector<EditorObjectId> solid_ids_{};
   std::vector<EditorObjectId> entry_ids_{};
+  std::vector<EditorObjectId> door_ids_{};
+  std::vector<EditorObjectId> prop_ids_{};
   std::string launch_entry_{};
   std::uint32_t source_version_{level_format_version};
   EditorObjectId next_object_id_{editor_first_solid};

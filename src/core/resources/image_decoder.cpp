@@ -13,43 +13,55 @@
 #include "core/resources/shader_provider.hpp"
 
 DecodedRgbaImage decodePngRgba(const std::filesystem::path& path) {
+  if (std::filesystem::file_size(path) > 16U * 1024U * 1024U)
+    throw std::runtime_error("PNG asset exceeds 16 MiB: " + path.string());
   const std::vector<std::uint8_t> encoded = readBinaryFile(path);
+  return decodePngRgba(encoded, path.string());
+}
+
+DecodedRgbaImage decodePngRgba(std::span<const std::uint8_t> encoded,
+                               std::string_view context,
+                               std::uint32_t maximum_dimension) {
+  const std::string label{context};
   if (encoded.empty() ||
-      encoded.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-    throw std::runtime_error("PNG asset has an invalid encoded size: " +
-                             path.string());
+      encoded.size() >
+          static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw std::runtime_error("PNG asset has an invalid encoded size: " + label);
   }
 
   int width = 0;
   int height = 0;
   int source_channels = 0;
+  if (!stbi_info_from_memory(encoded.data(), static_cast<int>(encoded.size()),
+                             &width, &height, &source_channels) ||
+      width <= 0 || height <= 0 ||
+      static_cast<std::uint32_t>(width) > maximum_dimension ||
+      static_cast<std::uint32_t>(height) > maximum_dimension) {
+    throw std::runtime_error(
+        "PNG dimensions are invalid or exceed the profile: " + label);
+  }
   using StbiPixels = std::unique_ptr<stbi_uc, decltype(&stbi_image_free)>;
-  StbiPixels decoded(stbi_load_from_memory(
-                         encoded.data(), static_cast<int>(encoded.size()),
-                         &width, &height, &source_channels, STBI_rgb_alpha),
-                     &stbi_image_free);
+  StbiPixels decoded(
+      stbi_load_from_memory(encoded.data(), static_cast<int>(encoded.size()),
+                            &width, &height, &source_channels, STBI_rgb_alpha),
+      &stbi_image_free);
   if (!decoded) {
     const char* reason = stbi_failure_reason();
-    throw std::runtime_error("Failed to decode PNG asset " + path.string() +
-                             ": " +
+    throw std::runtime_error("Failed to decode PNG asset " + label + ": " +
                              (reason != nullptr ? reason : "unknown error"));
   }
   if (width <= 0 || height <= 0) {
-    throw std::runtime_error("Decoded PNG dimensions are invalid: " +
-                             path.string());
+    throw std::runtime_error("Decoded PNG dimensions are invalid: " + label);
   }
 
   constexpr std::size_t channels = 4;
   const std::size_t decoded_width = static_cast<std::size_t>(width);
   const std::size_t decoded_height = static_cast<std::size_t>(height);
-  if (decoded_width > std::numeric_limits<std::size_t>::max() / channels /
-                          decoded_height) {
-    throw std::runtime_error("Decoded PNG byte count overflows: " +
-                             path.string());
+  if (decoded_width >
+      std::numeric_limits<std::size_t>::max() / channels / decoded_height) {
+    throw std::runtime_error("Decoded PNG byte count overflows: " + label);
   }
   const std::size_t byte_count = decoded_width * decoded_height * channels;
-  return {static_cast<std::uint32_t>(width),
-          static_cast<std::uint32_t>(height),
-          std::vector<std::uint8_t>(decoded.get(),
-                                    decoded.get() + byte_count)};
+  return {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height),
+          std::vector<std::uint8_t>(decoded.get(), decoded.get() + byte_count)};
 }

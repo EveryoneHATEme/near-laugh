@@ -14,9 +14,11 @@
 #include <string_view>
 #include <system_error>
 
+#include "core/world/door.hpp"
 #include "core/world/level_document.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -173,11 +175,27 @@ PrototypeSurface parseSurface(const Json& value, const std::string& path) {
   fail(path, "unsupported surface role '" + text + "'");
 }
 
-PrototypeTerrain parseTerrain(const Json& value) {
+std::string legacyMaterial(PrototypeSurface surface) {
+  switch (surface) {
+    case PrototypeSurface::Floor:
+      return "prototype-floor";
+    case PrototypeSurface::Boundary:
+      return "prototype-boundary";
+    case PrototypeSurface::Obstacle:
+      return "prototype-obstacle";
+  }
+  throw std::logic_error("invalid legacy surface");
+}
+
+PrototypeTerrain parseTerrain(const Json& value, std::uint32_t version) {
   constexpr std::size_t height_count =
       prototype_terrain_sample_count * prototype_terrain_sample_count;
-  requireObjectFields(value, "terrain",
-                      {"origin", "sample_spacing", "heights"});
+  if (version >= 6)
+    requireObjectFields(value, "terrain",
+                        {"origin", "sample_spacing", "heights", "material"});
+  else
+    requireObjectFields(value, "terrain",
+                        {"origin", "sample_spacing", "heights"});
   const Json& heights = value.at("heights");
   if (!heights.is_array() || heights.size() != height_count) {
     fail("terrain.heights", "must contain exactly " +
@@ -185,6 +203,8 @@ PrototypeTerrain parseTerrain(const Json& value) {
                                 " row-major samples");
   }
   PrototypeTerrain terrain{};
+  if (version >= 6)
+    terrain.material = parseString(value.at("material"), "terrain.material");
   terrain.origin = parsePosition(value.at("origin"), "terrain.origin");
   terrain.sample_spacing =
       parseFloat(value.at("sample_spacing"), "terrain.sample_spacing");
@@ -195,15 +215,22 @@ PrototypeTerrain parseTerrain(const Json& value) {
   return terrain;
 }
 
-PrototypeSolid parseSolid(const Json& value, std::size_t index) {
+PrototypeSolid parseSolid(const Json& value, std::size_t index,
+                          std::uint32_t version) {
   const std::string path = "solids[" + std::to_string(index) + "]";
-  requireObjectFields(value, path,
-                      {"center", "half_extent", "color", "kind", "surface"});
+  if (version >= 6)
+    requireObjectFields(value, path,
+                        {"center", "half_extent", "color", "kind", "material"});
+  else
+    requireObjectFields(value, path,
+                        {"center", "half_extent", "color", "kind", "surface"});
   return {parsePosition(value.at("center"), path + ".center"),
           parseExtent(value.at("half_extent"), path + ".half_extent"),
           parseColor(value.at("color"), path + ".color"),
           parseSolidKind(value.at("kind"), path + ".kind"),
-          parseSurface(value.at("surface"), path + ".surface")};
+          version >= 6 ? parseString(value.at("material"), path + ".material")
+                       : legacyMaterial(parseSurface(value.at("surface"),
+                                                     path + ".surface"))};
 }
 
 PrototypePlayerSpawn parseSpawn(const Json& value) {
@@ -248,13 +275,45 @@ PrototypeStaticProp parseStaticProp(const Json& value) {
   const Json& proxy = value.at("box_proxy");
   requireObjectFields(proxy, "static_prop.box_proxy",
                       {"center", "half_extent"});
-  return {parsePosition(value.at("translation"), "static_prop.translation"),
+  if (parseSurface(value.at("surface"), "static_prop.surface") !=
+      PrototypeSurface::Obstacle)
+    fail("static_prop.surface", "legacy prop must use obstacle surface");
+  return {"prototype-chair",
+          "prototype-chair",
+          parsePosition(value.at("translation"), "static_prop.translation"),
           parseFloat(value.at("yaw_degrees"), "static_prop.yaw_degrees"),
           parseFloat(value.at("uniform_scale"), "static_prop.uniform_scale"),
-          parseSurface(value.at("surface"), "static_prop.surface"),
-          parsePosition(proxy.at("center"), "static_prop.box_proxy.center"),
-          parseExtent(proxy.at("half_extent"),
-                      "static_prop.box_proxy.half_extent")};
+          {{parsePosition(proxy.at("center"), "static_prop.box_proxy.center"),
+            parseExtent(proxy.at("half_extent"),
+                        "static_prop.box_proxy.half_extent")}}};
+}
+
+PrototypeStaticProp parseProp(const Json& value, std::size_t index) {
+  const auto path = "props[" + std::to_string(index) + "]";
+  requireObjectFields(value, path,
+                      {"id", "model", "translation", "yaw_degrees",
+                       "uniform_scale", "collision_boxes"});
+  PrototypeStaticProp prop;
+  prop.id = parseString(value.at("id"), path + ".id");
+  prop.model = parseString(value.at("model"), path + ".model");
+  if (prop.id.size() > 64 || prop.model.size() > 64)
+    fail(path, "identities must contain at most 64 characters");
+  prop.translation =
+      parsePosition(value.at("translation"), path + ".translation");
+  prop.yaw_degrees = parseFloat(value.at("yaw_degrees"), path + ".yaw_degrees");
+  prop.uniform_scale =
+      parseFloat(value.at("uniform_scale"), path + ".uniform_scale");
+  const auto& boxes = value.at("collision_boxes");
+  if (!boxes.is_array() || boxes.size() > level_maximum_prop_box_count)
+    fail(path + ".collision_boxes", "must contain at most eight boxes");
+  for (std::size_t i = 0; i < boxes.size(); ++i) {
+    const auto field = path + ".collision_boxes[" + std::to_string(i) + "]";
+    requireObjectFields(boxes[i], field, {"center", "half_extent"});
+    prop.collision_boxes.push_back(
+        {parsePosition(boxes[i].at("center"), field + ".center"),
+         parseExtent(boxes[i].at("half_extent"), field + ".half_extent")});
+  }
+  return prop;
 }
 
 std::optional<PrototypeLightSwitch> parseLightSwitch(const Json& value) {
@@ -274,11 +333,55 @@ std::optional<PrototypeLightSwitch> parseLightSwitch(const Json& value) {
       value.at("initially_on").get<bool>()};
 }
 
+DoorDefinition parseDoor(const Json& value, std::size_t index) {
+  const auto path = "doors[" + std::to_string(index) + "]";
+  requireObjectFields(
+      value, path,
+      {"id", "hinge_position", "closed_yaw_degrees", "width", "height",
+       "thickness", "open_angle_degrees", "speed_degrees_per_second",
+       "lock_side", "initially_open", "initially_locked"});
+  DoorDefinition door;
+  door.id = parseString(value.at("id"), path + ".id");
+  if (door.id.size() > 64)
+    fail(path + ".id", "must contain at most 64 characters");
+  door.hinge_position =
+      parsePosition(value.at("hinge_position"), path + ".hinge_position");
+  door.closed_yaw_degrees =
+      parseFloat(value.at("closed_yaw_degrees"), path + ".closed_yaw_degrees");
+  door.width = parseFloat(value.at("width"), path + ".width");
+  door.height = parseFloat(value.at("height"), path + ".height");
+  door.thickness = parseFloat(value.at("thickness"), path + ".thickness");
+  door.open_angle_degrees =
+      parseFloat(value.at("open_angle_degrees"), path + ".open_angle_degrees");
+  door.speed_degrees_per_second = parseFloat(
+      value.at("speed_degrees_per_second"), path + ".speed_degrees_per_second");
+  const auto side = parseString(value.at("lock_side"), path + ".lock_side");
+  if (side == "none")
+    door.lock_side = DoorLockSide::None;
+  else if (side == "positive-z")
+    door.lock_side = DoorLockSide::PositiveZ;
+  else if (side == "negative-z")
+    door.lock_side = DoorLockSide::NegativeZ;
+  else
+    fail(path + ".lock_side", "must select none, positive-z, or negative-z");
+  for (const char* name : {"initially_open", "initially_locked"})
+    if (!value.at(name).is_boolean())
+      fail(path + "." + name, "must be a boolean");
+  door.initially_open = value.at("initially_open").get<bool>();
+  door.initially_locked = value.at("initially_locked").get<bool>();
+  for (auto p : doorCorners(door, doorInitialAngle(door)))
+    if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+      fail(path + ".hinge_position",
+           "derived preview bounds must remain finite");
+  return door;
+}
+
 LevelDocument parseDocument(const Json& root) {
   if (!root.is_object()) fail("", "must be an object");
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
-  if (version != 2 && version != 3 && version != level_format_version) {
+  if (version != 2 && version != 3 && version != 4 && version != 5 &&
+      version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
   }
@@ -290,11 +393,21 @@ LevelDocument parseDocument(const Json& root) {
     requireObjectFields(root, "",
                         {"version", "terrain", "solids", "player_spawn",
                          "environment_light", "static_prop", "light_switch"});
-  } else {
+  } else if (version == 4) {
     requireObjectFields(
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "static_prop", "light_switch"});
+  } else if (version == 5) {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "static_prop", "light_switch", "doors"});
+  } else {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "props", "light_switch", "doors"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -306,11 +419,11 @@ LevelDocument parseDocument(const Json& root) {
   std::vector<PrototypeSolid> solids;
   solids.reserve(solids_json.size());
   for (std::size_t index = 0; index < solids_json.size(); ++index) {
-    solids.push_back(parseSolid(solids_json[index], index));
+    solids.push_back(parseSolid(solids_json[index], index, version));
   }
   LevelDocument document;
   if (version < 4 || !root.at("terrain").is_null())
-    document.terrain = parseTerrain(root.at("terrain"));
+    document.terrain = parseTerrain(root.at("terrain"), version);
   document.solids = std::move(solids);
   if (version < 4) {
     document.entries.push_back(
@@ -339,9 +452,24 @@ LevelDocument parseDocument(const Json& root) {
   }
   document.environment_light =
       parseEnvironmentLight(root.at("environment_light"));
-  document.static_prop = parseStaticProp(root.at("static_prop"));
+  if (version < 6)
+    document.props.push_back(parseStaticProp(root.at("static_prop")));
+  else {
+    const auto& props = root.at("props");
+    if (!props.is_array() || props.size() > level_maximum_prop_count)
+      fail("props", "must contain at most 128 placements");
+    for (std::size_t i = 0; i < props.size(); ++i)
+      document.props.push_back(parseProp(props[i], i));
+  }
   if (version != 2)
     document.light_switch = parseLightSwitch(root.at("light_switch"));
+  if (version >= 5) {
+    const auto& doors = root.at("doors");
+    if (!doors.is_array() || doors.size() > level_maximum_door_count)
+      fail("doors", "must be an array of at most 32 doors");
+    for (std::size_t i = 0; i < doors.size(); ++i)
+      document.doors.push_back(parseDoor(doors[i], i));
+  }
   const auto finite = [](WorldPosition p) {
     return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
   };
@@ -355,16 +483,22 @@ LevelDocument parseDocument(const Json& root) {
   for (std::size_t i = 0; i < document.solids.size(); ++i)
     requireBounds(document.solids[i].center, document.solids[i].half_extent,
                   "solids[" + std::to_string(i) + "].bounds");
-  const auto& prop = document.static_prop;
-  const auto extent = prototypeStaticPropProxyWorldHalfExtent(prop);
-  const double yaw =
-      static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
-  const float c = static_cast<float>(std::abs(std::cos(yaw)));
-  const float s = static_cast<float>(std::abs(std::sin(yaw)));
-  requireBounds(
-      prototypeStaticPropProxyWorldCenter(prop),
-      {c * extent.x + s * extent.z, extent.y, s * extent.x + c * extent.z},
-      "static_prop.box_proxy");
+  for (const auto& prop : document.props) {
+    const double yaw =
+        static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
+    const float c = static_cast<float>(std::abs(std::cos(yaw)));
+    const float s = static_cast<float>(std::abs(std::sin(yaw)));
+    const auto requirePropBounds = [&](const PropCollisionBox& box) {
+      const auto extent = propBoxWorldHalfExtent(prop, box);
+      requireBounds(
+          propBoxWorldCenter(prop, box),
+          {c * extent.x + s * extent.z, extent.y, s * extent.x + c * extent.z},
+          "props['" + prop.id + "'].bounds");
+    };
+    for (const auto& box : prop.collision_boxes) requirePropBounds(box);
+    if (const auto* model = findSceneModel(prop.model))
+      requirePropBounds(sceneModelBounds(*model));
+  }
   if (document.light_switch)
     for (const auto point : lightSwitchCorners(*document.light_switch))
       if (!finite(point))
@@ -408,18 +542,6 @@ std::string_view solidKindString(PrototypeSolidKind kind) {
   throw std::logic_error("validated level has unsupported solid kind");
 }
 
-std::string_view surfaceString(PrototypeSurface surface) {
-  switch (surface) {
-    case PrototypeSurface::Floor:
-      return "floor";
-    case PrototypeSurface::Boundary:
-      return "boundary";
-    case PrototypeSurface::Obstacle:
-      return "obstacle";
-  }
-  throw std::logic_error("validated level has unsupported surface role");
-}
-
 std::string serializeDocument(const LevelDocument& document) {
   Json root = Json::object();
   root["version"] = document.version;
@@ -430,6 +552,7 @@ std::string serializeDocument(const LevelDocument& document) {
     terrain["origin"] = positionJson(document.terrain->origin);
     terrain["sample_spacing"] = document.terrain->sample_spacing;
     terrain["heights"] = document.terrain->heights;
+    terrain["material"] = document.terrain->material;
     root["terrain"] = std::move(terrain);
   }
 
@@ -440,7 +563,7 @@ std::string serializeDocument(const LevelDocument& document) {
     value["half_extent"] = extentJson(solid.half_extent);
     value["color"] = solid.color;
     value["kind"] = solidKindString(solid.kind);
-    value["surface"] = surfaceString(solid.surface);
+    value["material"] = solid.material;
     solids.push_back(std::move(value));
   }
   root["solids"] = std::move(solids);
@@ -469,17 +592,23 @@ std::string serializeDocument(const LevelDocument& document) {
   lighting["ambient_intensity"] = document.environment_light.ambient_intensity;
   root["environment_light"] = std::move(lighting);
 
-  Json prop = Json::object();
-  prop["translation"] = positionJson(document.static_prop.translation);
-  prop["yaw_degrees"] = document.static_prop.yaw_degrees;
-  prop["uniform_scale"] = document.static_prop.uniform_scale;
-  prop["surface"] = surfaceString(document.static_prop.surface);
-  Json proxy = Json::object();
-  proxy["center"] = positionJson(document.static_prop.box_proxy_center);
-  proxy["half_extent"] = extentJson(document.static_prop.box_proxy_half_extent);
-  prop["box_proxy"] = std::move(proxy);
-  root["static_prop"] = std::move(prop);
-
+  root["props"] = Json::array();
+  for (const auto& placement : document.props) {
+    Json prop = Json::object();
+    prop["id"] = placement.id;
+    prop["model"] = placement.model;
+    prop["translation"] = positionJson(placement.translation);
+    prop["yaw_degrees"] = placement.yaw_degrees;
+    prop["uniform_scale"] = placement.uniform_scale;
+    prop["collision_boxes"] = Json::array();
+    for (const auto& box : placement.collision_boxes) {
+      Json proxy = Json::object();
+      proxy["center"] = positionJson(box.center);
+      proxy["half_extent"] = extentJson(box.half_extent);
+      prop["collision_boxes"].push_back(std::move(proxy));
+    }
+    root["props"].push_back(std::move(prop));
+  }
   root["light_switch"] = nullptr;
   if (document.light_switch) {
     const auto& light_switch = *document.light_switch;
@@ -491,6 +620,25 @@ std::string serializeDocument(const LevelDocument& document) {
     root["light_switch"] = std::move(value);
   }
 
+  root["doors"] = Json::array();
+  for (const auto& door : document.doors) {
+    Json value = Json::object();
+    value["id"] = door.id;
+    value["hinge_position"] = positionJson(door.hinge_position);
+    value["closed_yaw_degrees"] = door.closed_yaw_degrees;
+    value["width"] = door.width;
+    value["height"] = door.height;
+    value["thickness"] = door.thickness;
+    value["open_angle_degrees"] = door.open_angle_degrees;
+    value["speed_degrees_per_second"] = door.speed_degrees_per_second;
+    value["lock_side"] = door.lock_side == DoorLockSide::None ? "none"
+                         : door.lock_side == DoorLockSide::PositiveZ
+                             ? "positive-z"
+                             : "negative-z";
+    value["initially_open"] = door.initially_open;
+    value["initially_locked"] = door.initially_locked;
+    root["doors"].push_back(std::move(value));
+  }
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }
 

@@ -8,8 +8,10 @@
 #include <limits>
 #include <numbers>
 
+#include "core/world/door.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 
 namespace {
 glm::dvec3 vec(WorldPosition p) { return {p.x, p.y, p.z}; }
@@ -119,18 +121,37 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
              boxHit(vec(ray.origin) - vec(solid.center), vec(ray.direction),
                     solid.half_extent));
   }
-  const auto& prop = level.static_prop;
-  const double yaw =
-      static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180.0;
-  const auto inverseYaw = [&](glm::dvec3 v) {
-    return glm::dvec3{std::cos(yaw) * v.x - std::sin(yaw) * v.z, v.y,
-                      std::sin(yaw) * v.x + std::cos(yaw) * v.z};
-  };
-  consider(editor_prop,
-           boxHit(inverseYaw(vec(ray.origin) -
-                             vec(prototypeStaticPropProxyWorldCenter(prop))),
-                  inverseYaw(vec(ray.direction)),
-                  prototypeStaticPropProxyWorldHalfExtent(prop)));
+  for (std::size_t i = 0; i < level.props.size(); ++i) {
+    const auto& prop = level.props[i];
+    const double yaw =
+        static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180.0;
+    const auto inverseYaw = [&](glm::dvec3 v) {
+      return glm::dvec3{std::cos(yaw) * v.x - std::sin(yaw) * v.z, v.y,
+                        std::sin(yaw) * v.x + std::cos(yaw) * v.z};
+    };
+    if (const auto* model = findSceneModel(prop.model)) {
+      const auto bounds = sceneModelBounds(*model);
+      consider(document.propIds()[i],
+               boxHit(inverseYaw(vec(ray.origin) -
+                                 vec(propBoxWorldCenter(prop, bounds))),
+                      inverseYaw(vec(ray.direction)),
+                      propBoxWorldHalfExtent(prop, bounds)));
+    } else {
+      consider(document.propIds()[i], sphereHit(ray, prop.translation));
+      for (const auto& bounds : prop.collision_boxes)
+        consider(document.propIds()[i],
+                 boxHit(inverseYaw(vec(ray.origin) -
+                                   vec(propBoxWorldCenter(prop, bounds))),
+                        inverseYaw(vec(ray.direction)),
+                        propBoxWorldHalfExtent(prop, bounds)));
+    }
+  }
+  for (std::size_t i = 0; i < level.doors.size(); ++i) {
+    const auto& door = level.doors[i];
+    if (const auto hit = doorRayDistance(door, doorInitialAngle(door),
+                                         ray.origin, ray.direction))
+      consider(document.doorIds()[i], *hit / glm::length(vec(ray.direction)));
+  }
   for (std::size_t i = 0; i < level.entries.size(); ++i)
     consider(document.entryIds()[i],
              sphereHit(ray, editorSpawnMarker(level.entries[i].pose)));

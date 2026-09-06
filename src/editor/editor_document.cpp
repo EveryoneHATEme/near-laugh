@@ -94,15 +94,12 @@ void EditorDocument::newInterior() {
                       {5, 0.25F, 5},
                       {150, 155, 165, 255},
                       PrototypeSolidKind::Floor,
-                      PrototypeSurface::Floor}};
+                      "prototype-floor"}};
   interior.entries = {{"default", {{0, 0, 2}, -90}}};
   interior.default_entry = "default";
   interior.environment_light = {{{{{0, 2.4F, 2}, {0.3F, 0.5F, 0.9F}, 0.65F, 5},
                                   {{0, 2.8F, -2}, {1, 0.48F, 0.2F}, 0.95F, 6}}},
                                 0.12F};
-  interior.static_prop = {
-      {3, 0, -2},           -25, 1, PrototypeSurface::Obstacle, {0, 0.91F, 0},
-      {0.55F, 0.91F, 0.48F}};
   document_ = std::move(interior);
   source_version_ = level_format_version;
   path_.reset();

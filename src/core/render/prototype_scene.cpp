@@ -2,8 +2,11 @@
 
 #include <array>
 #include <cmath>
+#include <numbers>
+#include <stdexcept>
 
 #include "core/world/light_switch.hpp"
+#include "core/world/scene_assets.hpp"
 
 namespace {
 using Point = std::array<float, 3>;
@@ -86,8 +89,7 @@ Normal triangleNormal(Point first, Point second, Point third) {
 void appendTerrain(std::vector<PositionColorVertex>& vertices,
                    const PrototypeTerrain& terrain) {
   constexpr Color terrain_color{86, 91, 101, 255};
-  constexpr std::uint32_t terrain_layer =
-      static_cast<std::uint32_t>(PrototypeSurface::Floor);
+  const auto terrain_layer = structuralMaterialIndex(terrain.material);
   for (std::size_t sample_z = 0; sample_z < prototype_terrain_cell_count;
        ++sample_z) {
     for (std::size_t sample_x = 0; sample_x < prototype_terrain_cell_count;
@@ -143,7 +145,7 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
                         solid.center.y + solid.half_extent.y,
                         solid.center.z + solid.half_extent.z};
     appendBox(vertices, minimum, maximum, solid.color,
-              static_cast<std::uint32_t>(solid.surface));
+              structuralMaterialIndex(solid.material));
   }
   if (terrain) appendTerrain(vertices, *terrain);
   if (light_switch && lightSwitchIsValid(*light_switch)) {
@@ -170,6 +172,52 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
       vertex.normal[0] = n.x;
       vertex.normal[1] = n.y;
       vertex.normal[2] = n.z;
+    }
+  }
+  return vertices;
+}
+
+std::uint32_t structuralMaterialIndex(std::string_view id) {
+  const auto materials = structuralMaterials();
+  for (std::size_t i = 0; i < materials.size(); ++i)
+    if (materials[i].id == id) return static_cast<std::uint32_t>(i);
+  throw std::runtime_error("Unknown structural material: " + std::string{id});
+}
+
+std::vector<PositionColorVertex> buildOpaqueBoxVertices(
+    std::span<const OpaqueBoxFrame> boxes) {
+  if (boxes.size() > frame_maximum_opaque_box_count)
+    throw std::runtime_error(
+        "Changing opaque box count exceeds its frame bound");
+  std::vector<PositionColorVertex> vertices;
+  vertices.reserve(boxes.size() * 36);
+  for (const auto& box : boxes) {
+    for (std::size_t axis = 0; axis < 3; ++axis)
+      if (!std::isfinite(box.center[axis]) ||
+          !std::isfinite(box.half_extent[axis]) || box.half_extent[axis] <= 0)
+        throw std::runtime_error("Changing opaque box has invalid bounds");
+    if (!std::isfinite(box.yaw_degrees) || box.surface != 2)
+      throw std::runtime_error(
+          "Changing opaque box has invalid yaw or material");
+    const auto begin = vertices.size();
+    const auto& h = box.half_extent;
+    appendBox(vertices, {-h[0], -h[1], -h[2]}, {h[0], h[1], h[2]}, box.color,
+              box.surface);
+    const float yaw = box.yaw_degrees * std::numbers::pi_v<float> / 180;
+    const float c = std::cos(yaw), s = std::sin(yaw);
+    for (std::size_t i = begin; i < vertices.size(); ++i) {
+      auto& v = vertices[i];
+      const float x = v.position[0], z = v.position[2];
+      v.position[0] = box.center[0] + c * x + s * z;
+      v.position[1] += box.center[1];
+      v.position[2] = box.center[2] - s * x + c * z;
+      const float nx = v.normal[0], nz = v.normal[2];
+      v.normal[0] = c * nx + s * nz;
+      v.normal[2] = -s * nx + c * nz;
+      for (float component : v.position)
+        if (!std::isfinite(component))
+          throw std::runtime_error(
+              "Changing opaque box derived bounds overflow");
     }
   }
   return vertices;

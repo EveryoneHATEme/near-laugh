@@ -9,7 +9,9 @@
 #include <string>
 #include <type_traits>
 
+#include "core/world/door.hpp"
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 #include "editor/editor_document.hpp"
 #include "editor/editor_picking.hpp"
 
@@ -175,8 +177,8 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
   if (editor_document.sourceVersion() < level_format_version)
     ImGui::TextWrapped(
         "Opened version %u without changing the file. Explicit Save writes "
-        "version 4.",
-        editor_document.sourceVersion());
+        "version %u.",
+        editor_document.sourceVersion(), level_format_version);
   ImGui::Text("State: %s", editor_document.dirty() ? "dirty" : "clean");
   if (document.terrain)
     ImGui::Text("Terrain: %zu x %zu samples", prototype_terrain_sample_count,
@@ -189,7 +191,8 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
               document.environment_light.point_lights.size());
   ImGui::Text("Entries: %zu / 16; default: %s", document.entries.size(),
               document.default_entry.c_str());
-  ImGui::TextUnformatted("Static prop: 1 packaged chair");
+  ImGui::Text("Props: %zu / %zu", document.props.size(), level_maximum_prop_count);
+  ImGui::Text("Doors: %zu / %zu", document.doors.size(), level_maximum_door_count);
   ImGui::Text("Light switch: %u / 1", document.light_switch ? 1U : 0U);
   ImGui::End();
 }
@@ -212,6 +215,15 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
     const auto [minimum, maximum] = std::minmax_element(
         document.terrain->heights.begin(), document.terrain->heights.end());
     ImGui::Text("Height range: %.3f to %.3f", *minimum, *maximum);
+    if (ImGui::BeginCombo("Terrain material",
+                          document.terrain->material.c_str())) {
+      for (const auto& material : structuralMaterials())
+        if (ImGui::Selectable(material.label.data(),
+                              document.terrain->material == material.id))
+          static_cast<void>(
+              editor_document.setTerrainMaterial(std::string(material.id)));
+      ImGui::EndCombo();
+    }
     drawTerrainBrush(editor_document);
   }
   property_edit_.synchronize(editor_document);
@@ -254,20 +266,17 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
                            "Floor\0Boundary\0Obstacle\0Walkable step\0Low "
                            "clearance\0")) {
             value.kind = static_cast<PrototypeSolidKind>(kind);
-            value.surface = kind == 0   ? PrototypeSurface::Floor
-                            : kind == 1 ? PrototypeSurface::Boundary
-                                        : PrototypeSurface::Obstacle;
             commit = true;
           }
-          int surface = static_cast<int>(value.surface);
-          if (ImGui::Combo("Surface", &surface,
-                           "Floor\0Boundary\0Obstacle\0")) {
-            value.surface = static_cast<PrototypeSurface>(surface);
-            commit = true;
+          if (ImGui::BeginCombo("Material", value.material.c_str())) {
+            for (const auto& material : structuralMaterials())
+              if (ImGui::Selectable(material.label.data(),
+                                    value.material == material.id)) {
+                value.material = material.id;
+                commit = true;
+              }
+            ImGui::EndCombo();
           }
-          ImGui::TextWrapped(
-              "Surface must match the kind before saving: floor, boundary, or "
-              "obstacle for other kinds.");
         } else if constexpr (std::is_same_v<T, LevelEntry>) {
           std::array<char, 65> name{};
           std::memcpy(name.data(), value.id.data(),
@@ -300,13 +309,77 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
             commit = true;
           }
           commit |= ImGui::Checkbox("Initially on", &value.initially_on);
+        } else if constexpr (std::is_same_v<T, DoorDefinition>) {
+          std::array<char, 65> name{};
+          std::memcpy(name.data(), value.id.data(),
+                      std::min(value.id.size(), name.size() - 1));
+          if (ImGui::InputText("Door ID", name.data(), name.size()))
+            value.id = name.data();
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
+          triple("Bottom hinge", value.hinge_position);
+          scalar("Closed yaw", value.closed_yaw_degrees, .5F);
+          scalar("Width", value.width);
+          scalar("Height", value.height);
+          scalar("Thickness", value.thickness, .01F);
+          scalar("Opening angle", value.open_angle_degrees, .5F);
+          scalar("Angular speed", value.speed_degrees_per_second, .5F);
+          int side = static_cast<int>(value.lock_side);
+          if (ImGui::Combo("Lock side", &side,
+                           "None\0Positive Z\0Negative Z\0")) {
+            value.lock_side = static_cast<DoorLockSide>(side);
+            commit = true;
+          }
+          commit |= ImGui::Checkbox("Initially open", &value.initially_open);
+          commit |=
+              ImGui::Checkbox("Initially locked", &value.initially_locked);
         } else {
+          std::array<char, 65> name{};
+          std::memcpy(name.data(), value.id.data(),
+                      std::min(value.id.size(), name.size() - 1));
+          if (ImGui::InputText("Prop ID", name.data(), name.size()))
+            value.id = name.data();
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
+          if (ImGui::BeginCombo("Model", value.model.c_str())) {
+            for (const auto& model : sceneModels())
+              if (ImGui::Selectable(model.label.data(),
+                                    value.model == model.id)) {
+                value.model = model.id;
+                commit = true;
+              }
+            ImGui::EndCombo();
+          }
           triple("Translation", value.translation);
           scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
           scalar("Uniform scale", value.uniform_scale, 0.01F);
-          ImGui::TextUnformatted("Surface: obstacle");
-          triple("Proxy center", value.box_proxy_center);
-          triple("Proxy half extent", value.box_proxy_half_extent);
+          if (ImGui::Button("Reset model collision boxes")) {
+            if (const auto* model = findSceneModel(value.model)) {
+              value.collision_boxes.assign(model->default_boxes.begin(),
+                                           model->default_boxes.end());
+              commit = true;
+            }
+          }
+          ImGui::BeginDisabled(value.collision_boxes.size() >= 8);
+          if (ImGui::Button("Add collision box")) {
+            value.collision_boxes.push_back({{0, .5F, 0}, {.5F, .5F, .5F}});
+            commit = true;
+          }
+          ImGui::EndDisabled();
+          for (std::size_t i = 0; i < value.collision_boxes.size();) {
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::Text("Box %zu", i + 1);
+            triple("Proxy center", value.collision_boxes[i].center);
+            triple("Proxy half extent", value.collision_boxes[i].half_extent);
+            const bool remove = ImGui::Button("Remove box");
+            ImGui::PopID();
+            if (remove) {
+              value.collision_boxes.erase(value.collision_boxes.begin() +
+                                          static_cast<std::ptrdiff_t>(i));
+              commit = true;
+            } else
+              ++i;
+          }
+          if (value.collision_boxes.empty())
+            ImGui::TextUnformatted("Decorative: no collision.");
         }
       },
       *property_edit_.value());
@@ -492,18 +565,34 @@ void EditorUi::drawObjects(EditorDocument& document) {
   const bool selected_entry =
       selected_value && std::holds_alternative<LevelEntry>(*selected_value);
   ImGui::SameLine();
-  ImGui::BeginDisabled(!(selected_solid || selected_entry));
+  const bool selected_content =
+      selected_value &&
+      (std::holds_alternative<DoorDefinition>(*selected_value) ||
+       std::holds_alternative<PrototypeStaticProp>(*selected_value));
+  ImGui::BeginDisabled(!(selected_solid || selected_entry || selected_content));
   if (ImGui::Button("Duplicate"))
     static_cast<void>(document.duplicateSelected());
   ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::BeginDisabled(!selected_solid && !selected_entry &&
+                       !selected_content &&
                        document.selection() != editor_light_switch);
   if (ImGui::Button("Delete")) static_cast<void>(document.removeSelected());
   ImGui::EndDisabled();
   ImGui::BeginDisabled(document.document()->light_switch.has_value());
   if (ImGui::Button("Add light switch")) {
     if (document.addLightSwitch()) sculpting_ = false;
+  }
+  ImGui::EndDisabled();
+  ImGui::BeginDisabled(document.doorIds().size() >= 32);
+  if (ImGui::Button("Add door")) static_cast<void>(document.addDoor());
+  ImGui::EndDisabled();
+  ImGui::BeginDisabled(document.propIds().size() >= 128);
+  if (ImGui::BeginCombo("Add prop", "Choose model")) {
+    for (const auto& model : sceneModels())
+      if (ImGui::Selectable(model.label.data()))
+        static_cast<void>(document.addProp(model.id));
+    ImGui::EndCombo();
   }
   ImGui::EndDisabled();
   selected_value = document.object(document.selection());
@@ -557,6 +646,10 @@ void EditorUi::drawObjects(EditorDocument& document) {
       if (std::holds_alternative<PrototypePointLight>(*selected_value))
         ImGui::InputFloat("Wall offset (m)", &placement_offsets_.outward);
     }
+    if (selected_value &&
+        std::holds_alternative<DoorDefinition>(*selected_value))
+      ImGui::InputFloat("Door floor clearance (m)",
+                        &placement_offsets_.door_clearance);
     if (placement_hit_) {
       const char* faces[] = {"Terrain", "Top",     "Underside", "-X wall",
                              "+X wall", "-Z wall", "+Z wall"};
@@ -592,7 +685,10 @@ void EditorUi::drawObjects(EditorDocument& document) {
           "Entry: " + document.document()->entries[i].id);
   entry(editor_first_light, "Point light 1");
   entry(editor_first_light + 1, "Point light 2");
-  entry(editor_prop, "Chair / box proxy");
+  for (std::size_t i = 0; i < document.propIds().size(); ++i)
+    entry(document.propIds()[i], "Prop: " + document.document()->props[i].id);
+  for (std::size_t i = 0; i < document.doorIds().size(); ++i)
+    entry(document.doorIds()[i], "Door: " + document.document()->doors[i].id);
   if (document.document()->light_switch)
     entry(editor_light_switch, "Light switch");
   for (std::size_t i = 0; i < document.solidIds().size(); ++i) {

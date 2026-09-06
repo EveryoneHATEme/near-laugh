@@ -5,18 +5,14 @@
 
 #include <array>
 #include <cstdint>
-#include <filesystem>
 
-inline constexpr std::uint32_t prototype_texture_dimension = 256;
-inline constexpr std::uint32_t prototype_texture_layer_count = 3;
+#include "core/render/scene_material.hpp"
 
 class SampledTexture {
  public:
-  SampledTexture(
-      VkDevice device, VkPhysicalDevice physical_device, VkQueue graphics_queue,
-      std::uint32_t graphics_queue_family,
-      const std::array<std::filesystem::path,
-                       prototype_texture_layer_count>& paths);
+  SampledTexture(VkDevice device, VkPhysicalDevice physical_device,
+                 VkQueue graphics_queue, std::uint32_t graphics_queue_family,
+                 const SceneMaterialData& material);
   ~SampledTexture();
 
   SampledTexture(const SampledTexture&) = delete;
@@ -38,13 +34,12 @@ class SampledTexture {
   }
 
  private:
-  void createImageAndUpload(
-      VkQueue graphics_queue, std::uint32_t graphics_queue_family,
-      const std::array<std::filesystem::path,
-                       prototype_texture_layer_count>& paths);
+  void createImageAndUpload(VkQueue graphics_queue,
+                            std::uint32_t graphics_queue_family,
+                            const DecodedRgbaImage& image);
   void createImageView();
   void createSampler();
-  void createDescriptor();
+  void createDescriptor(const SceneMaterialData& material);
   void cleanup() noexcept;
 
   VkDevice device_{VK_NULL_HANDLE};
@@ -56,6 +51,11 @@ class SampledTexture {
   VkDescriptorSetLayout descriptor_set_layout_{VK_NULL_HANDLE};
   VkDescriptorPool descriptor_pool_{VK_NULL_HANDLE};
   VkDescriptorSet descriptor_set_{VK_NULL_HANDLE};
+  VkBuffer material_buffer_{VK_NULL_HANDLE};
+  VkDeviceMemory material_memory_{VK_NULL_HANDLE};
+  std::uint32_t width_{};
+  std::uint32_t height_{};
+  bool nearest_{};
   std::uint32_t mip_level_count_{};
   bool all_subresources_shader_read_only_{};
   bool image_recorded_{};

@@ -31,11 +31,10 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
       physics_(level_, entry_),
       player_(physics_, entry_.pose.yaw_degrees),
       light_switch_(level_.lightSwitch()),
+      doors_(level_.doors()),
       renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources_.scene_vertex_shader),
-                 std::move(resources_.scene_fragment_shader),
-                 std::move(resources_.scene_textures),
-                 std::move(resources_.prototype_chair_model)},
+                 std::move(resources_.scene_fragment_shader), resources_.root},
                 diagnostics) {
   window_.setCursorCaptured(true);
   fixed_step_.reset();
@@ -54,14 +53,17 @@ bool Engine::tick() {
       window_.shouldClose(), framebuffer, window_.consumeFramebufferResize());
   switch (decision.action) {
     case LoopAction::Stop:
-      light_switch_.update(input_.interact, false, {}, physics_);
+      (void)interaction_.update(input_, false, {}, level_, physics_, doors_,
+                                light_switch_);
       return false;
     case LoopAction::WaitForEvents:
-      light_switch_.update(input_.interact, false, {}, physics_);
+      (void)interaction_.update(input_, false, {}, level_, physics_, doors_,
+                                light_switch_);
       window_.waitEvents();
       input_ = input_mapper_.map(window_.input());
       samplePlayerInput(input_);
-      light_switch_.update(input_.interact, false, {}, physics_);
+      (void)interaction_.update(input_, false, {}, level_, physics_, doors_,
+                                light_switch_);
       fixed_step_.reset();
       return !window_.shouldClose();
     case LoopAction::Render: {
@@ -71,6 +73,8 @@ bool Engine::tick() {
       for (int step = 0; step < simulation.complete_steps; ++step) {
         player_.fixedStep(
             static_cast<float>(FixedStepAccumulator::step_seconds));
+        doors_.fixedStep(static_cast<float>(FixedStepAccumulator::step_seconds),
+                         physics_);
       }
 
       FrameRequest frame = decision.frame;
@@ -80,8 +84,10 @@ bool Engine::tick() {
           player_.viewPose(simulation.interpolation_alpha);
       frame.camera = player_.cameraFrame(aspect, view);
       frame.spot_light = flashlight_.spotLight(view);
-      light_switch_.update(input_.interact, controls_active, view, physics_);
+      (void)interaction_.update(input_, controls_active, view, level_, physics_,
+                                doors_, light_switch_);
       frame.point_light_enabled = light_switch_.pointLightEnabled();
+      frame.opaque_boxes = doors_.presentation();
       const FrameOutcome outcome = renderer_.renderFrame(frame);
       return runtimeContinuesAfter(outcome) && !window_.shouldClose();
     }

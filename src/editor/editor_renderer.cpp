@@ -18,12 +18,13 @@
 #include "core/render/immutable_mesh_buffer.hpp"
 #include "core/render/lighting_resources.hpp"
 #include "core/render/prototype_scene.hpp"
-#include "core/render/sampled_texture.hpp"
+#include "core/render/scene_resources.hpp"
 #include "core/render/static_model_loader.hpp"
 #include "core/render/validation_diagnostics.hpp"
 #include "core/render/vulkan_context.hpp"
 #include "core/render/vulkan_utils.hpp"
 #include "core/testing/test_controls.hpp"
+#include "core/world/door.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_overlay.hpp"
 
@@ -97,6 +98,9 @@ class EditorRenderer::Impl {
   void beginUiFrame();
   void replaceDocument(const LevelDocument& level);
   void replaceTerrain(const LevelDocument& level);
+  void validateSceneAssets(const LevelDocument& level) const {
+    ::validateSceneAssets(level, resources_.resource_root);
+  }
   [[nodiscard]] std::size_t terrainReplacementCount() const noexcept {
     return terrain_replacement_count_;
   }
@@ -121,10 +125,9 @@ class EditorRenderer::Impl {
 
   VulkanContext context_;
   EditorRendererResources resources_{};
-  std::unique_ptr<SampledTexture> sampled_texture_{};
+  std::unique_ptr<SceneResources> scene_resources_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
-  std::unique_ptr<ImmutableMeshBuffer> world_mesh_{};
-  std::unique_ptr<ImmutableMeshBuffer> chair_mesh_{};
+  std::unique_ptr<ImmutableMeshBuffer> door_preview_{};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
   VkFormat depth_format_{VK_FORMAT_UNDEFINED};
@@ -195,6 +198,10 @@ FrameOutcome EditorRenderer::renderFrame(const FrameRequest& request) {
   return impl_->renderFrame(request);
 }
 
+void EditorRenderer::validateSceneAssets(const LevelDocument& level) const {
+  impl_->validateSceneAssets(level);
+}
+
 void EditorRenderer::requestSwapchainRecreation() noexcept {
   impl_->requestSwapchainRecreation();
 }
@@ -209,9 +216,6 @@ EditorRenderer::Impl::Impl(const Window& window,
                            ValidationDiagnostics& diagnostics)
     : context_(window, diagnostics), resources_(std::move(resources)) {
   try {
-    sampled_texture_ = std::make_unique<SampledTexture>(
-        context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
-        context_.queueFamilies().graphics, resources_.surface_textures);
     depth_format_ = selectDepthFormat(context_.physicalDevice());
     createSwapchain(initial_extent);
     createFrameSlots();
@@ -223,9 +227,8 @@ EditorRenderer::Impl::Impl(const Window& window,
     pipeline_.reset();
     cleanupSwapchain();
     lighting_resources_.reset();
-    sampled_texture_.reset();
-    chair_mesh_.reset();
-    world_mesh_.reset();
+    door_preview_.reset();
+    scene_resources_.reset();
     throw;
   }
 }
@@ -239,9 +242,8 @@ EditorRenderer::Impl::~Impl() {
   pipeline_.reset();
   cleanupSwapchain();
   lighting_resources_.reset();
-  sampled_texture_.reset();
-  chair_mesh_.reset();
-  world_mesh_.reset();
+  door_preview_.reset();
+  scene_resources_.reset();
   recordLifecycleEvent("editor.renderer.destroyed");
 }
 
@@ -250,32 +252,36 @@ void EditorRenderer::Impl::beginUiFrame() { ImGui_ImplVulkan_NewFrame(); }
 void EditorRenderer::Impl::replaceDocument(const LevelDocument& level) {
   requireVulkan(vkDeviceWaitIdle(context_.device()),
                 "Wait for editor frames before replacing the level");
-  const std::vector<PositionColorVertex> world_vertices =
-      buildPrototypeSceneVertices(level.terrain, level.solids,
-                                  level.light_switch);
-  const std::vector<PositionColorVertex> chair_vertices =
-      loadStaticModelVertices(resources_.prototype_chair_model,
-                              level.static_prop);
-  std::unique_ptr<ImmutableMeshBuffer> world_mesh;
-  if (!world_vertices.empty())
-    world_mesh = std::make_unique<ImmutableMeshBuffer>(
-        context_.device(), context_.physicalDevice(), world_vertices, "world");
-  auto chair_mesh = std::make_unique<ImmutableMeshBuffer>(
-      context_.device(), context_.physicalDevice(), chair_vertices, "chair");
+  const auto assets = prepareSceneAssets(resources_.resource_root, level);
+  auto scene = std::make_unique<SceneResources>(
+      context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
+      context_.queueFamilies().graphics, assets);
+  std::vector<OpaqueBoxFrame> boxes;
+  for (const auto& door : level.doors) {
+    if (!doorGeometryIsValid(door)) continue;
+    const auto leaf = doorPresentationBoxes(door, doorInitialAngle(door),
+                                            door.initially_locked);
+    boxes.insert(boxes.end(), leaf.begin(), leaf.end());
+  }
+  const auto door_vertices = buildOpaqueBoxVertices(boxes);
+  std::unique_ptr<ImmutableMeshBuffer> door_preview;
+  if (!door_vertices.empty())
+    door_preview = std::make_unique<ImmutableMeshBuffer>(
+        context_.device(), context_.physicalDevice(), door_vertices,
+        "door_preview");
   auto lighting_resources = std::make_unique<LightingResources>(
       context_.device(), context_.physicalDevice(), level.environment_light);
   auto pipeline = std::make_unique<GraphicsPipeline>(
       context_.device(), swapchain_format_, depth_format_,
-      sampled_texture_->descriptorSetLayout(),
-      sampled_texture_->descriptorSet(),
+      scene->materialLayout(), scene->firstMaterial(),
       lighting_resources->descriptorSetLayout(),
       lighting_resources->descriptorSet(), resources_.vertex_shader,
       resources_.fragment_shader);
 
   pipeline_ = std::move(pipeline);
   lighting_resources_ = std::move(lighting_resources);
-  chair_mesh_ = std::move(chair_mesh);
-  world_mesh_ = std::move(world_mesh);
+  door_preview_ = std::move(door_preview);
+  scene_resources_ = std::move(scene);
   recordLifecycleEvent("editor.document-resources.replaced");
 }
 
@@ -284,14 +290,15 @@ void EditorRenderer::Impl::clearDocument() {
                 "Wait for editor frames before closing the level");
   pipeline_.reset();
   lighting_resources_.reset();
-  chair_mesh_.reset();
-  world_mesh_.reset();
+  door_preview_.reset();
+  scene_resources_.reset();
   recordLifecycleEvent("editor.document-resources.cleared");
 }
 
 void EditorRenderer::Impl::replaceTerrain(const LevelDocument& level) {
   // Both frame slots can reference the shared world buffer. Keep the small,
-  // unchanged solid stream beside terrain; chair, lights and pipeline survive.
+  // unchanged solid stream beside terrain; props, doors, materials and lights
+  // survive.
   std::array<VkFence, frames_in_flight> fences{};
   for (std::size_t i = 0; i < frames_.size(); ++i)
     fences[i] = frames_[i].completion;
@@ -300,13 +307,9 @@ void EditorRenderer::Impl::replaceTerrain(const LevelDocument& level) {
                       static_cast<std::uint32_t>(fences.size()), fences.data(),
                       VK_TRUE, std::numeric_limits<std::uint64_t>::max()),
       "Wait for editor terrain buffer readers");
-  const auto vertices = buildPrototypeSceneVertices(level.terrain, level.solids,
-                                                    level.light_switch);
-  std::unique_ptr<ImmutableMeshBuffer> mesh;
-  if (!vertices.empty())
-    mesh = std::make_unique<ImmutableMeshBuffer>(
-        context_.device(), context_.physicalDevice(), vertices, "world");
-  world_mesh_ = std::move(mesh);
+  if (!scene_resources_)
+    throw std::runtime_error("No active editor scene resources");
+  scene_resources_->replaceWorld(level);
   ++terrain_replacement_count_;
   recordLifecycleEvent("editor.terrain-resources.replaced");
 }
@@ -496,8 +499,7 @@ void EditorRenderer::Impl::recreateSwapchain(FramebufferExtent framebuffer) {
   if (pipeline_ != nullptr && previous_format != swapchain_format_) {
     pipeline_ = std::make_unique<GraphicsPipeline>(
         context_.device(), swapchain_format_, depth_format_,
-        sampled_texture_->descriptorSetLayout(),
-        sampled_texture_->descriptorSet(),
+        scene_resources_->materialLayout(), scene_resources_->firstMaterial(),
         lighting_resources_->descriptorSetLayout(),
         lighting_resources_->descriptorSet(), resources_.vertex_shader,
         resources_.fragment_shader);
@@ -644,6 +646,7 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   rendering_info.colorAttachmentCount = 1;
   rendering_info.pColorAttachments = &color_attachment;
   rendering_info.pDepthAttachment = &depth_attachment;
+  recordLifecycleEvent("editor.frame.begin");
   vkCmdBeginRendering(command_buffer, &rendering_info);
   const VkViewport viewport{0.0F,
                             0.0F,
@@ -657,11 +660,17 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   if (pipeline_ != nullptr) {
     pipeline_->bindSceneState(command_buffer, request.camera,
                               request.spot_light, request.point_light_enabled);
-    if (world_mesh_) world_mesh_->bindAndDraw(command_buffer);
-    chair_mesh_->bindAndDraw(command_buffer);
+    scene_resources_->draw(command_buffer, *pipeline_);
+    if (door_preview_) {
+      pipeline_->bindMaterial(command_buffer,
+                              scene_resources_->obstacleMaterial());
+      door_preview_->bindAndDraw(command_buffer);
+    }
   }
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
+  recordLifecycleEvent("editor.ui.drawn");
   vkCmdEndRendering(command_buffer);
+  recordLifecycleEvent("editor.frame.end");
 
   VkImageMemoryBarrier2 to_present{};
   to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;

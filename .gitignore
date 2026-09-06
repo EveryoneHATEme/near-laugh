@@ -42,3 +42,7 @@
 
 build/
 .vscode/
+
+# Local files, mainly for testing
+/house_interior_pack/
+plot.md

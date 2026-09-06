@@ -1,6 +1,30 @@
 #include "editor/editor_playtest.hpp"
 
+#include <stdexcept>
 #include <utility>
+
+LevelDocument loadEditorPlayDocument(const EditorDocument& document,
+                                     const EditorLaunchRequest& request) {
+  if (!document.document() || !document.path() ||
+      *document.path() != request.level_path ||
+      document.launchEntry() != request.entry_id)
+    throw std::runtime_error(
+        "The prepared level or entry changed. Start Play again.");
+  auto loaded = loadLevelDocument(request.level_path);
+  if (!loaded)
+    throw std::runtime_error(formatLevelDiagnostics(loaded.diagnostics));
+  const auto diagnostics =
+      validateLevelDocument(*loaded.document, request.level_path);
+  if (!diagnostics.empty())
+    throw std::runtime_error(formatLevelDiagnostics(diagnostics));
+  if (!findLevelEntry(*loaded.document, request.entry_id))
+    throw std::runtime_error("Saved level does not contain the chosen entry.");
+  if (*loaded.document != *document.document())
+    throw std::runtime_error(
+        "The saved level differs from the editor. Explicitly Save or Open it "
+        "before Play.");
+  return std::move(*loaded.document);
+}
 
 bool EditorPlaytest::fail(std::string error) {
   cancel();
@@ -69,18 +93,13 @@ bool EditorPlaytest::saveAsAndPlay(EditorDocument& document,
 bool EditorPlaytest::preflight(const EditorDocument& document) {
   if (!unchanged(document)) return false;
   if (!document.path()) return fail("Save the level before Play.");
-  const auto loaded = loadLevelDocument(*document.path());
-  if (!loaded) return fail(formatLevelDiagnostics(loaded.diagnostics));
-  const auto diagnostics =
-      validateLevelDocument(*loaded.document, *document.path());
-  if (!diagnostics.empty()) return fail(formatLevelDiagnostics(diagnostics));
-  if (!findLevelEntry(*loaded.document, entry_))
-    return fail("Saved level does not contain the chosen entry.");
-  if (*loaded.document != *prepared_)
-    return fail(
-        "The saved level differs from the editor. Explicitly Save or Open it "
-        "before Play.");
-  launch_ = EditorLaunchRequest{*document.path(), entry_};
+  const EditorLaunchRequest request{*document.path(), entry_};
+  try {
+    static_cast<void>(loadEditorPlayDocument(document, request));
+  } catch (const std::exception& error) {
+    return fail(error.what());
+  }
+  launch_ = request;
   state_ = EditorPlayState::Ready;
   return true;
 }

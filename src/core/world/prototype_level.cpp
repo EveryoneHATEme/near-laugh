@@ -9,6 +9,8 @@
 #include <utility>
 
 #include "core/world/light_switch.hpp"
+#include "core/world/door.hpp"
+#include "core/world/scene_assets.hpp"
 
 namespace {
 std::size_t terrainSampleIndex(std::size_t sample_x,
@@ -172,7 +174,7 @@ bool spawnSupported(const PrototypeTerrain* terrain,
 
 bool spawnClear(const PrototypeTerrain* terrain,
                 std::span<const PrototypeSolid> solids,
-                const PrototypeStaticProp& prop, WorldPosition p, float radius,
+                const std::vector<PrototypeStaticProp>& props, WorldPosition p, float radius,
                 float height) {
   if (!finite(p) || !std::isfinite(radius) || !std::isfinite(height) ||
       !(radius > 0) || !(height >= 2 * radius) || !std::isfinite(p.y + height))
@@ -190,8 +192,9 @@ bool spawnClear(const PrototypeTerrain* terrain,
                  solid.center.z + solid.half_extent.z))
       return false;
   }
-  const auto center = prototypeStaticPropProxyWorldCenter(prop);
-  const auto extent = prototypeStaticPropProxyWorldHalfExtent(prop);
+  for (const auto& prop : props) for (const auto& proxy : prop.collision_boxes) {
+  const auto center = propBoxWorldCenter(prop, proxy);
+  const auto extent = propBoxWorldHalfExtent(prop, proxy);
   if (overlaps(min_y, max_y, center.y - extent.y, center.y + extent.y)) {
     const double yaw =
         static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
@@ -206,6 +209,7 @@ bool spawnClear(const PrototypeTerrain* terrain,
         std::abs(co * dx - si * dz) < extent.x + projected_radius &&
         std::abs(si * dx + co * dz) < extent.z + projected_radius)
       return false;
+  }
   }
   if (!terrain) return true;
   const bool on_terrain =
@@ -256,20 +260,6 @@ bool solidKindIsValid(PrototypeSolidKind kind) noexcept {
   return false;
 }
 
-PrototypeSurface expectedSurface(PrototypeSolidKind kind) noexcept {
-  switch (kind) {
-    case PrototypeSolidKind::Floor:
-      return PrototypeSurface::Floor;
-    case PrototypeSolidKind::Boundary:
-      return PrototypeSurface::Boundary;
-    case PrototypeSolidKind::Obstacle:
-    case PrototypeSolidKind::WalkableStep:
-    case PrototypeSolidKind::LowClearance:
-      return PrototypeSurface::Obstacle;
-  }
-  return static_cast<PrototypeSurface>(prototype_surface_count);
-}
-
 void addValidation(std::vector<LevelDiagnostic>& diagnostics,
                    const std::filesystem::path& source_path,
                    std::string document_path, std::string message) {
@@ -284,8 +274,9 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       entries_(std::move(document.entries)),
       default_entry_(std::move(document.default_entry)),
       environment_light_(std::move(document.environment_light)),
-      static_prop_(std::move(document.static_prop)),
-      light_switch_(std::move(document.light_switch)) {}
+      props_(std::move(document.props)),
+      light_switch_(std::move(document.light_switch)),
+      doors_(std::move(document.doors)) {}
 
 bool levelEntryIdIsValid(std::string_view id) noexcept {
   return !id.empty() && id.size() <= level_maximum_entry_id_length &&
@@ -372,52 +363,27 @@ bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept {
          solid.half_extent.y > 0.0F && solid.half_extent.z > 0.0F &&
          finiteBounds(solid.center, solid.half_extent) &&
          solidKindIsValid(solid.kind) &&
-         prototypeSurfaceIsValid(solid.surface) &&
-         solid.surface == expectedSurface(solid.kind);
-}
-
-WorldPosition prototypeStaticPropProxyWorldCenter(
-    const PrototypeStaticProp& prop) noexcept {
-  const float yaw = prop.yaw_degrees * std::numbers::pi_v<float> / 180.0F;
-  const float cosine = std::cos(yaw);
-  const float sine = std::sin(yaw);
-  const float local_x = prop.box_proxy_center.x * prop.uniform_scale;
-  const float local_y = prop.box_proxy_center.y * prop.uniform_scale;
-  const float local_z = prop.box_proxy_center.z * prop.uniform_scale;
-  return {prop.translation.x + cosine * local_x + sine * local_z,
-          prop.translation.y + local_y,
-          prop.translation.z - sine * local_x + cosine * local_z};
-}
-
-WorldExtent prototypeStaticPropProxyWorldHalfExtent(
-    const PrototypeStaticProp& prop) noexcept {
-  return {prop.box_proxy_half_extent.x * prop.uniform_scale,
-          prop.box_proxy_half_extent.y * prop.uniform_scale,
-          prop.box_proxy_half_extent.z * prop.uniform_scale};
+         findStructuralMaterial(solid.material) != nullptr;
 }
 
 bool prototypeStaticPropIsValid(const PrototypeStaticProp& prop) noexcept {
-  const WorldPosition center = prototypeStaticPropProxyWorldCenter(prop);
-  const WorldExtent half_extent = prototypeStaticPropProxyWorldHalfExtent(prop);
-  const double yaw =
-      static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
+  if (!levelEntryIdIsValid(prop.id) || !finite(prop.translation) ||
+      !std::isfinite(prop.yaw_degrees) || !std::isfinite(prop.uniform_scale) ||
+      prop.uniform_scale <= 0 || prop.collision_boxes.size() > level_maximum_prop_box_count)
+    return false;
+  const auto* model = findSceneModel(prop.model);
+  if (!model) return false;
+  const double yaw = static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
   const float c = static_cast<float>(std::abs(std::cos(yaw)));
   const float s = static_cast<float>(std::abs(std::sin(yaw)));
-  const WorldExtent bounds{c * half_extent.x + s * half_extent.z, half_extent.y,
-                           s * half_extent.x + c * half_extent.z};
-  return std::isfinite(prop.translation.x) &&
-         std::isfinite(prop.translation.y) &&
-         std::isfinite(prop.translation.z) && std::isfinite(prop.yaw_degrees) &&
-         std::isfinite(prop.uniform_scale) && prop.uniform_scale > 0.0F &&
-         prop.surface == PrototypeSurface::Obstacle &&
-         std::isfinite(prop.box_proxy_center.x) &&
-         std::isfinite(prop.box_proxy_center.y) &&
-         std::isfinite(prop.box_proxy_center.z) && std::isfinite(center.x) &&
-         std::isfinite(center.y) && std::isfinite(center.z) &&
-         std::isfinite(half_extent.x) && std::isfinite(half_extent.y) &&
-         std::isfinite(half_extent.z) && half_extent.x > 0.0F &&
-         half_extent.y > 0.0F && half_extent.z > 0.0F &&
-         finiteBounds(center, bounds);
+  const auto valid_box = [&](const PropCollisionBox& box) {
+    const auto center = propBoxWorldCenter(prop, box);
+    const auto e = propBoxWorldHalfExtent(prop, box);
+    return finite(box.center) && e.x > 0 && e.y > 0 && e.z > 0 &&
+           finiteBounds(center, {c * e.x + s * e.z, e.y, s * e.x + c * e.z});
+  };
+  return valid_box(sceneModelBounds(*model)) &&
+         std::all_of(prop.collision_boxes.begin(), prop.collision_boxes.end(), valid_box);
 }
 
 WorldPosition prototypeTerrainSamplePosition(const PrototypeTerrain& terrain,
@@ -589,15 +555,13 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       addValidation(diagnostics, source_path, path + ".kind",
                     "is not a supported solid kind");
     }
-    if (!prototypeSurfaceIsValid(solid.surface)) {
-      addValidation(diagnostics, source_path, path + ".surface",
-                    "is not a supported surface role");
-    } else if (solidKindIsValid(solid.kind) &&
-               solid.surface != expectedSurface(solid.kind)) {
-      addValidation(diagnostics, source_path, path + ".surface",
-                    "does not match the fixed role for this solid kind");
-    }
+    if (!findStructuralMaterial(solid.material))
+      addValidation(diagnostics, source_path, path + ".material",
+                    "unknown structural material '" + solid.material + "'");
   }
+  if (document.terrain && !findStructuralMaterial(document.terrain->material))
+    addValidation(diagnostics, source_path, "terrain.material",
+                  "unknown structural material '" + document.terrain->material + "'");
 
   const PrototypeEnvironmentLight& light = document.environment_light;
   for (std::size_t index = 0; index < light.point_lights.size(); ++index) {
@@ -635,52 +599,24 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                   "must be finite and between 0.0 and 0.2");
   }
 
-  const PrototypeStaticProp& prop = document.static_prop;
-  if (!std::isfinite(prop.translation.x) ||
-      !std::isfinite(prop.translation.y) ||
-      !std::isfinite(prop.translation.z)) {
-    addValidation(diagnostics, source_path, "static_prop.translation",
-                  "all components must be finite");
-  }
-  if (!std::isfinite(prop.yaw_degrees)) {
-    addValidation(diagnostics, source_path, "static_prop.yaw_degrees",
-                  "must be finite");
-  }
-  if (!std::isfinite(prop.uniform_scale) || !(prop.uniform_scale > 0.0F)) {
-    addValidation(diagnostics, source_path, "static_prop.uniform_scale",
-                  "must be finite and positive");
-  }
-  if (prop.surface != PrototypeSurface::Obstacle) {
-    addValidation(diagnostics, source_path, "static_prop.surface",
-                  "must use the fixed obstacle surface");
-  }
-  if (!std::isfinite(prop.box_proxy_center.x) ||
-      !std::isfinite(prop.box_proxy_center.y) ||
-      !std::isfinite(prop.box_proxy_center.z)) {
-    addValidation(diagnostics, source_path, "static_prop.box_proxy.center",
-                  "all components must be finite");
-  }
-  if (!std::isfinite(prop.box_proxy_half_extent.x) ||
-      !std::isfinite(prop.box_proxy_half_extent.y) ||
-      !std::isfinite(prop.box_proxy_half_extent.z) ||
-      !(prop.box_proxy_half_extent.x > 0.0F) ||
-      !(prop.box_proxy_half_extent.y > 0.0F) ||
-      !(prop.box_proxy_half_extent.z > 0.0F)) {
-    addValidation(diagnostics, source_path, "static_prop.box_proxy.half_extent",
-                  "all components must be finite and positive");
-  }
-  const WorldPosition proxy_center = prototypeStaticPropProxyWorldCenter(prop);
-  const WorldExtent proxy_extent =
-      prototypeStaticPropProxyWorldHalfExtent(prop);
-  if (!prototypeStaticPropIsValid(prop))
-    addValidation(
-        diagnostics, source_path, "static_prop.box_proxy",
-        "proxy and its transformed bounds must remain finite and positive");
-  if (!std::isfinite(proxy_center.x) || !std::isfinite(proxy_center.y) ||
-      !std::isfinite(proxy_center.z) || !std::isfinite(proxy_extent.x) ||
-      !std::isfinite(proxy_extent.y) || !std::isfinite(proxy_extent.z)) {
-    addValidation(diagnostics, source_path, "static_prop.box_proxy",
-                  "world transform must remain finite");
+  if (document.props.size() > level_maximum_prop_count)
+    addValidation(diagnostics, source_path, "props", "exceeds the 128-placement limit");
+  for (std::size_t i = 0; i < document.props.size(); ++i) {
+    const auto& prop = document.props[i];
+    const auto path = "props[" + std::to_string(i) + "]";
+    const auto label = "prop '" + prop.id + "': ";
+    if (!levelEntryIdIsValid(prop.id))
+      addValidation(diagnostics, source_path, path + ".id", label + "must match [a-z][a-z0-9-]{0,63}");
+    for (std::size_t j = 0; j < i; ++j)
+      if (document.props[j].id == prop.id) {
+        addValidation(diagnostics, source_path, path + ".id", label + "duplicate identifier");
+        break;
+      }
+    if (!findSceneModel(prop.model))
+      addValidation(diagnostics, source_path, path + ".model", label + "unknown model '" + prop.model + "'");
+    if (!prototypeStaticPropIsValid(prop))
+      addValidation(diagnostics, source_path, path,
+                    label + "model, finite transform, positive bounds or collision boxes are invalid");
   }
 
   if (document.entries.empty() ||
@@ -722,7 +658,7 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                     label +
                         "must match a supporting terrain surface or solid top "
                         "at its authored height");
-    if (!spawnClear(support_terrain, document.solids, prop,
+    if (!spawnClear(support_terrain, document.solids, document.props,
                     entry.pose.foot_position, prototype_spawn_validation_radius,
                     prototype_spawn_validation_height))
       addValidation(
@@ -748,6 +684,58 @@ std::vector<LevelDiagnostic> validateLevelDocument(
         addValidation(diagnostics, source_path, "light_switch.position",
                       "transformed bounds must be finite");
         break;
+      }
+    }
+  }
+  if (document.doors.size() > level_maximum_door_count)
+    addValidation(diagnostics, source_path, "doors", "exceeds the 32-door limit");
+  for (std::size_t i = 0; i < document.doors.size(); ++i) {
+    const auto& door = document.doors[i];
+    const auto path = "doors[" + std::to_string(i) + "]";
+    const auto label = "door '" + door.id + "': ";
+    const auto error = doorFieldError(door);
+    if (!error.empty()) addValidation(diagnostics, source_path, path, label + error);
+    for (std::size_t j = 0; j < i; ++j)
+      if (document.doors[j].id == door.id) {
+        addValidation(diagnostics, source_path, path + ".id", label + "duplicate identifier");
+        break;
+      }
+    if (door.initially_locked &&
+        (door.initially_open || door.lock_side == DoorLockSide::None))
+      addValidation(diagnostics, source_path, path + ".initially_locked",
+                    label + "initially locked requires a closed door with a lock");
+    if (!doorGeometryIsValid(door)) continue;
+    const auto leaf = doorLeafPose(door, doorInitialAngle(door));
+    bool overlap = false;
+    for (const auto& solid : document.solids)
+      if (prototypeSolidIsValid(solid) && yawedBoxesOverlap(leaf,
+            {solid.center, solid.half_extent, 0})) overlap = true;
+    for (const auto& prop : document.props) for (const auto& proxy : prop.collision_boxes)
+      if (yawedBoxesOverlap(leaf,
+          {propBoxWorldCenter(prop, proxy), propBoxWorldHalfExtent(prop, proxy), prop.yaw_degrees}))
+        overlap = true;
+    if (support_terrain && doorOverlapsTerrain(door, doorInitialAngle(door), *support_terrain))
+      overlap = true;
+    for (std::size_t j = 0; j < i; ++j)
+      if (doorGeometryIsValid(document.doors[j]) && yawedBoxesOverlap(leaf,
+          doorLeafPose(document.doors[j], doorInitialAngle(document.doors[j])))) {
+        addValidation(diagnostics, source_path, path, label + "initial leaf overlaps door '" +
+                      document.doors[j].id + "'");
+      }
+    if (overlap) addValidation(diagnostics, source_path, path,
+                              label + "initial leaf overlaps blocking geometry");
+    for (std::size_t j = 0; j < document.entries.size(); ++j) {
+      const auto& entry = document.entries[j];
+      const auto p = entry.pose.foot_position;
+      const float radius = prototype_spawn_validation_radius +
+                           prototype_player_contact_padding;
+      const float height = prototype_spawn_validation_height +
+                           2 * prototype_player_contact_padding;
+      if (yawedBoxesOverlap(leaf, {{p.x, p.y + height / 2, p.z},
+                                  {radius, height / 2, radius}, 0})) {
+        addValidation(diagnostics, source_path, path, label + "initial leaf overlaps entry '" + entry.id + "'");
+        addValidation(diagnostics, source_path, "entries[" + std::to_string(j) + "].foot_position",
+                      "entry '" + entry.id + "': standing clearance overlaps " + label);
       }
     }
   }
@@ -781,14 +769,23 @@ bool prototypeLevelIsValid(const PrototypeLevel& level) {
   const LevelDocument document{level_format_version,   level.terrain(),
                                level.solids(),         level.entries(),
                                level.defaultEntryId(), level.environmentLight(),
-                               level.staticProp(),     level.lightSwitch()};
+                               level.props(),     level.lightSwitch(),
+                               level.doors()};
   return validateLevelDocument(document).empty();
 }
 
 bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,
                            float player_height) noexcept {
+  const auto p = level.playerSpawn().foot_position;
+  const float door_radius = player_radius + prototype_player_contact_padding;
+  const float door_height = player_height + 2 * prototype_player_contact_padding;
+  for (const auto& door : level.doors())
+    if (yawedBoxesOverlap(doorLeafPose(door, doorInitialAngle(door)),
+        {{p.x, p.y + door_height / 2, p.z},
+         {door_radius, door_height / 2, door_radius}, 0}))
+      return false;
   return spawnClear(level.terrain() ? &*level.terrain() : nullptr,
-                    level.solids(), level.staticProp(),
+                    level.solids(), level.props(),
                     level.playerSpawn().foot_position, player_radius,
                     player_height);
 }

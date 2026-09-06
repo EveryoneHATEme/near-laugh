@@ -76,7 +76,7 @@ void expectDocumentEqual(const LevelDocument& actual,
     EXPECT_FLOAT_EQ(left.half_extent.z, right.half_extent.z);
     EXPECT_EQ(left.color, right.color);
     EXPECT_EQ(left.kind, right.kind);
-    EXPECT_EQ(left.surface, right.surface);
+    EXPECT_EQ(left.material, right.material);
   }
   expectPositionEqual(actual.entries.front().pose.foot_position,
                       expected.entries.front().pose.foot_position);
@@ -94,21 +94,9 @@ void expectDocumentEqual(const LevelDocument& actual,
   }
   EXPECT_FLOAT_EQ(actual.environment_light.ambient_intensity,
                   expected.environment_light.ambient_intensity);
-  expectPositionEqual(actual.static_prop.translation,
-                      expected.static_prop.translation);
-  EXPECT_FLOAT_EQ(actual.static_prop.yaw_degrees,
-                  expected.static_prop.yaw_degrees);
-  EXPECT_FLOAT_EQ(actual.static_prop.uniform_scale,
-                  expected.static_prop.uniform_scale);
-  EXPECT_EQ(actual.static_prop.surface, expected.static_prop.surface);
-  expectPositionEqual(actual.static_prop.box_proxy_center,
-                      expected.static_prop.box_proxy_center);
-  EXPECT_FLOAT_EQ(actual.static_prop.box_proxy_half_extent.x,
-                  expected.static_prop.box_proxy_half_extent.x);
-  EXPECT_FLOAT_EQ(actual.static_prop.box_proxy_half_extent.y,
-                  expected.static_prop.box_proxy_half_extent.y);
-  EXPECT_FLOAT_EQ(actual.static_prop.box_proxy_half_extent.z,
-                  expected.static_prop.box_proxy_half_extent.z);
+  EXPECT_EQ(actual.props, expected.props);
+  EXPECT_EQ(actual.doors, expected.doors);
+  EXPECT_EQ(actual.terrain->material, expected.terrain->material);
 }
 
 class CommaDecimalPoint final : public std::numpunct<char> {
@@ -118,7 +106,7 @@ class CommaDecimalPoint final : public std::numpunct<char> {
 }  // namespace
 
 TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
-  static_assert(level_format_version == 4);
+  static_assert(level_format_version == 6);
   static_assert(prototype_terrain_sample_count == 97);
   static_assert(level_maximum_solid_count == 240);
   static_assert(prototype_point_light_count == 2);
@@ -145,7 +133,7 @@ TEST(LevelDocument, ValidationIsFieldAwareAndAuthoritative) {
   document.solids[0].half_extent.x = 0.0F;
   document.entries.front().pose.foot_position = document.solids[4].center;
   document.environment_light.point_lights[0].radius = 0.0F;
-  document.static_prop.box_proxy_half_extent.z = 0.0F;
+  document.props.front().collision_boxes.front().half_extent.z = 0.0F;
   const std::vector<LevelDiagnostic> diagnostics =
       validateLevelDocument(document, "invalid.level.json");
   EXPECT_TRUE(hasField(diagnostics, "terrain.cells"));
@@ -153,7 +141,7 @@ TEST(LevelDocument, ValidationIsFieldAwareAndAuthoritative) {
   EXPECT_TRUE(hasField(diagnostics, "entries[0]"));
   EXPECT_TRUE(
       hasField(diagnostics, "environment_light.point_lights[0].radius"));
-  EXPECT_TRUE(hasField(diagnostics, "static_prop.box_proxy.half_extent"));
+  EXPECT_TRUE(hasField(diagnostics, "props[0]"));
   EXPECT_THROW(static_cast<void>(makePrototypeLevel(document)),
                std::invalid_argument);
 }
@@ -173,7 +161,7 @@ TEST(LevelDocument, EnforcesSolidCapAndFiniteSupportedValues) {
   EXPECT_TRUE(
       hasField(validateLevelDocument(document), "entries[0].yaw_degrees"));
   document = prototypeLevelDocument();
-  document.static_prop.translation.x = 1000.0F;
+  document.props.front().translation.x = 1000.0F;
   EXPECT_TRUE(validateLevelDocument(document).empty());
 }
 
@@ -189,7 +177,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"malformed", "{", "byte"});
 
   std::string version_one = canonical;
-  replaceOnce(version_one, "\"version\": 4", "\"version\": 1");
+  replaceOnce(version_one, "\"version\": 6", "\"version\": 1");
   cases.push_back({"version_one", std::move(version_one), "version"});
 
   std::string unknown = canonical;
@@ -198,7 +186,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"path", std::move(unknown), "model_path"});
 
   std::string missing = canonical;
-  replaceOnce(missing, "  \"version\": 4,\n", "");
+  replaceOnce(missing, "  \"version\": 6,\n", "");
   cases.push_back({"missing", std::move(missing), "version"});
 
   std::string invalid_heights = canonical;
@@ -220,7 +208,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"removed_kind", std::move(removed_kind), "solids[0].kind"});
 
   std::string removed_surface = canonical;
-  replaceOnce(removed_surface, "\"surface\": \"boundary\"",
+  replaceOnce(removed_surface, "\"material\": \"prototype-boundary\"",
               "\"surface\": \"shooting_target\"");
   cases.push_back(
       {"removed_surface", std::move(removed_surface), "solids[0].surface"});
@@ -292,8 +280,8 @@ TEST(LevelDocument, RuntimeLoaderRejectsMissingParseAndValidationFailures) {
 TEST(LevelDocument, CanonicalSaveRoundTripsBytesUnderNonClassicGlobalLocale) {
   LevelDocument original = prototypeLevelDocument();
   original.terrain->heights[0] = -0.0F;
-  original.static_prop.yaw_degrees =
-      std::nextafter(original.static_prop.yaw_degrees, 0.0F);
+  original.props.front().yaw_degrees =
+      std::nextafter(original.props.front().yaw_degrees, 0.0F);
   const std::filesystem::path root = testDirectory("round_trip");
   const std::filesystem::path first = root / "first.level.json";
   const std::filesystem::path second = root / "second.level.json";
@@ -412,7 +400,7 @@ TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(readBytes(path), old_bytes);
   ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
-  EXPECT_NE(readBytes(path).find("\"version\": 4"), std::string::npos);
+  EXPECT_NE(readBytes(path).find("\"version\": 6"), std::string::npos);
   EXPECT_NE(readBytes(path).find("\"light_switch\": null"), std::string::npos);
   const auto current = readBytes(path);
   ASSERT_TRUE(saveLevelDocument(path, *loadLevelDocument(path).document));

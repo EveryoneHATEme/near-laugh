@@ -1,4 +1,6 @@
 add_executable(engine_tests
+    core/test_scene_authoring.cpp
+    core/test_doors.cpp
     core/test_editor_playtest.cpp
     core/test_interior_level.cpp
     core/test_editor_bridge.cpp

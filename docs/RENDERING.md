@@ -30,7 +30,8 @@ The runtime submits at most one `FrameRequest` per loop iteration. It contains:
 - the current framebuffer extent and resize state;
 - a standard-layout, column-major camera view-projection matrix; and
 - at most one source-independent dynamic `SpotLightFrame`; and
-- independent enabled values for the two authored point-light slots.
+- independent enabled values for the two authored point-light slots; and
+- at most 192 source-independent opaque boxes for accepted door poses and feedback.
 
 A zero extent is skipped before GPU submission. The renderer owns swapchain
 out-of-date and suboptimal handling and returns a backend-neutral `Rendered`,
@@ -50,35 +51,35 @@ Runtime composition resolves and validates the selected level (defaulting to
 renderer receives an immutable `PrototypeLevel`; it does not parse JSON, save
 documents, hot-reload levels, or select paths from level data.
 
-The current scene uses two immutable world-space triangle streams:
+Generated terrain, solids and the optional switch form immutable world-space
+triangle batches grouped by structural material. Each selected prop model is
+decoded once per scene load and expanded at its authored placements into
+immutable material batches. An empty prop collection requires no model files.
 
-- generated optional terrain, axis-aligned solids, and the optional yawed switch; and
-- the one packaged chair flattened synchronously from
-  `resources/models/prototype_chair.glb`.
+Generated faces carry position, authored tint, outward world-space normal and
+continuous one-repeat-per-metre UVs. Each solid chooses a structural material
+independently of its collision kind; present terrain chooses one material for
+the whole surface. Props retain authored UVs and use the placement translation,
+yaw and positive uniform scale. Collision remains authored local boxes and does
+not depend on imported triangles.
 
-Generated faces carry position, authored tint, outward world-space normal,
-continuous one-repeat-per-metre UVs, and an unsigned texture layer. The stable
-surface-to-layer order is floor (0), boundary (1), and obstacle (2). Movement
-test structures and the chair use the obstacle layer.
-
-The chair loader accepts one controlled binary glTF 2.0 profile: one default
-scene, one mesh-bearing root without children, one mesh, and one non-empty
-triangle-list primitive with finite `POSITION`, `NORMAL`, and `TEXCOORD_0`
-data. It applies the root transform plus the level-authored translation, yaw,
-and uniform scale. File materials and textures do not affect the result.
+The loader accepts a controlled binary glTF 2.0 profile: one default scene,
+one mesh-bearing root without children, one mesh, and one non-empty triangle
+primitive with finite `POSITION`, `NORMAL` and `TEXCOORD_0` data. The selected
+material supports base-color factor, an optional embedded PNG, OPAQUE or MASK,
+and supported repeat samplers. A constant material uses a white texel. Other
+material inputs, extensions, external images and unsupported hierarchy are
+rejected with asset context. The legacy chair keeps its explicit prototype
+obstacle material. The finite catalog and preparation steps are documented in
+[APARTMENT_ASSETS.md](../resources/models/APARTMENT_ASSETS.md).
 
 ## Textures, Descriptors, and Lighting
 
-At startup, `SampledTexture` decodes these opaque 256-by-256 PNGs in layer
-order:
-
-1. `resources/textures/prototype_floor.png`
-2. `resources/textures/prototype_boundary.png`
-3. `resources/textures/prototype_obstacle.png`
-
-It uploads one three-layer device-local `VK_FORMAT_R8G8B8A8_SRGB` image,
-generates the full mip chain on the graphics queue, and owns the array view,
-repeat/linear sampler, descriptor layout, pool, and immutable descriptor.
+`SceneResources` owns only the selected scene's immutable material resources.
+Each `SampledTexture` uploads a `VK_FORMAT_R8G8B8A8_SRGB` image, generates the
+full mip chain on the graphics queue and owns its view, repeat sampler,
+factor/alpha uniform, descriptor layout, pool and descriptor. Apartment assets
+use nearest sampling; legacy prototype textures retain linear sampling.
 
 `LightingResources` validates and uploads exactly two immutable authored point
 lights plus ambient intensity to one 80-byte `std140` uniform buffer. The
@@ -87,11 +88,15 @@ point lighting and the optional finite-range spot light over a near-black
 ambient floor. Each point-light contribution is multiplied by its frame's
 enabled value. Ambient and the spotlight remain independent. Spot distance
 and cone transitions are smooth; accumulated RGB
-is clamped and alpha remains opaque.
+is clamped and surviving fragments remain opaque. MASK compares sampled alpha
+times factor alpha against the material cutoff and discards uncovered fragments
+before color or depth writes. The phone cord uses cutoff 0.5; OPAQUE materials
+such as the radio ignore source alpha for coverage.
 
-The pipeline binds two immutable descriptor sets once for the scene draws:
+The pipeline uses two descriptor sets:
 
-- set 0, binding 0: combined texture-array sampler;
+- set 0, binding 0: combined base-color sampler;
+- set 0, binding 1: base-color factor and alpha controls;
 - set 1, binding 0: authored lighting uniform buffer.
 
 A renderer-private 128-byte push constant carries the camera matrix, three
@@ -100,20 +105,28 @@ point 1 enabled)`. The standalone `SpotLightFrame` retains its zeroed disabled
 representation. Both packaged shader stages share the packed layout.
 Point-light toggles require no resource rebuilds, descriptor updates, or GPU
 waits. Descriptors are written once during startup and survive swapchain
-recovery. The pipeline binds them and the push constant once, then draws the
-generated world followed by the chair.
+recovery. Lighting and the push constant are shared across draws; each material
+batch binds its immutable set 0. Generated doors and feedback use the explicit
+opaque prototype-obstacle material.
 
 ## Ownership and Lifetime
 
-`Renderer` owns the Vulkan context, sampled texture, lighting resources, world
-mesh, chair mesh, swapchain resources, and pipeline. Swapchain-independent
-textures, lighting, and mesh uploads survive resize and presentation recovery.
+`Renderer` owns the Vulkan context, static scene resources, lighting resources,
+changing door geometry, swapchain resources and pipeline. Swapchain-independent
+textures, lighting and static mesh uploads survive resize and presentation recovery.
 The pipeline borrows descriptor handles and owns no geometry.
 
 Teardown destroys pipelines before the descriptors and mesh buffers they use;
 all GPU owners are released before the logical device. Partial-construction
 paths clean up only resources that were successfully created. Per-frame command
 and synchronization resources are not modified while still in GPU use.
+
+Each existing frame slot owns one persistently mapped changing-geometry buffer
+with capacity for 192 boxes. The renderer waits the slot fence before updating
+it, omits empty draws and never rebuilds static resources for door movement or
+feedback. Runtime boxes describe accepted physics poses without visual motion
+ahead of collision. The editor uses the same geometry helpers at authored
+initial poses.
 
 The editor reuses the narrow rendering helpers but owns a separate Vulkan
 context and active-document resources. It records scene geometry first and
@@ -126,12 +139,12 @@ scene. Object changes install replacement scene resources transactionally after
 GPU completion. Terrain stamps coalesce into one world-mesh rebuild per editor
 frame: the full terrain and unchanged solid vertices are regenerated, both
 in-flight frame fences are awaited, and a replacement buffer is installed.
-Chair geometry, lighting resources, textures, and pipeline remain in place
-during sculpting. A failed replacement retains the previous resources and
-reports the error. This uses the existing immutable buffer owner for each
-replacement; the game renderer and its meshes remain immutable.
+Prop geometry, initial door presentation, lighting resources, textures and the
+pipeline remain in place during sculpting. A failed replacement retains the
+previous resources and reports that the preview is stale. Correction or undo
+can install a new coherent preview. Static runtime scene batches are immutable.
 An invalid editor interior with no solids, terrain, or switch has no generated
-world buffer or world draw. Chair geometry, entry/light markers, and UI remain
+world buffer or world draw. Present props/doors, entry/light markers and UI remain
 available. Replacement between absent and present world meshes uses the same
 transactional resource path, including recovery after a failed upload.
 
@@ -142,7 +155,8 @@ The editor supplies the authored initial light state, safely omitting an
 unusable switch; changing/removing its link restores the previous slot.
 
 Editor-only selection bounds, light/entry spheres, brush footprints, invalid
-terrain triangle outlines, and placement feedback are CPU-projected and clipped
+terrain triangle outlines, prop render/proxy bounds, door hinge/arc/bolt-side
+guides and placement feedback are CPU-projected and clipped
 to the Vulkan view volume. The editor renderer draws
 these lines through the ImGui background draw list, above scene geometry and
 below UI panels, using the existing Vulkan backend. They intentionally have no
@@ -151,7 +165,7 @@ scene depth test and do not alter runtime frame requests or level data.
 ## Current Limits
 
 The current renderer deliberately implements only the bounded scene above. It
-does not infer a general material system, asset discovery, runtime transforms,
+does not infer a general material system, asset discovery, arbitrary runtime transforms,
 texture streaming, bindless descriptors, a light registry, multiple dynamic
 spot lights, shadows, fog, HDR, or a render graph. Such features should be
 introduced only for a concrete visual or gameplay requirement.

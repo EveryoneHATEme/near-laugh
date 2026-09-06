@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <span>
 #include <type_traits>
 
 struct FramebufferExtent {
@@ -95,12 +96,25 @@ static_assert(sizeof(SpotLightFrame) == sizeof(float) * 16);
          inner_cosine > outer_cosine;
 }
 
+inline constexpr std::size_t frame_maximum_opaque_box_count = 192;
+
+struct OpaqueBoxFrame {
+  std::array<float, 3> center{};
+  std::array<float, 3> half_extent{};
+  float yaw_degrees{};
+  std::array<std::uint8_t, 4> color{255, 255, 255, 255};
+  // Generated surface role; 2 remains the obstacle material alias.
+  std::uint32_t surface{2};
+};
+
 struct FrameRequest {
   FramebufferExtent framebuffer{};
   bool framebuffer_resized{};
   CameraFrame camera{};
   SpotLightFrame spot_light{};
   std::array<bool, 2> point_light_enabled{true, true};
+  // Borrowed only for the synchronous render call; never retained by renderer.
+  std::span<const OpaqueBoxFrame> opaque_boxes{};
 };
 
 [[nodiscard]] constexpr bool frameRequestCanSubmit(

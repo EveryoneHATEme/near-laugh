@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 
 inline std::filesystem::path packagedPrototypeLevelPath() {
   return std::filesystem::absolute("resources/levels/prototype.level.json")
@@ -53,52 +54,52 @@ inline LevelDocument prototypeLevelDocument() {
        {0.25F, 3.5F, 24.0F},
        boundary_color,
        PrototypeSolidKind::Boundary,
-       PrototypeSurface::Boundary},
+       "prototype-boundary"},
       {{24.25F, 1.5F, -2.0F},
        {0.25F, 3.5F, 24.0F},
        boundary_color,
        PrototypeSolidKind::Boundary,
-       PrototypeSurface::Boundary},
+       "prototype-boundary"},
       {{0.0F, 1.5F, -26.25F},
        {24.5F, 3.5F, 0.25F},
        boundary_color,
        PrototypeSolidKind::Boundary,
-       PrototypeSurface::Boundary},
+       "prototype-boundary"},
       {{0.0F, 1.5F, 22.25F},
        {24.5F, 3.5F, 0.25F},
        boundary_color,
        PrototypeSolidKind::Boundary,
-       PrototypeSurface::Boundary},
+       "prototype-boundary"},
       {{0.0F, 1.2F, 0.1F},
        {1.2F, 1.2F, 0.9F},
        red,
        PrototypeSolidKind::Obstacle,
-       PrototypeSurface::Obstacle},
+       "prototype-obstacle"},
       {{0.0F, 1.5F, -5.5F},
        {1.5F, 1.5F, 1.0F},
        green,
        PrototypeSolidKind::Obstacle,
-       PrototypeSurface::Obstacle},
+       "prototype-obstacle"},
       {{-4.5F, 2.0F, -3.5F},
        {1.0F, 2.0F, 1.0F},
        gold,
        PrototypeSolidKind::Obstacle,
-       PrototypeSurface::Obstacle},
+       "prototype-obstacle"},
       {{4.5F, 1.0F, -8.5F},
        {1.0F, 1.0F, 1.0F},
        violet,
        PrototypeSolidKind::Obstacle,
-       PrototypeSurface::Obstacle},
+       "prototype-obstacle"},
       {{-6.5F, 0.15F, 4.0F},
        {1.5F, 0.15F, 1.5F},
        step_color,
        PrototypeSolidKind::WalkableStep,
-       PrototypeSurface::Obstacle},
+       "prototype-obstacle"},
       {{6.0F, 1.55F, 1.5F},
        {1.75F, 0.15F, 3.0F},
        passage_color,
        PrototypeSolidKind::LowClearance,
-       PrototypeSurface::Obstacle},
+       "prototype-obstacle"},
   };
 
   document.entries.front().pose = {
@@ -108,13 +109,13 @@ inline LevelDocument prototypeLevelDocument() {
       {{{{0.0F, 2.4F, 6.0F}, {0.30F, 0.50F, 0.90F}, 0.65F, 4.0F},
         {{0.0F, 4.0F, -9.0F}, {1.00F, 0.48F, 0.20F}, 0.95F, 10.0F}}},
       0.12F};
-  document.static_prop = {
-      {3.0F, prototypeTerrainHeightAt(*document.terrain, 3.0F, -2.0F), -2.0F},
-      -25.0F,
-      1.0F,
-      PrototypeSurface::Obstacle,
-      {0.0F, 0.91F, 0.0F},
-      {0.55F, 0.91F, 0.48F}};
+  document.props.push_back(
+      {"prototype-chair",
+       "prototype-chair",
+       {3.0F, prototypeTerrainHeightAt(*document.terrain, 3.0F, -2.0F), -2.0F},
+       -25.0F,
+       1.0F,
+       {{{0.0F, 0.91F, 0.0F}, {0.55F, 0.91F, 0.48F}}}});
   document.light_switch =
       PrototypeLightSwitch{{0.0F, 1.6F, 1.05F}, 0.0F, 0, true};
   return document;

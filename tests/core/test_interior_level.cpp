@@ -6,6 +6,7 @@
 #include <limits>
 #include <locale>
 
+#include "core/gameplay/door_controller.hpp"
 #include "core/physics/physics_world.hpp"
 #include "core/player/player_controller.hpp"
 #include "core/render/prototype_scene.hpp"
@@ -18,7 +19,10 @@ namespace {
 LevelDocument interior() {
   EditorDocument editor;
   editor.requestNewInterior();
-  return *editor.document();
+  auto result = *editor.document();
+  result.props.push_back({"prototype-chair", "prototype-chair", {3, 0, -2}, -25, 1,
+                          {{{0, .91F, 0}, {.55F, .91F, .48F}}}});
+  return result;
 }
 LevelDocument floors() {
   auto level = interior();
@@ -26,7 +30,7 @@ LevelDocument floors() {
                           {5, 0.25F, 5},
                           {150, 150, 150, 255},
                           PrototypeSolidKind::Floor,
-                          PrototypeSurface::Floor});
+                          "prototype-floor"});
   level.entries = {{"lower", {{0, 0, 0}, 90}}, {"upper", {{0, 3, 0}, 180}}};
   level.default_entry = "lower";
   return level;
@@ -53,7 +57,7 @@ class InteriorLevel : public testing::Test {
 };
 }  // namespace
 
-TEST_F(InteriorLevel, VersionFourRoundTripsBothTerrainStatesAndOrderedEntries) {
+TEST_F(InteriorLevel, CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries) {
   for (bool terrain : {false, true}) {
     auto doc = floors();
     if (terrain) {
@@ -64,7 +68,7 @@ TEST_F(InteriorLevel, VersionFourRoundTripsBothTerrainStatesAndOrderedEntries) {
     const auto first = bytes(p);
     const auto loaded = loadLevelDocument(p);
     ASSERT_TRUE(loaded);
-    EXPECT_EQ(loaded.source_version, 4U);
+    EXPECT_EQ(loaded.source_version, 6U);
     EXPECT_EQ(*loaded.document, doc);
     EXPECT_EQ(loaded.document->entries[0].id, "lower");
     ASSERT_TRUE(saveLevelDocument(p, *loaded.document));
@@ -93,7 +97,7 @@ TEST_F(InteriorLevel, LegacyVersionsNormalizeOnlyOnExplicitSave) {
     EXPECT_EQ(editor.document()->default_entry, "default");
     EXPECT_EQ(bytes(p), legacy);
     ASSERT_TRUE(editor.save());
-    EXPECT_EQ(loadLevelDocument(p).source_version, 4U);
+    EXPECT_EQ(loadLevelDocument(p).source_version, 6U);
   }
 }
 
@@ -159,8 +163,8 @@ TEST_F(InteriorLevel,
     EXPECT_FALSE(validateLevelDocument(doc).empty());
   }
   auto doc = valid;
-  doc.static_prop.translation = {0, 3, 0};
-  doc.static_prop.yaw_degrees = 45;
+  doc.props.front().translation = {0, 3, 0};
+  doc.props.front().yaw_degrees = 45;
   EXPECT_FALSE(validateLevelDocument(doc).empty());
   doc = valid;
   doc.terrain = PrototypeTerrain{{-24, -1, -24}, 0.5F, {}};
@@ -171,13 +175,13 @@ TEST_F(InteriorLevel,
   for (auto& solid : doc.solids) solid.center.x += 100;
   for (auto& entry : doc.entries) entry.pose.foot_position.x += 100;
   doc.terrain = PrototypeTerrain{{-24, 0, -24}, 0.5F, {}};
-  doc.static_prop.translation.x = 1000;
+  doc.props.front().translation.x = 1000;
   doc.light_switch = PrototypeLightSwitch{{1000, 3, 0}, 0, 0, true};
   EXPECT_TRUE(validateLevelDocument(doc).empty());
   doc.solids[0].half_extent.x = std::numeric_limits<float>::max();
   EXPECT_FALSE(validateLevelDocument(doc).empty());
   doc = valid;
-  doc.static_prop.uniform_scale = std::numeric_limits<float>::max();
+  doc.props.front().uniform_scale = std::numeric_limits<float>::max();
   EXPECT_FALSE(validateLevelDocument(doc).empty());
 }
 
@@ -213,7 +217,7 @@ TEST_F(InteriorLevel,
        SupportedTerrainSlopesPermitOrdinaryCapsuleGroundContact) {
   auto doc = interior();
   doc.entries[0].pose.foot_position = {};
-  doc.static_prop.translation = {-4, 0, -4};
+  doc.props.front().translation = {-4, 0, -4};
   for (float slope : {.1F, .5F, 1.0F}) {
     doc.terrain = PrototypeTerrain{{-24, 0, -24}, .5F, {}};
     for (std::size_t z = 0; z < prototype_terrain_sample_count; ++z)
@@ -239,8 +243,8 @@ TEST_F(InteriorLevel,
 
 TEST_F(InteriorLevel, YawedProxyClearanceUsesItsRotatedAxes) {
   auto doc = interior();
-  doc.static_prop = {{0, 0, 0},   45,           1, PrototypeSurface::Obstacle,
-                     {0, .9F, 0}, {2, .9F, .1F}};
+  doc.props.front() = {"prototype-chair", "prototype-chair", {0, 0, 0}, 45, 1,
+                       {{{0, .9F, 0}, {2, .9F, .1F}}}};
   doc.entries[0].pose.foot_position = {1, 0, 1};
   EXPECT_TRUE(validateLevelDocument(doc).empty());
   doc.entries[0].pose.foot_position.z = -1;
@@ -248,7 +252,7 @@ TEST_F(InteriorLevel, YawedProxyClearanceUsesItsRotatedAxes) {
 }
 
 TEST_F(InteriorLevel,
-       StrictVersionFourFieldsAndUnsafeBoundsPreserveTheOpenDocument) {
+       StrictCurrentVersionFieldsAndUnsafeBoundsPreserveTheOpenDocument) {
   const auto path = root / "level.json";
   ASSERT_TRUE(saveLevelDocument(path, floors()));
   const auto canonical = bytes(path);
@@ -256,13 +260,13 @@ TEST_F(InteriorLevel,
   ASSERT_TRUE(editor.open(path));
   const auto before = *editor.document();
   for (const auto& [from, to] :
-       {std::pair{"\"version\": 4", "\"version\": 5"},
+       {std::pair{"\"version\": 6", "\"version\": 5"},
         std::pair{"\"id\": \"lower\"", "\"id\": false"},
         std::pair{"\"id\": \"lower\"", "\"unknown\": \"lower\""},
         std::pair{"\"default_entry\": \"lower\"", "\"default_entry\": 1"},
         std::pair{"\"x\": 5.0", "\"x\": 3.4e38"},
-        std::pair{"\"version\": 4",
-                  "\"player_spawn\": null, \"version\": 4"}}) {
+        std::pair{"\"version\": 6",
+                  "\"player_spawn\": null, \"version\": 6"}}) {
     auto bad = canonical;
     const auto offset = bad.find(from);
     ASSERT_NE(offset, std::string::npos);
@@ -443,7 +447,7 @@ TEST_F(InteriorLevel,
           .center.y,
       3.25F);
   EXPECT_EQ(std::get<PrototypeStaticProp>(
-                *editorPlacedObject(doc.static_prop, floor, {}))
+                *editorPlacedObject(doc.props.front(), floor, {}))
                 .translation,
             floor.position);
   const auto light = doc.environment_light.point_lights[0];
@@ -457,7 +461,7 @@ TEST_F(InteriorLevel,
     const EditorSurfaceHit wall{
         {2, 1.4F, 3}, normal, 1, 33, EditorSurfaceFace::PositiveX};
     EXPECT_FALSE(editorPlacedObject(doc.entries[0], wall, {}));
-    EXPECT_FALSE(editorPlacedObject(doc.static_prop, wall, {}));
+    EXPECT_FALSE(editorPlacedObject(doc.props.front(), wall, {}));
     const auto solid =
         std::get<PrototypeSolid>(*editorPlacedObject(doc.solids[0], wall, {}));
     EXPECT_FLOAT_EQ(solid.center.x,
@@ -557,14 +561,17 @@ TEST_F(InteriorLevel, PackagedApartmentStairsWalkBothDirectionsFromBothStarts) {
   const auto level = makePrototypeLevel(*loaded.document);
   EXPECT_FALSE(level.terrain());
   EXPECT_EQ(level.defaultEntryId(), "apartment");
+  ASSERT_EQ(level.doors().size(), 1U);
   for (const auto& entry : level.entries()) {
     PhysicsWorld physics(level, entry);
+    DoorController doors(level.doors());
     auto state = physics.characterState();
     const auto step = [&](float x, float z) {
       constexpr float dt = 1.0F / 60;
       const float vy =
           (state.supported() ? 0.0F : state.linear_velocity.y) - 18 * dt;
       state = physics.stepCharacter({{x, vy, z}, {0, -18, 0}, false}, dt);
+      doors.fixedStep(dt, physics);
     };
     const auto walk = [&](WorldPosition target) {
       for (int i = 0; i < 1800; ++i) {
@@ -582,18 +589,36 @@ TEST_F(InteriorLevel, PackagedApartmentStairsWalkBothDirectionsFromBothStarts) {
       EXPECT_NEAR(state.foot_position.y, target.y, .06F);
       EXPECT_TRUE(state.supported());
     };
+    const auto open = [&] {
+      EXPECT_EQ(doors.act(0, DoorAction::Interact,
+                          {state.foot_position.x,
+                           state.foot_position.y + player_standing_eye_height,
+                           state.foot_position.z})
+                    .kind,
+                DoorResultKind::Opening);
+      for (int i = 0; i < 120; ++i) step(0, 0);
+      EXPECT_FLOAT_EQ(doors.state(0).angle,
+                      level.doors()[0].open_angle_degrees);
+      EXPECT_FALSE(doors.state(0).moving);
+    };
     SCOPED_TRACE(entry.id);
-    if (entry.id == "apartment")
-      walk({0, 3, 3.7F});
-    else
+    if (entry.id == "apartment") {
+      walk({-2.8F, 3, 3.5F});
+      open();
+      walk({0, 3, 3.5F});
+    } else {
       walk({0, 3, -5});
+    }
     walk({0, 3, -2.3F});
-    walk({2.5F, 3, -2.3F});  // Kitchen through its authored doorway.
+    walk({1.7F, 3, -2.3F});
+    walk({2.5F, 3, -1.9F});  // Pass north of the kitchen chair.
+    walk({1.7F, 3, -2.3F});
     walk({0, 3, -2.3F});
     walk({0, 0, -16.2F});
     walk({0, 3, -5});
-    walk({0, 3, 3.7F});
-    walk({-3, 3, 3.7F});  // Lena's room through its authored doorway.
+    walk({0, 3, 3.5F});
+    if (entry.id != "apartment") open();
+    walk({-3, 3, 3.5F});  // Clear the open leaf and corridor switch post.
   }
   EXPECT_EQ(bytes(path), source);
 }

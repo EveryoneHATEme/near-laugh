@@ -4,8 +4,10 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <numbers>
 
+#include "core/world/door.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
+#include "core/world/scene_assets.hpp"
 #include "editor/editor_picking.hpp"
 
 std::optional<EditorOverlayLine> projectEditorLine(const CameraFrame& camera,
@@ -57,7 +59,8 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     if (auto projected = projectEditorLine(camera, a, b, color))
       lines.push_back(*projected);
   };
-  const auto box = [&](WorldPosition center, WorldExtent extent, float yaw) {
+  const auto box = [&](WorldPosition center, WorldExtent extent, float yaw,
+                       WorldColor color = WorldColor{255, 205, 60, 255}) {
     std::array<WorldPosition, 8> corners;
     const double angle = static_cast<double>(yaw) * std::numbers::pi / 180.0;
     for (int i = 0; i < 8; ++i) {
@@ -71,7 +74,7 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     }
     for (int i = 0; i < 8; ++i) {
       for (int bit : {1, 2, 4})
-        if (!(i & bit)) line(corners[i], corners[i | bit], selected_color);
+        if (!(i & bit)) line(corners[i], corners[i | bit], color);
     }
   };
   const auto marker = [&](WorldPosition center, WorldColor color) {
@@ -140,6 +143,9 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     marker(editorSpawnMarker(level.entries[i].pose),
            document.selection() == document.entryIds()[i] ? selected_color
                                                           : spawn_color);
+  for (const auto& prop : level.props)
+    if (!findSceneModel(prop.model))
+      marker(prop.translation, {255, 80, 80, 255});
   for (std::size_t i = 0; i < level.environment_light.point_lights.size();
        ++i) {
     marker(level.environment_light.point_lights[i].position,
@@ -156,9 +162,40 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     }
     if (const auto* solid = std::get_if<PrototypeSolid>(&*value))
       box(solid->center, solid->half_extent, 0);
+    if (const auto* door = std::get_if<DoorDefinition>(&*value);
+        door && doorGeometryIsValid(*door)) {
+      const auto pose = doorLeafPose(*door, doorInitialAngle(*door));
+      box(pose.center, pose.half_extent, pose.yaw_degrees);
+      const auto hinge = door->hinge_position;
+      line(hinge, {hinge.x, hinge.y + door->height, hinge.z},
+           {100, 235, 140, 255});
+      const WorldPosition tip{door->width, .03F, 0};
+      for (int i = 0; i < 24; ++i)
+        line(
+            doorWorldPoint(*door, door->open_angle_degrees * i / 24, tip),
+            doorWorldPoint(*door, door->open_angle_degrees * (i + 1) / 24, tip),
+            {100, 235, 140, 255});
+      line(hinge, doorWorldPoint(*door, door->open_angle_degrees, tip),
+           {100, 235, 140, 255});
+      if (door->lock_side != DoorLockSide::None) {
+        const float side =
+            door->lock_side == DoorLockSide::PositiveZ ? 1.F : -1.F;
+        line(doorWorldPoint(*door, 0, {door->width * .7F, 1, 0}),
+             doorWorldPoint(*door, 0, {door->width * .7F, 1, side * .4F}),
+             {255, 120, 70, 255});
+      }
+    }
     if (const auto* prop = std::get_if<PrototypeStaticProp>(&*value)) {
-      box(prototypeStaticPropProxyWorldCenter(*prop),
-          prototypeStaticPropProxyWorldHalfExtent(*prop), prop->yaw_degrees);
+      if (const auto* model = findSceneModel(prop->model)) {
+        const auto bounds = sceneModelBounds(*model);
+        box(propBoxWorldCenter(*prop, bounds),
+            propBoxWorldHalfExtent(*prop, bounds), prop->yaw_degrees);
+      } else
+        marker(prop->translation, {255, 80, 80, 255});
+      for (const auto& bounds : prop->collision_boxes)
+        box(propBoxWorldCenter(*prop, bounds),
+            propBoxWorldHalfExtent(*prop, bounds), prop->yaw_degrees,
+            {70, 220, 255, 255});
     }
   }
   if (placement_hit) {

@@ -145,25 +145,35 @@ item/action/component abstraction.
 A generalized inventory or equipment system must not be introduced unless
 the actual game design requires one.
 
-### Current Prototype Light Switch
+### Current Door and Switch Interaction
 
-The level may contain one fixed, non-blocking switch plate. A new E press
-toggles its linked point light when the displayed eye ray hits the plate
-within 2 metres, inclusive, and static collision does not obstruct it. Terrain,
-solids, and the chair's authored box proxy are the blockers; the plate adds no
-character collision. Targeting from inside the plate or blocking geometry is
-rejected. The packaged example is on the spawn-facing central obstacle.
+The level may contain one non-blocking switch plate and up to 32 hinged doors.
+The displayed eye ray selects the nearest switch or accepted door leaf within
+2 metres. Terrain, structural solids, every authored prop proxy, and other
+doors obstruct interaction. A selected door can target its own front surface;
+an inside origin is refused. Equal-distance candidates within 0.1 mm use the
+door's durable ID, with the switch last.
 
-Interaction requires an observed release before the first press and between
-presses. Held, missed, out-of-range, cursor-released, capture-transition,
-minimized, and closing input cannot become a delayed activation. Each event
-batch is evaluated once after simulation, even with zero fixed steps.
+E toggles the switch or requests the opposite door endpoint. Mid-swing E
+reverses the last intent. R toggles a closed stationary door's lock from its
+authored bolt side. Right mouse knocks without moving or unlocking the door.
+Unsupported nearest actions and refusals do not act through another target.
+Each action requires a release before its first press and between presses;
+held/missed/inactive/minimized input cannot become a delayed action. Concurrent
+edges are consumed with R, E, then knock priority. Left mouse retains the
+independent flashlight/cursor behavior.
 
-Only the linked light's run-local enable bit changes. Ambient, the other point
-light, flashlight, authored intensities, and level files remain independent.
-Presentation recovery preserves the current state; restarting restores the
-authored initial state. This interaction has no HUD, animation, audio, or
-save-game persistence.
+Doors stop before obstructing terrain, solids, props, other leaves, or the
+player's current/interpolated presentation envelope. They do not push/crush the
+player or resume automatically after a blocker clears. Accepted poses are
+shared by rendering, visibility and collision. Conservative clearance can
+stop a door slightly early, including space the player has just vacated.
+
+Generated handles, a sliding bolt and distinct brief knock/refusal cues provide
+temporary visual feedback. Audio and narrative reactions remain later work.
+Door motion, locks, feedback and switch light enables are run-local; recovery
+preserves them and restarting restores authored initial values. No level file
+is changed during play.
 
 ## World
 
@@ -192,20 +202,22 @@ authored default. The selected entry supplies the initial foot position and
 yaw, including both presentation snapshots before the first frame. Every
 entry must have height-specific support and standing clearance.
 
-The level currently contains static world geometry, authored point lights,
-a fixed prop with a simplified collision proxy, and an optional light switch.
-
-The current collision world is primarily static.
+The level contains static world geometry with independently assigned materials,
+two authored point lights, zero through 128 fixed model placements, an optional
+switch, and hinged doors. Placements have stable model identities and zero
+through eight independent collision boxes. Decorative phone/radio placements
+have no collision or interaction; their future sound is not part of this work.
 
 Interior levels may omit terrain and use authored boxes for floors, walls,
 ceilings, and stairs. The packaged `apartment-stairs.level.json` blockout joins
 Lena's room, a corridor, a kitchen, rear stairs, and a lower landing. Its
 `apartment` and `lower-landing` entries exercise walking the route in both
-directions with the current controller, without jumping or crouching. These
+directions after opening Lena's room door, without jumping or crouching. These
 entries are authoring starts, not checkpoints or persistent progression.
 
-Dynamic rigid bodies, moving platforms, interactive doors, and other
-world behavior should be added only when required by gameplay.
+The furniture and generated room door are acceptance content. Dynamic rigid
+bodies, moving platforms, and additional world behavior require concrete
+gameplay needs.
 
 ## Lighting
 

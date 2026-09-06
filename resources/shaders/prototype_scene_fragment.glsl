@@ -7,7 +7,12 @@ layout(location = 3) flat in uint fragTextureLayer;
 layout(location = 4) in vec3 fragWorldPosition;
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 0) uniform sampler2DArray surfaceTextures;
+layout(set = 0, binding = 0) uniform sampler2D baseColorTexture;
+layout(std140, set = 0, binding = 1) uniform SceneMaterial
+{
+    vec4 baseColorFactor;
+    vec4 alphaControls; // cutoff, MASK enabled, reserved, reserved
+} material;
 
 struct PointLight
 {
@@ -32,10 +37,11 @@ layout(push_constant) uniform ScenePushConstant
 
 void main()
 {
-    vec3 sampledColor = texture(
-        surfaceTextures, vec3(fragTextureCoordinates, float(fragTextureLayer)))
-                            .rgb;
-    vec3 presentedColor = sampledColor * fragColor.rgb;
+    vec4 baseColor = texture(baseColorTexture, fragTextureCoordinates) *
+                     material.baseColorFactor;
+    if (material.alphaControls.y > 0.5 && baseColor.a < material.alphaControls.x)
+        discard;
+    vec3 presentedColor = baseColor.rgb * fragColor.rgb;
     vec3 normal = normalize(fragWorldNormal);
     vec3 accumulatedLighting = vec3(environmentLighting.ambientIntensity.x);
     for (int lightIndex = 0; lightIndex < 2; ++lightIndex)

@@ -10,6 +10,10 @@ struct EditorLaunchRequest {
   std::string entry_id;
 };
 
+// Revalidate the saved snapshot immediately before its assets and process.
+[[nodiscard]] LevelDocument loadEditorPlayDocument(
+    const EditorDocument& document, const EditorLaunchRequest& request);
+
 enum class EditorPlayState { Idle, ConfirmSave, SaveAs, Ready };
 
 // Preparing a launch snapshots the authored values; launch consumes one

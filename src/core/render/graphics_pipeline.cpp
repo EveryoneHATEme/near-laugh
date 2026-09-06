@@ -210,3 +210,10 @@ void GraphicsPipeline::cleanup() noexcept {
     lifecycle_recorded_ = false;
   }
 }
+
+void GraphicsPipeline::bindMaterial(VkCommandBuffer command_buffer,
+                                    VkDescriptorSet material) const {
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          layout_, scene_texture_descriptor_set, 1, &material,
+                          0, nullptr);
+}

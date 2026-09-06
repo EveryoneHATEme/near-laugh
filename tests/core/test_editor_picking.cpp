@@ -61,16 +61,16 @@ TEST_F(EditorPlacement,
   EXPECT_EQ(pickEditorObject(editor, {{0, 15, 0}, {0, 0, -1}}), near);
 }
 
-TEST_F(EditorPlacement, PicksYawedScaledOffsetPropProxyAndMarkers) {
-  auto prop = editor.document()->static_prop;
+TEST_F(EditorPlacement, PicksVisibleModelBoundsIndependentlyOfProxyAndMarkers) {
+  auto prop = editor.document()->props.front();
   prop.translation = {0, 15, -4};
   prop.yaw_degrees = 90;
   prop.uniform_scale = 2;
-  prop.box_proxy_center = {-0.3F, 0, 0};
-  prop.box_proxy_half_extent = {1, 0.25F, 0.1F};
+  prop.collision_boxes.front().center = {-0.3F, 0, 0};
+  prop.collision_boxes.front().half_extent = {1, 0.25F, 0.1F};
   ASSERT_TRUE(editor.replaceObject(editor_prop, prop));
   EXPECT_EQ(pickEditorObject(editor, {{0, 15, 0}, {0, 0, -1}}), editor_prop);
-  EXPECT_EQ(pickEditorObject(editor, {{0.3F, 15, 0}, {0, 0, -1}}),
+  EXPECT_EQ(pickEditorObject(editor, {{1.1F, 15, 0}, {0, 0, -1}}),
             editor_no_object);
   auto light = editor.document()->environment_light.point_lights[0];
   light.position = {0, 20, -2};
@@ -127,10 +127,10 @@ TEST_F(EditorPlacement,
   ASSERT_TRUE(editor.placeSelected(hit));
   EXPECT_EQ(editor.document()->entries.front(), expected_spawn);
   editor.select(editor_prop);
-  auto expected_prop = editor.document()->static_prop;
+  auto expected_prop = editor.document()->props.front();
   expected_prop.translation = {hit.x, height, hit.z};
   ASSERT_TRUE(editor.placeSelected(hit));
-  EXPECT_EQ(editor.document()->static_prop, expected_prop);
+  EXPECT_EQ(editor.document()->props.front(), expected_prop);
   editor.select(editor_first_light);
   auto expected_light = editor.document()->environment_light.point_lights[0];
   const float offset = expected_light.position.y -

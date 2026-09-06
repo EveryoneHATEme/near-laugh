@@ -17,6 +17,7 @@ struct PlayerActionSnapshot {
   bool secondary_action{};
   double look_delta_x{};
   double look_delta_y{};
+  bool lock{};
 };
 
 class PlayerInputMapper {

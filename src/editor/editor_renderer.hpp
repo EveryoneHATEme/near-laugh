@@ -16,8 +16,7 @@ class Window;
 struct EditorRendererResources {
   std::filesystem::path vertex_shader{};
   std::filesystem::path fragment_shader{};
-  std::array<std::filesystem::path, 3> surface_textures{};
-  std::filesystem::path prototype_chair_model{};
+  std::filesystem::path resource_root{};
 };
 
 class EditorRenderer {
@@ -35,6 +34,7 @@ class EditorRenderer {
   void beginUiFrame();
   void replaceDocument(const LevelDocument& level);
   void replaceTerrain(const LevelDocument& level);
+  void validateSceneAssets(const LevelDocument& level) const;
   [[nodiscard]] std::size_t terrainReplacementCount() const noexcept;
   void drawOverlays(std::span<const EditorOverlayLine> lines);
   void clearDocument();

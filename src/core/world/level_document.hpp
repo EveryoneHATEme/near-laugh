@@ -10,7 +10,8 @@
 #include <string_view>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 4;
+inline constexpr std::uint32_t level_format_version = 6;
+inline constexpr std::size_t level_maximum_door_count = 32;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t prototype_point_light_count = 2;
 inline constexpr std::size_t prototype_terrain_sample_count = 97;
@@ -24,6 +25,8 @@ inline constexpr float prototype_terrain_maximum_slope_degrees = 50.0F;
 inline constexpr float prototype_maximum_ambient_intensity = 0.20F;
 inline constexpr float prototype_spawn_validation_radius = 0.35F;
 inline constexpr float prototype_spawn_validation_height = 1.80F;
+// Character collision skin, shared by authored door clearance and physics.
+inline constexpr float prototype_player_contact_padding = 0.02F;
 
 struct WorldPosition {
   bool operator==(const WorldPosition&) const = default;
@@ -61,7 +64,7 @@ struct PrototypeSolid {
   WorldExtent half_extent{};
   WorldColor color{};
   PrototypeSolidKind kind{PrototypeSolidKind::Obstacle};
-  PrototypeSurface surface{PrototypeSurface::Obstacle};
+  std::string material{"prototype-obstacle"};
 };
 
 struct PrototypeTerrain {
@@ -71,6 +74,7 @@ struct PrototypeTerrain {
   std::array<float,
              prototype_terrain_sample_count * prototype_terrain_sample_count>
       heights{};
+  std::string material{"prototype-floor"};
 };
 
 struct PrototypePlayerSpawn {
@@ -99,14 +103,23 @@ struct PrototypeEnvironmentLight {
   float ambient_intensity{};
 };
 
+inline constexpr std::size_t level_maximum_prop_count = 128;
+inline constexpr std::size_t level_maximum_prop_box_count = 8;
+
+struct PropCollisionBox {
+  bool operator==(const PropCollisionBox&) const = default;
+  WorldPosition center{};
+  WorldExtent half_extent{};
+};
+
 struct PrototypeStaticProp {
   bool operator==(const PrototypeStaticProp&) const = default;
+  std::string id{};
+  std::string model{};
   WorldPosition translation{};
   float yaw_degrees{};
   float uniform_scale{1.0F};
-  PrototypeSurface surface{PrototypeSurface::Obstacle};
-  WorldPosition box_proxy_center{};
-  WorldExtent box_proxy_half_extent{};
+  std::vector<PropCollisionBox> collision_boxes{};
 };
 
 struct PrototypeLightSwitch {
@@ -117,6 +130,23 @@ struct PrototypeLightSwitch {
   bool initially_on{true};
 };
 
+enum class DoorLockSide { None, PositiveZ, NegativeZ };
+
+struct DoorDefinition {
+  bool operator==(const DoorDefinition&) const = default;
+  std::string id{};
+  WorldPosition hinge_position{};
+  float closed_yaw_degrees{};
+  float width{0.9F};
+  float height{2.0F};
+  float thickness{0.06F};
+  float open_angle_degrees{90.0F};
+  float speed_degrees_per_second{90.0F};
+  DoorLockSide lock_side{DoorLockSide::PositiveZ};
+  bool initially_open{};
+  bool initially_locked{};
+};
+
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
@@ -125,8 +155,9 @@ struct LevelDocument {
   std::vector<LevelEntry> entries{};
   std::string default_entry{};
   PrototypeEnvironmentLight environment_light{};
-  PrototypeStaticProp static_prop{};
+  std::vector<PrototypeStaticProp> props{};
   std::optional<PrototypeLightSwitch> light_switch{};
+  std::vector<DoorDefinition> doors{};
 };
 
 enum class LevelDiagnosticCategory {

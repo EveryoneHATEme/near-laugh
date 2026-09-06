@@ -33,12 +33,15 @@ class PrototypeLevel {
       const noexcept {
     return environment_light_;
   }
-  [[nodiscard]] const PrototypeStaticProp& staticProp() const noexcept {
-    return static_prop_;
+  [[nodiscard]] const std::vector<PrototypeStaticProp>& props() const noexcept {
+    return props_;
   }
   [[nodiscard]] const std::optional<PrototypeLightSwitch>& lightSwitch()
       const noexcept {
     return light_switch_;
+  }
+  [[nodiscard]] const std::vector<DoorDefinition>& doors() const noexcept {
+    return doors_;
   }
 
  private:
@@ -51,8 +54,9 @@ class PrototypeLevel {
   std::vector<LevelEntry> entries_;
   std::string default_entry_;
   PrototypeEnvironmentLight environment_light_;
-  PrototypeStaticProp static_prop_;
+  std::vector<PrototypeStaticProp> props_;
   std::optional<PrototypeLightSwitch> light_switch_;
+  std::vector<DoorDefinition> doors_;
 };
 
 [[nodiscard]] PrototypeLevel makePrototypeLevel(const LevelDocument& document);
@@ -64,10 +68,6 @@ class PrototypeLevel {
 [[nodiscard]] bool prototypeSurfaceIsValid(PrototypeSurface surface) noexcept;
 [[nodiscard]] bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept;
 [[nodiscard]] bool prototypeStaticPropIsValid(
-    const PrototypeStaticProp& prop) noexcept;
-[[nodiscard]] WorldPosition prototypeStaticPropProxyWorldCenter(
-    const PrototypeStaticProp& prop) noexcept;
-[[nodiscard]] WorldExtent prototypeStaticPropProxyWorldHalfExtent(
     const PrototypeStaticProp& prop) noexcept;
 [[nodiscard]] bool prototypeTerrainIsValid(
     const PrototypeTerrain& terrain) noexcept;

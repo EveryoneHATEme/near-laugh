@@ -70,6 +70,24 @@ TEST_F(EditorPlay, CancelFailedSaveAndChangedDocumentNeverArmALaterLaunch) {
   EXPECT_FALSE(play.consume());
 }
 
+TEST_F(EditorPlay, ConsumedLaunchRechecksTheSavedDocumentBeforeAssetPreflight) {
+  ASSERT_TRUE(editor.saveAs(root / "level.json"));
+  ASSERT_TRUE(play.request(editor, false));
+  const auto launch = play.consume();
+  ASSERT_TRUE(launch);
+  EXPECT_EQ(loadEditorPlayDocument(editor, *launch), *editor.document());
+  ASSERT_TRUE(editor.addProp("apartment-phone"));
+  EXPECT_THROW(static_cast<void>(loadEditorPlayDocument(editor, *launch)),
+               std::runtime_error);
+  ASSERT_TRUE(editor.undo());
+  EXPECT_EQ(loadEditorPlayDocument(editor, *launch), *editor.document());
+  auto external = *editor.document();
+  external.environment_light.ambient_intensity += .02F;
+  ASSERT_TRUE(saveLevelDocument(launch->level_path, external));
+  EXPECT_THROW(static_cast<void>(loadEditorPlayDocument(editor, *launch)),
+               std::runtime_error);
+}
+
 TEST_F(EditorPlay, CleanAndDirtyPlayUseChosenEntryAndRejectExternalChanges) {
   ASSERT_TRUE(editor.addEntry(editor.document()->entries[0].pose));
   ASSERT_TRUE(editor.saveAs(root / "level.json"));
