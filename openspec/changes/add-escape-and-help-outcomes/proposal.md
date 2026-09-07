@@ -1,11 +1,21 @@
 ## Why
 
-The player needs ways to obtain help and escape a familiar but dangerous
-apartment. Early action must be able to improve the situation. The existing
-planned interactions and cast need a coherent encounter that respects those
-decisions and reaches an appropriate ending.
+After technical readiness, the game needs an authored story that uses the
+supported interactions, characters, events, and recovery tools. This deferred
+proposal retains earlier escape/help ideas for that discussion; it does not
+establish the game's plot or block technical work.
+
+## Planning Status
+
+P08 belongs to story development after roadmap T6 is accepted. The named
+characters, routes, letter, telephone/help decisions, and endings below are
+draft options, not approved product requirements or technical acceptance
+fixtures. Review the actual story scope and replace these candidate decisions
+and checks before creating design, delta specs, or implementation tasks.
 
 ## What Changes
+
+Candidate content to revisit during that later review:
 
 - Implement the concrete danger/escape phases needed for retreat to Lena's
   room, access to the kitchen/rear stairs, and the final request at a neighbor's
@@ -32,10 +42,16 @@ decisions and reaches an appropriate ending.
 
 ### New Capabilities
 
+Provisional capability scope, subject to the story review:
+
 - `escape-and-help-outcomes`: Concrete danger response, routes to help,
   decision-sensitive rescue outcomes, and corresponding epilogue entry.
 
 ### Modified Capabilities
+
+Candidate affected capabilities; re-evaluate against the implemented technical
+profile. Do not add new serialized fields or mechanics if existing authoring
+already expresses the selected story.
 
 - `level-persistence`: Persist supported encounter/help/outcome definitions
   and validate references against authored scene records.
@@ -46,19 +62,24 @@ decisions and reaches an appropriate ending.
 
 ## Impact
 
-Affects game-specific progression, visitor behavior, help interactions,
-checkpoint reconstruction, episode setups, and final narrative presentation.
-Update gameplay documentation with the chosen danger, failure, and outcome
-rules. Temporary content is sufficient to validate complete routes.
+A selected version of this draft could affect progression, visitor behavior,
+help interactions, checkpoint reconstruction, episode setups, and final
+narrative presentation.
+Update gameplay documentation only with subsequently chosen danger, failure,
+and outcome rules. Technical readiness is validated separately on neutral scenes.
 
 ## Dependencies and Boundaries
 
-P08; requires [P07](../add-scripted-characters/proposal.md) and
-[P11](../add-story-playtest-tools/proposal.md), including their household,
-narrative, audio, door, and checkpoint prerequisites.
-Final lighting is P10; full menus/distribution are P12.
+P08 is deferred until T6 technical readiness, including completed
+[P12](../add-game-session-and-packaging/proposal.md) and its P11 authoring
+workflow gate, then an explicit review of story scope. Lighting, characters,
+interactions, events, checkpoints, menus, diagnostics, and packaging precede
+this work. P08 is not a prerequisite for any technical proposal.
 
 ## Acceptance Criteria
+
+Deferred candidate checks only. Replace them with acceptance for the selected
+story after scope review; neither route nor ending is committed by this plan:
 
 - Complete the ordinary kitchen/rear-stairs escape and reach the authored
   neighbor response and matching epilogue.

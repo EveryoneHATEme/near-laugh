@@ -1,26 +1,27 @@
 ## Why
 
-The reference encounter needs a visitor who first appears ordinary and later
-occupies a threatening position in a familiar corridor. Audio-only cues can
-validate the first slice, but visible acting requires supported character
-assets, motion, and explicit coordination with the scene.
+The runtime has static props but no supported animated-character workflow.
+Prepare character import, clip playback, authored movement, and scene
+coordination on a neutral test character before choosing the cast or story.
 
 ## What Changes
 
-- Add the controlled animated-character export profile required by
-  representative cast assets: skeleton/skin data and a bounded set of clips
-  for standing, walking, turning, and the actual door/telephone scene actions.
-  Determine required clip transitions and interaction alignment during design.
+- Add a controlled animated-character export profile based on a representative
+  test asset: skeleton/skin data and a bounded set of standing, walking,
+  turning, and interaction clips. Determine supported transitions and scene-mark
+  alignment during design without requiring a particular story action.
 - Author character identities, placements, routes, scene marks, and initial
-  roles/states. Use concrete scripted behavior and bounded reactions for this
-  apartment's small cast.
+  states. Use concrete route/clip controls and bounded reactions appropriate
+  to this game's small cast.
 - Keep authored route movement, visible pose, collision, footsteps, dialogue,
-  and interaction moments consistent. Define what happens when Lena or a door
-  blocks a route; actors must not slide through blocking geometry to meet a cue.
-- Integrate the neighbor opening the shared entrance, the visitor passing
-  Lena's room, and his later confrontation/telephone positions.
+  and interaction moments consistent. Define what happens when the player or a
+  door blocks a route; actors must not slide through geometry to meet a cue.
+- Exercise a test character walking between scene marks, turning, and playing
+  an interaction clip with a localized sound. Integrate animated-character
+  occlusion with P10's supported lighting/shadow profile.
 - Add actor/route selection, properties, route/clip preview, link validation,
-  and undo/redo. Extend checkpoint reconstruction for the supported actor state.
+  and undo/redo. Own explicit run-local actor state and define restart and
+  suspension behavior. P09 later reconstructs safe checkpoint actor states.
 - Evolve serialized character data explicitly. Preserve resource ownership
   during repeated scene entry, animation, and presentation recovery.
 - No combat states, health, generic behavior trees, crowd navigation,
@@ -31,8 +32,8 @@ assets, motion, and explicit coordination with the scene.
 
 ### New Capabilities
 
-- `scripted-characters`: Authored cast, routes, scene actions, obstruction
-  responses, and recoverable concrete actor state.
+- `scripted-characters`: Authored character definitions, routes, supported
+  scene actions, obstruction responses, and explicit run-local actor state.
 - `character-animation`: Controlled animated asset profile and coherent
   visible motion/clip playback for the required scenes.
 
@@ -44,33 +45,41 @@ assets, motion, and explicit coordination with the scene.
 - `physics-simulation`: Support the required character blocking and movement
   beyond the one local player while preserving physics ownership.
 - `runtime-composition`: Own actor state and coordinate its simulation,
-  presentation, audio, and checkpoint reconstruction.
+  presentation, audio, suspension, and fresh scene entry.
 - `vulkan-renderer`: Present the supported animated character geometry and
   changing poses with explicit GPU lifetime.
 
 ## Impact
 
 Affects private asset loading, animated rendering, actor gameplay, collision,
-sound-source updates, save reconstruction, and editor preview. Keep the static
+sound-source updates, lighting integration, and editor preview. Keep the static
 asset profile separate where useful; P02's existing static props do not need
 animation machinery. Document the character export and scene-blocking workflow.
 
 ## Dependencies and Boundaries
 
-P07; requires [P02](../archive/2026-09-06-add-authored-scene-assets/proposal.md) and
-[P09](../add-checkpoint-resume/proposal.md), including their story/audio/door
-prerequisites. P08 owns the escape encounter; this change supplies its concrete
-actors. Confirm visibility/clip requirements before choosing animation details.
+P07; requires
+[P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) and
+[P10](../add-interior-lighting/proposal.md), including P02's static asset and
+P03's door prerequisites. Rebase on P10's resulting main specs and add its
+lighting capability to modified capabilities where actor occlusion changes
+requirements. T2 is a neutral character/route test, independent of P05 and P09.
+P05 later drives actor actions from events; P09 restores actor state. Character
+identity, motivation, dialogue, and escape behavior remain later content work.
 
 ## Acceptance Criteria
 
-- The neighbor admits the visitor and he passes the room at a plausible scale,
-  using visible movement aligned with footsteps and the greeting.
+- Import and preview the supported clips, then move a test character between
+  authored marks at the intended scale with aligned footsteps and transitions.
 - Blocking the corridor or closing a route door produces a defined pause or
   authored response without teleportation through visible blocking geometry.
-- A telephone action and associated voice originate at the correct scene mark.
+- An interaction clip and associated sound originate at the correct scene mark.
   Invalid route/clip/actor references identify the affected record.
-- Resume a checkpoint with the correct cast/phase and no duplicate actor,
-  greeting, or incompatible pending action.
-- Run route/state/import/reconstruction tests and animated Vulkan smoke;
-  manually inspect the integrated visitor sequence and repeated recovery.
+- In P10's supported cases, the animated character casts the expected shadow
+  consistently with its visible pose. Static props and door lighting still work.
+- Suspension freezes route/clip/audio coordination; resume does not duplicate
+  an action. Fresh scene entry resets actor state and presentation recovery
+  preserves it without duplicate actors or sounds.
+- Run route/state/import tests and animated Vulkan smoke; manually inspect the
+  neutral route, clip/lighting integration, and repeated recovery. Record the
+  supported asset profile, limits, and measured frame times.

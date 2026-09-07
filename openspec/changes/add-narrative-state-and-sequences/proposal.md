@@ -1,27 +1,33 @@
 ## Why
 
-The visitor's arrival, the silence, and the telephone lie must react to where
-Lena is and what she has already done. A fixed cinematic playlist would fail
-when the player leaves, repeats an interaction, or requests help earlier.
+The author needs to connect implemented objects, characters, lights, and audio
+into predictable events before developing the story. Neutral test sequences
+must establish conditions, interruption, and cancellation beyond P04's fixed
+audio demonstration.
 
 ## What Changes
 
-- Add explicit game-specific story facts and phases, named trigger regions,
-  and bounded authored sequence parameters. Support the actual location,
-  interaction, elapsed-story-time, and prerequisite conditions of the slice.
+- Add bounded scene facts/state, named trigger regions, and authored sequence
+  parameters for this game's supported actions. Define location, accepted
+  interaction/object state, elapsed active time, and prerequisite conditions
+  using neutral fixtures; do not encode final story phases or relationships.
 - Give events durable identities and defined one-shot/repeat behavior.
   Establish deterministic resolution of competing conditions and cancellation
-  of queued actions that no longer fit the current story state.
-- Drive door actions, sound/caption cues, and local light state through their
-  concrete interfaces while preserving immutable authored definitions.
-- Coordinate story timing with pause, minimization, and input ownership.
+  of queued actions that no longer fit the current scene state.
+- Drive supported door, object, and character actions, sound/caption cues, and
+  local light state through their concrete interfaces while preserving
+  immutable authored definitions. Respect refused/blocked actions and busy
+  foreground audio; define their sequence consequences without forcing success.
+- Coordinate event timing with pause, minimization, and input ownership,
+  including document reading and the existing player/door/actor/audio owners.
   Outcomes do not depend on frame count, rendering recovery, or audio hardware
   callbacks; leaving a scene has an explicit continuation/interruption policy.
-- Add authorable regions, references, initial facts, and supported sequence
+- Add authorable regions, references, initial state, and supported sequence
   parameters to the editor, with validation and undo/redo. New behavior kinds
   remain explicit game code rather than arbitrary user scripts.
-- Build the door/telephone slice and a small early-help branch that suppresses
-  an incompatible later invitation. Final household actions arrive in P06.
+- Build a neutral region-triggered light/sound/character sequence and a second
+  condition that cancels a pending action. Use repeated entry and alternate
+  action order to verify behavior without a telephone plot or rescue branch.
 - Version serialized narrative additions explicitly. No generic scripting
   language, node editor, behavior trees, or global event bus.
 
@@ -29,8 +35,8 @@ when the player leaves, repeats an interaction, or requests help earlier.
 
 ### New Capabilities
 
-- `narrative-progression`: Concrete story state, conditions, consequence
-  resolution, and deterministic progression.
+- `narrative-progression`: Bounded scene state, supported conditions,
+  consequence resolution, and deterministic progression for later story use.
 - `authored-sequences`: Named triggers, bounded authored event sequences,
   cancellation, interruption, and observable execution history.
 
@@ -39,32 +45,44 @@ when the player leaves, repeats an interaction, or requests help earlier.
 - `level-persistence`: Persist narrative definitions, identities, and references.
 - `level-object-placement`: Author trigger regions and scene markers.
 - `level-editor`: Edit supported sequence parameters and diagnose broken links.
+- `player-input`: Define action ownership and stale-input suppression across
+  sequence suspension, reading, and return to exploration.
 - `runtime-composition`: Own narrative advancement and coordinate concrete
-  world/presentation actions under a defined story-time policy.
+  world/presentation actions under a defined active-time policy.
 
 ## Impact
 
 Affects gameplay state ownership, loop timing, input gating, level validation,
 and editor authoring. Keep a deterministic progression core testable without
 a window, GPU, or audio device. Update gameplay and architecture documentation
-with the actual phase/fact model and timing rules.
+with the supported state/event model and timing rules.
 
 ## Dependencies and Boundaries
 
-P05; requires [P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md), including its
-door prerequisite. Use the audio/text and interaction capabilities it supplies.
-P09 adds durable save files; P11 adds developer-facing state inspection and
-prepared episode launch. Basic event diagnostics belong here.
+P05; requires [P06](../add-household-interactions/proposal.md) and
+[P07](../add-scripted-characters/proposal.md), including their P04 audio/text
+and P10 lighting prerequisites. Rebase on their resulting capabilities and
+add modified-capability entries where event integration changes requirements.
+This change owns event-driven integration of the earlier technical systems.
+T4 uses neutral state transitions; actual story development follows T6.
+P09 adds durable save files, P11 adds author-facing inspection/prepared scene
+launch, and P12 uses the suspension policy for menus. Basic event diagnostics
+and a minimal development pause control belong here, so testing does not wait
+for P12. These later changes are not prerequisites for P05 acceptance.
 
 ## Acceptance Criteria
 
-- The telephone slice reaches the intended cue order during ordinary play,
+- The neutral sequence reaches its defined state/action and cue order during play,
   repeated region entry, and different render/fixed-step batch sizes.
 - A completed event cannot replay merely because a region is re-entered or
   rendering recovers. Competing triggers resolve identically from equal state.
-- Accepting early help cancels the conflicting queued scene; no stale voice
-  subsequently calls Lena into an already-resolved danger.
-- Leaving during dialogue, opening the door, pausing, and minimizing each have
-  a defined, testable result without hidden elapsed danger time.
+- Activating the competing test condition cancels the incompatible pending
+  action; no stale sound, actor request, or light change executes afterward.
+- A blocked actor/door action or busy foreground cue follows its documented
+  continuation/refusal policy without bypassing the underlying owner.
+- Leaving during a cue, opening a door, reading a document, pausing, and
+  minimizing each have a defined, testable result without hidden elapsed time.
 - Broken references and unsupported conditions are rejected with scene/event
-  context; run deterministic progression tests and play the integrated slice.
+  context. Editor save/reopen and undo/redo preserve state definitions and
+  links. Run deterministic progression tests and play the integrated neutral
+  scene audibly, muted, and without an output device.

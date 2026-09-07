@@ -1,8 +1,8 @@
 ## Why
 
-A playable sequence is not yet a practical game build or a dependable content
-workflow. The player needs to start, pause, continue, adjust essential
-settings, and complete the story from a package containing all required assets.
+Technical scene capabilities need a usable session flow and a dependable
+editor-to-package workflow before story development. A neutral scene must run
+with menus, settings, and continuation from a self-contained package.
 
 ## What Changes
 
@@ -13,7 +13,7 @@ settings, and complete the story from a package containing all required assets.
   for this desktop game, including mouse sensitivity and readable captions.
   Persist preferences independently of checkpoints.
 - Define menu/document/gameplay input ownership and cursor transitions.
-  Pause and minimization preserve narrative/audio/animation timing without
+  Pause and minimization preserve event/audio/animation timing without
   queued world interactions appearing on resume.
 - Package the selected game content, shaders, models/materials, character
   clips, sounds, text, and fonts with validated references. Produce useful
@@ -21,9 +21,9 @@ settings, and complete the story from a package containing all required assets.
 - Keep game saves/preferences and development playtest setups separate from
   packaged assets. The game must run independently of editor binaries and
   from a working directory outside the repository.
-- Verify the author-edit-save-playtest-package workflow by authoring another
-  episode with existing capabilities, then completing both principal help
-  routes with continuation and the corresponding epilogues.
+- Verify the author-edit-save-playtest-package workflow by authoring a second
+  neutral scene within the supported profile, then exercising its interactions,
+  events, characters, and checkpoint continuation without new runtime code.
 - This change adds no new story mechanics, platform targets, storefront
   integration, online services, or general-purpose distribution system.
 
@@ -33,7 +33,7 @@ settings, and complete the story from a package containing all required assets.
 
 - `game-session`: Player-facing session flow, pause/input ownership,
   continuation, and persistent essential preferences.
-- `game-content-packaging`: Complete runnable game resources, package
+- `game-content-packaging`: Complete selected runnable resources, package
   diagnostics, and repeatable content-to-build validation.
 
 ### Modified Capabilities
@@ -58,21 +58,32 @@ Record supported controls, save/preferences locations, and build requirements.
 
 ## Dependencies and Boundaries
 
-P12; requires [P08](../add-escape-and-help-outcomes/proposal.md) and
-[P10](../add-interior-lighting/proposal.md), transitively including all other
-roadmap changes. Final art/voice/content production remains a separate work
-stream; representative assets can establish runtime/tool readiness.
+P12 starts session/menu/settings work after
+[P09](../add-checkpoint-resume/proposal.md), whose prerequisites provide all
+supported mutable scene systems. This portion supports T5.
+Final packaging and authoring-workflow acceptance also require
+[P11](../add-story-playtest-tools/proposal.md) and all T1-T5 checks. P11 uses
+P09's explicit resume/setup entry and does not depend on P12 menus.
+
+Keep both portions in this change, with their gates recorded in detailed
+tasks. Rebase remaining artifacts against P11's integrated specs before final
+acceptance; accept/archive P12 only when both portions and T6 pass. P08 and
+actual story content are not prerequisites. Story development starts after T6;
+representative assets and neutral scenes establish this technical readiness.
 
 ## Acceptance Criteria
 
 - Start a new game, pause during an important cue, resume, exit, and continue
-  from a checkpoint without changed consequences or duplicate/stale actions.
+  from a checkpoint without changed scene state or duplicate/stale actions.
 - Change audio/text/control settings and restart; preferences persist and
   essential clues remain accessible with audio muted.
 - Run the packaged game without the editor or source-tree working directory.
   Missing required resources and incompatible continuation are diagnosed.
-- Complete ordinary escape and early help through the correct epilogue,
-  including a process restart/checkpoint resume and minimize/restore exercise.
-- Author and package another supported episode through the documented workflow
-  without new engine code. Run affected builds/tests and game/editor Vulkan
-  smoke, review diffs, and record manual route and production-workflow evidence.
+- Exercise a neutral scene containing supported lights, audio/captions,
+  character movement, object interactions, and cancellable events, including a
+  process restart/checkpoint resume and minimize/restore exercise.
+- Author and package a second supported neutral scene through the documented
+  workflow without new runtime code. Use P11 to launch a prepared state and
+  diagnose/repair a deliberate broken link. Run affected builds/tests and
+  game/editor Vulkan smoke, review diffs, and record manual session, packaged
+  scene, and authoring-workflow evidence. No ending or plot is required.

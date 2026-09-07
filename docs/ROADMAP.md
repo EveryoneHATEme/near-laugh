@@ -4,9 +4,11 @@
 
 Prepare this game's runtime and standalone editor for the first-person
 narrative horror experience defined in [VISION.md](VISION.md) and
-[GAMEPLAY.md](GAMEPLAY.md). The readiness test is an authored, playable story
-with meaningful alternatives, checkpoint recovery, and a repeatable
-content-production workflow.
+[GAMEPLAY.md](GAMEPLAY.md). Complete the supported technical capabilities and
+the authoring workflow before developing the story. Technical readiness means
+the author can build, inspect, play, save/resume, and package a small scene
+using the supported lighting, audio, characters, interactions, and events
+without adding runtime code for that scene.
 
 This is a sequence of work, not a delivery-date commitment. P01 is implemented
 and archived, providing interior authoring and saved-file playtesting. Its automated checks and M1
@@ -29,12 +31,19 @@ and reviewed before implementation. Structural validation alone does not
 establish implementation readiness. Those proposal-only feature changes do
 not qualify for the documentation-only `skip_specs` exemption.
 
-The named characters, locations, and episode routes below are reference
-content for capability acceptance. Final names, dialogue, episode order,
-duration, errands, and ending details remain content decisions. Use
-representative temporary geometry, voices, and character assets to test
-behavior before producing final content. This roadmap does not schedule all
-final art, voice recording, writing, or historical research.
+The remaining technical changes use neutral acceptance scenes. A test document,
+movable household object, character route, or cancellable sound sequence does
+not establish a plot. Names, dialogue, relationships, errands, episode order,
+danger, and endings are deferred to story development after technical readiness.
+P08 retains earlier escape/help ideas as draft material for that later stage.
+Existing archived scene names and the P04 telephone fixture remain historical
+acceptance evidence, without making their story mandatory.
+
+Use representative geometry, materials, voices, and animated assets to expose
+technical constraints. This roadmap prepares this game's bounded capabilities;
+it does not promise support for every future mechanic or schedule all final art,
+voice recording, writing, or historical research. A later story requirement
+outside the supported profile needs its own concrete scope review.
 
 ## Baseline before P01
 
@@ -56,35 +65,42 @@ Constraints captured at that baseline:
 - Playtesting an authored level required replacing the executable's
   packaged prototype level and restarting.
 
-P01 replaces the mandatory terrain/spawn and packaged-file replacement
+P01 replaced the mandatory terrain/spawn and packaged-file replacement
 constraints with optional terrain, named starts, surface placement, and
-explicit saved-file launch. The remaining constraints belong to later changes.
-These prototype constraints do not constrain the story. Update
-the affected main requirements through the corresponding change's delta specs
-during later planning. Preserve useful ownership and validation guarantees.
+explicit saved-file launch. P02/P03 added the selected material/asset profile
+and moving doors; P04 added audio and captions. The current format is v7.
+The two-light/single-switch limit, character animation, additional interactions,
+events, and save-game/session support belong to the remaining technical work.
+Update affected main requirements through each change's delta specs against
+the then-current implementation. Preserve useful ownership and validation
+guarantees without retaining obsolete prototype limits.
 
-## Milestones and playable acceptance
+## Technical milestones and acceptance
+
+M1 (apartment and stairs) and the P02/P03/P04 acceptance records above remain
+completed history. T1-T6 replace the unimplemented story-led M2-M7 milestones.
 
 | Milestone | Changes needed | Observable acceptance |
 | --- | --- | --- |
-| M1: Apartment and stairs | P01 | Author and launch a blockout with Lena's room, corridor, kitchen, rear stairs, and a lower landing. Traverse the route and start on either floor without terrain tricks. |
-| M2: Telephone behind the door | P03, P04, P05 after M1 | Close and lock the room door. Hear the telephone conversation end, then hear the visitor's contradictory invitation. Door state affects sound; captions preserve the clue with audio muted. Temporary off-screen sources are sufficient. |
-| M3: Errands and consequences | P06, P09 after M2 | Deliver/read a letter, perform representative household actions, and request help early. Later reactions reflect those actions. Resume a checkpoint with consistent progression and object state. |
-| M4: People in the apartment | P02, P07 | The neighbor admits the visitor, he walks past the room and later appears at the authored confrontation position. Visible motion, footsteps, dialogue, doors, and checkpoint restoration agree. |
-| M5: Complete temporary-content story | P08; P11 available before assembling the full sequence | Play the ordinary escape and an early-help route through an appropriate epilogue. Alternate exploration order and repeated actions do not trap progression. |
-| M6: Atmosphere with representative final assets | P10, integrated with P02/P04/P07 | Assess a furnished control apartment for readable darkness, expected light blocking, character silhouettes, important sound cues, and frame-time stability. |
-| M7: Content-production readiness | P12 and all earlier milestone acceptance | Author another episode of this game with existing tools, diagnose a broken link, package it, and complete it using menus, settings, and checkpoint resume from a working directory outside the source tree. |
+| T1: Interior lighting | P10 | Author several local lights/switches and ambient values in a furnished control interior. Check wall/door light blocking, supported shadows, readable darkness, editor/runtime agreement, and measured frame times. |
+| T2: Animated characters | P07 | Import a representative character, preview the supported clips, and walk an authored route. Player/door obstruction, accepted motion, footsteps, and supported character shadows agree. |
+| T3: Object interactions | P06 | Read a test document, carry/place a supported object, and operate a household prop. Repeated actions, blocked placement, input transitions, and editor undo/redo preserve coherent object state. |
+| T4: Events and sequences | P05 | Enter a region to change a light, start a captioned sound, and request a character action. Re-entry does not replay a completed event; a competing test condition cancels pending actions. Pause/minimize and different frame batches preserve the defined result. |
+| T5: Session and checkpoint recovery | P09, P12 session work | Start a new test session, pause/resume, change settings, exit, and continue from a safe checkpoint. Player, object, actor, light, door, and event state agree; failed saves retain the last usable checkpoint. |
+| T6: Authoring and packaging readiness | P11, P12 final acceptance; T1-T5 | Author a second neutral scene using existing capabilities, launch a prepared setup, diagnose and repair a broken link, then package and run it outside the source tree without the editor. Exercise menus, settings, muted captions, restart, and checkpoint resume. |
 
-Asset and lighting investigation can start after M1; their final visual
-acceptance uses the integrated scene. P11 follows the first meaningful
-checkpoint and must be available before M5 content assembly. Neither advanced
-lighting nor final character art blocks the M2 behavior test.
+Each milestone proves an actual capability without requiring final dialogue,
+relationships, or outcomes. T6 closes the technical stage. Story development
+then selects scenes and mechanics within the supported profile and revisits
+P08's draft before planning or implementing its content.
 
 ## Proposal index and direct prerequisites
 
 Prerequisites below are planning/implementation dependencies, not native
 OpenSpec cross-change scheduling. Resolve them before implementing the
-dependent change and rebase its artifacts on the resulting main specs.
+dependent change and rebase its artifacts on the resulting main specs. Later
+integration checks have explicit owners below; they do not block acceptance
+of an earlier capability in its supported scope.
 
 | ID | Proposal | Direct prerequisites |
 | --- | --- | --- |
@@ -92,27 +108,45 @@ dependent change and rebase its artifacts on the resulting main specs.
 | P02 | [Authored scene assets](../openspec/changes/archive/2026-09-06-add-authored-scene-assets/proposal.md) | P01 |
 | P03 | [Interactive doors](../openspec/changes/archive/2026-09-06-add-interactive-doors/proposal.md) | P01 |
 | P04 | [Spatial audio and captions](../openspec/changes/archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) | P03 |
-| P05 | [Narrative state and sequences](../openspec/changes/add-narrative-state-and-sequences/proposal.md) | P04 |
-| P06 | [Household interactions](../openspec/changes/add-household-interactions/proposal.md) | P05 |
-| P07 | [Scripted characters](../openspec/changes/add-scripted-characters/proposal.md) | P02, P09 |
-| P08 | [Escape and help outcomes](../openspec/changes/add-escape-and-help-outcomes/proposal.md) | P07, P11 |
-| P09 | [Checkpoint resume](../openspec/changes/add-checkpoint-resume/proposal.md) | P06 |
-| P10 | [Interior lighting](../openspec/changes/add-interior-lighting/proposal.md) | P02, P05 |
+| P05 | [Event state and sequences](../openspec/changes/add-narrative-state-and-sequences/proposal.md) | P06, P07 |
+| P06 | [Household object interactions](../openspec/changes/add-household-interactions/proposal.md) | P04, P10 |
+| P07 | [Scripted character and animation support](../openspec/changes/add-scripted-characters/proposal.md) | P04, P10 |
+| P08 | [Deferred escape/help story draft](../openspec/changes/add-escape-and-help-outcomes/proposal.md) | T6 accepted, then story scope reviewed; P12 supplies the technical prerequisites |
+| P09 | [Checkpoint resume](../openspec/changes/add-checkpoint-resume/proposal.md) | P05 |
+| P10 | [Interior lighting](../openspec/changes/add-interior-lighting/proposal.md) | P02, P03 |
 | P11 | [Story playtest tools](../openspec/changes/add-story-playtest-tools/proposal.md) | P09 |
-| P12 | [Game session and packaging](../openspec/changes/add-game-session-and-packaging/proposal.md) | P08, P10 |
+| P12 | [Game session and packaging](../openspec/changes/add-game-session-and-packaging/proposal.md) | P09 to start session work; P11 also required for final packaging/workflow acceptance |
 
-The selected implementation order is P01, P03, P02, P04, P05, P06, P09,
-P11, P07, P08, P10, P12. P10 can proceed after P02/P05. Proposal numbering
-identifies scope, not a forced serial order.
+P01, P03, P02, P04 are already archived. The selected remaining order is:
 
-P02 and P03 can be planned and developed in parallel where their work is
-independent. Integrate P03 before P02: the door plan introduces level version 5,
-then the asset plan introduces version 6 while preserving door definitions and
-behavior. Their shared codec, validation, editor, physics, and rendering changes
-used one coordinated integration and combined acceptance checks. P02's full
-modified requirements retain P03's scenarios. If another
-format change intervenes, revise the affected version/migration plan first;
-parallel branches must not assign incompatible shapes to the same version.
+```text
+P10 --> P07 --> P06 --> P05 --> P09
+                               |
+                               v
+                         P12 (session)
+                               |
+                               v
+                              P11
+                               |
+                               v
+                     P12 (packaging, T6)
+                               |
+                               v
+                     Story development / P08
+```
+
+This is the chosen work order, not a claim that every adjacent pair is a hard
+dependency. P12 remains one change: its session portion supports T5, and it is
+accepted/archived only after P11 and T6 packaging checks. P11 uses P09's explicit
+resume/setup entry and does not depend on P12's menus. Rebase P12's remaining
+artifacts after P11 is integrated; do not create a circular dependency.
+
+P10 is the next implementation candidate; develop its design, delta specs, and
+tasks first. P10 validates static geometry and moving doors. P07 owns adding
+and checking animated-character occlusion in that lighting profile. P05 owns
+event-driven light, object, door, audio, and actor integration. P09 restores
+all of those already implemented states. P12 integrates their common session
+pause and settings behavior. No prerequisite plot is needed for these checks.
 
 ## Shared decisions
 
@@ -135,28 +169,32 @@ then-current format. Opening never silently rewrites authored work. Do not
 preassign every future format version or require indefinite support for all
 prototype formats.
 
-### Agency, timing, and recovery
-
-The delivery of the letter may affect recognition; it must not become a
-mandatory key to every successful ending. An accepted early request for help
-must alter or cancel incompatible danger sequences. The story must not reject
-help solely to force the ordinary pursuit scene.
+### State, timing, and recovery
 
 Use explicit game-specific progression and sequence logic with bounded author
 parameters. Define what happens when the player leaves, repeats an action,
-opens a door during dialogue, or triggers competing conditions. Pausing and
-minimizing must not silently advance danger or separate captions from speech.
-Hardware audio completion and rendering frequency must not decide outcomes.
+opens a door during a cue, or triggers competing conditions. Use neutral tests
+for cancellation and alternate action order. Pausing and minimizing must not
+silently advance sequences or separate captions from speech. Hardware audio
+completion and rendering frequency must not decide state transitions.
 
-P09 restores safe, authored checkpoint boundaries. Later actor and outcome
-changes extend reconstruction for their actual state and add resume checks.
-Free saving during arbitrary animation or dialogue is not assumed.
+Before the session UI exists, each changing system defines and tests its
+suspension behavior through a minimal development control. P05 coordinates
+event time with player, door, actor, audio, and reading/input state; P12 uses
+that policy for the player-facing pause/menu flow. Cursor release, document
+reading, and an actual session pause must have explicit, distinct policies.
+
+P09 restores safe, authored checkpoint boundaries, including existing actor,
+item, event, door, and light state. It reconstructs suitable animation and
+ambience at those boundaries without serializing arbitrary runtime internals.
+Any later story-specific state extends reconstruction when introduced. Free
+saving during arbitrary animation or dialogue is not assumed.
 
 ### Authoring and technical scope
 
 Each feature proposal includes its own editor fields, references, validation,
-undo/redo where editable, and representative runtime exercise. P11 adds story
-diagnostics and repeatable episode setup; it does not postpone basic authoring
+undo/redo where editable, and representative runtime exercise. P11 adds event
+diagnostics and repeatable test-scene setup; it does not postpone basic authoring
 until the end. Playtesting uses a separate game process and an explicitly
 selected saved level; unsaved edits require an explicit save decision.
 
@@ -173,6 +211,10 @@ scene before adding substantial performance machinery.
 
 ### OpenSpec coordination
 
+Existing change IDs and capability paths are retained for continuity. In the
+technical stage, names such as narrative progression and story playtesting
+refer to supported state/event mechanisms, not an approved plot.
+
 Proposal capability lists describe new ownership and changes to main specs
 that exist at this planning baseline. A dependency's new capability is reused,
 not declared again as new by its consumers. When a dependency is implemented,
@@ -188,12 +230,13 @@ Keep this index and the proposal links usable when changes are archived.
 
 | Decision | Needed before | Starting assumption |
 | --- | --- | --- |
-| Playable footprint of the bread errand and outside help | Expanding M1 beyond the apartment/stairs blockout | One compact authored location; a shop or street can remain a scene transition/content choice. No world streaming requirement. |
-| Degree of visible acting and required clips | P07 design | The reference encounter uses a visible visitor; temporary models validate blocking. Detailed facial animation and full first-person hand animations need separate scene evidence. |
-| Contact/failure behavior during the escape | P08 design | Short authored danger sequence. Add a failure/retry condition only if the encounter needs it; no health/damage model. |
-| What determines Anna Petrovna's outcome | P08 design | Meaningful actions and explicit story milestones. Do not assume an invisible global countdown or punish ordinary exploration. |
-| Exact checkpoint locations and retention | P09 design | Safe authored boundaries sufficient to repeat dangerous or important episodes without replaying the whole evening. |
-| Visual target and performance budget | P02/P10 design and M6 evaluation | A representative furnished interior, specified target hardware, resolution, and measured frame times. Choose rendering techniques and visual fidelity from demonstrated scene requirements. |
+| Light/shadow profile and performance budget | P10 design and T1 | A furnished control interior, explicit target hardware/resolution, measured frame times, and documented supported sources/occluders. |
+| Animated export profile and clip transitions | P07 design and T2 | A representative test character with standing, walking, turning, and a supported interaction clip; detailed acting needs separate evidence. |
+| Supported object actions and placement rules | P06 design and T3 | Read a document, carry/place an object, and operate a household prop using bounded concrete actions. |
+| Supported event conditions/actions and timing policy | P05 design and T4 | Neutral tests for region entry, object state, elapsed active time, one-shot execution, interruption, and cancellation. No script language. |
+| Checkpoint boundaries, retention, and compatibility | P09 design and T5 | Safe named test-scene boundaries that restore all supported mutable state; actual story checkpoint locations are chosen later. |
+| Session controls, preferences, and packaging scope | P12 design and T5/T6 | Essential desktop controls/settings and all selected resources; final acceptance includes P11's authoring workflow. |
+| Characters, locations, errands, dialogue, danger, and endings | Story development after T6 | Earlier story examples are draft material. Select and review the actual story before detailing P08; do not derive mechanics solely from those examples. |
 
 ## Validation and readiness evidence
 
@@ -205,7 +248,12 @@ observable behavior. Run Vulkan smoke validation for relevant rendering,
 resource, window, and lifetime changes; listen to audio and manually assess
 its captions and spatial cues. Muted playthroughs must retain essential clues.
 
-Final readiness requires the actual packaged routes and authoring workflow,
-including a pause/minimize/resume exercise and both help outcomes. Passing unit
-tests alone does not establish that pacing, acting, atmosphere, or production
-iteration meets the game's needs. Record unavailable validation explicitly.
+Technical readiness requires T1-T6, including a second authored neutral scene,
+the complete editor-to-package workflow, and pause/minimize/resume and process
+restart/checkpoint checks. Record manual visual/audio observations, measured
+performance, supported limits, and unavailable validation explicitly. Passing
+unit tests alone does not establish technical or production-workflow readiness.
+
+Story development follows this gate. Its later acceptance evaluates the chosen
+content's progression, alternatives, pacing, acting, and atmosphere. A technical
+fixture passing does not establish that the eventual story works.
