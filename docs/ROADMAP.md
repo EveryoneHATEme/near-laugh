@@ -17,7 +17,13 @@ selected apartment assets share the final v6 level format. Their validation
 records retain the successful combined build, 281 debug tests and seven Vulkan
 smoke tests, agent desktop observations, and user-confirmed manual acceptance
 on 2026-09-06. Main specs were synchronized in order P03 then P02, with each
-change archived before the next sync. The remaining nine linked changes
+change archived before the next sync. P04 now implements version-7 audio
+authoring, spatial playback, Russian captions, and a separate telephone fixture.
+P04 was accepted by the user and archived on 2026-09-07. Its
+[validation record](../openspec/changes/archive/2026-09-07-add-spatial-audio-and-captions/validation.md)
+retains 322 passing debug tests, eight passing Vulkan smoke tests, qualitative
+user acceptance and the unavailable quantitative latency/drift measurements.
+The remaining eight linked changes
 capture proposals only; their designs, delta specs, and tasks must be developed
 and reviewed before implementation. Structural validation alone does not
 establish implementation readiness. Those proposal-only feature changes do
@@ -85,7 +91,7 @@ dependent change and rebase its artifacts on the resulting main specs.
 | P01 | [Interior level authoring](../openspec/changes/archive/2026-09-06-add-interior-level-authoring/proposal.md) | None |
 | P02 | [Authored scene assets](../openspec/changes/archive/2026-09-06-add-authored-scene-assets/proposal.md) | P01 |
 | P03 | [Interactive doors](../openspec/changes/archive/2026-09-06-add-interactive-doors/proposal.md) | P01 |
-| P04 | [Spatial audio and captions](../openspec/changes/add-spatial-audio-and-captions/proposal.md) | P03 |
+| P04 | [Spatial audio and captions](../openspec/changes/archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) | P03 |
 | P05 | [Narrative state and sequences](../openspec/changes/add-narrative-state-and-sequences/proposal.md) | P04 |
 | P06 | [Household interactions](../openspec/changes/add-household-interactions/proposal.md) | P05 |
 | P07 | [Scripted characters](../openspec/changes/add-scripted-characters/proposal.md) | P02, P09 |
@@ -161,8 +167,8 @@ jump, sprint, crouch, and flashlight behavior remains a prototype choice;
 revise it only when traversal and presentation tests establish a game need.
 
 Choose the supported model/material/animation profile using representative
-exports before committing to an importer design. Choose the audio dependency
-and light-blocking/shadow method during their designs. Measure the furnished
+exports before committing to an importer design. P04 selected pinned miniaudio
+for audio. Choose the light-blocking/shadow method during its design. Measure the furnished
 scene before adding substantial performance machinery.
 
 ### OpenSpec coordination

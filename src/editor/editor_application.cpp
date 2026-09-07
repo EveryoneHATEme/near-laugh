@@ -1,12 +1,15 @@
 #include "editor/editor_application.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
 
+#include "core/audio/transmission.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
@@ -14,6 +17,11 @@
 #include "editor/editor_overlay.hpp"
 
 namespace {
+double auditionNow() {
+  return std::chrono::duration<double>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 std::filesystem::path requireEditorFile(const std::filesystem::path& path) {
   const std::filesystem::path resolved =
       std::filesystem::absolute(path).lexically_normal();
@@ -37,9 +45,14 @@ EditorRendererResources resolveEditorRendererResources(
 
 EditorApplication::EditorApplication(
     std::filesystem::path resource_root,
-    std::optional<std::filesystem::path> initial_level)
-    : window_(platform_, 1600, 900, "near-laugh level editor"),
-      glfw_imgui_bridge_(window_),
+    std::optional<std::filesystem::path> initial_level,
+    ValidationDiagnostics& diagnostics)
+    : validation_diagnostics_(diagnostics),
+      resource_root_(
+          std::filesystem::absolute(resource_root).lexically_normal()),
+      caption_font_(std::make_shared<CaptionFont>(resource_root_)),
+      window_(platform_, 1600, 900, "near-laugh level editor"),
+      glfw_imgui_bridge_(window_, caption_font_),
       renderer_(window_, window_.framebufferExtent(),
                 resolveEditorRendererResources(resource_root),
                 validation_diagnostics_) {
@@ -318,6 +331,55 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   preview();
   require(*document_.document() == furnished,
           "Content history lost authored state");
+  require(
+      document_.open(valid_level.parent_path() / "audio-captions.level.json"),
+      "Editor could not open the audio fixture");
+  preview();
+  const auto audio_original = *document_.document();
+  const auto audition_source = document_.audioIds(EditorAudioKind::Source)[3];
+  document_.select(audition_source);
+  require(audition_.start(document_, audition_source, resource_root_,
+                          *caption_font_, auditionNow(), AudioOutput::Silent),
+          "Editor smoke could not start silent audition");
+  preview();
+  require(
+      audition_.cues() && !audition_.cues()->captions().foreground.text.empty(),
+      "Editor audition lost Russian captions");
+  require(!document_.dirty() && *document_.document() == audio_original,
+          "Audition dirtied the document");
+  require(document_.duplicateSelected(), "Audio source duplication failed");
+  preview();
+  require(!audition_.cues(), "Audio edit did not stop audition");
+  require(document_.undo(), "Audio duplication undo failed");
+  preview();
+  require(audition_.start(document_, audition_source, resource_root_,
+                          *caption_font_, auditionNow(), AudioOutput::Silent),
+          "Editor smoke could not restart audition");
+  window_.minimize();
+  {
+    std::jthread wake([] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      EditorGlfwBridge::postEmptyEvent();
+    });
+    require(tick() && !audition_.cues(), "Editor minimize retained audition");
+  }
+  window_.restore();
+  window_.pollEvents();
+  preview();
+  require(!audition_.cues(), "Editor restore automatically replayed audition");
+  require(document_.saveAs(temporary.path /
+                           std::filesystem::path(u8"Звуки и подписи.json")),
+          "Audio Unicode Save As failed");
+  const auto packaged_root = resource_root_;
+  resource_root_ =
+      temporary.path;  // Selected audio files are deliberately absent here.
+  launchPlay({*document_.path(), document_.launchEntry()});
+  resource_root_ = packaged_root;
+  require(!game_process_.active() && !document_.diagnostics().empty(),
+          "Broken audio Play preflight launched a process");
+  require(document_.open(*document_.path()),
+          "Audio reload failed after refused Play");
+  preview();
   renderer_.validateSceneAssets(*document_.document());
   window_.setSize(1200, 800);
   renderer_.requestSwapchainRecreation();
@@ -395,8 +457,10 @@ bool EditorApplication::tick() {
   const FramebufferExtent framebuffer = window_.framebufferExtent();
   switch (decideEditorLoopAction(document_.exitRequested(), framebuffer)) {
     case EditorLoopAction::Exit:
+      audition_.stop();
       return false;
     case EditorLoopAction::WaitForEvents:
+      audition_.stop();
       static_cast<void>(document_.finishTerrainStroke());
       window_.waitEvents();
       frame_clock_.reset();
@@ -412,18 +476,13 @@ bool EditorApplication::tick() {
       camera_.frame(static_cast<float>(framebuffer.width) /
                     static_cast<float>(framebuffer.height));
   ui_.draw(document_, game_process_.active(), game_process_.status());
+  if (ui_.takePlayAttempt()) audition_.stop();
   if (auto launch = ui_.takeLaunchRequest()) {
-    try {
-      const auto saved = loadEditorPlayDocument(document_, *launch);
-      renderer_.validateSceneAssets(saved);
-      static_cast<void>(game_process_.start(editorGameExecutable(), *launch));
-    } catch (const std::exception& error) {
-      document_.reportResourceError(
-          std::string("Play asset validation failed: ") + error.what());
-    }
+    launchPlay(*launch);
   }
   const auto placement_hit =
       ui_.updateViewport(document_, camera, window_.cursorCaptured());
+  updateAudition(auditionNow());
   renderer_.drawOverlays(buildEditorOverlay(
       document_, camera, placement_hit,
       ui_.sculpting() ? &document_.terrainBrush() : nullptr));
@@ -439,8 +498,68 @@ bool EditorApplication::tick() {
   return editorContinuesAfter(outcome) && !document_.exitRequested();
 }
 
-std::size_t EditorApplication::validationErrorCount() const noexcept {
-  return validation_diagnostics_.errorCount();
+void EditorApplication::updateAudition(double now) {
+  const auto position = camera_.position();
+  const float yaw = camera_.yawDegrees() * std::numbers::pi_v<float> / 180;
+  const float pitch = camera_.pitchDegrees() * std::numbers::pi_v<float> / 180;
+  const WorldPosition listener{position.x, position.y, position.z};
+  audition_.update(document_, listener,
+                   {std::cos(yaw) * std::cos(pitch), std::sin(pitch),
+                    std::sin(yaw) * std::cos(pitch)},
+                   now);
+  EditorAuditionView view;
+  view.warning = audition_.error();
+  if (auto* cues = audition_.cues()) {
+    view.active = true;
+    view.muted = cues->muted();
+    view.paused = cues->suspended();
+    view.source = audition_.source();
+    view.captions = cues->captions();
+    view.gain = cues->effectiveGain(view.source);
+    view.warning = cues->playback().warning();
+    view.listener_room =
+        audioRoomAt(cues->definitions(), listener).value_or("outside");
+    for (const auto& source : cues->definitions().sources)
+      if (source.id == view.source)
+        view.source_room = audioRoomAt(cues->definitions(), source.position)
+                               .value_or("outside");
+  }
+  const auto selected = document_.object(document_.selection());
+  const bool can_start =
+      selected && std::holds_alternative<AudioSourceDefinition>(*selected) &&
+      document_.valid();
+  switch (ui_.drawAudition(view, can_start)) {
+    case EditorAuditionAction::Start:
+      static_cast<void>(audition_.start(document_, document_.selection(),
+                                        resource_root_, *caption_font_, now));
+      break;
+    case EditorAuditionAction::Stop:
+      audition_.stop();
+      break;
+    case EditorAuditionAction::Mute:
+      audition_.mute();
+      break;
+    case EditorAuditionAction::Pause:
+      audition_.pause(now);
+      break;
+    case EditorAuditionAction::None:
+      break;
+  }
+}
+
+void EditorApplication::launchPlay(const EditorLaunchRequest& launch) {
+  audition_.stop();
+  try {
+    const auto saved = loadEditorPlayDocument(document_, launch);
+    renderer_.validateSceneAssets(saved);
+    const auto content = prepareAudioContent(resource_root_, saved.audio);
+    const CaptionFont current_font(resource_root_);
+    validateAudioCaptions(content, saved.audio, current_font);
+    static_cast<void>(game_process_.start(editorGameExecutable(), launch));
+  } catch (const std::exception& error) {
+    document_.reportResourceError(
+        std::string("Play asset validation failed: ") + error.what());
+  }
 }
 
 void EditorApplication::updateNavigation(EditorUiCaptureIntent capture) {

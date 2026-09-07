@@ -376,12 +376,96 @@ DoorDefinition parseDoor(const Json& value, std::size_t index) {
   return door;
 }
 
+bool parseBool(const Json& value, const std::string& path) {
+  if (!value.is_boolean()) fail(path, "must be a boolean");
+  return value.get<bool>();
+}
+
+std::string parseAudioId(const Json& value, const std::string& path) {
+  auto id = parseString(value, path);
+  if (id.size() > 64) fail(path, "must contain at most 64 bytes");
+  return id;
+}
+std::optional<std::string> parseAudioReference(const Json& value,
+                                               const std::string& path) {
+  if (value.is_null()) return {};
+  return parseAudioId(value, path);
+}
+
+LevelAudio parseAudio(const Json& value) {
+  requireObjectFields(value, "audio",
+                      {"cues", "sources", "rooms", "connections"});
+  const auto records = [&](std::string_view collection,
+                           std::size_t bound) -> const Json& {
+    const auto& array = value.at(collection);
+    if (!array.is_array() || array.size() > bound)
+      fail("audio." + std::string(collection),
+           "must be an array of at most " + std::to_string(bound) + " records");
+    return array;
+  };
+  LevelAudio audio;
+  for (const auto& v : records("cues", level_maximum_audio_cue_count)) {
+    const auto p = "audio.cues[" + std::to_string(audio.cues.size()) + "]";
+    requireObjectFields(v, p,
+                        {"id", "clip", "caption", "kind", "loop", "spatial"});
+    const auto kind = parseString(v.at("kind"), p + ".kind");
+    if (kind != "dialogue" && kind != "essential" && kind != "ambience")
+      fail(p + ".kind", "unsupported cue kind '" + kind + "'");
+    audio.cues.push_back({parseAudioId(v.at("id"), p + ".id"),
+                          parseAudioId(v.at("clip"), p + ".clip"),
+                          parseAudioReference(v.at("caption"), p + ".caption"),
+                          kind == "dialogue"    ? AudioCueKind::Dialogue
+                          : kind == "essential" ? AudioCueKind::Essential
+                                                : AudioCueKind::Ambience,
+                          parseBool(v.at("loop"), p + ".loop"),
+                          parseBool(v.at("spatial"), p + ".spatial")});
+  }
+  for (const auto& v : records("sources", level_maximum_audio_source_count)) {
+    const auto p =
+        "audio.sources[" + std::to_string(audio.sources.size()) + "]";
+    requireObjectFields(v, p,
+                        {"id", "cue", "position", "gain", "near_distance",
+                         "far_distance", "autoplay"});
+    audio.sources.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parseAudioId(v.at("cue"), p + ".cue"),
+         parsePosition(v.at("position"), p + ".position"),
+         parseFloat(v.at("gain"), p + ".gain"),
+         parseFloat(v.at("near_distance"), p + ".near_distance"),
+         parseFloat(v.at("far_distance"), p + ".far_distance"),
+         parseBool(v.at("autoplay"), p + ".autoplay")});
+  }
+  for (const auto& v : records("rooms", level_maximum_audio_room_count)) {
+    const auto p = "audio.rooms[" + std::to_string(audio.rooms.size()) + "]";
+    requireObjectFields(v, p, {"id", "center", "half_extent"});
+    audio.rooms.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parsePosition(v.at("center"), p + ".center"),
+         parseExtent(v.at("half_extent"), p + ".half_extent")});
+  }
+  for (const auto& v :
+       records("connections", level_maximum_audio_connection_count)) {
+    const auto p =
+        "audio.connections[" + std::to_string(audio.connections.size()) + "]";
+    requireObjectFields(
+        v, p, {"id", "room_a", "room_b", "door", "closed_gain", "open_gain"});
+    audio.connections.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parseAudioReference(v.at("room_a"), p + ".room_a"),
+         parseAudioReference(v.at("room_b"), p + ".room_b"),
+         parseAudioReference(v.at("door"), p + ".door"),
+         parseFloat(v.at("closed_gain"), p + ".closed_gain"),
+         parseFloat(v.at("open_gain"), p + ".open_gain")});
+  }
+  return audio;
+}
+
 LevelDocument parseDocument(const Json& root) {
   if (!root.is_object()) fail("", "must be an object");
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
   if (version != 2 && version != 3 && version != 4 && version != 5 &&
-      version != level_format_version) {
+      version != 6 && version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
   }
@@ -403,11 +487,16 @@ LevelDocument parseDocument(const Json& root) {
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "static_prop", "light_switch", "doors"});
-  } else {
+  } else if (version == 6) {
     requireObjectFields(
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switch", "doors"});
+  } else {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "props", "light_switch", "doors", "audio"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -422,6 +511,7 @@ LevelDocument parseDocument(const Json& root) {
     solids.push_back(parseSolid(solids_json[index], index, version));
   }
   LevelDocument document;
+  if (version >= 7) document.audio = parseAudio(root.at("audio"));
   if (version < 4 || !root.at("terrain").is_null())
     document.terrain = parseTerrain(root.at("terrain"), version);
   document.solids = std::move(solids);
@@ -483,6 +573,10 @@ LevelDocument parseDocument(const Json& root) {
   for (std::size_t i = 0; i < document.solids.size(); ++i)
     requireBounds(document.solids[i].center, document.solids[i].half_extent,
                   "solids[" + std::to_string(i) + "].bounds");
+  for (std::size_t i = 0; i < document.audio.rooms.size(); ++i)
+    requireBounds(document.audio.rooms[i].center,
+                  document.audio.rooms[i].half_extent,
+                  "audio.rooms[" + std::to_string(i) + "].bounds");
   for (const auto& prop : document.props) {
     const double yaw =
         static_cast<double>(prop.yaw_degrees) * std::numbers::pi / 180;
@@ -639,6 +733,44 @@ std::string serializeDocument(const LevelDocument& document) {
     value["initially_locked"] = door.initially_locked;
     root["doors"].push_back(std::move(value));
   }
+  const auto referenceJson = [](const std::optional<std::string>& id) {
+    return id ? Json(*id) : Json(nullptr);
+  };
+  auto audio = Json::object();
+  audio["cues"] = Json::array();
+  for (const auto& c : document.audio.cues)
+    audio["cues"].push_back(
+        {{"id", c.id},
+         {"clip", c.clip},
+         {"caption", referenceJson(c.caption)},
+         {"kind", c.kind == AudioCueKind::Dialogue    ? "dialogue"
+                  : c.kind == AudioCueKind::Essential ? "essential"
+                                                      : "ambience"},
+         {"loop", c.loop},
+         {"spatial", c.spatial}});
+  audio["sources"] = Json::array();
+  for (const auto& s : document.audio.sources)
+    audio["sources"].push_back({{"id", s.id},
+                                {"cue", s.cue},
+                                {"position", positionJson(s.position)},
+                                {"gain", s.gain},
+                                {"near_distance", s.near_distance},
+                                {"far_distance", s.far_distance},
+                                {"autoplay", s.autoplay}});
+  audio["rooms"] = Json::array();
+  for (const auto& r : document.audio.rooms)
+    audio["rooms"].push_back({{"id", r.id},
+                              {"center", positionJson(r.center)},
+                              {"half_extent", extentJson(r.half_extent)}});
+  audio["connections"] = Json::array();
+  for (const auto& c : document.audio.connections)
+    audio["connections"].push_back({{"id", c.id},
+                                    {"room_a", referenceJson(c.room_a)},
+                                    {"room_b", referenceJson(c.room_b)},
+                                    {"door", referenceJson(c.door)},
+                                    {"closed_gain", c.closed_gain},
+                                    {"open_gain", c.open_gain}});
+  root["audio"] = std::move(audio);
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }
 

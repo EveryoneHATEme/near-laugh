@@ -26,7 +26,11 @@ int main(int argc, char** argv) {
     const std::filesystem::path interior =
         root / "levels" / "apartment-stairs.level.json";
     if (!std::filesystem::is_regular_file(vertex) ||
-        !std::filesystem::is_regular_file(fragment)) {
+        !std::filesystem::is_regular_file(fragment) ||
+        !std::filesystem::is_regular_file(root /
+                                          "shaders/caption_vertex.spv") ||
+        !std::filesystem::is_regular_file(root /
+                                          "shaders/caption_fragment.spv")) {
       std::cerr << "Executable-relative shader resources are missing beneath: "
                 << root << '\n';
       return 1;
@@ -44,10 +48,32 @@ int main(int argc, char** argv) {
       return 1;
     }
     if (!std::filesystem::is_regular_file(level) ||
-        !std::filesystem::is_regular_file(interior)) {
+        !std::filesystem::is_regular_file(interior) ||
+        !std::filesystem::is_regular_file(root /
+                                          "levels/audio-captions.level.json")) {
       std::cerr << "Executable-relative level resource is missing: " << level
                 << '\n';
       return 1;
+    }
+    for (const auto* name : {"radio", "phone-ring", "footsteps",
+                             "phone-conversation", "invitation"}) {
+      for (const auto& asset :
+           {root / "audio" / (std::string(name) + ".wav"),
+            root / "captions" / (std::string(name) + ".captions")}) {
+        if (!std::filesystem::is_regular_file(asset) ||
+            std::filesystem::file_size(asset) == 0) {
+          std::cerr << "Executable-relative audio/caption resource missing: "
+                    << asset << '\n';
+          return 1;
+        }
+      }
+    }
+    for (const auto* name : {"NotoSans-Regular.ttf", "OFL.txt"}) {
+      if (!std::filesystem::is_regular_file(root / "fonts" / name)) {
+        std::cerr << "Executable-relative font resource missing: "
+                  << root / "fonts" / name << '\n';
+        return 1;
+      }
     }
     return 0;
   } catch (const std::exception& error) {

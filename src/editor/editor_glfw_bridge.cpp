@@ -9,6 +9,7 @@
 
 #include "core/platform/window.hpp"
 #include "core/testing/test_controls.hpp"
+#include "core/text/caption_font.hpp"
 
 namespace {
 bool createEditorContext() {
@@ -79,11 +80,27 @@ EditorBridgeLifetime::~EditorBridgeLifetime() {
   }
 }
 
-EditorGlfwBridge::EditorGlfwBridge(Window& window)
-    : lifetime_(std::make_unique<EditorBridgeLifetime>(
+EditorGlfwBridge::EditorGlfwBridge(Window& window,
+                                   std::shared_ptr<const CaptionFont> font)
+    : font_(std::move(font)),
+      lifetime_(std::make_unique<EditorBridgeLifetime>(
           window.surfaceBridgeHandle(),
           EditorBridgeOperations{createEditorContext, initializeEditorGlfw,
-                                 shutdownEditorGlfw, destroyEditorContext})) {}
+                                 shutdownEditorGlfw, destroyEditorContext})) {
+  if (font_) {
+    ImFontConfig config;
+    config.FontDataOwnedByAtlas = false;
+    static const ImWchar ranges[]{0x20,   0xff,   0x400,  0x45f,  0x2013,
+                                  0x2014, 0x2018, 0x2019, 0x201c, 0x201d,
+                                  0x2026, 0x2026, 0x2116, 0x2116, 0};
+    const auto bytes = font_->fontBytes();
+    if (!ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+            const_cast<std::uint8_t*>(bytes.data()),
+            static_cast<int>(bytes.size()), 18, &config, ranges))
+      throw std::runtime_error(
+          "Unable to install trusted Cyrillic editor font");
+  }
+}
 
 EditorGlfwBridge::~EditorGlfwBridge() = default;
 

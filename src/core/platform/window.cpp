@@ -38,6 +38,15 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
   const bool down = action == GLFW_PRESS;
   auto& input = implementation(window).input;
   switch (key) {
+    case GLFW_KEY_F5:
+      input.setKey(PhysicalKey::F5, down);
+      break;
+    case GLFW_KEY_M:
+      input.setKey(PhysicalKey::M, down);
+      break;
+    case GLFW_KEY_P:
+      input.setKey(PhysicalKey::P, down);
+      break;
     case GLFW_KEY_E:
       input.setKey(PhysicalKey::E, down);
       break;
@@ -147,6 +156,9 @@ bool Window::shouldClose() const {
 }
 
 FramebufferExtent Window::framebufferExtent() const {
+  // Some desktops retain framebuffer dimensions while iconified. Treat that
+  // state as unavailable so both simulation and audio enter the event wait.
+  if (glfwGetWindowAttrib(impl_->handle, GLFW_ICONIFIED)) return {};
   int width = 0;
   int height = 0;
   glfwGetFramebufferSize(impl_->handle, &width, &height);
@@ -175,6 +187,9 @@ void Window::restore() { glfwRestoreWindow(impl_->handle); }
 
 void Window::cancelCloseRequest() noexcept {
   glfwSetWindowShouldClose(impl_->handle, GLFW_FALSE);
+}
+void Window::requestClose() noexcept {
+  glfwSetWindowShouldClose(impl_->handle, GLFW_TRUE);
 }
 
 const PhysicalInputSnapshot& Window::input() const noexcept {

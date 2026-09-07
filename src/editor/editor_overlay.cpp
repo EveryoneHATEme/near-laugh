@@ -97,6 +97,44 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     }
   };
   const auto& level = *document.document();
+  constexpr WorldColor audio_color{210, 130, 255, 255};
+  for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
+    marker(level.audio.sources[i].position,
+           document.selection() == document.audioIds(EditorAudioKind::Source)[i]
+               ? selected_color
+               : audio_color);
+  for (std::size_t i = 0; i < level.audio.rooms.size(); ++i) {
+    const auto& room = level.audio.rooms[i];
+    box(room.center, room.half_extent, 0,
+        document.selection() == document.audioIds(EditorAudioKind::Room)[i]
+            ? selected_color
+            : WorldColor{140, 100, 180, 150});
+  }
+  if (const auto value = document.object(document.selection())) {
+    if (const auto* connection =
+            std::get_if<AudioConnectionDefinition>(&*value)) {
+      const auto room_center = [&](const std::optional<std::string>& id)
+          -> std::optional<WorldPosition> {
+        if (!id) return {};
+        for (const auto& room : level.audio.rooms)
+          if (room.id == *id) return room.center;
+        return {};
+      };
+      auto a = room_center(connection->room_a),
+           b = room_center(connection->room_b);
+      std::optional<WorldPosition> hinge;
+      for (const auto& door : level.doors)
+        if (connection->door == door.id) hinge = door.hinge_position;
+      if (a && b) line(*a, *b, selected_color);
+      if (hinge) {
+        if (a) line(*a, *hinge, audio_color);
+        if (b) line(*b, *hinge, audio_color);
+      } else if (a && !connection->room_b)
+        line(*a, {a->x, a->y + 2, a->z}, selected_color);
+      else if (b && !connection->room_a)
+        line(*b, {b->x, b->y + 2, b->z}, selected_color);
+    }
+  }
   for (const auto& diagnostic : document.diagnostics()) {
     const auto& location = diagnostic.terrain_location;
     if (!level.terrain || !location || !location->triangle ||

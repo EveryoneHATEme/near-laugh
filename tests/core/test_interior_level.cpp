@@ -68,7 +68,7 @@ TEST_F(InteriorLevel, CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries
     const auto first = bytes(p);
     const auto loaded = loadLevelDocument(p);
     ASSERT_TRUE(loaded);
-    EXPECT_EQ(loaded.source_version, 6U);
+    EXPECT_EQ(loaded.source_version, 7U);
     EXPECT_EQ(*loaded.document, doc);
     EXPECT_EQ(loaded.document->entries[0].id, "lower");
     ASSERT_TRUE(saveLevelDocument(p, *loaded.document));
@@ -97,7 +97,7 @@ TEST_F(InteriorLevel, LegacyVersionsNormalizeOnlyOnExplicitSave) {
     EXPECT_EQ(editor.document()->default_entry, "default");
     EXPECT_EQ(bytes(p), legacy);
     ASSERT_TRUE(editor.save());
-    EXPECT_EQ(loadLevelDocument(p).source_version, 6U);
+    EXPECT_EQ(loadLevelDocument(p).source_version, 7U);
   }
 }
 
@@ -260,13 +260,13 @@ TEST_F(InteriorLevel,
   ASSERT_TRUE(editor.open(path));
   const auto before = *editor.document();
   for (const auto& [from, to] :
-       {std::pair{"\"version\": 6", "\"version\": 5"},
+       {std::pair{"\"version\": 7", "\"version\": 5"},
         std::pair{"\"id\": \"lower\"", "\"id\": false"},
         std::pair{"\"id\": \"lower\"", "\"unknown\": \"lower\""},
         std::pair{"\"default_entry\": \"lower\"", "\"default_entry\": 1"},
         std::pair{"\"x\": 5.0", "\"x\": 3.4e38"},
-        std::pair{"\"version\": 6",
-                  "\"player_spawn\": null, \"version\": 6"}}) {
+        std::pair{"\"version\": 7",
+                  "\"player_spawn\": null, \"version\": 7"}}) {
     auto bad = canonical;
     const auto offset = bad.find(from);
     ASSERT_NE(offset, std::string::npos);

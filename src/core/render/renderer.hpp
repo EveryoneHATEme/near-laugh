@@ -10,11 +10,13 @@
 class Window;
 class ValidationDiagnostics;
 class PrototypeLevel;
+class CaptionFont;
 
 struct RendererResources {
   std::filesystem::path vertex_shader{};
   std::filesystem::path fragment_shader{};
   std::filesystem::path resource_root{};
+  std::shared_ptr<const CaptionFont> caption_font{};
 };
 
 class Renderer {

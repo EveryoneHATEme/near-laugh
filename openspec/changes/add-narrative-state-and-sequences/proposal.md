@@ -51,7 +51,7 @@ with the actual phase/fact model and timing rules.
 
 ## Dependencies and Boundaries
 
-P05; requires [P04](../add-spatial-audio-and-captions/proposal.md), including its
+P05; requires [P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md), including its
 door prerequisite. Use the audio/text and interaction capabilities it supplies.
 P09 adds durable save files; P11 adds developer-facing state inspection and
 prepared episode launch. Basic event diagnostics belong here.

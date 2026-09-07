@@ -1,0 +1,10 @@
+get_filename_component(PROBE_DIR "${PROBE}" DIRECTORY)
+get_filename_component(PROBE_NAME "${PROBE}" NAME)
+set(DEST "${WORK}/Звуки и субтитры")
+file(MAKE_DIRECTORY "${DEST}")
+file(COPY "${PROBE}" "${PROBE_DIR}/resources" DESTINATION "${DEST}")
+execute_process(COMMAND "${DEST}/${PROBE_NAME}"
+                WORKING_DIRECTORY "${WORK}" RESULT_VARIABLE RESULT)
+if(NOT RESULT EQUAL 0)
+    message(FATAL_ERROR "Unicode executable-relative resource probe failed: ${RESULT}")
+endif()

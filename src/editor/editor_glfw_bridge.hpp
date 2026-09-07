@@ -6,6 +6,7 @@
 #include "editor/editor_camera.hpp"
 
 class Window;
+class CaptionFont;
 
 struct EditorBridgeOperations {
   bool (*create_context)();
@@ -32,7 +33,8 @@ class EditorBridgeLifetime {
 
 class EditorGlfwBridge {
  public:
-  explicit EditorGlfwBridge(Window& window);
+  explicit EditorGlfwBridge(Window& window,
+                            std::shared_ptr<const CaptionFont> font = {});
   ~EditorGlfwBridge();
 
   EditorGlfwBridge(const EditorGlfwBridge&) = delete;
@@ -45,6 +47,7 @@ class EditorGlfwBridge {
   [[nodiscard]] EditorUiCaptureIntent captureIntent() const noexcept;
 
  private:
+  std::shared_ptr<const CaptionFont> font_;
   std::unique_ptr<EditorBridgeLifetime> lifetime_;
 };
 

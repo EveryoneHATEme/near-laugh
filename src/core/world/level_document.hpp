@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 6;
+inline constexpr std::uint32_t level_format_version = 7;
 inline constexpr std::size_t level_maximum_door_count = 32;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t prototype_point_light_count = 2;
@@ -147,6 +147,59 @@ struct DoorDefinition {
   bool initially_locked{};
 };
 
+inline constexpr std::size_t level_maximum_audio_cue_count = 128;
+inline constexpr std::size_t level_maximum_audio_source_count = 64;
+inline constexpr std::size_t level_maximum_audio_room_count = 32;
+inline constexpr std::size_t level_maximum_audio_connection_count = 64;
+
+enum class AudioCueKind { Dialogue, Essential, Ambience };
+
+struct AudioCueDefinition {
+  bool operator==(const AudioCueDefinition&) const = default;
+  std::string id{};
+  std::string clip{};
+  std::optional<std::string> caption{};
+  AudioCueKind kind{AudioCueKind::Ambience};
+  bool loop{};
+  bool spatial{true};
+};
+
+struct AudioSourceDefinition {
+  bool operator==(const AudioSourceDefinition&) const = default;
+  std::string id{};
+  std::string cue{};
+  WorldPosition position{};
+  float gain{1.0F};
+  float near_distance{1.0F};
+  float far_distance{20.0F};
+  bool autoplay{};
+};
+
+struct AudioRoomDefinition {
+  bool operator==(const AudioRoomDefinition&) const = default;
+  std::string id{};
+  WorldPosition center{};
+  WorldExtent half_extent{1.0F, 1.0F, 1.0F};
+};
+
+struct AudioConnectionDefinition {
+  bool operator==(const AudioConnectionDefinition&) const = default;
+  std::string id{};
+  std::optional<std::string> room_a{};
+  std::optional<std::string> room_b{};
+  std::optional<std::string> door{};
+  float closed_gain{0.15F};
+  float open_gain{1.0F};
+};
+
+struct LevelAudio {
+  bool operator==(const LevelAudio&) const = default;
+  std::vector<AudioCueDefinition> cues{};
+  std::vector<AudioSourceDefinition> sources{};
+  std::vector<AudioRoomDefinition> rooms{};
+  std::vector<AudioConnectionDefinition> connections{};
+};
+
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
@@ -158,6 +211,7 @@ struct LevelDocument {
   std::vector<PrototypeStaticProp> props{};
   std::optional<PrototypeLightSwitch> light_switch{};
   std::vector<DoorDefinition> doors{};
+  LevelAudio audio{};
 };
 
 enum class LevelDiagnosticCategory {

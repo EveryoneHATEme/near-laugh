@@ -7,9 +7,13 @@
 #include "editor/editor_application.hpp"
 #include "launcher/executable_path.hpp"
 
+#if defined(_WIN32)
+int wmain(int argc, wchar_t** argv) {
+#else
 int main(int argc, char** argv) {
+#endif
   try {
-    const bool smoke = argc >= 2 && std::string_view(argv[1]) == "--smoke";
+    const bool smoke = argc >= 2 && std::filesystem::path(argv[1]) == "--smoke";
     if ((!smoke && argc > 2) || (smoke && argc > 3)) {
       std::cerr << "usage: level_editor [level-path]\n"
                    "       level_editor --smoke [level-path]\n";
@@ -25,13 +29,15 @@ int main(int argc, char** argv) {
     } else if (argc == 2) {
       initial_level = std::filesystem::path(argv[1]);
     }
-    EditorApplication application(resource_root, initial_level);
-    if (smoke) {
-      application.runSmoke(*initial_level);
-    } else {
-      application.run();
+    ValidationDiagnostics diagnostics;
+    {
+      EditorApplication application(resource_root, initial_level, diagnostics);
+      if (smoke)
+        application.runSmoke(*initial_level);
+      else
+        application.run();
     }
-    if (application.validationErrorCount() != 0) {
+    if (diagnostics.errorCount() != 0) {
       std::cerr << "level editor recorded Vulkan validation errors\n";
       return 1;
     }

@@ -9,6 +9,7 @@
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
 #include "core/render/validation_diagnostics.hpp"
+#include "editor/editor_audio_audition.hpp"
 #include "editor/editor_camera.hpp"
 #include "editor/editor_document.hpp"
 #include "editor/editor_glfw_bridge.hpp"
@@ -18,7 +19,8 @@
 class EditorApplication {
  public:
   EditorApplication(std::filesystem::path resource_root,
-                    std::optional<std::filesystem::path> initial_level);
+                    std::optional<std::filesystem::path> initial_level,
+                    ValidationDiagnostics& diagnostics);
 
   EditorApplication(const EditorApplication&) = delete;
   EditorApplication& operator=(const EditorApplication&) = delete;
@@ -28,13 +30,17 @@ class EditorApplication {
   void run();
   void runSmoke(const std::filesystem::path& valid_level);
   [[nodiscard]] bool tick();
-  [[nodiscard]] std::size_t validationErrorCount() const noexcept;
 
  private:
   void updateNavigation(EditorUiCaptureIntent capture);
   void synchronizeDocumentResources();
+  void updateAudition(double now);
+  void launchPlay(const EditorLaunchRequest& launch);
 
-  ValidationDiagnostics validation_diagnostics_{};
+  ValidationDiagnostics& validation_diagnostics_;
+  std::filesystem::path resource_root_;
+  std::shared_ptr<const CaptionFont> caption_font_;
+  EditorAudioAudition audition_;
   Platform platform_{};
   Window window_;
   EditorGlfwBridge glfw_imgui_bridge_;

@@ -18,6 +18,7 @@
 #include "core/render/prototype_scene.hpp"
 #include "core/render/scene_resources.hpp"
 #include "core/render/static_model_loader.hpp"
+#include "core/render/text_resources.hpp"
 #include "core/render/validation_diagnostics.hpp"
 #include "core/render/vulkan_context.hpp"
 #include "core/render/vulkan_utils.hpp"
@@ -113,6 +114,8 @@ class Renderer::Impl {
   RendererResources resources_{};
   std::unique_ptr<SceneResources> scene_resources_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
+  std::shared_ptr<const CaptionFont> caption_font_;
+  std::unique_ptr<TextResources> text_;
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
   VkFormat depth_format_{VK_FORMAT_UNDEFINED};
@@ -162,6 +165,10 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
       level_(level),
       resources_(std::move(resources)) {
   try {
+    caption_font_ =
+        resources_.caption_font
+            ? resources_.caption_font
+            : std::make_shared<CaptionFont>(resources_.resource_root);
     const auto assets = prepareSceneAssets(resources_.resource_root, level_);
     scene_resources_ = std::make_unique<SceneResources>(
         context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
@@ -181,6 +188,7 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
     recordLifecycleEvent("renderer.created");
   } catch (...) {
     cleanupFrameSlots();
+    text_.reset();
     pipeline_.reset();
     cleanupSwapchain();
     lighting_resources_.reset();
@@ -194,6 +202,7 @@ Renderer::Impl::~Impl() {
     vkDeviceWaitIdle(context_.device());
   }
   cleanupFrameSlots();
+  text_.reset();
   pipeline_.reset();
   cleanupSwapchain();
   lighting_resources_.reset();
@@ -337,6 +346,7 @@ void Renderer::Impl::recreateSwapchain(FramebufferExtent framebuffer) {
         lighting_resources_->descriptorSetLayout(),
         lighting_resources_->descriptorSet(), resources_.vertex_shader,
         resources_.fragment_shader);
+    if (text_) text_->recreatePipeline(swapchain_format_, depth_format_);
   }
   recreate_requested_ = false;
 }
@@ -491,6 +501,7 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
                             scene_resources_->obstacleMaterial());
     frames_[current_frame_].changing_mesh->draw(command_buffer);
   }
+  if (text_) text_->draw(command_buffer, static_cast<unsigned>(current_frame_));
   vkCmdEndRendering(command_buffer);
 
   VkImageMemoryBarrier2 to_present{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -521,10 +532,20 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   }
 
   FrameSlot& frame = frames_[current_frame_];
+  const auto caption_layout = caption_font_->layout(
+      request.captions, swapchain_extent_.width, swapchain_extent_.height);
+  if (!caption_layout.vertices.empty() && !text_)
+    text_ = std::make_unique<TextResources>(
+        context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
+        context_.queueFamilies().graphics, swapchain_format_, depth_format_,
+        resources_.resource_root, *caption_font_);
   requireVulkan(
       vkWaitForFences(context_.device(), 1, &frame.completion, VK_TRUE,
                       std::numeric_limits<std::uint64_t>::max()),
       "Wait for frame slot completion before reuse");
+  if (text_)
+    text_->update(static_cast<unsigned>(current_frame_),
+                  caption_layout.vertices);
 
   std::uint32_t image_index = 0;
   const VkResult acquire = vkAcquireNextImageKHR(

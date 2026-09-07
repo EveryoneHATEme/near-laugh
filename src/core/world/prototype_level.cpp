@@ -8,8 +8,9 @@
 #include <string>
 #include <utility>
 
-#include "core/world/light_switch.hpp"
+#include "core/world/audio.hpp"
 #include "core/world/door.hpp"
+#include "core/world/light_switch.hpp"
 #include "core/world/scene_assets.hpp"
 
 namespace {
@@ -276,7 +277,8 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       environment_light_(std::move(document.environment_light)),
       props_(std::move(document.props)),
       light_switch_(std::move(document.light_switch)),
-      doors_(std::move(document.doors)) {}
+      doors_(std::move(document.doors)),
+      audio_(std::move(document.audio)) {}
 
 bool levelEntryIdIsValid(std::string_view id) noexcept {
   return !id.empty() && id.size() <= level_maximum_entry_id_length &&
@@ -739,6 +741,10 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       }
     }
   }
+  auto audio_diagnostics =
+      validateLevelAudio(document.audio, document.doors, source_path);
+  diagnostics.insert(diagnostics.end(), audio_diagnostics.begin(),
+                     audio_diagnostics.end());
   return diagnostics;
 }
 
@@ -769,8 +775,8 @@ bool prototypeLevelIsValid(const PrototypeLevel& level) {
   const LevelDocument document{level_format_version,   level.terrain(),
                                level.solids(),         level.entries(),
                                level.defaultEntryId(), level.environmentLight(),
-                               level.props(),     level.lightSwitch(),
-                               level.doors()};
+                               level.props(),          level.lightSwitch(),
+                               level.doors(),          level.audio()};
   return validateLevelDocument(document).empty();
 }
 

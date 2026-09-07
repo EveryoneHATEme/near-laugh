@@ -1,4 +1,9 @@
 add_executable(engine_tests
+    core/test_audio.cpp
+    core/test_audio_fixture.cpp
+    core/test_editor_audio.cpp
+    ${CMAKE_SOURCE_DIR}/src/editor/editor_audio_audition.cpp
+    core/test_caption_font.cpp
     core/test_scene_authoring.cpp
     core/test_doors.cpp
     core/test_editor_playtest.cpp
@@ -37,7 +42,7 @@ target_include_directories(engine_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(engine_tests PRIVATE
     near_laugh_runtime near_laugh_platform near_laugh_world near_laugh_physics
     near_laugh_render near_laugh_editor_core near_laugh_editor_ui
-    near_laugh_editor_render
+    near_laugh_editor_render near_laugh_audio near_laugh_text
     Vulkan::Vulkan near_laugh_imgui GTest::gtest_main
 )
 near_laugh_enable_warnings(engine_tests)
@@ -59,7 +64,7 @@ gtest_discover_tests(engine_tests
 add_executable(vulkan_smoke core/vulkan_smoke.cpp)
 target_include_directories(vulkan_smoke PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(vulkan_smoke PRIVATE
-    near_laugh_runtime near_laugh_platform near_laugh_render Vulkan::Vulkan
+    near_laugh_runtime near_laugh_platform near_laugh_render Vulkan::Vulkan glfw
 )
 near_laugh_enable_warnings(vulkan_smoke)
 set_target_properties(vulkan_smoke PROPERTIES
@@ -67,6 +72,9 @@ set_target_properties(vulkan_smoke PROPERTIES
 )
 add_dependencies(vulkan_smoke near_laugh_packaged_resources)
 add_test(NAME vulkan_smoke COMMAND vulkan_smoke)
+add_test(NAME vulkan_audio_runtime COMMAND vulkan_smoke --audio)
+set_tests_properties(vulkan_audio_runtime PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 set_tests_properties(vulkan_smoke PROPERTIES
     LABELS "vulkan-smoke"
     TIMEOUT 120
@@ -171,6 +179,11 @@ set_target_properties(resource_layout_probe PROPERTIES
 add_dependencies(resource_layout_probe near_laugh_packaged_resources)
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")
 add_test(NAME executable_relative_resource_layout COMMAND resource_layout_probe)
+add_test(NAME unicode_executable_resource_layout
+    COMMAND ${CMAKE_COMMAND} -DPROBE=$<TARGET_FILE:resource_layout_probe>
+            -DWORK=${CMAKE_BINARY_DIR}/tests/resource-layout-working
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/process/check_unicode_resources.cmake)
+set_tests_properties(unicode_executable_resource_layout PROPERTIES LABELS "process")
 add_test(NAME game_launch_option_failures
     COMMAND ${CMAKE_COMMAND} -DGAME=$<TARGET_FILE:near_laugh>
             -P ${CMAKE_CURRENT_SOURCE_DIR}/process/check_launch_options.cmake)

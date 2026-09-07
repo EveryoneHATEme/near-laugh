@@ -56,6 +56,19 @@ FetchContent_Declare(
     GIT_TAG f58f558c120e9b32c217290b80bad1a0729fbb2c
 )
 FetchContent_MakeAvailable(stb)
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
+    # Only consume the pinned header; do not build upstream tools/extra nodes.
+    SOURCE_SUBDIR near_laugh_header_only
+)
+FetchContent_MakeAvailable(miniaudio)
+add_library(near_laugh_miniaudio STATIC src/core/audio/miniaudio_impl.cpp)
+target_include_directories(near_laugh_miniaudio SYSTEM PUBLIC "${miniaudio_SOURCE_DIR}")
+target_compile_definitions(near_laugh_miniaudio PUBLIC
+    MA_NO_RESOURCE_MANAGER MA_NO_DECODING MA_NO_ENCODING)
+target_link_libraries(near_laugh_miniaudio PRIVATE ${CMAKE_DL_LIBS})
 add_library(near_laugh_stb_image INTERFACE)
 target_include_directories(near_laugh_stb_image SYSTEM INTERFACE
     "${stb_SOURCE_DIR}"
@@ -155,6 +168,7 @@ endfunction()
 near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
+    src/core/world/audio.cpp
     src/core/world/door.cpp
     src/core/world/scene_assets.cpp
     src/core/world/light_switch.cpp
@@ -164,6 +178,20 @@ add_library(near_laugh_world STATIC
 target_include_directories(near_laugh_world PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_world PRIVATE nlohmann_json::nlohmann_json)
 near_laugh_enable_warnings(near_laugh_world)
+
+add_library(near_laugh_text STATIC src/core/text/utf8.cpp src/core/text/caption_font.cpp)
+target_include_directories(near_laugh_text PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh_text PRIVATE near_laugh_stb_image)
+near_laugh_enable_warnings(near_laugh_text)
+
+add_library(near_laugh_audio STATIC
+    src/core/audio/audio_playback.cpp
+    src/core/audio/transmission.cpp
+    src/core/audio/audio_content.cpp)
+target_sources(near_laugh_audio PRIVATE src/core/audio/cue_coordinator.cpp src/core/audio/apartment_audio_fixture.cpp)
+target_include_directories(near_laugh_audio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh_audio PRIVATE near_laugh_world near_laugh_text near_laugh_miniaudio)
+near_laugh_enable_warnings(near_laugh_audio)
 
 get_target_property(near_laugh_world_interface_includes
                     near_laugh_world INTERFACE_INCLUDE_DIRECTORIES)
@@ -194,6 +222,7 @@ target_link_libraries(near_laugh_platform PRIVATE glfw)
 near_laugh_enable_warnings(near_laugh_platform)
 
 add_library(near_laugh_render STATIC
+    src/core/render/text_resources.cpp
     src/core/render/scene_assets.cpp
     src/core/render/scene_resources.cpp
     src/core/render/changing_mesh_buffer.cpp
@@ -216,7 +245,7 @@ add_library(near_laugh_render STATIC
 target_include_directories(near_laugh_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_render
     PRIVATE near_laugh_platform near_laugh_world Vulkan::Vulkan glfw
-            near_laugh_stb_image near_laugh_cgltf
+            near_laugh_stb_image near_laugh_cgltf near_laugh_text
 )
 near_laugh_enable_warnings(near_laugh_render)
 
@@ -244,7 +273,7 @@ target_include_directories(near_laugh_runtime
 )
 target_link_libraries(near_laugh_runtime
     PRIVATE near_laugh_platform near_laugh_world near_laugh_physics
-            near_laugh_render
+            near_laugh_render near_laugh_audio
 )
 target_compile_definitions(near_laugh_runtime PRIVATE
     GLM_FORCE_RADIANS
@@ -263,7 +292,7 @@ endif()
 get_target_property(near_laugh_runtime_interface_links
                     near_laugh_runtime INTERFACE_LINK_LIBRARIES)
 if(near_laugh_runtime_interface_links MATCHES
-   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf|nlohmann|imgui")
+   "Vulkan::Vulkan|glfw|glm|Jolt|cgltf|nlohmann|imgui|miniaudio")
     message(FATAL_ERROR
         "near_laugh_runtime exposes a backend usage requirement: "
         "${near_laugh_runtime_interface_links}")
@@ -274,6 +303,7 @@ add_library(near_laugh_editor_core STATIC
     src/editor/editor_game_process.cpp
     src/editor/editor_camera.cpp
     src/editor/editor_commands.cpp
+    src/editor/editor_audio_commands.cpp
     src/editor/editor_document.cpp
     src/editor/editor_terrain.cpp
     src/editor/editor_picking.cpp
@@ -294,13 +324,14 @@ near_laugh_enable_warnings(near_laugh_editor_core)
 add_library(near_laugh_editor_ui STATIC
     src/editor/editor_glfw_bridge.cpp
     src/editor/editor_ui.cpp
+    src/editor/editor_audio_ui.cpp
 )
 target_include_directories(near_laugh_editor_ui
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(near_laugh_editor_ui
     PRIVATE near_laugh_editor_core near_laugh_platform near_laugh_world
-            near_laugh_imgui glfw
+            near_laugh_imgui near_laugh_text glfw
 )
 near_laugh_enable_warnings(near_laugh_editor_ui)
 
@@ -347,6 +378,15 @@ set_target_properties(near_laugh PROPERTIES
 )
 add_custom_target(near_laugh_packaged_resources ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/audio"
+            "${CMAKE_BINARY_DIR}/bin/resources/audio"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/captions"
+            "${CMAKE_BINARY_DIR}/bin/resources/captions"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts"
+            "${CMAKE_BINARY_DIR}/bin/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
             "${CMAKE_BINARY_DIR}/bin/resources/shaders"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -361,15 +401,23 @@ add_custom_target(near_laugh_packaged_resources ALL
 )
 add_dependencies(near_laugh near_laugh_packaged_resources)
 
+add_executable(audio_captions_fixture src/audio_fixture_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(audio_captions_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(audio_captions_fixture PRIVATE near_laugh_runtime)
+near_laugh_enable_warnings(audio_captions_fixture)
+set_target_properties(audio_captions_fixture PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(audio_captions_fixture near_laugh_packaged_resources)
+
 add_executable(level_editor
     src/editor/editor_application.cpp
+    src/editor/editor_audio_audition.cpp
     src/editor/main.cpp
     src/launcher/executable_path.cpp
 )
 target_include_directories(level_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(level_editor PRIVATE
     near_laugh_editor_core near_laugh_editor_ui near_laugh_editor_render
-    near_laugh_platform near_laugh_world
+    near_laugh_platform near_laugh_world near_laugh_audio
 )
 near_laugh_enable_warnings(level_editor)
 set_target_properties(level_editor PROPERTIES

@@ -155,6 +155,32 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
   for (std::size_t i = 0; i < level.entries.size(); ++i)
     consider(document.entryIds()[i],
              sphereHit(ray, editorSpawnMarker(level.entries[i].pose)));
+  for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
+    consider(document.audioIds(EditorAudioKind::Source)[i],
+             sphereHit(ray, level.audio.sources[i].position));
+  // Pick the room's visible wire edges, keeping its empty interior transparent.
+  for (std::size_t i = 0; i < level.audio.rooms.size(); ++i) {
+    const auto& room = level.audio.rooms[i];
+    const glm::dvec3 center = vec(room.center);
+    const glm::dvec3 half{room.half_extent.x, room.half_extent.y,
+                          room.half_extent.z};
+    for (int corner = 0; corner < 8; ++corner) {
+      const auto start =
+          center + half * glm::dvec3{corner & 1 ? 1 : -1, corner & 2 ? 1 : -1,
+                                     corner & 4 ? 1 : -1};
+      for (int axis = 0; axis < 3; ++axis) {
+        if (corner & (1 << axis)) continue;
+        auto midpoint = start;
+        midpoint[axis] += half[axis];
+        WorldExtent wire{.04F, .04F, .04F};
+        if (axis == 0) wire.x = room.half_extent.x;
+        if (axis == 1) wire.y = room.half_extent.y;
+        if (axis == 2) wire.z = room.half_extent.z;
+        consider(document.audioIds(EditorAudioKind::Room)[i],
+                 boxHit(vec(ray.origin) - midpoint, vec(ray.direction), wire));
+      }
+    }
+  }
   if (level.light_switch) {
     if (const auto hit = lightSwitchRayDistance(*level.light_switch, ray.origin,
                                                 ray.direction)) {

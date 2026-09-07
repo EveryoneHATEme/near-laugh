@@ -170,7 +170,8 @@ shared by rendering, visibility and collision. Conservative clearance can
 stop a door slightly early, including space the player has just vacated.
 
 Generated handles, a sliding bolt and distinct brief knock/refusal cues provide
-temporary visual feedback. Audio and narrative reactions remain later work.
+temporary visual feedback. Automatic door action sounds and narrative reactions
+remain later work; authored audio transmission uses the accepted leaf angle.
 Door motion, locks, feedback and switch light enables are run-local; recovery
 preserves them and restarting restores authored initial values. No level file
 is changed during play.
@@ -206,7 +207,8 @@ The level contains static world geometry with independently assigned materials,
 two authored point lights, zero through 128 fixed model placements, an optional
 switch, and hinged doors. Placements have stable model identities and zero
 through eight independent collision boxes. Decorative phone/radio placements
-have no collision or interaction; their future sound is not part of this work.
+have no collision or interaction. The separate P04 fixture places authored
+radio and telephone sources at these props.
 
 Interior levels may omit terrain and use authored boxes for floors, walls,
 ceilings, and stairs. The packaged `apartment-stairs.level.json` blockout joins
@@ -243,19 +245,30 @@ visual or gameplay requirements.
 
 ## Audio
 
-Spatial audio and authored sound are expected to be important to the
-target experience.
+P04 supports explicit one-shot and looping authored sources. One foreground
+dialogue/essential cue can run at a time; competing starts return busy, and
+starting an active source is idempotent. Cancellation stops its sound and text.
+Foreground speech ducks ambience to one quarter of its authored gain. Essential
+captions remain available while muted, out of range or without an audio device.
 
-Likely requirements include:
+An uncapped active-time clock determines cue order independently of rendering
+and hardware completion. Mute changes gain without stopping time. Explicit
+suspension and minimization freeze time; restore keeps the offset. Cursor
+release permits ordinary audio to continue. Completed and canceled cues never
+restart automatically. Device failure warns and continues silently; restarting
+the run or explicitly starting a new editor audition retries initialization.
 
-* ambient sounds
-* localized environmental sounds
-* one-shot event sounds
-* sounds associated with interactions
-* sounds triggered by scripted events
-* character or threat audio where required
+Sources use the displayed player view, distance attenuation and authored room
+connections. Door transmission follows accepted motion, including an obstructed
+partial angle. Lock changes alone do not change transmission. This is gain-only
+authored transmission, with no geometric occlusion, reverb or diffraction.
 
-Audio systems should serve authored gameplay and atmosphere.
+`audio_captions_fixture` explicitly runs a temporary apartment sequence: radio
+and ring, moving footsteps, the entire phone conversation, a two-second pause,
+then an invitation contradicting the completed call. Neutral source labels do
+not reveal hidden identity. Opening its level in the ordinary game runs only
+authored autoplay ambience. Full narrative progression remains P05 work.
+See [fixture controls and acceptance](DEVELOPMENT.md#p04-audio-and-caption-fixture).
 
 Do not introduce a generic audio graph, middleware abstraction layer,
 or procedural audio architecture without a concrete need.

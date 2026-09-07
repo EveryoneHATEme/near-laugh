@@ -43,6 +43,7 @@ class PrototypeLevel {
   [[nodiscard]] const std::vector<DoorDefinition>& doors() const noexcept {
     return doors_;
   }
+  [[nodiscard]] const LevelAudio& audio() const noexcept { return audio_; }
 
  private:
   explicit PrototypeLevel(LevelDocument document);
@@ -57,6 +58,7 @@ class PrototypeLevel {
   std::vector<PrototypeStaticProp> props_;
   std::optional<PrototypeLightSwitch> light_switch_;
   std::vector<DoorDefinition> doors_;
+  LevelAudio audio_;
 };
 
 [[nodiscard]] PrototypeLevel makePrototypeLevel(const LevelDocument& document);

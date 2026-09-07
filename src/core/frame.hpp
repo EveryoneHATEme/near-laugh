@@ -7,6 +7,8 @@
 #include <span>
 #include <type_traits>
 
+#include "core/text/presentation.hpp"
+
 struct FramebufferExtent {
   std::uint32_t width{};
   std::uint32_t height{};
@@ -115,6 +117,7 @@ struct FrameRequest {
   std::array<bool, 2> point_light_enabled{true, true};
   // Borrowed only for the synchronous render call; never retained by renderer.
   std::span<const OpaqueBoxFrame> opaque_boxes{};
+  CaptionPresentation captions{};
 };
 
 [[nodiscard]] constexpr bool frameRequestCanSubmit(

@@ -20,12 +20,14 @@
 #include "core/render/sampled_texture.hpp"
 #include "core/render/scene_assets.hpp"
 #include "core/render/static_model_loader.hpp"
+#include "core/render/text_resources.hpp"
 #include "core/render/validation_diagnostics.hpp"
 #include "core/render/vulkan_context.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/door.hpp"
 #include "core/world/prototype_level.hpp"
 #include "prototype_level_fixture.hpp"
+#include "runtime_audio_smoke.hpp"
 
 namespace {
 RendererResources smokeResources() {
@@ -149,6 +151,84 @@ void setForcedVulkanStage(const char* stage) {
     throw std::runtime_error("Failed to configure Vulkan failure injection");
   }
 #endif
+}
+
+void runTextLifecycleSmoke() {
+  ValidationDiagnostics diagnostics;
+  for (const auto* stage :
+       {"", "text-atlas", "text-descriptor", "text-buffer", "text-pipeline"}) {
+    std::vector<std::string> events;
+    setLifecycleLog(&events);
+    bool failed = false;
+    try {
+      Platform platform;
+      Window window(platform, 800, 600, "near-laugh caption lifecycle");
+      Renderer renderer(window, window.framebufferExtent(),
+                        loadPackagedPrototypeLevel(), smokeResources(),
+                        diagnostics);
+      setForcedVulkanStage(stage);
+      for (int frame = 0; frame < 10; ++frame) {
+        FrameRequest request{window.framebufferExtent(), false};
+        if (frame != 8 && frame != 9)
+          request.captions = {{"Лена", frame % 2 ? "Ты скоро вернёшься?"
+                                                 : "Поняла. До завтра."},
+                              {"Радио", "Тихая музыка и помехи."}};
+        if (frame == 4) {
+          renderer.requestSwapchainRecreation();
+          if (renderer.renderFrame(request) != FrameOutcome::Recovered)
+            throw std::runtime_error(
+                "Caption recovery did not report recovery");
+        }
+        static_cast<void>(renderer.renderFrame(request));
+      }
+    } catch (const std::runtime_error& error) {
+      failed = std::string_view(error.what()).find("Forced text") !=
+               std::string_view::npos;
+      if (!failed) {
+        setForcedVulkanStage("");
+        setLifecycleLog(nullptr);
+        throw;
+      }
+    }
+    setForcedVulkanStage("");
+    setLifecycleLog(nullptr);
+    if (failed != (stage[0] != '\0'))
+      throw std::runtime_error("Text failure injection was not observed");
+    requireBalancedTextureLifecycle(events, stage);
+    requireBalancedEvent(events, "text.atlas.created", "text.atlas.destroyed",
+                         stage);
+    requireBefore(events, "text.atlas.destroyed", "device.destroyed", stage);
+    if (!failed && (eventCount(events, "text.atlas.created") != 1 ||
+                    eventCount(events, "text.drawn") != 8))
+      throw std::runtime_error(
+          "Caption recovery rebuilt atlas or empty frames retained glyphs");
+  }
+  {
+    std::vector<std::string> events;
+    setLifecycleLog(&events);
+    {
+      Platform platform;
+      Window window(platform, 800, 600,
+                    "near-laugh caption attachment formats");
+      VulkanContext context(window, diagnostics);
+      CaptionFont font(smokeResources().resource_root);
+      TextResources text(
+          context.device(), context.physicalDevice(), context.graphicsQueue(),
+          context.queueFamilies().graphics, VK_FORMAT_B8G8R8A8_SRGB,
+          VK_FORMAT_D32_SFLOAT, smokeResources().resource_root, font);
+      text.recreatePipeline(VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_D16_UNORM);
+      text.recreatePipeline(VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_D32_SFLOAT);
+    }
+    setLifecycleLog(nullptr);
+    if (eventCount(events, "text.atlas.created") != 1 ||
+        eventCount(events, "text.pipeline.created") != 3)
+      throw std::runtime_error(
+          "Attachment format changes did not retain the text atlas");
+    requireBalancedTextureLifecycle(events, "text attachment formats");
+  }
+  if (diagnostics.errorCount())
+    throw std::runtime_error(
+        "Caption lifetime smoke recorded validation errors");
 }
 
 void runLifecycleSmoke() {
@@ -461,8 +541,21 @@ void runLifecycleSmoke() {
 
 int main(int argc, char** argv) {
   try {
+    if (argc == 2 && std::string_view(argv[1]) == "--audio") {
+      ValidationDiagnostics diagnostics;
+      setForcedVulkanStage("instance");
+      try { EngineAudioSmoke::constructionFailure(diagnostics); }
+      catch (...) { setForcedVulkanStage(""); throw; }
+      setForcedVulkanStage("");
+      EngineAudioSmoke::run(diagnostics);
+      if (diagnostics.errorCount())
+        throw std::runtime_error(
+            "Audio runtime smoke recorded validation errors");
+      return 0;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--lifecycle") {
       runLifecycleSmoke();
+      runTextLifecycleSmoke();
       return 0;
     }
     const bool inject_validation_error =
@@ -561,6 +654,13 @@ int main(int argc, char** argv) {
           boxes.insert(boxes.end(), geometry.begin(), geometry.end());
         }
         request.opaque_boxes = boxes;
+        if (frame % 12 < 10)
+          request.captions = {
+              {"Голос в телефоне",
+               frame % 12 < 5
+                   ? "Я за городом. Сегодня не вернусь. Никому не открывай."
+                   : "Разговор окончен."},
+              {"Радио", "Тихая музыка и помехи."}};
         static_cast<void>(renderer.renderFrame(request));
       }
       if (inject_validation_error) {

@@ -60,6 +60,17 @@ foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     endif()
 endforeach()
 
+# Backend declarations belong only to the concrete playback implementation.
+foreach(AUDIO_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    if(AUDIO_SOURCE MATCHES "src[/\\]core[/\\]audio[/\\](miniaudio_impl|audio_playback)[.]cpp$")
+        continue()
+    endif()
+    file(READ "${AUDIO_SOURCE}" AUDIO_SOURCE_CONTENT)
+    if(AUDIO_SOURCE_CONTENT MATCHES "miniaudio[.]h|(^|[^A-Za-z0-9_])ma_(engine|sound|device|audio_buffer)([^A-Za-z0-9_]|$)")
+        message(FATAL_ERROR "Audio backend escaped its owner: ${AUDIO_SOURCE}")
+    endif()
+endforeach()
+
 file(GLOB_RECURSE PROJECT_BACKEND_SOURCES
      "${SOURCE_ROOT}/src/core/*.cpp"
      "${SOURCE_ROOT}/src/core/*.hpp")
@@ -380,7 +391,7 @@ foreach(RUNTIME_FILE IN LISTS REQUIRED_RUNTIME_FILES)
             string(JSON COMMAND_LINE GET
                    "${COMPILE_COMMANDS}" ${COMMAND_INDEX} command)
             if(COMMAND_LINE MATCHES
-               "VulkanSDK|_deps[/\\\\]glfw-src|_deps[/\\\\]cgltf-src|_deps[/\\\\]imgui-src|IMGUI_")
+               "VulkanSDK|_deps[/\\\\]glfw-src|_deps[/\\\\]cgltf-src|_deps[/\\\\]imgui-src|_deps[/\\\\]miniaudio-src|MA_NO_|IMGUI_")
                 message(FATAL_ERROR
                     "Backend include directory leaked into ${RUNTIME_FILE}: "
                     "${COMMAND_LINE}")

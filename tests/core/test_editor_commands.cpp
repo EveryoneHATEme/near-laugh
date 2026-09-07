@@ -587,7 +587,7 @@ TEST_F(EditorCommands, VersionTwoOpensCleanAndSavesSwitchAsVersionFour) {
   value.initially_on = false;
   ASSERT_TRUE(editor.replaceObject(editor_light_switch, value));
   ASSERT_TRUE(editor.save());
-  EXPECT_NE(bytes(path).find("\"version\": 6"), std::string::npos);
+  EXPECT_NE(bytes(path).find("\"version\": 7"), std::string::npos);
   ASSERT_TRUE(editor.open(path));
   EXPECT_FALSE(editor.dirty());
   EXPECT_EQ(editor.document()->light_switch, value);

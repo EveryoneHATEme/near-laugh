@@ -65,6 +65,10 @@ std::optional<EditorObjectValue> editorPlacedObject(
             object.translation = hit.position;
           else
             available = false;
+        } else if constexpr (std::is_same_v<T, AudioCueDefinition> ||
+                             std::is_same_v<T, AudioRoomDefinition> ||
+                             std::is_same_v<T, AudioConnectionDefinition>) {
+          available = false;
         } else {
           object.position = hit.position;
           if (top)
@@ -88,6 +92,7 @@ std::optional<EditorObjectValue> editorPlacedObject(
 }
 
 std::string editorObjectFieldError(const EditorObjectValue& value) {
+  if (editorAudioKind(value)) return editorAudioFieldError(value);
   return std::visit(
       [](const auto& v) -> std::string {
         using T = std::decay_t<decltype(v)>;
@@ -138,7 +143,7 @@ std::string editorObjectFieldError(const EditorObjectValue& value) {
             return "Door ID must match [a-z][a-z0-9-]{0,63}.";
           // Initial lock/open contradictions are cross-field validation errors.
           if (auto error = doorFieldError(v); !error.empty()) return error;
-        } else {
+        } else if constexpr (std::is_same_v<T, PrototypeStaticProp>) {
           if (!levelEntryIdIsValid(v.id))
             return "Prop ID must match [a-z][a-z0-9-]{0,63}.";
           if (!finite(v.translation)) return "Prop translation must be finite.";
@@ -197,6 +202,7 @@ void EditorDocument::resetEditing() {
       prop_ids_.push_back(i == 0 ? editor_prop : next_object_id_++);
   }
   selection_ = editor_no_object;
+  resetAudioIds();
   history_.clear();
   terrain_stroke_.reset();
   history_position_ = 0;
@@ -342,7 +348,7 @@ std::optional<EditorObjectValue> EditorDocument::object(
   if (id == editor_light_switch && document_->light_switch)
     return *document_->light_switch;
   if (const auto index = solidIndex(id)) return document_->solids[*index];
-  return std::nullopt;
+  return audioObject(id);
 }
 
 void EditorDocument::select(EditorObjectId id) {
@@ -359,6 +365,26 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
   edit_error_ = editorObjectFieldError(value);
   if (!edit_error_.empty()) return false;
   if (*before == value) return false;
+  if (const auto kind = editorAudioKind(value)) {
+    for (const auto other_id : audioIds(*kind)) {
+      if (other_id == id) continue;
+      const auto other = *audioObject(other_id);
+      const auto name = [](const EditorObjectValue& v) {
+        return std::visit(
+            [](const auto& object) -> std::string {
+              if constexpr (requires { object.id; })
+                return object.id;
+              else
+                return {};
+            },
+            v);
+      };
+      if (name(other) == name(value)) {
+        edit_error_ = "Audio ID is already in use.";
+        return false;
+      }
+    }
+  }
   Edit edit{id,
             solidIndex(id).value_or(entryIndex(id).value_or(
                 doorIndex(id).value_or(propIndex(id).value_or(0)))),
@@ -395,6 +421,12 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
       return false;
     }
   }
+  auto updated_audio = document_->audio;
+  renameAudioReferences(updated_audio, *edit.before, *edit.after);
+  if (updated_audio != document_->audio) {
+    edit.audio_before = document_->audio;
+    edit.audio_after = std::move(updated_audio);
+  }
   return commit(std::move(edit));
 }
 
@@ -415,6 +447,8 @@ bool EditorDocument::addSolid(PrototypeSolid solid) {
 bool EditorDocument::duplicateSelected() {
   static_cast<void>(finishTerrainStroke());
   if (!document_) return false;
+  if (auto value = audioObject(selection_))
+    return addAudioObject(std::move(*value));
   if (const auto index = doorIndex(selection_)) {
     if (document_->doors.size() >= 32) return false;
     auto copy = document_->doors[*index];
@@ -468,6 +502,13 @@ bool EditorDocument::addLightSwitch() {
 
 bool EditorDocument::removeSelected() {
   static_cast<void>(finishTerrainStroke());
+  if (auto value = audioObject(selection_)) {
+    const auto& ids = audioIds(*editorAudioKind(*value));
+    const auto index = static_cast<std::size_t>(
+        std::find(ids.begin(), ids.end(), selection_) - ids.begin());
+    return commit(
+        {selection_, index, value, std::nullopt, selection_, editor_no_object});
+  }
   if (const auto index = doorIndex(selection_))
     return commit({selection_, *index, document_->doors[*index], std::nullopt,
                    selection_, editor_no_object});
@@ -510,6 +551,7 @@ bool EditorDocument::placeSelected(WorldPosition terrain_hit) {
         } else if constexpr (std::is_same_v<T, LevelEntry>) {
           v.pose.foot_position = terrain_hit;
         } else if constexpr (std::is_same_v<T, PrototypePointLight> ||
+                             std::is_same_v<T, AudioSourceDefinition> ||
                              std::is_same_v<T, PrototypeLightSwitch>) {
           const float offset = v.position.y - prototypeTerrainHeightAt(
                                                   *document_->terrain,
@@ -519,7 +561,7 @@ bool EditorDocument::placeSelected(WorldPosition terrain_hit) {
         } else if constexpr (std::is_same_v<T, DoorDefinition>) {
           v.hinge_position = terrain_hit;
           v.hinge_position.y += 0.02F;
-        } else {
+        } else if constexpr (std::is_same_v<T, PrototypeStaticProp>) {
           v.translation = terrain_hit;
         }
       },
@@ -542,7 +584,11 @@ bool EditorDocument::commit(Edit edit) {
 
 void EditorDocument::applyEdit(const Edit& edit, bool forward) {
   const auto& value = forward ? edit.after : edit.before;
-  if (edit.brush) {
+  if (edit.audio_after)
+    document_->audio = forward ? *edit.audio_after : *edit.audio_before;
+  if (applyAudioEdit(edit, forward)) {
+    // Audio commands share the same revision, selection and validation below.
+  } else if (edit.brush) {
     for (const auto& sample : edit.terrain)
       document_->terrain->heights[sample.index] =
           forward ? sample.after : sample.before;

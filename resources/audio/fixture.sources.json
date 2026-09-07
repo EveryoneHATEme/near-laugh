@@ -1,0 +1,44 @@
+{
+  "generator": "scripts/prepare_audio_fixture.py",
+  "speech_tool": "eSpeak NG text-to-speech: 1.52.0",
+  "effect_seed": 4001,
+  "sample_rate": 48000,
+  "profile": "RIFF WAVE signed PCM16 mono",
+  "files": {
+    "resources/audio/footsteps.wav": {
+      "sha256": "3669b1b54ddca1ab1bace9b524ca685131b37988673c114d6778902a723e60f5",
+      "duration_seconds": 6.0
+    },
+    "resources/audio/invitation.wav": {
+      "sha256": "e66c05d9f6ea23b1eb1fa69e6c256bfee8f3188299b15e0f544ec5321a8fcba4",
+      "duration_seconds": 5.171791666666667
+    },
+    "resources/audio/phone-conversation.wav": {
+      "sha256": "9f51a2f026854134602ec3d8634ae12e705e006457a5ec4bc7e0d5a7db0f1bc5",
+      "duration_seconds": 11.5030625
+    },
+    "resources/audio/phone-ring.wav": {
+      "sha256": "404938fa61b949109c25e5daa3e571e467a87d179a470b88ddcbb3269d05b786",
+      "duration_seconds": 6.0
+    },
+    "resources/audio/radio.wav": {
+      "sha256": "f09509bbd634a058c34524570c5596525027546090e5344840c797cbd525cca8",
+      "duration_seconds": 10.0
+    },
+    "resources/captions/footsteps.captions": {
+      "sha256": "e5e4ca7b5f315d886876cfc42d77e229150c6a1d91628b9a6f5abe7a3c88a3d7"
+    },
+    "resources/captions/invitation.captions": {
+      "sha256": "fb0128cb2349ea8808a130834a9c0026ae517738be47633af3db4da24f691820"
+    },
+    "resources/captions/phone-conversation.captions": {
+      "sha256": "7c36b540fadfdb7961de41d98ae61a7ca0518a8a6a12c79ab8cb5da1c0608bcb"
+    },
+    "resources/captions/phone-ring.captions": {
+      "sha256": "d5a6a817197aae33ec4e4b0412fd1cd165704c9fddaf66a4fd5b2d6c4c2fcf86"
+    },
+    "resources/captions/radio.captions": {
+      "sha256": "29bf7f2f756e3643a1e2ded3c26f5d80eddf8b8a166a9b786928bbf86a9764b7"
+    }
+  }
+}

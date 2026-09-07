@@ -162,6 +162,31 @@ these lines through the ImGui background draw list, above scene geometry and
 below UI panels, using the existing Vulkan backend. They intentionally have no
 scene depth test and do not alter runtime frame requests or level data.
 
+## Russian captions
+
+The game draws resolved foreground and optional ambience text after the scene
+using a private alpha-blended Vulkan pipeline with depth testing/writes disabled.
+White glyphs have dark backing panels, 5% safe margins, word wrapping and separate
+four-line foreground/two-line ambience lanes. Supported framebuffer sizes run
+from 800x600 through 3840x2160. Smaller windows receive bounded best-effort layout.
+No ImGui code is linked into game rendering.
+
+The packaged Noto Sans Regular font is checked against its pinned SHA-256 before
+stb_truetype parsing. Glyph coverage and fit of selected Russian captions validate
+before playback. Latin, Cyrillic including Ё/ё, and selected punctuation are
+baked at 24/32/48/64 pixels into one immutable atlas. Size follows framebuffer
+scale with a width cap so narrow, tall windows retain full text. The renderer
+uploads the atlas on the first nonempty caption, retains it through recovery,
+and rewrites a frame slot's bounded glyph buffer only after its fence. Empty
+captions clear that slot's draw count. Color/depth attachment format changes
+recreate the text pipeline; partial allocation and final destruction release
+all acquired resources before the device.
+
+The editor loads the same trusted font for Cyrillic properties, diagnostics and
+its audition panel. Source markers, room wireframes and selected connection
+links use the existing clipped editor overlay; audio volumes never create
+collision geometry.
+
 ## Current Limits
 
 The current renderer deliberately implements only the bounded scene above. It

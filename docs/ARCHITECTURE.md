@@ -18,16 +18,18 @@ near_laugh
         |-> near_laugh_platform -> GLFW
         |-> near_laugh_world -> nlohmann/json
         |-> near_laugh_physics -> near_laugh_world, Jolt
+        |-> near_laugh_audio -> near_laugh_world, near_laugh_text, miniaudio
         `-> near_laugh_render -> near_laugh_platform, near_laugh_world,
-                                Vulkan, GLFW, stb_image, cgltf
+                                near_laugh_text, Vulkan, GLFW, stb_image, cgltf
 
 level_editor
   |-> near_laugh_editor_core -> near_laugh_platform, near_laugh_world
   |-> near_laugh_editor_ui -> near_laugh_editor_core, near_laugh_platform,
-  |                           near_laugh_world, ImGui, GLFW
+  |                           near_laugh_world, near_laugh_text, ImGui, GLFW
   |-> near_laugh_editor_render -> near_laugh_render, near_laugh_platform,
   |                               near_laugh_world, ImGui, Vulkan
   |-> near_laugh_platform
+  |-> near_laugh_audio
   `-> near_laugh_world
 ```
 
@@ -35,7 +37,7 @@ The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-6 level document, exact version-2/3/4/5 read
+- `near_laugh_world` owns the bounded version-7 level document, exact version-2/3/4/5/6 read
   compatibility, strict private JSON codec, shared validation, and immutable
   level data. It privately links
   `nlohmann/json`.
@@ -45,6 +47,11 @@ The concrete targets have these responsibilities:
 - `near_laugh_render` owns Vulkan presentation and scene resources. It consumes
   immutable world data and uses the narrow internal GLFW/Vulkan surface bridge.
   Image decoding and the one bounded GLB loader remain renderer-private.
+- `near_laugh_audio` owns selected PCM/caption preparation, miniaudio playback,
+  authored room transmission and the concrete cue coordinator. Backend types
+  stay private. Device-free rendering runs the same mixer as device playback.
+- `near_laugh_text` owns bounded UTF-8 decoding, trusted Noto Sans validation,
+  atlas baking with the pinned stb dependency, and pure caption layout.
 - `near_laugh_runtime` owns application composition, player input mapping,
   fixed-step player/door policy, interaction arbitration, flashlight and light state, frame interpolation,
   and the main-thread loop.
@@ -63,7 +70,7 @@ All target include and link relationships are declared in `CMakeLists.txt`.
 The public runtime boundary is the PImpl-based `near_laugh::Application` and
 `RuntimeConfig` under `include/near_laugh`; those headers expose only standard
 library types. Other subsystem headers are repository-internal. Vulkan, GLFW,
-Jolt, GLM, JSON, and ImGui types do not cross the public runtime boundary.
+Jolt, GLM, JSON, miniaudio and ImGui types do not cross the public runtime boundary.
 
 ## Runtime Ownership and Flow
 
@@ -72,7 +79,8 @@ not establish a reusable engine layer. It constructs, in dependency order:
 
 ```text
 Platform -> Window -> RuntimeResources -> PrototypeLevel
-         -> selected LevelEntry -> PhysicsWorld -> PlayerController -> PlayerFlashlight
+         -> selected LevelEntry -> CaptionFont -> prepared audio/CueCoordinator
+         -> PhysicsWorld -> PlayerController -> PlayerFlashlight
          -> LightSwitchController -> DoorController -> AuthoredInteraction -> Renderer
 ```
 
@@ -100,7 +108,8 @@ The renderer receives immutable level data at construction and a
 backend-neutral `FrameRequest` at runtime. A request contains framebuffer
 state, a column-major camera matrix, at most one source-independent spot
 light, enabled values for the two point-light slots, and up to 192 changing
-opaque boxes. Boxes carry geometry and tint, not door IDs or action policy. Rendering returns
+opaque boxes, and borrowed resolved foreground/ambience captions. Boxes carry
+geometry and tint, not door IDs or action policy. Rendering returns
 `Rendered`, `Skipped`, or `Recovered`; the runtime handles every outcome and
 retains application-lifetime control. Rendering does
 not interpret player actions, update simulation, poll events, or decide when
@@ -110,21 +119,53 @@ The player and physics advance on the main thread through a fixed-step
 accumulator. Jolt uses its single-threaded job implementation; the project has
 no runtime job system.
 
+## Audio ownership and timing
+
+Selected audio is decoded once through native filesystem paths: PCM16 mono or
+stereo at 48 kHz, at most 120 seconds per clip and 128 MiB aggregate decoded
+memory. Spatial and foreground clips are mono. Caption tracks are bounded UTF-8
+with finite ordered, non-overlapping intervals inside the clip duration. The
+trusted font validates glyph coverage and minimum-size fit before playback.
+These checks require no output device.
+
+The concrete playback owner retains prepared buffers, stable voices and its
+private miniaudio engine. Device callbacks perform mixing and atomic loss
+notification only; they do not access the level/editor, load files or trigger
+cue transitions. Shutdown stops and joins device processing before releasing
+voices, decoded buffers and the engine. Missing selected content is a startup
+error; device initialization/loss enters reported silent mode without replay.
+
+The coordinator owns immutable authored definitions and run-local instances.
+Its injected monotonic clock advances by uncapped active time independently of
+fixed simulation steps, and freezes during suspension. Hardware cursors are
+corrected on resume or drift above 100 ms; repeated failure continues the same
+cue timeline silently. Rendering borrows resolved caption strings synchronously.
+Listener pose is the same interpolated eye used for the frame; door connection
+gains use accepted angles. Half-open room boxes distinguish regions, strongest
+connection-path products model transmission, and gains smooth over 50 ms.
+
 ## World Boundary
 
-The bounded v6 document contains optional 97-by-97 terrain, 1–240 axis-aligned
-solids, 1–16 named entries/default, two point lights plus ambient, 0–128 static
-model placements, one optional switch and 0–32 hinged door definitions. Terrain
+The bounded v7 document contains optional 97-by-97 terrain, 1â€“240 axis-aligned
+solids, 1â€“16 named entries/default, two point lights plus ambient, 0â€“128 static
+model placements, one optional switch and 0â€“32 hinged door definitions. Terrain
 and solids select a game-owned structural material ID independently of collision
-kind. Each prop has its own ID, model ID, transform and 0–8 local collision boxes.
+kind. Each prop has its own ID, model ID, transform and 0â€“8 local collision boxes.
 The finite catalog contains only the selected game models/materials; resource
 paths and importer types remain outside world data.
 
-Exact v2/v3/v4/v5 shapes normalize on read. The singleton chair becomes one
+Audio records add up to 128 cues, 64 sources, 32 non-overlapping room boxes and
+64 connections. Clip/caption identities come from the finite game catalog;
+connections reference rooms, outside, and optionally a door. Audio metadata
+validation performs no device, file decoding or GPU construction.
+
+Exact v2/v3/v4/v5/v6 shapes normalize on read. The singleton chair becomes one
 `prototype-chair` placement with its original transform/box/material; old surface
 roles map to their legacy materials. v2/v3 spawn becomes the `default` entry;
-v2 has no switch; v2–4 have no doors; v5 retains all authored doors. Explicit
-saves write canonical v6; opening never rewrites a source file.
+v2 has no switch; v2â€“4 have no doors; v5 retains all authored doors. Explicit
+saves write canonical v7; opening never rewrites a source file. Versions 2â€“6
+normalize to empty audio. Older executables cannot read v7; use Save As to
+retain an original needed by an older build.
 
 World validation checks finite derived geometry, references, entry support and
 standing clearance, and each initial door leaf against all blocking geometry
@@ -209,6 +250,21 @@ releases the handle or detaches the POSIX reaping obligation without killing
 or waiting for the game. No readiness protocol or hot reload is introduced;
 the child independently validates its file after the ordinary filesystem race
 between preflight and load.
+
+Concrete audio commands use the same history and saved revision rules. Cue,
+room and door renames update affected audio references in one step; deletion
+leaves incoming references visible as validation errors. A new duplicate keeps
+outgoing references and gets a fresh durable ID. Source placement uses authored
+surface offsets; room wire edges are selectable independently of their empty
+interior. Neither adds collision objects.
+
+The editor application owns explicit snapshot audition, using its camera and
+authored initial door angles. Edits, undo/redo, replacement, minimization and
+Play stop it without restart. UI controls change only audition state. Saved-file
+Play also preflights selected audio, captions and the current trusted font;
+audio-device availability never blocks launch. Diagnostics outlive the editor's
+Vulkan resources so smoke checks include final destruction.
+
 The editor is a concrete tool for this game, not a runtime mode or general
 scene-editor framework.
 

@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "terrain": null,
   "solids": [
     {
@@ -1259,5 +1259,11 @@
       "initially_open": false,
       "initially_locked": false
     }
-  ]
+  ],
+  "audio": {
+    "cues": [],
+    "sources": [],
+    "rooms": [],
+    "connections": []
+  }
 }

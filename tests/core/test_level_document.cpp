@@ -106,7 +106,7 @@ class CommaDecimalPoint final : public std::numpunct<char> {
 }  // namespace
 
 TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
-  static_assert(level_format_version == 6);
+  static_assert(level_format_version == 7);
   static_assert(prototype_terrain_sample_count == 97);
   static_assert(level_maximum_solid_count == 240);
   static_assert(prototype_point_light_count == 2);
@@ -177,7 +177,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"malformed", "{", "byte"});
 
   std::string version_one = canonical;
-  replaceOnce(version_one, "\"version\": 6", "\"version\": 1");
+  replaceOnce(version_one, "\"version\": 7", "\"version\": 1");
   cases.push_back({"version_one", std::move(version_one), "version"});
 
   std::string unknown = canonical;
@@ -186,7 +186,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"path", std::move(unknown), "model_path"});
 
   std::string missing = canonical;
-  replaceOnce(missing, "  \"version\": 6,\n", "");
+  replaceOnce(missing, "  \"version\": 7,\n", "");
   cases.push_back({"missing", std::move(missing), "version"});
 
   std::string invalid_heights = canonical;
@@ -400,7 +400,7 @@ TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(readBytes(path), old_bytes);
   ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
-  EXPECT_NE(readBytes(path).find("\"version\": 6"), std::string::npos);
+  EXPECT_NE(readBytes(path).find("\"version\": 7"), std::string::npos);
   EXPECT_NE(readBytes(path).find("\"light_switch\": null"), std::string::npos);
   const auto current = readBytes(path);
   ASSERT_TRUE(saveLevelDocument(path, *loadLevelDocument(path).document));

@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9704,5 +9704,11 @@
     "point_light_index": 0,
     "initially_on": true
   },
-  "doors": []
+  "doors": [],
+  "audio": {
+    "cues": [],
+    "sources": [],
+    "rooms": [],
+    "connections": []
+  }
 }

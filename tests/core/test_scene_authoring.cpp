@@ -44,7 +44,7 @@ TEST_F(SceneAuthoring, EmptyInteriorSavesAndReopensWithoutUnusedPropsOrDoors) {
   const auto saved = *editor.document();
   ASSERT_TRUE(editor.open(root / "empty.json"));
   EXPECT_EQ(*editor.document(), saved);
-  EXPECT_EQ(editor.sourceVersion(), 6U);
+  EXPECT_EQ(editor.sourceVersion(), 7U);
   EXPECT_FALSE(editor.dirty());
 }
 
@@ -238,7 +238,7 @@ TEST_F(SceneAuthoring, DoorPlacementUsesBottomHingeAndRefusesWallOrUnderside) {
 }
 
 TEST_F(SceneAuthoring, AllLegacyVersionsNormalizeWithoutChangingSourceBytes) {
-  for (int version : {2, 3, 4, 5}) {
+  for (int version : {2, 3, 4, 5, 6}) {
     std::string source =
         readText("tests/fixtures/levels/prototype-v" +
                  std::to_string(version == 2 ? 3 : version) + ".level.json");
@@ -257,7 +257,7 @@ TEST_F(SceneAuthoring, AllLegacyVersionsNormalizeWithoutChangingSourceBytes) {
     EXPECT_EQ(readText(path), source);
     EXPECT_FALSE(editor.dirty());
     ASSERT_TRUE(editor.save());
-    EXPECT_EQ(loadLevelDocument(path).source_version, 6U);
+    EXPECT_EQ(loadLevelDocument(path).source_version, 7U);
   }
 }
 

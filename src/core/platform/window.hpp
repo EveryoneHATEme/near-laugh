@@ -35,6 +35,7 @@ class Window {
   void minimize();
   void restore();
   void cancelCloseRequest() noexcept;
+  void requestClose() noexcept;
 
   [[nodiscard]] const PhysicalInputSnapshot& input() const noexcept;
   void setCursorCaptured(bool captured);

@@ -82,21 +82,31 @@ the relevant smoke/process executables:
 resources/
   levels/prototype.level.json
   levels/apartment-stairs.level.json
+  levels/audio-captions.level.json
+  audio/*.wav
+  captions/*.captions
+  fonts/NotoSans-Regular.ttf
+  fonts/OFL.txt
   models/prototype_chair.glb
   shaders/prototype_scene_vertex.spv
   shaders/prototype_scene_fragment.spv
+  shaders/caption_vertex.spv
+  shaders/caption_fragment.spv
   textures/prototype_floor.png
   textures/prototype_boundary.png
   textures/prototype_obstacle.png
 ```
 
-Levels write format version 6 and read exact versions 2–5 without modifying
+Levels write format version 7 and read exact versions 2–6 without modifying
 the source. The profile contains optional 97-by-97 terrain, 1–240 solids,
 1–16 entries/default, two lights/ambient, 0–128 props, an optional switch,
-and 0–32 doors. Prop/model/material IDs are logical names, never paths.
+and 0–32 doors, plus audio (up to 128 cues, 64 sources, 32 rooms and 64 connections).
+Prop/model/material and clip/caption IDs are logical names, never paths.
 Props have finite translation/yaw, positive uniform scale and 0–8 local boxes.
 Legacy chair/texture roles normalize to explicit legacy identities; v5 doors
-survive migration. New fields in old versions, unknown fields and v1 fail.
+survive migration. Versions 2–6 map to empty audio. New fields in old versions,
+unknown fields and v1 fail. Older builds cannot read v7: use Save As or retain
+the original before conversion when it is still needed by an older build.
 
 The selected apartment derivatives are `models/apartment_chair.glb`,
 `apartment_table.glb`, `apartment_phone.glb`, `apartment_radio.glb`, plus
@@ -211,8 +221,10 @@ Editor shortcuts (suppressed during camera navigation, active field editing,
 or modal dialogs):
 
 - Ctrl+Z: undo; Ctrl+Y or Ctrl+Shift+Z: redo.
-- Ctrl+D: duplicate a solid, door or prop at an offset, or an entry at the same pose.
-- Delete: remove the selected solid, removable entry, switch, prop or door.
+- Ctrl+D: duplicate a solid, door or prop at an offset, an entry at the same
+  pose, or an audio record with a new durable ID.
+- Delete: remove the selected solid, removable entry, switch, prop, door or
+  audio record.
 - Ctrl+S: save the current valid document.
 
 History retains up to 128 committed edits and clears on document replacement.
@@ -297,10 +309,71 @@ kitchen doorway at Z=-2.3, then turn toward Z=-1.9 to pass the nearer chair.
 Both authored starts support the full ordinary-walking route after opening.
 These are temporary acceptance positions, not narrative/progression content.
 
+## P04 audio and caption fixture
+
+Run `build/debug/bin/audio_captions_fixture.exe` from any working directory.
+Add `--silent` to exercise the same sequence without opening an output device.
+The executable explicitly selects the packaged `audio-captions.level.json`:
+radio and localized ring, moving corridor footsteps, a complete Russian phone
+call, two seconds of silence, then the contradictory invitation behind the door.
+The ordinary game does not activate this sequence from the level filename.
+
+Fixture-only controls (while the cursor is captured): F5 cancels all instances
+and restarts, M toggles mute, P suspends/resumes cue time. Restart retains mute
+and pause settings. Existing E/R door controls and camera navigation remain
+available; Escape releases the cursor without pausing audio. Minimize suspends
+before waiting, and restore preserves cue offsets. There is no save-game or
+P05 narrative state in this fixture.
+
+In the editor, use **Audio authoring** to add/list cues, sources, rooms and
+connections; **Properties** edits the selected record. Source placement uses
+**Place on surface**, height above the floor and wall offset. Room wireframes
+are selectable on their edges. Selecting a connection draws its room/door links.
+Broken references remain visible for repair and block Save/Play. Rename and
+reference changes share one undo step; deletion does not cascade.
+
+Select a source and use **Audio audition → Start audition**. Stop, Mute and Pause
+operate on a validated snapshot; camera movement updates the listener without
+dirtying the file. The panel shows source/listener regions, effective gain,
+Russian captions and device warnings. Any edit, undo/redo, replacement, minimize
+or Play request stops audition. Restore and selection do not restart it.
+
+The shared packaging target copies `audio/`, `captions/`, `fonts/` and compiled
+caption shaders beside game, editor, demo and smoke binaries. See
+[audio preparation, hashes and provenance](../resources/audio/README.md) and
+[trusted font provenance/license](../resources/fonts/README.md). Regenerate the
+fixture level with `python scripts/prepare_audio_level.py`; audio generation has
+separate explicit eSpeak NG/FFmpeg requirements documented with the assets.
+
+Recompile and validate caption shaders after editing them:
+
+```sh
+glslc -fshader-stage=vert --target-env=vulkan1.3 resources/shaders/caption_vertex.glsl -o resources/shaders/caption_vertex.spv
+glslc -fshader-stage=frag --target-env=vulkan1.3 resources/shaders/caption_fragment.glsl -o resources/shaders/caption_fragment.spv
+spirv-val --target-env vulkan1.3 resources/shaders/caption_vertex.spv
+spirv-val --target-env vulkan1.3 resources/shaders/caption_fragment.spv
+```
+
+Deterministic tests render real offline PCM and run the complete sequence in
+audible, muted and silent modes. Vulkan smoke adds changing captions, empty
+frames, attachment-format changes, atlas retention, allocation failures,
+runtime minimize/restore/close, and editor audition/failed Play preflight.
+Both validation sinks remain alive through final GPU destruction.
+
+For listening acceptance, use headphones/speakers and record output hardware,
+distinct source positions, listener rotation, moving footsteps, closed/open/
+obstructed-door gain, ducking, pause/minimize/resume, shutdown, Russian speech
+intelligibility and the completed-call contradiction. Measure output latency
+and caption/audio drift against 100 ms plus measured device latency, stating the
+measurement method. Device-free cursor tests are not that measurement. Repeat
+muted and `--silent`, inspect captions at 800x600 through 3840x2160 and HiDPI,
+and author/save/audition/Play from another working directory. Record observations
+and unavailable checks in the [P04 validation record](../openspec/changes/archive/2026-09-07-add-spatial-audio-and-captions/validation.md).
+
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-6 level data with exact version-2/3/4/5 read compatibility,
+- `near_laugh_world`: version-7 level data with exact version-2/3/4/5/6 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
 - `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors, and one virtual
   character.
@@ -308,6 +381,10 @@ These are temporary acceptance positions, not narrative/progression content.
   GPU ownership.
 - `near_laugh_runtime`: application facade, composition, player input,
   player/flashlight policy, fixed-step coordination, and main loop.
+- `near_laugh_audio`: bounded PCM/caption preparation, miniaudio playback,
+  authored room/door transmission, cue coordination and compiled P04 fixture.
+- `near_laugh_text`: trusted font validation, atlas baking and caption layout.
+- `audio_captions_fixture`: explicit P04 demo using the internal runtime entry.
 - `near_laugh`: game launcher linking only `near_laugh_runtime`.
 - `near_laugh_editor_core`: document workflow, play preparation, native child
   ownership, and camera.

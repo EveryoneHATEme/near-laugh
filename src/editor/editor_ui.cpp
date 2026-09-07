@@ -57,6 +57,7 @@ void EditorUi::draw(EditorDocument& document, bool child_active,
   drawMenu(document);
   drawDocumentSummary(document);
   drawObjects(document);
+  drawAudioObjects(document);
   drawProperties(document);
   drawPlay(document, child_active, process_status);
   drawValidation(document);
@@ -84,6 +85,7 @@ void EditorUi::drawPlay(EditorDocument& document, bool child_active,
         child_active || playtest_.state() != EditorPlayState::Idle ||
         document.pendingAction().kind != EditorPendingActionKind::None);
     if (ImGui::Button("Play")) {
+      play_attempt_ = true;
       const bool draft_changed =
           property_edit_.value() &&
           property_edit_.value() != document.object(document.selection());
@@ -177,7 +179,8 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
   if (editor_document.sourceVersion() < level_format_version)
     ImGui::TextWrapped(
         "Opened version %u without changing the file. Explicit Save writes "
-        "version %u.",
+        "version %u, which older builds cannot read. Use Save As to retain the "
+        "original.",
         editor_document.sourceVersion(), level_format_version);
   ImGui::Text("State: %s", editor_document.dirty() ? "dirty" : "clean");
   if (document.terrain)
@@ -332,6 +335,11 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           commit |= ImGui::Checkbox("Initially open", &value.initially_open);
           commit |=
               ImGui::Checkbox("Initially locked", &value.initially_locked);
+        } else if constexpr (std::is_same_v<T, AudioCueDefinition> ||
+                             std::is_same_v<T, AudioSourceDefinition> ||
+                             std::is_same_v<T, AudioRoomDefinition> ||
+                             std::is_same_v<T, AudioConnectionDefinition>) {
+          // The concrete audio controls use the same property transaction.
         } else {
           std::array<char, 65> name{};
           std::memcpy(name.data(), value.id.data(),
@@ -383,6 +391,9 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
         }
       },
       *property_edit_.value());
+  if (editorAudioKind(*property_edit_.value()))
+    commit |= drawEditorAudioProperties(*property_edit_.value(),
+                                        *editor_document.document());
   if (commit) static_cast<void>(property_edit_.commit(editor_document));
   ImGui::End();
 }
@@ -568,6 +579,7 @@ void EditorUi::drawObjects(EditorDocument& document) {
   const bool selected_content =
       selected_value &&
       (std::holds_alternative<DoorDefinition>(*selected_value) ||
+       editorAudioKind(*selected_value).has_value() ||
        std::holds_alternative<PrototypeStaticProp>(*selected_value));
   ImGui::BeginDisabled(!(selected_solid || selected_entry || selected_content));
   if (ImGui::Button("Duplicate"))
@@ -597,7 +609,12 @@ void EditorUi::drawObjects(EditorDocument& document) {
   ImGui::EndDisabled();
   selected_value = document.object(document.selection());
   if (!document.object(document.selection())) placing_ = false;
-  ImGui::BeginDisabled(document.selection() == editor_no_object);
+  const auto audio_kind =
+      selected_value ? editorAudioKind(*selected_value) : std::nullopt;
+  const bool placeable =
+      selected_value && (!audio_kind || *audio_kind == EditorAudioKind::Source);
+  if (!placeable) placing_ = false;
+  ImGui::BeginDisabled(!placeable);
   if (ImGui::Checkbox("Place on surface", &placing_) && placing_) {
     static_cast<void>(document.finishTerrainStroke());
     sculpting_ = false;
@@ -617,7 +634,8 @@ void EditorUi::drawObjects(EditorDocument& document) {
           [&](const auto& value) {
             using T = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<T, PrototypePointLight> ||
-                          std::is_same_v<T, PrototypeLightSwitch>) {
+                          std::is_same_v<T, PrototypeLightSwitch> ||
+                          std::is_same_v<T, AudioSourceDefinition>) {
               const float h =
                   prototypeTerrainHeightAt(*document.document()->terrain,
                                            value.position.x, value.position.z);
@@ -641,9 +659,11 @@ void EditorUi::drawObjects(EditorDocument& document) {
           "Terrain-only placement is unavailable in this interior.");
     if (selected_value &&
         (std::holds_alternative<PrototypePointLight>(*selected_value) ||
+         std::holds_alternative<AudioSourceDefinition>(*selected_value) ||
          std::holds_alternative<PrototypeLightSwitch>(*selected_value))) {
       ImGui::InputFloat("Height above floor (m)", &placement_offsets_.height);
-      if (std::holds_alternative<PrototypePointLight>(*selected_value))
+      if (std::holds_alternative<PrototypePointLight>(*selected_value) ||
+          std::holds_alternative<AudioSourceDefinition>(*selected_value))
         ImGui::InputFloat("Wall offset (m)", &placement_offsets_.outward);
     }
     if (selected_value &&

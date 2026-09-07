@@ -99,6 +99,37 @@ TEST_F(EditorUiInteraction,
 }
 
 TEST_F(EditorUiInteraction,
+       AudioButtonsSelectionAndShortcutsUseTheSameHistory) {
+  const auto original = *document.document();
+  const ImGuiWindow* audio = ImGui::FindWindowByName("Audio authoring");
+  ASSERT_NE(audio, nullptr);
+  const ImVec2 add{
+      audio->Pos.x + audio->WindowPadding.x + 25,
+      audio->Pos.y + audio->TitleBarHeight + audio->WindowPadding.y + 8};
+  click(add);
+  ASSERT_EQ(document.audioIds(EditorAudioKind::Cue).size(), 1U);
+  click({add.x + ImGui::CalcTextSize("Add cue").x +
+             ImGui::GetStyle().FramePadding.x * 2 +
+             ImGui::GetStyle().ItemSpacing.x,
+         add.y});
+  ASSERT_EQ(document.audioIds(EditorAudioKind::Source).size(), 1U);
+  const auto source = document.selection();
+  EXPECT_EQ(document.selection(),
+            document.audioIds(EditorAudioKind::Source)[0]);
+  key(ImGuiKey_D, true);
+  ASSERT_EQ(document.audioIds(EditorAudioKind::Source).size(), 2U);
+  key(ImGuiKey_Delete);
+  ASSERT_EQ(document.audioIds(EditorAudioKind::Source).size(), 1U);
+  key(ImGuiKey_Z, true);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(document.selection(), source);
+  key(ImGuiKey_Z, true);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), original);
+  EXPECT_FALSE(document.dirty());
+}
+
+TEST_F(EditorUiInteraction,
        DoorButtonAndKeyboardEditsRetainIdentityThroughUndo) {
   const auto start_count = document.doorIds().size();
   const auto add = addButtonCenter();

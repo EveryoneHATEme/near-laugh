@@ -1,6 +1,7 @@
 #ifndef EDITOR_EDITOR_DOCUMENT_HPP
 #define EDITOR_EDITOR_DOCUMENT_HPP
 
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -28,7 +29,13 @@ inline constexpr EditorObjectId editor_light_switch = 5;
 inline constexpr EditorObjectId editor_first_solid = 6;
 using EditorObjectValue =
     std::variant<PrototypeSolid, LevelEntry, PrototypePointLight,
-                 PrototypeStaticProp, PrototypeLightSwitch, DoorDefinition>;
+                 PrototypeStaticProp, PrototypeLightSwitch, DoorDefinition,
+                 AudioCueDefinition, AudioSourceDefinition, AudioRoomDefinition,
+                 AudioConnectionDefinition>;
+enum class EditorAudioKind : std::size_t { Cue, Source, Room, Connection };
+[[nodiscard]] std::optional<EditorAudioKind> editorAudioKind(
+    const EditorObjectValue& value);
+[[nodiscard]] std::string editorAudioFieldError(const EditorObjectValue& value);
 
 enum class EditorPlacementMode { SceneSurfaces, TerrainOnly };
 enum class EditorSurfaceFace {
@@ -83,6 +90,11 @@ class EditorDocument {
   [[nodiscard]] bool addSolid(PrototypeSolid solid);
   [[nodiscard]] bool addLightSwitch();
   [[nodiscard]] bool addDoor();
+  [[nodiscard]] bool addAudio(EditorAudioKind kind);
+  [[nodiscard]] const std::vector<EditorObjectId>& audioIds(
+      EditorAudioKind kind) const {
+    return audio_ids_.at(static_cast<std::size_t>(kind));
+  }
   [[nodiscard]] bool addProp(std::string_view model);
   [[nodiscard]] bool setTerrainMaterial(std::string material);
   [[nodiscard]] const std::vector<EditorObjectId>& doorIds() const noexcept {
@@ -173,8 +185,16 @@ class EditorDocument {
     std::optional<std::string> default_after{};
     std::optional<std::string> terrain_material_before{};
     std::optional<std::string> terrain_material_after{};
+    std::optional<LevelAudio> audio_before{}, audio_after{};
   };
   void resetEditing();
+  void resetAudioIds();
+  [[nodiscard]] std::optional<EditorObjectValue> audioObject(
+      EditorObjectId id) const;
+  [[nodiscard]] bool addAudioObject(EditorObjectValue value);
+  [[nodiscard]] bool applyAudioEdit(const Edit& edit, bool forward);
+  void renameAudioReferences(LevelAudio& audio, const EditorObjectValue& before,
+                             const EditorObjectValue& after);
   void refreshValidation();
   [[nodiscard]] std::optional<std::size_t> solidIndex(EditorObjectId id) const;
   [[nodiscard]] std::optional<std::size_t> entryIndex(EditorObjectId id) const;
@@ -198,6 +218,7 @@ class EditorDocument {
   std::vector<EditorObjectId> entry_ids_{};
   std::vector<EditorObjectId> door_ids_{};
   std::vector<EditorObjectId> prop_ids_{};
+  std::array<std::vector<EditorObjectId>, 4> audio_ids_{};
   std::string launch_entry_{};
   std::uint32_t source_version_{level_format_version};
   EditorObjectId next_object_id_{editor_first_solid};
