@@ -60,7 +60,7 @@ animation machinery. Document the character export and scene-blocking workflow.
 
 P07; requires
 [P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) and
-[P10](../add-interior-lighting/proposal.md), including P02's static asset and
+[P10](../archive/2026-09-07-add-interior-lighting/proposal.md), including P02's static asset and
 P03's door prerequisites. Rebase on P10's resulting main specs and add its
 lighting capability to modified capabilities where actor occlusion changes
 requirements. T2 is a neutral character/route test, independent of P05 and P09.

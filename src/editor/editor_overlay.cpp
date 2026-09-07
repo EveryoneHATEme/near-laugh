@@ -187,13 +187,46 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
   for (std::size_t i = 0; i < level.environment_light.point_lights.size();
        ++i) {
     marker(level.environment_light.point_lights[i].position,
-           document.selection() == editor_first_light + i ? selected_color
+           document.selection() == document.lightIds()[i] ? selected_color
                                                           : light_color);
   }
   if (const auto value = document.object(document.selection())) {
+    if (const auto* light = std::get_if<PrototypePointLight>(&*value);
+        light && pointLightFieldError(*light).empty()) {
+      // Three great circles make the authored influence radius visible.
+      for (int axis = 0; axis < 3; ++axis)
+        for (int step = 0; step < 64; ++step) {
+          const auto point = [&](int n) {
+            const float a = static_cast<float>(n * 2 * std::numbers::pi / 64);
+            auto p = light->position;
+            const float c = light->radius * std::cos(a);
+            const float s = light->radius * std::sin(a);
+            if (axis == 0) {
+              p.y += c;
+              p.z += s;
+            }
+            if (axis == 1) {
+              p.x += c;
+              p.z += s;
+            }
+            if (axis == 2) {
+              p.x += c;
+              p.y += s;
+            }
+            return p;
+          };
+          line(point(step), point(step + 1), light_color);
+        }
+      for (const auto& light_switch : level.light_switches)
+        if (light_switch.light_id == light->id)
+          line(light->position, light_switch.position, selected_color);
+    }
     if (const auto* light_switch = std::get_if<PrototypeLightSwitch>(&*value);
         light_switch && lightSwitchIsValid(*light_switch)) {
       const auto corners = lightSwitchCorners(*light_switch);
+      for (const auto& light : level.environment_light.point_lights)
+        if (light.id == light_switch->light_id)
+          line(light_switch->position, light.position, light_color);
       for (int i = 0; i < 8; ++i)
         for (int bit : {1, 2, 4})
           if (!(i & bit)) line(corners[i], corners[i | bit], selected_color);

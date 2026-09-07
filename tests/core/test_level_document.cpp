@@ -61,7 +61,7 @@ void expectPositionEqual(const WorldPosition& actual,
 void expectDocumentEqual(const LevelDocument& actual,
                          const LevelDocument& expected) {
   EXPECT_EQ(actual.version, expected.version);
-  EXPECT_EQ(actual.light_switch, expected.light_switch);
+  EXPECT_EQ(actual.light_switches, expected.light_switches);
   expectPositionEqual(actual.terrain->origin, expected.terrain->origin);
   EXPECT_FLOAT_EQ(actual.terrain->sample_spacing,
                   expected.terrain->sample_spacing);
@@ -82,7 +82,8 @@ void expectDocumentEqual(const LevelDocument& actual,
                       expected.entries.front().pose.foot_position);
   EXPECT_FLOAT_EQ(actual.entries.front().pose.yaw_degrees,
                   expected.entries.front().pose.yaw_degrees);
-  for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
+  for (std::size_t index = 0;
+       index < actual.environment_light.point_lights.size(); ++index) {
     const PrototypePointLight& left =
         actual.environment_light.point_lights[index];
     const PrototypePointLight& right =
@@ -106,10 +107,10 @@ class CommaDecimalPoint final : public std::numpunct<char> {
 }  // namespace
 
 TEST(LevelDocument, FixedProfileAndPackagedAssetMatchCurrentSceneExactly) {
-  static_assert(level_format_version == 7);
+  static_assert(level_format_version == 8);
   static_assert(prototype_terrain_sample_count == 97);
   static_assert(level_maximum_solid_count == 240);
-  static_assert(prototype_point_light_count == 2);
+  static_assert(level_maximum_point_light_count == 8);
   const LevelDocumentLoadResult loaded =
       loadLevelDocument(packagedPrototypeLevelPath());
   ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
@@ -177,7 +178,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"malformed", "{", "byte"});
 
   std::string version_one = canonical;
-  replaceOnce(version_one, "\"version\": 7", "\"version\": 1");
+  replaceOnce(version_one, "\"version\": 8", "\"version\": 1");
   cases.push_back({"version_one", std::move(version_one), "version"});
 
   std::string unknown = canonical;
@@ -186,7 +187,7 @@ TEST(LevelDocument, StrictParserRejectsMalformedUnsupportedAndUnknownShapes) {
   cases.push_back({"path", std::move(unknown), "model_path"});
 
   std::string missing = canonical;
-  replaceOnce(missing, "  \"version\": 7,\n", "");
+  replaceOnce(missing, "  \"version\": 8,\n", "");
   cases.push_back({"missing", std::move(missing), "version"});
 
   std::string invalid_heights = canonical;
@@ -341,35 +342,35 @@ TEST(LevelDocument, InvalidAndFilesystemFailuresDoNotReplacePriorData) {
   std::filesystem::remove_all(root);
 }
 
-TEST(LightSwitchWorld, OptionalHandoffBoundsAndFieldValidation) {
+TEST(LightSwitchWorld, CollectionHandoffBoundsAndFieldValidation) {
   auto document = prototypeLevelDocument();
-  document.light_switch.reset();
-  EXPECT_FALSE(makePrototypeLevel(document).lightSwitch());
-  document.light_switch =
-      PrototypeLightSwitch{{0.0F, 1.6F, 1.05F}, 90, 1, false};
+  document.light_switches.clear();
+  EXPECT_TRUE(makePrototypeLevel(document).lightSwitches().empty());
+  document.light_switches = {
+      {{0, 1.6F, 1.05F}, 90, "point-light-1", "wall-switch"}};
   ASSERT_TRUE(validateLevelDocument(document).empty());
   const auto level = makePrototypeLevel(document);
-  EXPECT_EQ(level.lightSwitch(), document.light_switch);
-  const auto corners = lightSwitchCorners(*document.light_switch);
-  for (const auto p : corners) {
-    EXPECT_NEAR(std::abs(p.x), light_switch_half_extent.z, 0.000001F);
-    EXPECT_NEAR(std::abs(p.z - 1.05F), light_switch_half_extent.x, 0.000001F);
+  EXPECT_EQ(level.lightSwitches(), document.light_switches);
+  for (const auto p : lightSwitchCorners(document.light_switches.front())) {
+    EXPECT_NEAR(std::abs(p.x), light_switch_half_extent.z, .000001F);
+    EXPECT_NEAR(std::abs(p.z - 1.05F), light_switch_half_extent.x, .000001F);
     EXPECT_TRUE(std::isfinite(p.y));
   }
-  document.light_switch->point_light_index = 2;
-  EXPECT_TRUE(hasField(validateLevelDocument(document),
-                       "light_switch.point_light_index"));
-  EXPECT_FALSE(lightSwitchIsValid(*document.light_switch));
-  document.light_switch = *level.lightSwitch();
-  document.light_switch->position.x = document.terrain->origin.x;
-  EXPECT_TRUE(validateLevelDocument(document).empty());
-  document.light_switch->position.x = std::numeric_limits<float>::infinity();
-  EXPECT_FALSE(lightSwitchIsValid(*document.light_switch));
-  document.light_switch = *level.lightSwitch();
-  document.light_switch->yaw_degrees = std::numeric_limits<float>::quiet_NaN();
+  document.light_switches.front().light_id = "missing";
   EXPECT_TRUE(
-      hasField(validateLevelDocument(document), "light_switch.yaw_degrees"));
-  EXPECT_EQ(level.lightSwitch()->point_light_index, 1U);
+      hasField(validateLevelDocument(document), "light_switches[0].light_id"));
+  document.light_switches = level.lightSwitches();
+  document.light_switches.front().position.x = document.terrain->origin.x;
+  EXPECT_TRUE(validateLevelDocument(document).empty());
+  document.light_switches.front().position.x =
+      std::numeric_limits<float>::infinity();
+  EXPECT_FALSE(lightSwitchIsValid(document.light_switches.front()));
+  document.light_switches = level.lightSwitches();
+  document.light_switches.front().yaw_degrees =
+      std::numeric_limits<float>::quiet_NaN();
+  EXPECT_TRUE(hasField(validateLevelDocument(document),
+                       "light_switches[0].yaw_degrees"));
+  EXPECT_EQ(level.lightSwitches().front().light_id, "point-light-1");
 }
 
 TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
@@ -377,9 +378,11 @@ TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
   const auto path = root / "level.json";
   auto document = prototypeLevelDocument();
   for (const bool present : {false, true}) {
-    document.light_switch = present ? std::optional{PrototypeLightSwitch{
-                                          {0, 1.6F, 1.05F}, 37.5F, 1, false}}
-                                    : std::nullopt;
+    document.light_switches.clear();
+    if (present)
+      document.light_switches.push_back(
+          {{0, 1.6F, 1.05F}, 37.5F, "point-light-1", "switch"});
+    document.environment_light.point_lights[1].initially_on = false;
     ASSERT_TRUE(saveLevelDocument(path, document));
     const auto bytes = readBytes(path);
     const auto loaded = loadLevelDocument(path);
@@ -389,7 +392,7 @@ TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
     EXPECT_EQ(readBytes(path), bytes);
   }
   document = prototypeLevelDocument();
-  document.light_switch.reset();
+  document.light_switches.clear();
   auto old_bytes = readBytes("tests/fixtures/levels/prototype-v3.level.json");
   replaceOnce(old_bytes, "\"version\": 3", "\"version\": 2");
   old_bytes.erase(old_bytes.find(",\n  \"light_switch\""));
@@ -400,21 +403,19 @@ TEST(LevelDocument, SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting) {
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(readBytes(path), old_bytes);
   ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
-  EXPECT_NE(readBytes(path).find("\"version\": 7"), std::string::npos);
-  EXPECT_NE(readBytes(path).find("\"light_switch\": null"), std::string::npos);
+  EXPECT_NE(readBytes(path).find("\"version\": 8"), std::string::npos);
+  EXPECT_NE(readBytes(path).find("\"light_switches\": []"), std::string::npos);
   const auto current = readBytes(path);
   ASSERT_TRUE(saveLevelDocument(path, *loadLevelDocument(path).document));
   EXPECT_EQ(readBytes(path), current);
   std::filesystem::remove_all(root);
 }
 
-TEST(LevelDocument, SwitchParserRequiresExactShapeAndTypes) {
+TEST(LevelDocument, LegacySwitchParserRequiresExactShapeAndTypes) {
   const auto root = testDirectory("switch_parse");
   const auto path = root / "level.json";
-  auto document = prototypeLevelDocument();
-  document.light_switch = PrototypeLightSwitch{{0, 1.6F, 1.05F}, 0, 0, true};
-  ASSERT_TRUE(saveLevelDocument(path, document));
-  const auto canonical = readBytes(path);
+  const auto canonical =
+      readBytes("tests/fixtures/levels/prototype-v3.level.json");
   for (const auto* bad : {"-1", "2", "0.0", "true", "\"0\"", "4294967296"}) {
     auto bytes = canonical;
     replaceOnce(bytes, "\"point_light_index\": 0",
@@ -438,9 +439,9 @@ TEST(LevelDocument, SwitchParserRequiresExactShapeAndTypes) {
     writeBytes(path, bytes);
     EXPECT_FALSE(loadLevelDocument(path));
   }
-  document.light_switch.reset();
-  ASSERT_TRUE(saveLevelDocument(path, document));
-  const auto absent = readBytes(path);
+  auto absent = canonical;
+  absent.erase(absent.find("\"light_switch\""));
+  absent += "\"light_switch\": null\n}\n";
   for (const auto* bad : {"[]", "{}", "false", "1"}) {
     auto bytes = absent;
     replaceOnce(bytes, "\"light_switch\": null",

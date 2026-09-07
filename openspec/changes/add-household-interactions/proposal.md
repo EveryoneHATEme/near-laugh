@@ -63,7 +63,7 @@ supported actions, placement rules, and authoring contract.
 
 P06; requires
 [P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) and
-[P10](../add-interior-lighting/proposal.md), including their asset, door, and
+[P10](../archive/2026-09-07-add-interior-lighting/proposal.md), including their asset, door, and
 interaction prerequisites. Rebase targeting on P10's multiple switches. The
 selected work order puts this after P07, but actor integration is not required
 for T3's object tests. P05 later connects object state to events, and P09 adds

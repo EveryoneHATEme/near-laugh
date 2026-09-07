@@ -30,7 +30,7 @@ static_assert(sizeof(PositionColorVertex) == sizeof(float) * 8 + 8);
 [[nodiscard]] std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const std::optional<PrototypeTerrain>& terrain,
     std::span<const PrototypeSolid> solids,
-    const std::optional<PrototypeLightSwitch>& light_switch = std::nullopt);
+    std::span<const PrototypeLightSwitch> light_switches = {});
 
 [[nodiscard]] std::uint32_t structuralMaterialIndex(std::string_view id);
 [[nodiscard]] std::vector<PositionColorVertex> buildOpaqueBoxVertices(

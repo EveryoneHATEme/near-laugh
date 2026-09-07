@@ -23,7 +23,8 @@ std::optional<DoorResult> AuthoredInteraction::update(
   const double length =
       std::hypot(double(direction.x), double(direction.y), double(direction.z));
   if (!(length > 0) || !std::isfinite(length)) return std::nullopt;
-  std::array<float, level_maximum_door_count + 1> distances;
+  std::array<float, level_maximum_door_count + level_maximum_light_switch_count>
+      distances;
   distances.fill(std::numeric_limits<float>::infinity());
   const auto count = level.doors().size();
   for (std::size_t i = 0; i < count; ++i) {
@@ -31,33 +32,41 @@ std::optional<DoorResult> AuthoredInteraction::update(
         doorRayDistance(level.doors()[i], doors.state(i).angle, eye, direction);
     if (distance && *distance <= 2.0F) distances[i] = *distance;
   }
-  if (level.lightSwitch()) {
+  for (std::size_t i = 0; i < level.lightSwitches().size(); ++i) {
+    if (lightSwitchPointInside(level.lightSwitches()[i], eye))
+      return std::nullopt;
     const auto distance =
-        lightSwitchRayDistance(*level.lightSwitch(), eye, direction);
-    if (distance && *distance <= 2.0F) distances[count] = *distance;
+        lightSwitchRayDistance(level.lightSwitches()[i], eye, direction);
+    if (distance && *distance <= 2.0F) distances[count + i] = *distance;
   }
-  const float nearest =
-      *std::min_element(distances.begin(), distances.begin() + count + 1);
+  const float nearest = *std::min_element(distances.begin(), distances.end());
   if (!std::isfinite(nearest)) return std::nullopt;
-  std::size_t chosen = count;
+  std::optional<std::size_t> chosen;
   for (std::size_t i = 0; i < count; ++i)
     if (distances[i] <= nearest + 0.0001F &&
-        (chosen == count || level.doors()[i].id < level.doors()[chosen].id))
+        (!chosen || level.doors()[i].id < level.doors()[*chosen].id))
       chosen = i;
-  const float distance = distances[chosen];
+  if (!chosen)
+    for (std::size_t i = 0; i < level.lightSwitches().size(); ++i)
+      if (distances[count + i] <= nearest + .0001F &&
+          (!chosen || level.lightSwitches()[i].id <
+                          level.lightSwitches()[*chosen - count].id))
+        chosen = count + i;
+  if (!chosen) return std::nullopt;
+  const float distance = distances[*chosen];
   const WorldPosition hit{eye.x + float(direction.x / length * distance),
                           eye.y + float(direction.y / length * distance),
                           eye.z + float(direction.z / length * distance)};
   if (physics.worldSegmentBlocked(
           eye, hit,
-          chosen < count ? level.doors()[chosen].id : std::string_view{}))
+          *chosen < count ? level.doors()[*chosen].id : std::string_view{}))
     return std::nullopt;
-  if (chosen < count)
-    return doors.act(chosen,
+  if (*chosen < count)
+    return doors.act(*chosen,
                      *action == 0   ? DoorAction::Lock
                      : *action == 1 ? DoorAction::Interact
                                     : DoorAction::Knock,
                      eye);
-  if (*action == 1) light_switch.toggle();
+  if (*action == 1) light_switch.toggle(*chosen - count);
   return std::nullopt;
 }

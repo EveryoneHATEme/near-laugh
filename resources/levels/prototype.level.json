@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9637,6 +9637,7 @@
   "environment_light": {
     "point_lights": [
       {
+        "id": "point-light-0",
         "position": {
           "x": 0.0,
           "y": 2.4,
@@ -9648,9 +9649,12 @@
           0.9
         ],
         "intensity": 0.65,
-        "radius": 4.0
+        "radius": 4.0,
+        "initially_on": true,
+        "casts_shadows": false
       },
       {
+        "id": "point-light-1",
         "position": {
           "x": 0.0,
           "y": 4.0,
@@ -9662,7 +9666,9 @@
           0.2
         ],
         "intensity": 0.95,
-        "radius": 10.0
+        "radius": 10.0,
+        "initially_on": true,
+        "casts_shadows": false
       }
     ],
     "ambient_intensity": 0.12
@@ -9694,16 +9700,18 @@
       ]
     }
   ],
-  "light_switch": {
-    "position": {
-      "x": 0.0,
-      "y": 1.6,
-      "z": 1.05
-    },
-    "yaw_degrees": 0.0,
-    "point_light_index": 0,
-    "initially_on": true
-  },
+  "light_switches": [
+    {
+      "id": "light-switch-0",
+      "position": {
+        "x": 0.0,
+        "y": 1.6,
+        "z": 1.05
+      },
+      "yaw_degrees": 0.0,
+      "light_id": "point-light-0"
+    }
+  ],
   "doors": [],
   "audio": {
     "cues": [],

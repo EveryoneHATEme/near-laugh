@@ -30,7 +30,7 @@ The runtime submits at most one `FrameRequest` per loop iteration. It contains:
 - the current framebuffer extent and resize state;
 - a standard-layout, column-major camera view-projection matrix; and
 - at most one source-independent dynamic `SpotLightFrame`; and
-- independent enabled values for the two authored point-light slots; and
+- a borrowed span containing exactly one 0/1 enable per authored point light; and
 - at most 192 source-independent opaque boxes for accepted door poses and feedback.
 
 A zero extent is skipped before GPU submission. The renderer owns swapchain
@@ -51,7 +51,7 @@ Runtime composition resolves and validates the selected level (defaulting to
 renderer receives an immutable `PrototypeLevel`; it does not parse JSON, save
 documents, hot-reload levels, or select paths from level data.
 
-Generated terrain, solids and the optional switch form immutable world-space
+Generated terrain, solids and switch plates form immutable world-space
 triangle batches grouped by structural material. Each selected prop model is
 decoded once per scene load and expanded at its authored placements into
 immutable material batches. An empty prop collection requires no model files.
@@ -81,11 +81,13 @@ full mip chain on the graphics queue and owns its view, repeat sampler,
 factor/alpha uniform, descriptor layout, pool and descriptor. Apartment assets
 use nearest sampling; legacy prototype textures retain linear sampling.
 
-`LightingResources` validates and uploads exactly two immutable authored point
-lights plus ambient intensity to one 80-byte `std140` uniform buffer. The
+`LightingResources` validates zero to eight immutable authored point lights
+and ambient in [0, 0.20]. Each fenced frame slot owns a 1936-byte `std140`
+uniform containing light parameters/enables/layer indices, ambient/count/depth
+tolerance, and up to 24 shadow cameras. The
 fragment shader combines texture color and tint with radius-bounded Lambert
-point lighting and the optional finite-range spot light over a near-black
-ambient floor. Each point-light contribution is multiplied by its frame's
+point lighting and the optional finite-range spot light over an authored
+ambient floor, which may be zero. Each point-light contribution uses its frame's
 enabled value. Ambient and the spotlight remain independent. Spot distance
 and cone transitions are smooth; accumulated RGB
 is clamped and surviving fragments remain opaque. MASK compares sampled alpha
@@ -97,17 +99,53 @@ The pipeline uses two descriptor sets:
 
 - set 0, binding 0: combined base-color sampler;
 - set 0, binding 1: base-color factor and alpha controls;
-- set 1, binding 0: authored lighting uniform buffer.
+- set 1, binding 0: frame-slot lighting uniform buffer;
+- set 1, binding 1: one sampled 2D depth array for point-light shadows.
 
 A renderer-private 128-byte push constant carries the camera matrix, three
-aligned spotlight vectors, and `(outer cosine, spot enabled, point 0 enabled,
-point 1 enabled)`. The standalone `SpotLightFrame` retains its zeroed disabled
+aligned spotlight vectors, and `(outer cosine, spot enabled, 0, 0)`.
+The standalone `SpotLightFrame` retains its zeroed disabled
 representation. Both packaged shader stages share the packed layout.
-Point-light toggles require no resource rebuilds, descriptor updates, or GPU
-waits. Descriptors are written once during startup and survive swapchain
+Point-light toggles update the existing mapped uniform after the slot fence;
+they require no resource rebuilds or descriptor changes. Descriptors are
+written once during scene creation and survive swapchain
 recovery. Lighting and the push constant are shared across draws; each material
 batch binds its immutable set 0. Generated doors and feedback use the explicit
 opaque prototype-obstacle material.
+
+## Interior Point Shadows
+
+Up to four configured point lights own six 512x512 depth layers each per frame
+slot, including initially disabled sources. Shadow radii are [0.25, 20] metres;
+the near plane is 0.01 m. D32 is preferred; D16 is a fallback only when sampled
+depth attachment features and all image limits support the profile. One
+cleared dummy layer keeps the descriptor valid with no casters. Failure to
+create the profile is reported instead of disabling shadows.
+
+Each enabled source renders six ordinary Dynamic Rendering depth passes before
+the color pass. Every static material batch and exactly the current accepted
+changing boxes participate; editor preview uses the authored initial door mesh.
+Both sides cast shadows, OPAQUE ignores alpha and MASK uses the same material
+texture/factor/cutoff as the color pass. Render triangles cast shadows even
+when a prop has no collision proxies. Player capsules and editor overlays do
+not cast shadows.
+
+The fragment shader selects the dominant-axis face and performs nine nearest
+depth comparisons. Edge taps reproject onto the neighboring face. Each tap
+compares the receiver plane at its actual texel center, with a small
+world-space slope/contact bias and half a UNORM unit tolerance for D16.
+Interior taps share the face transformation. This avoids repeated face math
+without reducing the filter or face resolution. Disabled, back-facing and
+out-of-radius contributions skip shadow sampling.
+
+Synchronization 2 barriers order prior fragment reads, early/late depth writes
+and subsequent fragment reads of each frame slot's array. Fences protect host
+uniform/geometry writes and slot reuse. Shadows regenerate each submitted
+frame; there is no culling, static cache, render graph or asynchronous queue.
+Finite resolution limits fine cutouts and contact precision, particularly at
+long distances with D16. The supported blocking exercise uses emitters at
+least 5 cm from occluders and walls/door leaves at least 5 cm thick. Fixed-view
+readbacks and measured T1 results are recorded in the change validation record.
 
 ## Ownership and Lifetime
 
@@ -143,19 +181,23 @@ Prop geometry, initial door presentation, lighting resources, textures and the
 pipeline remain in place during sculpting. A failed replacement retains the
 previous resources and reports that the preview is stale. Correction or undo
 can install a new coherent preview. Static runtime scene batches are immutable.
-An invalid editor interior with no solids, terrain, or switch has no generated
+An invalid editor interior with no solids, terrain, or switches has no generated
 world buffer or world draw. Present props/doors, entry/light markers and UI remain
 available. Replacement between absent and present world meshes uses the same
 transactional resource path, including recovery after a failed upload.
 
-The switch is a pale plate with a contrasting fixed rocker, generated with the
+Each switch is a pale plate with a contrasting fixed rocker, generated with the
 obstacle texture and opaque tints. Its shared yawed bounds are 0.18 by 0.26 by
 0.04 metres. Both full and terrain-only editor rebuilds retain its geometry.
-The editor supplies the authored initial light state, safely omitting an
-unusable switch; changing/removing its link restores the previous slot.
+The editor supplies each light's authored initial state independently of
+switch links. Relinking/removing plates never rewrites those values. An unsafe
+lighting edit retains the whole prior scene/lighting/shadow preview and its
+matching enable vector with an explicit stale diagnostic; correction or undo
+installs the new coherent set. Play preflights the saved lighting profile and
+shadow shaders on the editor's device before launching the game.
 
 Editor-only selection bounds, light/entry spheres, brush footprints, invalid
-terrain triangle outlines, prop render/proxy bounds, door hinge/arc/bolt-side
+terrain triangle outlines, selected light ranges/switch links, prop render/proxy bounds, door hinge/arc/bolt-side
 guides and placement feedback are CPU-projected and clipped
 to the Vulkan view volume. The editor renderer draws
 these lines through the ImGui background draw list, above scene geometry and
@@ -192,5 +234,5 @@ collision geometry.
 The current renderer deliberately implements only the bounded scene above. It
 does not infer a general material system, asset discovery, arbitrary runtime transforms,
 texture streaming, bindless descriptors, a light registry, multiple dynamic
-spot lights, shadows, fog, HDR, or a render graph. Such features should be
+spot lights, shadowed spot lights, fog, HDR, or a render graph. Such features should be
 introduced only for a concrete visual or gameplay requirement.

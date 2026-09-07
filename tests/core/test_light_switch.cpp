@@ -11,7 +11,9 @@
 namespace {
 struct SwitchRun {
   explicit SwitchRun(const PrototypeLevel& world)
-      : level(world), light(world.lightSwitch()), doors(world.doors()) {}
+      : level(world),
+        light(world.environmentLight(), world.lightSwitches()),
+        doors(world.doors()) {}
   void update(bool down, bool active, const PlayerViewPose& view,
               const PhysicsWorld& physics) {
     PlayerActionSnapshot input;
@@ -77,7 +79,7 @@ TEST(StaticVisibility,
 }
 
 TEST(LightSwitchTarget, InclusiveReachMissInsideAndYaw) {
-  PrototypeLightSwitch value{{0, 1.6F, 1.05F}, 0, 0, true};
+  PrototypeLightSwitch value{{0, 1.6F, 1.05F}, 0, "point-light-0", "switch"};
   const auto view = approach(2.0F);
   const auto hit = lightSwitchRayDistance(
       value, {view.position.x, view.position.y, view.position.z}, {0, 0, -4});
@@ -98,11 +100,11 @@ TEST(LightSwitchController,
      InitialValuesTogglesAndRestartPreserveAuthoredState) {
   for (const auto slot : {0U, 1U}) {
     for (const bool on : {false, true}) {
-      const std::optional definition{
-          PrototypeLightSwitch{{0, 1.6F, 1.05F}, 0, slot, on}};
-      const auto original = definition;
       auto document = prototypeLevelDocument();
-      document.light_switch = definition;
+      document.light_switches.front().light_id =
+          document.environment_light.point_lights[slot].id;
+      document.environment_light.point_lights[slot].initially_on = on;
+      const auto original = document;
       const auto level = makePrototypeLevel(document);
       const PhysicsWorld physics(level);
       SwitchRun controller(level);
@@ -118,19 +120,20 @@ TEST(LightSwitchController,
       press(controller, physics);
       EXPECT_EQ(controller.pointLightEnabled()[slot], on);
       EXPECT_TRUE(controller.pointLightEnabled()[1 - slot]);
-      EXPECT_EQ(definition, original);
+      EXPECT_EQ(document, original);
       press(controller, physics);
-      const LightSwitchController restarted(definition);
+      const LightSwitchController restarted(document.environment_light,
+                                            document.light_switches);
       EXPECT_EQ(restarted.pointLightEnabled()[slot], on);
     }
   }
   auto document = prototypeLevelDocument();
-  document.light_switch.reset();
+  document.light_switches.clear();
   const auto level = makePrototypeLevel(document);
   const PhysicsWorld physics(level);
   SwitchRun none(level);
   press(none, physics);
-  EXPECT_EQ(none.pointLightEnabled(), (std::array<bool, 2>{true, true}));
+  EXPECT_EQ(none.pointLightEnabled(), (std::vector<std::uint8_t>{true, true}));
 }
 
 TEST(LightSwitchController, RejectedAndInactivePressesCannotBeDeferred) {

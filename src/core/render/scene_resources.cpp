@@ -54,7 +54,7 @@ VkDescriptorSet SceneResources::obstacleMaterial() const {
 
 void SceneResources::replaceWorld(const LevelDocument& document) {
   const auto vertices = buildPrototypeSceneVertices(
-      document.terrain, document.solids, document.light_switch);
+      document.terrain, document.solids, document.light_switches);
   const auto catalog = structuralMaterials();
   std::vector<Draw> replacement;
   for (std::size_t role = 0; role < catalog.size(); ++role) {

@@ -16,6 +16,7 @@
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
 #include "core/player/player_controller.hpp"
+#include "core/render/lighting_resources.hpp"
 #include "core/render/renderer.hpp"
 #include "core/render/sampled_texture.hpp"
 #include "core/render/scene_assets.hpp"
@@ -25,6 +26,7 @@
 #include "core/render/vulkan_context.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/door.hpp"
+#include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "prototype_level_fixture.hpp"
 #include "runtime_audio_smoke.hpp"
@@ -112,6 +114,11 @@ void requireBalancedLightingLifecycle(const std::vector<std::string>& events,
   requireBalancedEvent(events, "lighting.descriptor_pool.created",
                        "lighting.descriptor_pool.destroyed", phase);
   requireBalancedEvent(events, "lighting.created", "lighting.destroyed", phase);
+  for (auto name : {"image", "array_view", "face_view", "sampler"})
+    requireBalancedEvent(events, std::string("shadow.") + name + ".created",
+                         std::string("shadow.") + name + ".destroyed", phase);
+  requireBalancedEvent(events, "shadow.memory.allocated", "shadow.memory.freed",
+                       phase);
 }
 
 void requireBalancedDepthLifecycle(const std::vector<std::string>& events,
@@ -163,12 +170,14 @@ void runTextLifecycleSmoke() {
     try {
       Platform platform;
       Window window(platform, 800, 600, "near-laugh caption lifecycle");
-      Renderer renderer(window, window.framebufferExtent(),
-                        loadPackagedPrototypeLevel(), smokeResources(),
-                        diagnostics);
+      const auto level = loadPackagedPrototypeLevel();
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
       setForcedVulkanStage(stage);
       for (int frame = 0; frame < 10; ++frame) {
+        auto enables = initialPointLightEnabled(level.environmentLight());
         FrameRequest request{window.framebufferExtent(), false};
+        request.point_light_enabled = enables;
         if (frame != 8 && frame != 9)
           request.captions = {{"Лена", frame % 2 ? "Ты скоро вернёшься?"
                                                  : "Поняла. До завтра."},
@@ -255,9 +264,12 @@ void runLifecycleSmoke() {
       const auto boxes = doorPresentationBoxes(level.doors().front(),
                                                static_cast<float>(frame) * 10,
                                                frame < 2, 0.5F, 0.3F);
+      auto enables = initialPointLightEnabled(level.environmentLight());
       FrameRequest request{window.framebufferExtent(), false};
+      request.point_light_enabled = enables;
       request.opaque_boxes = boxes;
-      request.point_light_enabled = {(frame & 1) != 0, (frame & 2) != 0};
+      for (std::size_t i = 0; i < enables.size(); ++i)
+        enables[i] = (frame & (1 << i)) != 0;
       if (frame == 3) {
         renderer.requestSwapchainRecreation();
         if (renderer.renderFrame(request) != FrameOutcome::Recovered)
@@ -269,8 +281,10 @@ void runLifecycleSmoke() {
             "Lifecycle smoke skipped a changing scene draw");
     }
     // A frame without boxes must not redraw data retained by this frame slot.
-    static_cast<void>(
-        renderer.renderFrame({window.framebufferExtent(), false}));
+    const auto initial = initialPointLightEnabled(level.environmentLight());
+    FrameRequest final_frame{window.framebufferExtent(), false};
+    final_frame.point_light_enabled = initial;
+    static_cast<void>(renderer.renderFrame(final_frame));
   }
   setLifecycleLog(nullptr);
   requireBalancedDepthLifecycle(events, "normal shutdown");
@@ -293,9 +307,15 @@ void runLifecycleSmoke() {
         "lighting.descriptor_layout.created",
         "lighting.descriptor_pool.created", "lighting.uploaded",
         "lighting.descriptor.updated"}) {
-    if (eventCount(events, event) != 1)
-      throw std::runtime_error(
-          "Recovery rebuilt or rewrote immutable lighting");
+    const auto expected =
+        std::string_view(event).find("descriptor_layout") !=
+                    std::string_view::npos ||
+                std::string_view(event).find("descriptor_pool") !=
+                    std::string_view::npos
+            ? 1U
+            : lighting_frame_slot_count;
+    if (eventCount(events, event) != expected)
+      throw std::runtime_error("Recovery rebuilt scene lighting resources");
   }
   for (const std::string name : {"world", "prop"}) {
     const auto expected = name == "world" ? world_count : prop_count;
@@ -404,10 +424,18 @@ void runLifecycleSmoke() {
     }
   }
 
-  constexpr std::array<const char*, 6> lighting_failure_stages = {
-      "lighting_buffer",          "lighting_memory",
-      "lighting_upload",          "lighting_descriptor_layout",
-      "lighting_descriptor_pool", "lighting_descriptor_set"};
+  constexpr std::array lighting_failure_stages = {"lighting_buffer",
+                                                  "lighting_memory",
+                                                  "lighting_upload",
+                                                  "lighting_descriptor_layout",
+                                                  "lighting_descriptor_pool",
+                                                  "lighting_descriptor_set",
+                                                  "shadow_image",
+                                                  "shadow_memory",
+                                                  "shadow_array_view",
+                                                  "shadow_face_view",
+                                                  "shadow_sampler",
+                                                  "shadow_pipeline"};
   for (const char* stage : lighting_failure_stages) {
     events.clear();
     setForcedVulkanStage(stage);
@@ -431,7 +459,8 @@ void runLifecycleSmoke() {
     }
     requireBalancedTextureLifecycle(events, stage);
     requireBalancedLightingLifecycle(events, stage);
-    if (eventCount(events, "lighting.created") != 0) {
+    if (eventCount(events, "lighting.created") != 0 &&
+        std::string_view(stage) != "shadow_pipeline") {
       throw std::runtime_error(
           "Partially constructed lighting reported complete ownership at " +
           std::string(stage));
@@ -490,7 +519,9 @@ void runLifecycleSmoke() {
                         smokeResources(), diagnostics);
       const auto boxes =
           doorPresentationBoxes(level.doors().front(), 30, false);
+      auto enables = initialPointLightEnabled(level.environmentLight());
       FrameRequest request{window.framebufferExtent(), false};
+      request.point_light_enabled = enables;
       request.opaque_boxes = boxes;
       setForcedVulkanStage(stage);
       static_cast<void>(renderer.renderFrame(request));
@@ -537,10 +568,90 @@ void runLifecycleSmoke() {
         "Lifecycle smoke recorded Vulkan validation errors");
   }
 }
+void runInteriorLightingSmoke() {
+  ValidationDiagnostics diagnostics;
+  std::vector<std::string> events;
+  setLifecycleLog(&events);
+  try {
+    Platform platform;
+    Window window(platform, 800, 600, "Interior lighting profile smoke");
+    const auto loaded = loadLevelDocument(
+        "resources/levels/interior-lighting-capacity.level.json");
+    if (!loaded)
+      throw std::runtime_error(formatLevelDiagnostics(loaded.diagnostics));
+    for (bool empty : {false, true}) {
+      auto document = *loaded.document;
+      if (empty) {
+        document.environment_light.point_lights.clear();
+        document.environment_light.ambient_intensity = 0;
+        document.light_switches.clear();
+      }
+      const auto level = makePrototypeLevel(document);
+      Renderer renderer(window, window.framebufferExtent(), level,
+                        smokeResources(), diagnostics);
+      auto enables = initialPointLightEnabled(level.environmentLight());
+      FrameRequest request{window.framebufferExtent(), false};
+      const auto reject = [&](std::span<const std::uint8_t> invalid) {
+        request.point_light_enabled = invalid;
+        bool rejected = false;
+        try {
+          (void)renderer.renderFrame(request);
+        } catch (const std::invalid_argument&) {
+          rejected = true;
+        }
+        if (!rejected)
+          throw std::runtime_error(
+              "Renderer accepted mismatched point-light frame state");
+      };
+      const std::array<std::uint8_t, 1> wrong{2};
+      reject(wrong);
+      if (!empty) {
+        reject({});
+        enables.back() = 2;
+        reject(enables);
+      }
+      for (unsigned mask = 0; mask < (empty ? 4U : 256U); ++mask) {
+        for (std::size_t i = 0; i < enables.size(); ++i)
+          enables[i] = (mask >> i) & 1U;
+        request.point_light_enabled = enables;
+        std::vector<OpaqueBoxFrame> boxes;
+        for (const auto& door : level.doors()) {
+          const auto geometry = doorPresentationBoxes(
+              door, door.open_angle_degrees * (mask % 30) / 29.F, false);
+          boxes.insert(boxes.end(), geometry.begin(), geometry.end());
+        }
+        request.opaque_boxes = boxes;
+        if (mask == 2) {
+          request.framebuffer = {};
+          if (renderer.renderFrame(request) != FrameOutcome::Skipped)
+            throw std::runtime_error(
+                "Lighting zero-extent frame was not skipped");
+          request.framebuffer = window.framebufferExtent();
+          renderer.requestSwapchainRecreation();
+          if (renderer.renderFrame(request) != FrameOutcome::Recovered)
+            throw std::runtime_error("Lighting recovery was not reported");
+        }
+        if (renderer.renderFrame(request) != FrameOutcome::Rendered)
+          throw std::runtime_error("Lighting combination was not submitted");
+      }
+    }
+  } catch (...) {
+    setLifecycleLog(nullptr);
+    throw;
+  }
+  setLifecycleLog(nullptr);
+  requireBalancedLightingLifecycle(events, "interior lighting combinations");
+  if (diagnostics.errorCount())
+    throw std::runtime_error("Interior lighting recorded validation errors");
+}
 }  // namespace
 
 int main(int argc, char** argv) {
   try {
+    if (argc == 2 && std::string_view(argv[1]) == "--lighting") {
+      runInteriorLightingSmoke();
+      return 0;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--audio") {
       ValidationDiagnostics diagnostics;
       setForcedVulkanStage("instance");
@@ -640,11 +751,11 @@ int main(int argc, char** argv) {
         if (!spotLightFrameIsValid(spot_light)) {
           throw std::runtime_error("Smoke generated an invalid spot light");
         }
-        FrameRequest request{extent,
-                             window.consumeFramebufferResize(),
-                             camera,
-                             spot_light,
-                             {(frame & 1) == 0, (frame & 2) == 0}};
+        auto enables = initialPointLightEnabled(level.environmentLight());
+        for (std::size_t i = 0; i < enables.size(); ++i)
+          enables[i] = (frame & (1 << i)) == 0;
+        FrameRequest request{extent, window.consumeFramebufferResize(), camera,
+                             spot_light, enables};
         std::vector<OpaqueBoxFrame> boxes;
         for (const auto& door : level.doors()) {
           const auto geometry = doorPresentationBoxes(

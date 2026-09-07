@@ -7,19 +7,19 @@ Defines bounded selection, placement and editing of authored structures, entries
 ## Requirements
 
 ### Requirement: Flat supported object set
-The editor SHALL present one flat selectable set containing every axis-aligned solid and named entry, exactly two point lights, every static-prop placement with its authored boxes, the optional singleton switch, every authored hinged door, and the bounded audio sources, cues, rooms and connections. The editor SHALL allow solids and entries to be added, duplicated, and removed within their bounds and the switch to be added when absent and removed when present. Doors SHALL support add, duplicate, and remove within their thirty-two-door bound. Props SHALL support add, duplicate and remove within the 128-placement bound using known catalog models. It SHALL NOT create or remove the fixed-count lights, edit the packaged catalog, or introduce unsupported component or hierarchy types. The default entry SHALL be visibly identified.
+The editor SHALL present one flat selectable set containing every axis-aligned solid and named entry, every authored point light, every static-prop placement with its authored boxes, every authored switch, every authored hinged door, and the bounded audio sources, cues, rooms and connections. The editor SHALL allow solids and entries to be added, duplicated, and removed within their bounds and lights/switches to be added, duplicated and removed within their bounds. Doors SHALL support add, duplicate, and remove within their thirty-two-door bound. Props SHALL support add, duplicate and remove within the 128-placement bound using known catalog models. It SHALL NOT edit the packaged catalog, or introduce unsupported component or hierarchy types. The default entry SHALL be visibly identified.
 
 #### Scenario: Level objects are listed
 - **WHEN** a valid level document is active
-- **THEN** the object list contains each supported object exactly once with its concrete game-specific type, entry, prop, door or audio-record identifier where applicable, and no parent-child hierarchy
+- **THEN** the object list contains each supported object exactly once with its concrete game-specific type, entry, light, switch, prop, door or audio-record identifier where applicable, and no parent-child hierarchy
 
 #### Scenario: User requests a new object
 - **WHEN** the user adds a solid
 - **THEN** the editor creates one axis-aligned solid using a supported solid kind and a known structural material independent of kind without offering arbitrary components or filesystem paths
 
 #### Scenario: Switch is added to a level
-- **WHEN** the user adds a light switch while the document has none
-- **THEN** one switch is created, selected, previewed, and recorded as one undoable edit; another switch cannot be added while it is present
+- **WHEN** the user adds a light switch below the sixteen-switch bound
+- **THEN** one switch is created, selected, previewed, and recorded as one undoable edit; additional switches can be added up to the bound, and an absent light link remains diagnosable
 
 #### Scenario: Entry is added
 - **WHEN** the user adds an entry below the entry limit
@@ -45,7 +45,7 @@ List and viewport selection SHALL establish the same single active selection, ch
 - **THEN** the active selection is cleared in both viewport and object list
 
 ### Requirement: Bounded object property editing
-The editor SHALL expose finite numeric controls appropriate to the selected concrete object. Solids SHALL support center, positive half extents, tint, kind, and independent structural material; entries SHALL support identifier, foot position, yaw, and making that entry the default; point lights SHALL support position, non-negative color, positive intensity, and positive radius; and each prop SHALL support identifier, catalog model, translation, yaw, positive uniform scale, and zero through eight boxes with finite local centers and positive half extents. Present terrain SHALL expose its one structural material separately from height-brush operations. Prop renaming SHALL reject invalid or duplicate prop IDs and preserve selection. Changing a model SHALL preserve the prop ID, transform and existing boxes; explicit reset-to-model-default boxes SHALL be a separate undoable operation. The switch SHALL support finite position and yaw, selection of one of the two authored point lights, and an initial on/off value; its dimensions and appearance SHALL remain fixed. Doors SHALL expose identifier, hinge position, closed yaw, leaf width/height/thickness, signed opening angle, angular speed, lock side, and initial open/locked states within interactive-doors bounds. Structural solids SHALL remain axis-aligned. Renaming an entry SHALL update any default reference to it in the same edit, preserve its pose and editor selection, and reject invalid or duplicate identifiers without committing them. Renaming a door SHALL likewise reject malformed or duplicate door identifiers while preserving its editor selection and other fields.
+The editor SHALL expose finite numeric controls appropriate to the selected concrete object. Solids SHALL support center, positive half extents, tint, kind, and independent structural material; entries SHALL support identifier, foot position, yaw, and making that entry the default; point lights SHALL support durable identifier, position, non-negative color, positive intensity, radius, initial enabled state and casts-shadows flag within interior-lighting bounds; the environment SHALL expose ambient from 0 through 0.20; and each prop SHALL support identifier, catalog model, translation, yaw, positive uniform scale, and zero through eight boxes with finite local centers and positive half extents. Present terrain SHALL expose its one structural material separately from height-brush operations. Prop renaming SHALL reject invalid or duplicate prop IDs and preserve selection. Changing a model SHALL preserve the prop ID, transform and existing boxes; explicit reset-to-model-default boxes SHALL be a separate undoable operation. Each switch SHALL support durable identifier, finite position and yaw, and a reference to one authored point light by ID; its dimensions and appearance SHALL remain fixed. Doors SHALL expose identifier, hinge position, closed yaw, leaf width/height/thickness, signed opening angle, angular speed, lock side, and initial open/locked states within interactive-doors bounds. Structural solids SHALL remain axis-aligned. Renaming an entry SHALL update any default reference to it in the same edit, preserve its pose and editor selection, and reject invalid or duplicate identifiers without committing them. Renaming a door SHALL likewise reject malformed or duplicate door identifiers while preserving its editor selection and other fields.
 
 #### Scenario: Solid is edited
 - **WHEN** the user commits valid solid center, extent, kind, tint, or material values
@@ -56,7 +56,7 @@ The editor SHALL expose finite numeric controls appropriate to the selected conc
 - **THEN** the editor rejects the commit, retains the previous property value, and reports the field error
 
 #### Scenario: Switch properties are edited
-- **WHEN** the user commits a switch position, yaw, linked point light, or initial state
+- **WHEN** the user commits a switch identifier, position, yaw or referenced light ID
 - **THEN** the document and preview reflect the value in one undoable edit, preserve unrelated authored values, and refresh validation and dirty state
 
 #### Scenario: Default entry is renamed
@@ -71,6 +71,10 @@ The editor SHALL expose finite numeric controls appropriate to the selected conc
 - **WHEN** the author changes a solid kind while its material remains a valid structural material
 - **THEN** the authored material is preserved independently of the new collision kind
 
+#### Scenario: Initial light state and ambient are edited
+- **WHEN** the author commits a light initial enable or a valid ambient value
+- **THEN** preview uses that authored value independently of switch links and each commit is undoable
+
 ### Requirement: Direct object placement
 The editor SHALL allow a selected solid, light, entry, prop placement, switch, or door to be positioned from an explicitly selected scene-surface or terrain-only placement mode. Scene-surface placement SHALL intersect actual terrain triangles when present and structural-solid faces, exclude the object being moved, and show the candidate target, hit height, and face orientation before committing. It SHALL consider the nearest remaining surface and SHALL NOT skip an unsuitable nearer surface to place through it. On an upward structural face or terrain, solids SHALL rest their bottom at the hit, entries SHALL place their feet at the hit, props SHALL place their translation anchor at the hit, lights and switches SHALL use an explicit height offset, and doors SHALL place their bottom hinge anchor at the hit plus a visible floor-clearance offset. On a vertical structural face, solids SHALL rest their contacting face against the hit, lights SHALL use an explicit outward offset, and switches SHALL mount outside the face with their front oriented outward. Wall placement SHALL be unavailable for entries, props, and doors. Door surface placement SHALL retain authored yaw and swing configuration; it SHALL NOT search through an unsuitable nearer face or infer a doorway from nearby geometry. Placement SHALL preserve unrelated authored properties. Terrain-only light and switch placement SHALL initialize its offset from their previous height above terrain when available. Repeated placement using the same target and settings SHALL be deterministic.
 
@@ -84,7 +88,7 @@ The editor SHALL allow a selected solid, light, entry, prop placement, switch, o
 
 #### Scenario: Switch is placed on terrain
 - **WHEN** the user places a selected switch on terrain without changing its initialized height offset
-- **THEN** its horizontal position moves to the hit and its previous height above terrain is retained without changing its light link, yaw, or initial state
+- **THEN** its horizontal position moves to the hit and its previous height above terrain is retained without changing its light link, ID or yaw
 
 #### Scenario: Entry is placed on an upper floor
 - **WHEN** scene-surface placement targets the upward face of an upper-floor slab while terrain or a lower floor exists below it
@@ -92,7 +96,7 @@ The editor SHALL allow a selected solid, light, entry, prop placement, switch, o
 
 #### Scenario: Switch is mounted on a wall
 - **WHEN** scene-surface placement targets a vertical wall face for the selected switch
-- **THEN** the switch is placed just outside that face, its front faces outward, and its light link and initial state remain unchanged
+- **THEN** the switch is placed just outside that face, its front faces outward, and its light link and ID remain unchanged
 
 #### Scenario: Nearer surface is unsuitable
 - **WHEN** a nearer wall or slab underside occludes a possible floor hit for an entry
@@ -107,15 +111,15 @@ The editor SHALL allow a selected solid, light, entry, prop placement, switch, o
 - **THEN** its translation anchor moves to that hit while ID, model, yaw, scale and local boxes remain unchanged in one undoable edit
 
 ### Requirement: Object duplication and removal
-Duplicating a solid SHALL create an independently selectable copy with the same authored values at a deterministic visible offset. Removing a selected solid SHALL remove only that solid. Solid operations SHALL respect the level's maximum solid count. Duplicating an entry SHALL preserve its pose, allocate a unique identifier, select the copy, and leave the default unchanged. Entry operations SHALL respect the sixteen-entry maximum. Removing the last entry or the current default entry SHALL be unavailable; the author SHALL be able to select another default before removing the old one. The optional switch SHALL support removal and undo/redo of that removal but SHALL NOT support duplication. Duplicating a door SHALL allocate a unique durable door identifier, preserve the configuration at a deterministic visible horizontal offset, select the copy, and refresh validation. Undo and redo SHALL restore the same allocated identifier. Removing a door SHALL remove only that definition and its preview; incoming audio connections SHALL retain their now-unresolved door IDs with actionable diagnostics until repaired or deletion is undone. Duplicating a prop SHALL preserve its model, scale, yaw and local boxes at a deterministic visible horizontal offset, allocate a unique prop identifier and select the copy; undo/redo SHALL restore that same allocated identifier. Removal SHALL delete only that placement and never its catalog asset or another placement sharing it. Only the two fixed lights SHALL prohibit duplication and removal.
+Duplicating a solid SHALL create an independently selectable copy with the same authored values at a deterministic visible offset. Removing a selected solid SHALL remove only that solid. Solid operations SHALL respect the level's maximum solid count. Duplicating an entry SHALL preserve its pose, allocate a unique identifier, select the copy, and leave the default unchanged. Entry operations SHALL respect the sixteen-entry maximum. Removing the last entry or the current default entry SHALL be unavailable; the author SHALL be able to select another default before removing the old one. Lights and switches SHALL support duplication at a deterministic visible offset with fresh durable IDs, preserving outgoing references and leaving incoming references on the original. Their deletion SHALL remove only the selected definition. Deleting a referenced light SHALL leave switch links unresolved and diagnosable until repaired or undone; it SHALL NOT retarget or cascade deletion. Undo/redo SHALL restore the same allocated IDs and references. Count limits SHALL refuse additions beyond the collection bound; a duplicated shadow flag that exceeds the shadow budget SHALL remain a repairable validation error. Duplicating a door SHALL allocate a unique durable door identifier, preserve the configuration at a deterministic visible horizontal offset, select the copy, and refresh validation. Undo and redo SHALL restore the same allocated identifier. Removing a door SHALL remove only that definition and its preview; incoming audio connections SHALL retain their now-unresolved door IDs with actionable diagnostics until repaired or deletion is undone. Duplicating a prop SHALL preserve its model, scale, yaw and local boxes at a deterministic visible horizontal offset, allocate a unique prop identifier and select the copy; undo/redo SHALL restore that same allocated identifier. Removal SHALL delete only that placement and never its catalog asset or another placement sharing it.
 
 #### Scenario: Solid is duplicated
 - **WHEN** the user duplicates a selected solid below the maximum count
 - **THEN** one offset copy is inserted, selected, previewed, and marks the document dirty
 
 #### Scenario: Fixed-count object removal is requested
-- **WHEN** the user requests deletion of either point light
-- **THEN** the operation is unavailable and the document remains unchanged
+- **WHEN** the user deletes a light referenced by two switches
+- **THEN** the light is removed, both switches retain diagnosable unresolved IDs, and undo restores the original light and valid links
 
 #### Scenario: Switch is removed and restored
 - **WHEN** the user removes the selected switch and then undoes the removal
@@ -160,15 +164,15 @@ Every committed edit SHALL refresh level validation and present all current fail
 - **THEN** validation clears the resolved failure and deterministic saving becomes available again
 
 ### Requirement: Switch initial-state preview
-The editor SHALL preview the switch's authored initial light state without running gameplay interaction. A light unlinked by editing or switch removal SHALL return to enabled in preview. Terrain sculpting, undo/redo, and presentation recovery SHALL preserve the switch geometry and initial-state preview for the current document. Invalid switch fields SHALL remain diagnosable without unsafe rendering or light indexing.
+The editor SHALL preview each light's authored initial enabled state independently of switch links, without running gameplay interaction. Relinking or removing a switch SHALL NOT alter any light's initial preview value. Terrain sculpting, undo/redo and presentation recovery SHALL preserve all current switch geometry and coherent lighting/shadow preview. Invalid switch links SHALL remain diagnosable without unsafe lookup or geometry submission; shadow inputs that cannot be safely prepared SHALL use the explicit stale-preview policy rather than presenting incorrect shadows as current.
 
 #### Scenario: Switch starts off in the preview
-- **WHEN** the user commits Initially on as false for a valid switch
-- **THEN** the linked light contributes no preview illumination and the other light remains enabled
+- **WHEN** the user commits Initially on as false for a valid light referenced by a switch
+- **THEN** the linked light contributes no preview illumination and other lights retain their own authored values
 
 #### Scenario: Switch link changes
-- **WHEN** an initially-off switch is changed from one point-light slot to the other
-- **THEN** the formerly linked light is enabled and the newly linked light is disabled in preview
+- **WHEN** a switch is relinked between lights with different authored initial values
+- **THEN** both lights retain their own initial illumination and only the link changes
 
 #### Scenario: Terrain or presentation changes
 - **WHEN** a document containing a switch is sculpted, undone, redone, resized, or restored from minimization
@@ -222,3 +226,14 @@ Renaming a cue, source, room or door SHALL reject malformed/duplicate IDs and up
 #### Scenario: Cue is duplicated
 - **WHEN** a referenced cue is duplicated and the operation is undone and redone
 - **THEN** the copy retains the same newly allocated identity and outgoing catalog references while existing sources continue referencing the original
+
+### Requirement: Light reference integrity during authoring
+Renaming a light SHALL validate its new ID and update every incoming switch reference in one undoable command while preserving selection and unrelated fields. Renaming a switch SHALL validate uniqueness within the switch collection. Duplication SHALL preserve outgoing references and allocate new IDs, while deletion SHALL retain unresolved incoming links without cascading or silent retargeting. Broken references and safe shadow-budget violations SHALL remain editable and block saving/Play; unsafe individual field edits SHALL be refused. The selected light range and switch link SHALL be inspectable in editor overlays without runtime collision or light-state changes.
+
+#### Scenario: Shared light is renamed
+- **WHEN** a light referenced by several switches is renamed and the edit is undone/redone
+- **THEN** the light ID and every incoming reference change together with selection, validation and dirty state following the same history entry
+
+#### Scenario: Switch is duplicated
+- **WHEN** a switch is duplicated and the operation is undone/redone
+- **THEN** the copy retains its new ID and original light reference without adding a light or altering that light's initial state

@@ -240,28 +240,52 @@ PrototypePlayerSpawn parseSpawn(const Json& value) {
       parseFloat(value.at("yaw_degrees"), "player_spawn.yaw_degrees")};
 }
 
-PrototypePointLight parsePointLight(const Json& value, std::size_t index) {
+PrototypePointLight parsePointLight(const Json& value, std::size_t index,
+                                    std::uint32_t version) {
   const std::string path =
       "environment_light.point_lights[" + std::to_string(index) + "]";
-  requireObjectFields(value, path,
-                      {"position", "color", "intensity", "radius"});
-  return {parsePosition(value.at("position"), path + ".position"),
-          parseFloatArray<3>(value.at("color"), path + ".color"),
-          parseFloat(value.at("intensity"), path + ".intensity"),
-          parseFloat(value.at("radius"), path + ".radius")};
+  if (version >= 8)
+    requireObjectFields(value, path,
+                        {"id", "position", "color", "intensity", "radius",
+                         "initially_on", "casts_shadows"});
+  else
+    requireObjectFields(value, path,
+                        {"position", "color", "intensity", "radius"});
+  PrototypePointLight result{
+      parsePosition(value.at("position"), path + ".position"),
+      parseFloatArray<3>(value.at("color"), path + ".color"),
+      parseFloat(value.at("intensity"), path + ".intensity"),
+      parseFloat(value.at("radius"), path + ".radius")};
+  result.id = "point-light-" + std::to_string(index);
+  if (version >= 8) {
+    result.id = parseString(value.at("id"), path + ".id");
+    if (result.id.size() > 64)
+      fail(path + ".id", "must contain at most 64 characters");
+    for (const auto* field : {"initially_on", "casts_shadows"})
+      if (!value.at(field).is_boolean())
+        fail(path + "." + field, "must be a boolean");
+    result.initially_on = value.at("initially_on").get<bool>();
+    result.casts_shadows = value.at("casts_shadows").get<bool>();
+  }
+  return result;
 }
 
-PrototypeEnvironmentLight parseEnvironmentLight(const Json& value) {
+PrototypeEnvironmentLight parseEnvironmentLight(const Json& value,
+                                                std::uint32_t version) {
   requireObjectFields(value, "environment_light",
                       {"point_lights", "ambient_intensity"});
   const Json& points = value.at("point_lights");
-  if (!points.is_array() || points.size() != prototype_point_light_count) {
+  if (!points.is_array() ||
+      (version < 8 ? points.size() != 2
+                   : points.size() > level_maximum_point_light_count)) {
     fail("environment_light.point_lights",
-         "must contain exactly two point lights");
+         version < 8 ? "must contain exactly two point lights"
+                     : "must contain at most eight point lights");
   }
   PrototypeEnvironmentLight result{};
-  for (std::size_t index = 0; index < result.point_lights.size(); ++index) {
-    result.point_lights[index] = parsePointLight(points[index], index);
+  for (std::size_t index = 0; index < points.size(); ++index) {
+    result.point_lights.push_back(
+        parsePointLight(points[index], index, version));
   }
   result.ambient_intensity = parseFloat(value.at("ambient_intensity"),
                                         "environment_light.ambient_intensity");
@@ -316,21 +340,38 @@ PrototypeStaticProp parseProp(const Json& value, std::size_t index) {
   return prop;
 }
 
-std::optional<PrototypeLightSwitch> parseLightSwitch(const Json& value) {
+std::optional<PrototypeLightSwitch> parseLegacyLightSwitch(
+    const Json& value, PrototypeEnvironmentLight& lighting) {
   if (value.is_null()) return std::nullopt;
   requireObjectFields(
       value, "light_switch",
       {"position", "yaw_degrees", "point_light_index", "initially_on"});
   const auto index = parseUnsigned(value.at("point_light_index"),
                                    "light_switch.point_light_index");
-  if (index >= prototype_point_light_count)
+  if (index >= 2)
     fail("light_switch.point_light_index", "must select point light 0 or 1");
   if (!value.at("initially_on").is_boolean())
     fail("light_switch.initially_on", "must be a boolean");
+  lighting.point_lights.at(index).initially_on =
+      value.at("initially_on").get<bool>();
   return PrototypeLightSwitch{
       parsePosition(value.at("position"), "light_switch.position"),
-      parseFloat(value.at("yaw_degrees"), "light_switch.yaw_degrees"), index,
-      value.at("initially_on").get<bool>()};
+      parseFloat(value.at("yaw_degrees"), "light_switch.yaw_degrees"),
+      lighting.point_lights.at(index).id, "light-switch-0"};
+}
+
+PrototypeLightSwitch parseLightSwitch(const Json& value, std::size_t index) {
+  const auto path = "light_switches[" + std::to_string(index) + "]";
+  requireObjectFields(value, path,
+                      {"id", "position", "yaw_degrees", "light_id"});
+  PrototypeLightSwitch result{
+      parsePosition(value.at("position"), path + ".position"),
+      parseFloat(value.at("yaw_degrees"), path + ".yaw_degrees"),
+      parseString(value.at("light_id"), path + ".light_id"),
+      parseString(value.at("id"), path + ".id")};
+  if (result.id.size() > 64 || result.light_id.size() > 64)
+    fail(path, "identities must contain at most 64 characters");
+  return result;
 }
 
 DoorDefinition parseDoor(const Json& value, std::size_t index) {
@@ -465,7 +506,7 @@ LevelDocument parseDocument(const Json& root) {
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
   if (version != 2 && version != 3 && version != 4 && version != 5 &&
-      version != 6 && version != level_format_version) {
+      version != 6 && version != 7 && version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
   }
@@ -492,11 +533,16 @@ LevelDocument parseDocument(const Json& root) {
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switch", "doors"});
-  } else {
+  } else if (version == 7) {
     requireObjectFields(
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switch", "doors", "audio"});
+  } else {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "props", "light_switches", "doors", "audio"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -541,7 +587,7 @@ LevelDocument parseDocument(const Json& root) {
       fail("default_entry", "must contain at most 64 characters");
   }
   document.environment_light =
-      parseEnvironmentLight(root.at("environment_light"));
+      parseEnvironmentLight(root.at("environment_light"), version);
   if (version < 6)
     document.props.push_back(parseStaticProp(root.at("static_prop")));
   else {
@@ -551,8 +597,18 @@ LevelDocument parseDocument(const Json& root) {
     for (std::size_t i = 0; i < props.size(); ++i)
       document.props.push_back(parseProp(props[i], i));
   }
-  if (version != 2)
-    document.light_switch = parseLightSwitch(root.at("light_switch"));
+  if (version >= 8) {
+    const auto& switches = root.at("light_switches");
+    if (!switches.is_array() ||
+        switches.size() > level_maximum_light_switch_count)
+      fail("light_switches", "must contain at most sixteen switches");
+    for (std::size_t i = 0; i < switches.size(); ++i)
+      document.light_switches.push_back(parseLightSwitch(switches[i], i));
+  } else if (version != 2) {
+    if (auto value = parseLegacyLightSwitch(root.at("light_switch"),
+                                            document.environment_light))
+      document.light_switches.push_back(std::move(*value));
+  }
   if (version >= 5) {
     const auto& doors = root.at("doors");
     if (!doors.is_array() || doors.size() > level_maximum_door_count)
@@ -593,10 +649,10 @@ LevelDocument parseDocument(const Json& root) {
     if (const auto* model = findSceneModel(prop.model))
       requirePropBounds(sceneModelBounds(*model));
   }
-  if (document.light_switch)
-    for (const auto point : lightSwitchCorners(*document.light_switch))
+  for (const auto& light_switch : document.light_switches)
+    for (const auto point : lightSwitchCorners(light_switch))
       if (!finite(point))
-        fail("light_switch.position",
+        fail("light_switches.position",
              "derived preview bounds must remain finite");
   if (document.terrain) {
     const auto& terrain = *document.terrain;
@@ -677,10 +733,13 @@ std::string serializeDocument(const LevelDocument& document) {
   for (const PrototypePointLight& point :
        document.environment_light.point_lights) {
     Json value = Json::object();
+    value["id"] = point.id;
     value["position"] = positionJson(point.position);
     value["color"] = point.color;
     value["intensity"] = point.intensity;
     value["radius"] = point.radius;
+    value["initially_on"] = point.initially_on;
+    value["casts_shadows"] = point.casts_shadows;
     lighting["point_lights"].push_back(std::move(value));
   }
   lighting["ambient_intensity"] = document.environment_light.ambient_intensity;
@@ -703,15 +762,14 @@ std::string serializeDocument(const LevelDocument& document) {
     }
     root["props"].push_back(std::move(prop));
   }
-  root["light_switch"] = nullptr;
-  if (document.light_switch) {
-    const auto& light_switch = *document.light_switch;
+  root["light_switches"] = Json::array();
+  for (const auto& light_switch : document.light_switches) {
     Json value = Json::object();
+    value["id"] = light_switch.id;
     value["position"] = positionJson(light_switch.position);
     value["yaw_degrees"] = light_switch.yaw_degrees;
-    value["point_light_index"] = light_switch.point_light_index;
-    value["initially_on"] = light_switch.initially_on;
-    root["light_switch"] = std::move(value);
+    value["light_id"] = light_switch.light_id;
+    root["light_switches"].push_back(std::move(value));
   }
 
   root["doors"] = Json::array();

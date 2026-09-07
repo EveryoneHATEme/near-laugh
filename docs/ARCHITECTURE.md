@@ -107,7 +107,7 @@ reset after the wait.
 The renderer receives immutable level data at construction and a
 backend-neutral `FrameRequest` at runtime. A request contains framebuffer
 state, a column-major camera matrix, at most one source-independent spot
-light, enabled values for the two point-light slots, and up to 192 changing
+light, an exact-size borrowed span of point-light enables, and up to 192 changing
 opaque boxes, and borrowed resolved foreground/ambience captions. Boxes carry
 geometry and tint, not door IDs or action policy. Rendering returns
 `Rendered`, `Skipped`, or `Recovered`; the runtime handles every outcome and
@@ -146,9 +146,9 @@ connection-path products model transmission, and gains smooth over 50 ms.
 
 ## World Boundary
 
-The bounded v7 document contains optional 97-by-97 terrain, 1–240 axis-aligned
-solids, 1–16 named entries/default, two point lights plus ambient, 0–128 static
-model placements, one optional switch and 0–32 hinged door definitions. Terrain
+The bounded v8 document contains optional 97-by-97 terrain, 1–240 axis-aligned
+solids, 1–16 named entries/default, 0–8 point lights plus ambient, 0–128 static
+model placements, 0–16 switches and 0–32 hinged door definitions. Terrain
 and solids select a game-owned structural material ID independently of collision
 kind. Each prop has its own ID, model ID, transform and 0–8 local collision boxes.
 The finite catalog contains only the selected game models/materials; resource
@@ -159,12 +159,15 @@ Audio records add up to 128 cues, 64 sources, 32 non-overlapping room boxes and
 connections reference rooms, outside, and optionally a door. Audio metadata
 validation performs no device, file decoding or GPU construction.
 
-Exact v2/v3/v4/v5/v6 shapes normalize on read. The singleton chair becomes one
+Exact v2–v7 shapes normalize on read. The singleton chair becomes one
 `prototype-chair` placement with its original transform/box/material; old surface
 roles map to their legacy materials. v2/v3 spawn becomes the `default` entry;
 v2 has no switch; v2–4 have no doors; v5 retains all authored doors. Explicit
-saves write canonical v7; opening never rewrites a source file. Versions 2–6
-normalize to empty audio. Older executables cannot read v7; use Save As to
+saves write canonical v8; opening never rewrites a source file. Versions 2–6
+normalize to empty audio. Legacy light slots become `point-light-0/1`, both
+unshadowed; the optional switch becomes `light-switch-0` and moves its initial
+enable to the linked light. A missing switch leaves both lights on. v7 audio
+survives unchanged. Older executables cannot read v8; use Save As to
 retain an original needed by an older build.
 
 World validation checks finite derived geometry, references, entry support and
@@ -173,8 +176,17 @@ and entries. A blocked later swing is valid. Safe gameplay-invalid documents
 remain editable; runtime construction and saving require full validity. Physics
 never reads render models: every prop body comes from its authored box list.
 
+Light IDs and switch IDs are unique within their collections. Switches link
+by light ID; multiple plates can operate one source. Initial enables and
+shadow flags belong to lights, independently of switch presence. Ambient is
+authored in [0, 0.20]. Four configured sources may cast shadows, including
+disabled ones; their radii are limited to [0.25, 20] metres.
+
 `AuthoredInteraction` owns release latches and nearest-target arbitration for
-the concrete switch/door actions. `LightSwitchController` owns light enables;
+the concrete switch/door actions. It finds the true minimum distance before
+applying the 0.1 mm tie tolerance, then chooses doors before switches and
+durable IDs within a type. `LightSwitchController` resolves links once and
+owns run-local enables in immutable authored light order;
 `DoorController` owns door intent, accepted angle, lock and short feedback state.
 Physics privately owns zero-velocity kinematic leaves and continuous conservative
 angular clearance queries. Each fixed step moves the player against installed
@@ -204,7 +216,7 @@ state.
 
 `EditorDocument` also owns transient object IDs, one selection, concrete object
 commands, and 128-entry undo/redo history. These transient handles never enter
-the level file; durable entry/door/prop string IDs do.
+the level file; durable entry/door/prop/light/switch string IDs do.
 Terrain gestures share that history as sorted sparse sample before/after pairs.
 Brush settings and the active path are editor-only state. Pure brush kernels
 read pre-stamp samples; the editor resamples horizontal motion at fixed distance
@@ -227,11 +239,12 @@ for the validation panel and red viewport outlines. Terrain preview changes
 coalesce once per editor frame and replace the world buffer after both frame
 fences complete, preserving prop/material, initial-door, lighting and pipeline owners.
 Swapchain recovery preserves the document, UI state, texture owner, and camera.
-The optional switch uses one reserved transient ID below the allocated solid
-IDs and shares property commands, placement, selection, and history. Preview
-uses its authored initial state; changing its link or removing it restores
-the previously linked light. Successful resource replacement also installs
-the preview light state; a failed replacement retains the prior preview.
+Every light and switch has a distinct allocated transient selection ID and
+shares property commands, placement and history. Light renames update all
+incoming links atomically; deletion retains broken references for repair.
+Preview uses light initial values independently of links. Successful resource
+replacement installs the scene, lighting, shadows and matching enable vector
+together; a failed replacement retains the prior coherent preview.
 New Interior creates a valid floor, default entry and lights, with no terrain,
 props or doors. Durable entry strings are separate from transient selection IDs;
 renaming a default entry updates its reference in one undoable command.

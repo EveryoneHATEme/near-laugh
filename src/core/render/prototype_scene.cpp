@@ -123,13 +123,15 @@ void appendTerrain(std::vector<PositionColorVertex>& vertices,
 std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const PrototypeLevel& level) {
   return buildPrototypeSceneVertices(level.terrain(), level.solids(),
-                                     level.lightSwitch());
+                                     level.lightSwitches());
 }
 
 std::vector<PositionColorVertex> buildPrototypeSceneVertices(
     const std::optional<PrototypeTerrain>& terrain,
     std::span<const PrototypeSolid> solids,
-    const std::optional<PrototypeLightSwitch>& light_switch) {
+    std::span<const PrototypeLightSwitch> light_switches) {
+  if (light_switches.size() > level_maximum_light_switch_count)
+    throw std::invalid_argument("Scene exceeds the sixteen-switch limit");
   std::vector<PositionColorVertex> vertices;
   vertices.reserve(
       solids.size() * 36 +
@@ -148,7 +150,8 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
               structuralMaterialIndex(solid.material));
   }
   if (terrain) appendTerrain(vertices, *terrain);
-  if (light_switch && lightSwitchIsValid(*light_switch)) {
+  for (const auto& light_switch : light_switches) {
+    if (!lightSwitchIsValid(light_switch)) continue;
     const auto first = vertices.size();
     constexpr auto h = light_switch_half_extent;
     constexpr auto layer =
@@ -157,12 +160,12 @@ std::vector<PositionColorVertex> buildPrototypeSceneVertices(
               {245, 240, 220, 255}, layer);
     appendBox(vertices, {-h.x * 0.4F, -h.y * 0.55F, h.z * 0.5F},
               {h.x * 0.4F, h.y * 0.55F, h.z}, {55, 60, 65, 255}, layer);
-    auto rotation = *light_switch;
+    auto rotation = light_switch;
     rotation.position = {};
     for (auto i = first; i < vertices.size(); ++i) {
       auto& vertex = vertices[i];
       const auto p = lightSwitchWorldPoint(
-          *light_switch,
+          light_switch,
           {vertex.position[0], vertex.position[1], vertex.position[2]});
       const auto n = lightSwitchWorldPoint(
           rotation, {vertex.normal[0], vertex.normal[1], vertex.normal[2]});

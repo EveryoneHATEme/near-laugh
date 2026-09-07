@@ -23,9 +23,7 @@ struct EditorPendingAction {
 using EditorObjectId = std::uint64_t;
 inline constexpr EditorObjectId editor_no_object = 0;
 inline constexpr EditorObjectId editor_spawn = 1;
-inline constexpr EditorObjectId editor_first_light = 2;
 inline constexpr EditorObjectId editor_prop = 4;
-inline constexpr EditorObjectId editor_light_switch = 5;
 inline constexpr EditorObjectId editor_first_solid = 6;
 using EditorObjectValue =
     std::variant<PrototypeSolid, LevelEntry, PrototypePointLight,
@@ -89,6 +87,14 @@ class EditorDocument {
   [[nodiscard]] bool replaceObject(EditorObjectId id, EditorObjectValue value);
   [[nodiscard]] bool addSolid(PrototypeSolid solid);
   [[nodiscard]] bool addLightSwitch();
+  [[nodiscard]] bool addPointLight();
+  [[nodiscard]] bool setAmbient(float value);
+  [[nodiscard]] const std::vector<EditorObjectId>& lightIds() const noexcept {
+    return light_ids_;
+  }
+  [[nodiscard]] const std::vector<EditorObjectId>& switchIds() const noexcept {
+    return switch_ids_;
+  }
   [[nodiscard]] bool addDoor();
   [[nodiscard]] bool addAudio(EditorAudioKind kind);
   [[nodiscard]] const std::vector<EditorObjectId>& audioIds(
@@ -186,7 +192,16 @@ class EditorDocument {
     std::optional<std::string> terrain_material_before{};
     std::optional<std::string> terrain_material_after{};
     std::optional<LevelAudio> audio_before{}, audio_after{};
+    std::optional<std::vector<PrototypeLightSwitch>> switches_before{},
+        switches_after{};
+    std::optional<float> ambient_before{}, ambient_after{};
   };
+  [[nodiscard]] bool addPointLight(PrototypePointLight value);
+  [[nodiscard]] bool addLightSwitch(PrototypeLightSwitch value);
+  [[nodiscard]] bool prepareLightingEdit(Edit& edit);
+  [[nodiscard]] bool applyLightingEdit(const Edit& edit, bool forward);
+  [[nodiscard]] std::optional<std::size_t> lightIndex(EditorObjectId id) const;
+  [[nodiscard]] std::optional<std::size_t> switchIndex(EditorObjectId id) const;
   void resetEditing();
   void resetAudioIds();
   [[nodiscard]] std::optional<EditorObjectValue> audioObject(
@@ -218,6 +233,7 @@ class EditorDocument {
   std::vector<EditorObjectId> entry_ids_{};
   std::vector<EditorObjectId> door_ids_{};
   std::vector<EditorObjectId> prop_ids_{};
+  std::vector<EditorObjectId> light_ids_{}, switch_ids_{};
   std::array<std::vector<EditorObjectId>, 4> audio_ids_{};
   std::string launch_entry_{};
   std::uint32_t source_version_{level_format_version};

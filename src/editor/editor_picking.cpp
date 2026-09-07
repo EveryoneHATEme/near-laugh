@@ -181,16 +181,16 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
       }
     }
   }
-  if (level.light_switch) {
-    if (const auto hit = lightSwitchRayDistance(*level.light_switch, ray.origin,
-                                                ray.direction)) {
+  for (std::size_t i = 0; i < level.light_switches.size(); ++i) {
+    if (const auto hit = lightSwitchRayDistance(level.light_switches[i],
+                                                ray.origin, ray.direction)) {
       // Other editor intersections return the ray parameter, not metres.
-      consider(editor_light_switch, *hit / glm::length(vec(ray.direction)));
+      consider(document.switchIds()[i], *hit / glm::length(vec(ray.direction)));
     }
   }
   for (std::size_t i = 0; i < level.environment_light.point_lights.size();
        ++i) {
-    consider(editor_first_light + i,
+    consider(document.lightIds()[i],
              sphereHit(ray, level.environment_light.point_lights[i].position));
   }
   return selected;

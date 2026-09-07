@@ -11,12 +11,16 @@ class Window;
 class ValidationDiagnostics;
 class PrototypeLevel;
 class CaptionFont;
+class FrameTimings;
+struct FrameCapture;
 
 struct RendererResources {
   std::filesystem::path vertex_shader{};
   std::filesystem::path fragment_shader{};
   std::filesystem::path resource_root{};
   std::shared_ptr<const CaptionFont> caption_font{};
+  FrameTimings* timings{};
+  FrameCapture* capture{};
 };
 
 class Renderer {

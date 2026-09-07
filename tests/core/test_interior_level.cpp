@@ -68,7 +68,7 @@ TEST_F(InteriorLevel, CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries
     const auto first = bytes(p);
     const auto loaded = loadLevelDocument(p);
     ASSERT_TRUE(loaded);
-    EXPECT_EQ(loaded.source_version, 7U);
+    EXPECT_EQ(loaded.source_version, 8U);
     EXPECT_EQ(*loaded.document, doc);
     EXPECT_EQ(loaded.document->entries[0].id, "lower");
     ASSERT_TRUE(saveLevelDocument(p, *loaded.document));
@@ -97,7 +97,7 @@ TEST_F(InteriorLevel, LegacyVersionsNormalizeOnlyOnExplicitSave) {
     EXPECT_EQ(editor.document()->default_entry, "default");
     EXPECT_EQ(bytes(p), legacy);
     ASSERT_TRUE(editor.save());
-    EXPECT_EQ(loadLevelDocument(p).source_version, 7U);
+    EXPECT_EQ(loadLevelDocument(p).source_version, 8U);
   }
 }
 
@@ -176,7 +176,8 @@ TEST_F(InteriorLevel,
   for (auto& entry : doc.entries) entry.pose.foot_position.x += 100;
   doc.terrain = PrototypeTerrain{{-24, 0, -24}, 0.5F, {}};
   doc.props.front().translation.x = 1000;
-  doc.light_switch = PrototypeLightSwitch{{1000, 3, 0}, 0, 0, true};
+  doc.light_switches = {
+      PrototypeLightSwitch{{1000, 3, 0}, 0, "point-light-0", "switch"}};
   EXPECT_TRUE(validateLevelDocument(doc).empty());
   doc.solids[0].half_extent.x = std::numeric_limits<float>::max();
   EXPECT_FALSE(validateLevelDocument(doc).empty());
@@ -260,13 +261,13 @@ TEST_F(InteriorLevel,
   ASSERT_TRUE(editor.open(path));
   const auto before = *editor.document();
   for (const auto& [from, to] :
-       {std::pair{"\"version\": 7", "\"version\": 5"},
+       {std::pair{"\"version\": 8", "\"version\": 5"},
         std::pair{"\"id\": \"lower\"", "\"id\": false"},
         std::pair{"\"id\": \"lower\"", "\"unknown\": \"lower\""},
         std::pair{"\"default_entry\": \"lower\"", "\"default_entry\": 1"},
         std::pair{"\"x\": 5.0", "\"x\": 3.4e38"},
-        std::pair{"\"version\": 7",
-                  "\"player_spawn\": null, \"version\": 7"}}) {
+        std::pair{"\"version\": 8",
+                  "\"player_spawn\": null, \"version\": 8"}}) {
     auto bad = canonical;
     const auto offset = bad.find(from);
     ASSERT_NE(offset, std::string::npos);
@@ -455,7 +456,7 @@ TEST_F(InteriorLevel,
                 *editorPlacedObject(light, floor, {1.8F, .1F}))
                 .position.y,
             4.8F);
-  const PrototypeLightSwitch value{{}, 77, 1, false};
+  const PrototypeLightSwitch value{{}, 77, "point-light-1", "switch"};
   for (const WorldPosition normal :
        {WorldPosition{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}}) {
     const EditorSurfaceHit wall{
@@ -474,8 +475,8 @@ TEST_F(InteriorLevel,
         lightSwitchWorldPoint(placed, {0, 0, -light_switch_half_extent.z});
     EXPECT_NEAR(back.x, wall.position.x + normal.x * .001F, .00001F);
     EXPECT_NEAR(back.z, wall.position.z + normal.z * .001F, .00001F);
-    EXPECT_EQ(placed.point_light_index, 1U);
-    EXPECT_FALSE(placed.initially_on);
+    EXPECT_EQ(placed.light_id, "point-light-1");
+    EXPECT_EQ(placed.id, "switch");
     EXPECT_EQ(editorPlacedObject(placed, wall, {}),
               editorPlacedObject(value, wall, {}));
     const auto mounted_light = std::get<PrototypePointLight>(

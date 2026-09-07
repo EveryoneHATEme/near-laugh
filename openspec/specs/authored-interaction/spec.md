@@ -7,7 +7,7 @@ Defines deterministic target selection and sampled input-edge handling shared by
 ## Requirements
 
 ### Requirement: One nearest authored interaction target
-An action SHALL choose at most one target by the normalized forward ray from the eye used for the current displayed camera, with a maximum intersection distance of 2 metres inclusive. Candidates SHALL be the switch plate and current visible door leaves at the same poses used for presentation. The eye SHALL be outside target and blocker bounds. The nearest candidate SHALL govern even when it refuses or does not support the requested action; the action SHALL NOT fall through to another object. Equal-distance candidates SHALL use a deterministic ordering independent of container iteration or frame rate. Terrain, structural solids, prop proxies, and other doors SHALL block the segment; the selected door's own front surface SHALL permit targeting it, but no blocker behind that surface SHALL matter and no unrelated blocker at or before it SHALL be ignored. The player SHALL NOT obstruct its own query.
+An action SHALL choose at most one target by the normalized forward ray from the eye used for the current displayed camera, with a maximum intersection distance of 2 metres inclusive. Candidates SHALL be all authored switch plates and current visible door leaves at the same poses used for presentation. The eye SHALL be outside target and blocker bounds. The nearest candidate SHALL govern even when it refuses or does not support the requested action; the action SHALL NOT fall through to another object. Candidates within 0.1 mm of the true nearest intersection SHALL be ordered by type, door before switch, and then lexicographic durable ID within the type, independently of container iteration or frame rate. Terrain, structural solids, prop proxies, and other doors SHALL block the segment; the selected door's own front surface SHALL permit targeting it, but no blocker behind that surface SHALL matter and no unrelated blocker at or before it SHALL be ignored. The player SHALL NOT obstruct its own query.
 
 #### Scenario: Door hides a reachable switch
 - **WHEN** a closed or moving door intersects the eye ray before an otherwise reachable switch
@@ -28,6 +28,10 @@ An action SHALL choose at most one target by the normalized forward ray from the
 #### Scenario: Ray is invalid or out of reach
 - **WHEN** the eye is inside a target or blocker, direction is invalid, the target is missed, or its first intersection is beyond 2 metres
 - **THEN** no authored state changes
+
+#### Scenario: Multiple switch candidates tie
+- **WHEN** switch plates have distances within the tie interval and their definitions are reordered
+- **THEN** the same switch ID wins, while a door in that interval retains type priority and at most one action dispatches
 
 ### Requirement: Shared sampled action edges
 Interaction, lock, and knock actions SHALL each require an observed release before the first eligible press and between presses. Each event batch SHALL be evaluated exactly once after its fixed steps, including a batch containing zero steps. Holding, missing, obstruction, inactive controls, cursor release or capture transitions, minimization, and closing SHALL consume presses without retaining a future activation. When multiple supported action edges occur in one batch, all SHALL be consumed and at most one SHALL dispatch with lock before interaction before knock priority; this priority SHALL apply before target eligibility, without fallback. Flashlight input SHALL retain its existing independent behavior.

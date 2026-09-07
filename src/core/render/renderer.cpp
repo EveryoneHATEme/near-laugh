@@ -12,6 +12,8 @@
 #include "core/platform/window.hpp"
 #include "core/render/changing_mesh_buffer.hpp"
 #include "core/render/depth_attachment.hpp"
+#include "core/render/frame_readback.hpp"
+#include "core/render/gpu_frame_timings.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/immutable_mesh_buffer.hpp"
 #include "core/render/lighting_resources.hpp"
@@ -87,6 +89,7 @@ class Renderer::Impl {
     VkSemaphore image_available{VK_NULL_HANDLE};
     VkFence completion{VK_NULL_HANDLE};
     std::unique_ptr<ChangingMeshBuffer> changing_mesh;
+    std::unique_ptr<GpuFrameTimings> timings;
   };
 
   Impl(const Window& window, FramebufferExtent initial_extent,
@@ -114,6 +117,7 @@ class Renderer::Impl {
   RendererResources resources_{};
   std::unique_ptr<SceneResources> scene_resources_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
+  std::unique_ptr<FrameReadback> readback_{};
   std::shared_ptr<const CaptionFont> caption_font_;
   std::unique_ptr<TextResources> text_;
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
@@ -176,6 +180,8 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
     lighting_resources_ = std::make_unique<LightingResources>(
         context_.device(), context_.physicalDevice(),
         level_.environmentLight());
+    lighting_resources_->createShadowPipeline(
+        *scene_resources_, resources_.resource_root / "shaders");
     depth_format_ = selectDepthFormat(context_.physicalDevice());
     createSwapchain(initial_extent);
     pipeline_ = std::make_unique<GraphicsPipeline>(
@@ -199,7 +205,9 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
 
 Renderer::Impl::~Impl() {
   if (context_.device() != VK_NULL_HANDLE) {
-    vkDeviceWaitIdle(context_.device());
+    if (vkDeviceWaitIdle(context_.device()) == VK_SUCCESS)
+      for (auto& frame : frames_)
+        if (frame.timings) frame.timings->readCompleted();
   }
   cleanupFrameSlots();
   text_.reset();
@@ -242,6 +250,13 @@ void Renderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
   info.imageExtent = extent;
   info.imageArrayLayers = 1;
   info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  if (resources_.capture) {
+    if (!(support.capabilities.supportedUsageFlags &
+          VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
+      throw std::runtime_error(
+          "Fixed-frame readback requires transfer-source presentation images");
+    info.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+  }
   if (families.sharesFamily()) {
     info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
   } else {
@@ -380,6 +395,10 @@ void Renderer::Impl::createFrameSlots() {
       requireVulkan(vkCreateFence(context_.device(), &fence_info, nullptr,
                                   &frame.completion),
                     "Create initially-signaled frame fence");
+      if (resources_.timings)
+        frame.timings = std::make_unique<GpuFrameTimings>(
+            context_.device(), context_.physicalDevice(),
+            context_.queueFamilies().graphics, *resources_.timings);
     }
   } catch (...) {
     cleanupFrameSlots();
@@ -389,6 +408,7 @@ void Renderer::Impl::createFrameSlots() {
 
 void Renderer::Impl::cleanupFrameSlots() noexcept {
   for (FrameSlot& frame : frames_) {
+    frame.timings.reset();
     frame.changing_mesh.reset();
     if (frame.completion != VK_NULL_HANDLE) {
       vkDestroyFence(context_.device(), frame.completion, nullptr);
@@ -414,6 +434,18 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   requireVulkan(vkBeginCommandBuffer(command_buffer, &begin_info),
                 "Begin Vulkan frame command buffer");
+  if (frames_[current_frame_].timings)
+    frames_[current_frame_].timings->begin(command_buffer);
+  if (frames_[current_frame_].timings)
+    frames_[current_frame_].timings->beginShadows(command_buffer);
+  lighting_resources_->recordShadows(
+      command_buffer, current_frame_, *scene_resources_,
+      request.opaque_boxes.empty()
+          ? nullptr
+          : frames_[current_frame_].changing_mesh.get(),
+      nullptr);
+  if (frames_[current_frame_].timings)
+    frames_[current_frame_].timings->endShadows(command_buffer);
 
   VkImageMemoryBarrier2 to_color{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
   to_color.srcStageMask = image_initialized_[image_index]
@@ -494,7 +526,7 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
   pipeline_->bindSceneState(command_buffer, request.camera, request.spot_light,
-                            request.point_light_enabled);
+                            lighting_resources_->descriptorSet(current_frame_));
   scene_resources_->draw(command_buffer, *pipeline_);
   if (frames_[current_frame_].changing_mesh && !request.opaque_boxes.empty()) {
     pipeline_->bindMaterial(command_buffer,
@@ -504,12 +536,19 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   if (text_) text_->draw(command_buffer, static_cast<unsigned>(current_frame_));
   vkCmdEndRendering(command_buffer);
 
+  const bool capture = resources_.capture && resources_.capture->requested;
+  if (capture)
+    readback_->record(command_buffer, swapchain_images_[image_index]);
   VkImageMemoryBarrier2 to_present{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-  to_present.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-  to_present.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+  to_present.srcStageMask =
+      capture ? VK_PIPELINE_STAGE_2_COPY_BIT
+              : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+  to_present.srcAccessMask = capture ? VK_ACCESS_2_TRANSFER_READ_BIT
+                                     : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
   to_present.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
   to_present.dstAccessMask = 0;
-  to_present.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  to_present.oldLayout = capture ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                                 : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
   to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -520,11 +559,29 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   dependency.imageMemoryBarrierCount = 1;
   dependency.pImageMemoryBarriers = &to_present;
   vkCmdPipelineBarrier2(command_buffer, &dependency);
+  if (frames_[current_frame_].timings)
+    frames_[current_frame_].timings->end(command_buffer);
   requireVulkan(vkEndCommandBuffer(command_buffer),
                 "End Vulkan frame command buffer");
 }
 
 FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
+  lighting_resources_->validateEnables(request.point_light_enabled);
+  FrameTimingSample* timing =
+      resources_.timings ? &resources_.timings->current() : nullptr;
+  const auto mark = [timing] {
+    return timing ? FrameTimings::Clock::now()
+                  : FrameTimings::Clock::time_point{};
+  };
+  const auto duration = [](auto start) {
+    return std::chrono::duration<double, std::milli>(
+               FrameTimings::Clock::now() - start)
+        .count();
+  };
+  if (timing) {
+    timing->width = swapchain_extent_.width;
+    timing->height = swapchain_extent_.height;
+  }
   recreate_requested_ = request.framebuffer_resized || recreate_requested_;
   if (recreate_requested_) {
     recreateSwapchain(request.framebuffer);
@@ -539,18 +596,23 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
         context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
         context_.queueFamilies().graphics, swapchain_format_, depth_format_,
         resources_.resource_root, *caption_font_);
+  auto wait_start = mark();
   requireVulkan(
       vkWaitForFences(context_.device(), 1, &frame.completion, VK_TRUE,
                       std::numeric_limits<std::uint64_t>::max()),
       "Wait for frame slot completion before reuse");
+  if (timing) timing->fence_ms += duration(wait_start);
+  if (frame.timings) frame.timings->readCompleted();
   if (text_)
     text_->update(static_cast<unsigned>(current_frame_),
                   caption_layout.vertices);
 
   std::uint32_t image_index = 0;
+  wait_start = mark();
   const VkResult acquire = vkAcquireNextImageKHR(
       context_.device(), swapchain_, std::numeric_limits<std::uint64_t>::max(),
       frame.image_available, VK_NULL_HANDLE, &image_index);
+  if (timing) timing->acquire_ms += duration(wait_start);
   if (acquire == VK_ERROR_OUT_OF_DATE_KHR) {
     recreate_requested_ = true;
     return FrameOutcome::Recovered;
@@ -560,10 +622,12 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   }
   const bool suboptimal = acquire == VK_SUBOPTIMAL_KHR;
   if (image_fences_[image_index] != VK_NULL_HANDLE) {
+    wait_start = mark();
     requireVulkan(
         vkWaitForFences(context_.device(), 1, &image_fences_[image_index],
                         VK_TRUE, std::numeric_limits<std::uint64_t>::max()),
         "Wait for prior use of Vulkan swapchain image");
+    if (timing) timing->fence_ms += duration(wait_start);
   }
 
   if (!request.opaque_boxes.empty()) {
@@ -573,8 +637,14 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
           context_.device(), context_.physicalDevice());
     frame.changing_mesh->update(vertices);
   }
+  if (resources_.capture && resources_.capture->requested &&
+      (!readback_ || !readback_->matches(swapchain_extent_, swapchain_format_)))
+    readback_ = std::make_unique<FrameReadback>(
+        context_.device(), context_.physicalDevice(), swapchain_extent_,
+        swapchain_format_);
   requireVulkan(vkResetCommandPool(context_.device(), frame.command_pool, 0),
                 "Reset per-frame Vulkan command pool");
+  lighting_resources_->update(current_frame_, request.point_light_enabled);
   recordFrame(frame.command_buffer, image_index, request);
   requireVulkan(vkResetFences(context_.device(), 1, &frame.completion),
                 "Reset Vulkan frame completion fence");
@@ -582,12 +652,15 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   VkSemaphoreSubmitInfo wait_info{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
   wait_info.semaphore = frame.image_available;
   wait_info.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+  // In a measurement run start timestamps after the acquire semaphore, so
+  // availability of a presentation image is not counted as GPU scene work.
+  if (timing) wait_info.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
   VkCommandBufferSubmitInfo command_info{
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
   command_info.commandBuffer = frame.command_buffer;
   VkSemaphoreSubmitInfo signal_info{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
   signal_info.semaphore = render_finished_[image_index];
-  signal_info.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+  signal_info.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
   VkSubmitInfo2 submit_info{VK_STRUCTURE_TYPE_SUBMIT_INFO_2};
   submit_info.waitSemaphoreInfoCount = 1;
   submit_info.pWaitSemaphoreInfos = &wait_info;
@@ -598,6 +671,8 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   requireVulkan(vkQueueSubmit2(context_.graphicsQueue(), 1, &submit_info,
                                frame.completion),
                 "Submit Vulkan frame with Synchronization 2");
+  if (timing) timing->submitted = true;
+  if (frame.timings) frame.timings->submitted();
   image_fences_[image_index] = frame.completion;
   image_initialized_[image_index] = true;
   depth_attachments_[image_index]->markInitialized();
@@ -608,11 +683,20 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   present_info.swapchainCount = 1;
   present_info.pSwapchains = &swapchain_;
   present_info.pImageIndices = &image_index;
+  wait_start = mark();
   const VkResult present =
       vkQueuePresentKHR(context_.presentQueue(), &present_info);
+  if (timing) timing->present_ms += duration(wait_start);
   if (present != VK_SUCCESS && present != VK_SUBOPTIMAL_KHR &&
       present != VK_ERROR_OUT_OF_DATE_KHR) {
     requireVulkan(present, "Present Vulkan swapchain image");
+  }
+  if (resources_.capture && resources_.capture->requested) {
+    requireVulkan(
+        vkWaitForFences(context_.device(), 1, &frame.completion, VK_TRUE,
+                        std::numeric_limits<std::uint64_t>::max()),
+        "Wait for fixed-frame readback");
+    readback_->complete(*resources_.capture);
   }
   current_frame_ = (current_frame_ + 1) % frames_in_flight;
 

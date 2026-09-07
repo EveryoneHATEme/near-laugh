@@ -147,14 +147,15 @@ the actual game design requires one.
 
 ### Current Door and Switch Interaction
 
-The level may contain one non-blocking switch plate and up to 32 hinged doors.
+The level may contain up to 16 non-blocking switch plates and 32 hinged doors.
 The displayed eye ray selects the nearest switch or accepted door leaf within
 2 metres. Terrain, structural solids, every authored prop proxy, and other
 doors obstruct interaction. A selected door can target its own front surface;
-an inside origin is refused. Equal-distance candidates within 0.1 mm use the
-door's durable ID, with the switch last.
+an inside origin is refused. Candidates within 0.1 mm of the true nearest
+distance choose doors first, then the durable ID within each type. Reordering
+authored collections does not change the result.
 
-E toggles the switch or requests the opposite door endpoint. Mid-swing E
+E toggles the selected plate's linked light or requests the opposite door endpoint. Mid-swing E
 reverses the last intent. R toggles a closed stationary door's lock from its
 authored bolt side. Right mouse knocks without moving or unlocking the door.
 Unsupported nearest actions and refusals do not act through another target.
@@ -234,12 +235,23 @@ The game may use:
 * a player-carried light source
 * lighting changes triggered by game events
 
-The current prototype includes authored point lights and one
-camera-mounted flashlight.
+The current interior supports zero to eight authored point lights and one
+camera-mounted flashlight. Each light has a durable ID, initial enable and
+shadow flag. Several switches may operate the same light; deleting a switch
+does not change the light's initial value. Unlinked lights are valid.
+Ambient may be zero and remains independent of point-light and flashlight
+toggles. Runtime changes reset to authored values on a fresh run.
+
+Up to four configured point lights cast shadows from rendered walls, furniture
+and accepted door poses. A closed leaf blocks light through its rendered
+surface; opening or stopping it changes its shadow at the accepted angle. The flashlight
+retains its independent cone/range behavior. The neutral six-light interior
+and eight-light capacity scene exercise this bounded implementation; their
+T1 measurements are tracked separately from narrative acceptance.
 
 This does not imply a requirement for a generic runtime light registry.
 
-Features such as shadows, flicker, volumetric lighting, fog, exposure
+Features such as flicker, volumetric lighting, fog, exposure
 changes, or additional dynamic lights should be introduced from concrete
 visual or gameplay requirements.
 

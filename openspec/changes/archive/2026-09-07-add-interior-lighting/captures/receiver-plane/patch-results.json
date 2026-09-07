@@ -1,0 +1,76 @@
+{
+  "wall": {
+    "patch_xywh": [
+      920,
+      510,
+      80,
+      60
+    ],
+    "mean_absolute_stored_rgb_error": 0.0,
+    "maximum_channel_error": 0,
+    "passed": true
+  },
+  "door-closed": {
+    "patch_xywh": [
+      920,
+      510,
+      80,
+      60
+    ],
+    "mean_absolute_stored_rgb_error": 0.0,
+    "maximum_channel_error": 0,
+    "passed": true
+  },
+  "offscreen-wall": {
+    "patch_xywh": [
+      920,
+      510,
+      80,
+      60
+    ],
+    "mean_absolute_stored_rgb_error": 0.0,
+    "maximum_channel_error": 0,
+    "passed": true
+  },
+  "face-seam": {
+    "patch_xywh": [
+      920,
+      510,
+      80,
+      60
+    ],
+    "mean_absolute_stored_rgb_error": 0.0,
+    "maximum_channel_error": 0,
+    "passed": true
+  },
+  "lit": {
+    "patch_xywh": [
+      920,
+      510,
+      80,
+      60
+    ],
+    "mean_stored_rgb": 47.22076388888889,
+    "passed": true
+  },
+  "door-open": {
+    "patch_xywh": [
+      920,
+      510,
+      80,
+      60
+    ],
+    "mean_stored_rgb": 47.22076388888889,
+    "passed": true
+  },
+  "editor-initial-agreement": {
+    "mean_absolute_stored_rgb_error": 0.0,
+    "maximum_channel_error": 0,
+    "passed": true
+  },
+  "unoccluded-surface": {
+    "mean_absolute_stored_rgb_error": 0.0,
+    "maximum_channel_error": 0,
+    "passed": true
+  }
+}

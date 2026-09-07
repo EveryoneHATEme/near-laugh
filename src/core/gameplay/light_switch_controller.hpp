@@ -6,16 +6,17 @@
 class LightSwitchController {
  public:
   explicit LightSwitchController(
-      const std::optional<PrototypeLightSwitch>& definition) noexcept;
-  void toggle() noexcept;
-  [[nodiscard]] const std::array<bool, prototype_point_light_count>&
-  pointLightEnabled() const noexcept {
+      const PrototypeEnvironmentLight& lights,
+      const std::vector<PrototypeLightSwitch>& switches);
+  void toggle(std::size_t switch_index);
+  [[nodiscard]] const std::vector<std::uint8_t>& pointLightEnabled()
+      const noexcept {
     return enabled_;
   }
 
  private:
-  const std::optional<PrototypeLightSwitch>& definition_;
-  std::array<bool, prototype_point_light_count> enabled_;
+  std::vector<std::size_t> links_;
+  std::vector<std::uint8_t> enabled_;
 };
 
 #endif

@@ -25,9 +25,14 @@ P04 was accepted by the user and archived on 2026-09-07. Its
 [validation record](../openspec/changes/archive/2026-09-07-add-spatial-audio-and-captions/validation.md)
 retains 322 passing debug tests, eight passing Vulkan smoke tests, qualitative
 user acceptance and the unavailable quantitative latency/drift measurements.
-The remaining eight linked changes
-capture proposals only; their designs, delta specs, and tasks must be developed
-and reviewed before implementation. Structural validation alone does not
+P10 is implemented and archived, providing v8 light/switch authoring and bounded point-light shadows.
+Its 341 debug/unit/boundary/process checks, nine Vulkan smoke tests, agent
+visual/Save-and-Play checks and all 16 final Release samples pass. T1 evidence
+and the supported profile's limits are recorded in its
+[validation record](../openspec/changes/archive/2026-09-07-add-interior-lighting/validation.md).
+The other seven linked changes capture proposals only;
+their designs, delta specs, and tasks must be developed and reviewed before
+implementation. Structural validation alone does not
 establish implementation readiness. Those proposal-only feature changes do
 not qualify for the documentation-only `skip_specs` exemption.
 
@@ -68,9 +73,10 @@ Constraints captured at that baseline:
 P01 replaced the mandatory terrain/spawn and packaged-file replacement
 constraints with optional terrain, named starts, surface placement, and
 explicit saved-file launch. P02/P03 added the selected material/asset profile
-and moving doors; P04 added audio and captions. The current format is v7.
-The two-light/single-switch limit, character animation, additional interactions,
-events, and save-game/session support belong to the remaining technical work.
+and moving doors; P04 added audio and captions. P10 replaces the two-light/
+single-switch limit with up to eight lights, sixteen switches and four shadow
+casters in v8. Character animation, additional interactions, events and
+save-game/session support belong to the remaining technical work.
 Update affected main requirements through each change's delta specs against
 the then-current implementation. Preserve useful ownership and validation
 guarantees without retaining obsolete prototype limits.
@@ -113,26 +119,26 @@ of an earlier capability in its supported scope.
 | P07 | [Scripted character and animation support](../openspec/changes/add-scripted-characters/proposal.md) | P04, P10 |
 | P08 | [Deferred escape/help story draft](../openspec/changes/add-escape-and-help-outcomes/proposal.md) | T6 accepted, then story scope reviewed; P12 supplies the technical prerequisites |
 | P09 | [Checkpoint resume](../openspec/changes/add-checkpoint-resume/proposal.md) | P05 |
-| P10 | [Interior lighting](../openspec/changes/add-interior-lighting/proposal.md) | P02, P03 |
+| P10 | [Interior lighting](../openspec/changes/archive/2026-09-07-add-interior-lighting/proposal.md) | P02, P03 |
 | P11 | [Story playtest tools](../openspec/changes/add-story-playtest-tools/proposal.md) | P09 |
 | P12 | [Game session and packaging](../openspec/changes/add-game-session-and-packaging/proposal.md) | P09 to start session work; P11 also required for final packaging/workflow acceptance |
 
-P01, P03, P02, P04 are already archived. The selected remaining order is:
+P01, P03, P02, P04 and P10 are already archived. The selected remaining order is:
 
 ```text
-P10 --> P07 --> P06 --> P05 --> P09
-                               |
-                               v
-                         P12 (session)
-                               |
-                               v
-                              P11
-                               |
-                               v
-                     P12 (packaging, T6)
-                               |
-                               v
-                     Story development / P08
+P07 --> P06 --> P05 --> P09
+                       |
+                       v
+                 P12 (session)
+                       |
+                       v
+                      P11
+                       |
+                       v
+             P12 (packaging, T6)
+                       |
+                       v
+             Story development / P08
 ```
 
 This is the chosen work order, not a claim that every adjacent pair is a hard
@@ -141,8 +147,10 @@ accepted/archived only after P11 and T6 packaging checks. P11 uses P09's explici
 resume/setup entry and does not depend on P12's menus. Rebase P12's remaining
 artifacts after P11 is integrated; do not create a circular dependency.
 
-P10 is the next implementation candidate; develop its design, delta specs, and
-tasks first. P10 validates static geometry and moving doors. P07 owns adding
+P10 implements up to eight point lights, four shadow-casting sources, sixteen
+switches and authored ambient. Its visual, repeated Release and saved-file
+Play acceptance checks pass, as recorded in its validation record.
+P10 validates static geometry and moving doors. P07 owns adding
 and checking animated-character occlusion in that lighting profile. P05 owns
 event-driven light, object, door, audio, and actor integration. P09 restores
 all of those already implemented states. P12 integrates their common session
@@ -206,8 +214,8 @@ revise it only when traversal and presentation tests establish a game need.
 
 Choose the supported model/material/animation profile using representative
 exports before committing to an importer design. P04 selected pinned miniaudio
-for audio. Choose the light-blocking/shadow method during its design. Measure the furnished
-scene before adding substantial performance machinery.
+for audio. P10 selected bounded six-face raster shadows on rendered geometry.
+Measure the furnished scene before adding substantial performance machinery.
 
 ### OpenSpec coordination
 

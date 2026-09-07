@@ -1,0 +1,9 @@
+Vulkan validation: disabled
+Selected Vulkan GPU: AMD Radeon(TM) Graphics (graphics queue 0, present queue 0)
+Point shadow depth: D32, 1 layers per slot, 2622240 allocated bytes across two slots
+Swapchain: format 50, extent 1920x1061, images 2
+GPU timing: vendor 4098, device 5686, driver 8388887, timestampPeriod 10 ns, valid bits 64
+GPU timing: vendor 4098, device 5686, driver 8388887, timestampPeriod 10 ns, valid bits 64
+Validation disabled; FIFO; mode stationary; warmup 10 s; sample 60 s
+Swapchain: format 50, extent 1920x1080, images 2
+Captured 4197 frames; completed routes 0; accepted door endpoints 0; switch toggles 0; flashlight toggles 0

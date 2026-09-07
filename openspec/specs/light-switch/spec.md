@@ -7,7 +7,7 @@ Defines the optional authored light switch and its participation in nearest-targ
 ## Requirements
 
 ### Requirement: Bounded authored light switch
-A level SHALL contain zero or one light switch. When present, the switch SHALL define a finite world-space position and yaw, one linked point-light slot from the existing two slots, and an initial on/off state. Its visible plate and interaction bounds SHALL use the same placement and fixed dimensions. The switch SHALL be non-blocking decoration and SHALL NOT add character collision, animation, or arbitrary interaction actions.
+A level SHALL contain zero through sixteen light switches. Each switch SHALL define a unique durable ID, finite world-space position and yaw, and exactly one reference to an authored point light by its durable ID. Switch IDs SHALL follow the 1-64 character lowercase ASCII identifier grammar used for entries and SHALL be unique within their collection. Several switches SHALL be allowed to reference the same light. Initial enabled state SHALL belong only to the light. Visible plates and interaction bounds SHALL share the existing fixed dimensions and placement. Switches SHALL remain non-blocking decoration without character collision, animation or arbitrary interaction actions. Invalid identities and unresolved light references SHALL prevent saving and runtime handoff while safe definitions remain editable.
 
 #### Scenario: Switch is present
 - **WHEN** a valid level containing a switch is loaded
@@ -15,7 +15,11 @@ A level SHALL contain zero or one light switch. When present, the switch SHALL d
 
 #### Scenario: Level has no switch
 - **WHEN** a valid level has no switch
-- **THEN** both authored point lights start enabled and interaction cannot change point lights and any door action follows authored-interaction
+- **THEN** each authored light starts in its own initial state and switch interaction cannot change point lights and any door action follows authored-interaction
+
+#### Scenario: Switch references a missing light
+- **WHEN** a switch names a light absent from the light collection
+- **THEN** validation identifies the switch and unresolved light ID, prevents saving/play, and allows repair without retargeting
 
 ### Requirement: Nearby unobstructed view targeting
 Interaction SHALL target the switch only when the forward ray from the player eye used for the current displayed camera intersects its plate bounds within 2 metres, inclusive. The player eye SHALL be outside those bounds. Collision between the eye and the plate, including terrain, solids, the authored prop proxy, and current door leaves, SHALL prevent activation; collision at the target surface SHALL count as obstruction subject only to numerical tolerance. The player's own collision representation SHALL NOT obstruct the query. A rejected interaction SHALL leave light state unchanged. The switch SHALL participate in authored-interaction nearest-target arbitration, so an interaction consumed or refused by a nearer door SHALL NOT toggle it.
@@ -26,7 +30,7 @@ Interaction SHALL target the switch only when the forward ray from the player ey
 
 #### Scenario: Switch is outside reach or missed
 - **WHEN** the player presses interaction while the view ray misses the switch or reaches its plate beyond 2 metres
-- **THEN** neither point light changes state
+- **THEN** no point light changes state
 
 #### Scenario: Static geometry hides the switch
 - **WHEN** a wall, terrain surface, or static prop collision proxy blocks the view segment to an otherwise in-range switch
@@ -73,15 +77,15 @@ One eligible sampled interaction press selected for the switch by authored-inter
 - **THEN** neither its light nor an object behind it changes and the action is consumed
 
 ### Requirement: Independent run-local light state
-At application startup the linked point light SHALL use the switch's authored initial state and the other point light SHALL be enabled. Each accepted activation SHALL invert only the linked light's enabled state. Turning it off SHALL suppress its complete contribution while preserving authored intensity, color, radius, and position; ambient, the other point light, and flashlight state SHALL remain independent. Runtime interaction SHALL NOT modify or save the authored level.
+At application startup each light SHALL use its own authored initial enabled state, whether referenced by zero, one or several switches. Each accepted switch activation SHALL invert only its referenced light's shared run-local enabled value. Turning a light off SHALL suppress its complete contribution while preserving authored intensity, color, radius, position and shadow configuration; ambient, all other lights and flashlight state SHALL remain independent. Relinking or removing a switch in authored data SHALL NOT redefine a light's initial state. Runtime interaction SHALL NOT modify or save the authored level. Recovery SHALL preserve current enables, and a new run SHALL restore the authored values.
 
 #### Scenario: Initially off switch starts
-- **WHEN** the application loads a switch authored with its initial state off
-- **THEN** its linked point light contributes no illumination before any interaction and the other point light remains enabled
+- **WHEN** the application loads an initially-off light referenced by a switch
+- **THEN** its linked point light contributes no illumination before any interaction and all other lights use their own initial values
 
 #### Scenario: Linked light is toggled off and on
 - **WHEN** the player performs two eligible presses separated by a release
-- **THEN** the linked light returns to its initial state with its original authored parameters, without changing the other light or flashlight
+- **THEN** the linked light returns to its initial state with its original authored parameters, without changing any other light or flashlight
 
 #### Scenario: Presentation is interrupted
 - **WHEN** rendering skips a frame, recreates the swapchain, or resumes after minimization following a toggle
@@ -89,7 +93,11 @@ At application startup the linked point light SHALL use the switch's authored in
 
 #### Scenario: Application is restarted
 - **WHEN** the player restarts after changing the light state
-- **THEN** the switch again uses the level's authored initial state and the level file retains its pre-interaction contents
+- **THEN** each light again uses its own authored initial state and the level file retains its pre-interaction contents
+
+#### Scenario: Two switches share a light
+- **WHEN** the player toggles a light with one switch and then uses another switch referencing the same light
+- **THEN** the second action inverts the same current value, with no stale switch-local state or change to another light
 
 ### Requirement: Packaged playable example
 The packaged prototype SHALL include one distinguishable switch on the player approach route controlling one existing point light that starts on. The switch SHALL be reachable using existing movement and SHALL allow a visible off/on lighting change without requiring new external art assets or a HUD.

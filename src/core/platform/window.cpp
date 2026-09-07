@@ -146,6 +146,30 @@ void Window::pollEvents() {
   glfwPollEvents();
 }
 
+void Window::useFullscreenMode(std::uint32_t width, std::uint32_t height,
+                               std::uint32_t refresh_hz) {
+  auto* monitor = glfwGetPrimaryMonitor();
+  if (!monitor) throw std::runtime_error("No primary monitor for measurement");
+  int count{};
+  const auto* modes = glfwGetVideoModes(monitor, &count);
+  const auto matches = [&](const GLFWvidmode& mode) {
+    return mode.width > 0 && mode.height > 0 && mode.refreshRate > 0 &&
+           static_cast<std::uint32_t>(mode.width) == width &&
+           static_cast<std::uint32_t>(mode.height) == height &&
+           static_cast<std::uint32_t>(mode.refreshRate) == refresh_hz;
+  };
+  bool supported = false;
+  for (int i = 0; i < count; ++i) supported = supported || matches(modes[i]);
+  if (!supported)
+    throw std::runtime_error("Requested fullscreen mode unavailable");
+  glfwSetWindowMonitor(impl_->handle, monitor, 0, 0, static_cast<int>(width),
+                       static_cast<int>(height), static_cast<int>(refresh_hz));
+  const auto* actual = glfwGetVideoMode(monitor);
+  if (!actual || !matches(*actual))
+    throw std::runtime_error(
+        "Actual fullscreen mode does not match measurement");
+}
+
 void Window::waitEvents() {
   impl_->input.beginEventBatch();
   glfwWaitEvents();

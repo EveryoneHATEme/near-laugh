@@ -83,13 +83,20 @@ TEST_F(EditorUiInteraction,
 }
 
 TEST_F(EditorUiInteraction,
-       FixedObjectsAndCameraNavigationSuppressMutationShortcuts) {
+       LightingShortcutsAndCameraNavigationRespectCapture) {
   const auto original = *document.document();
-  for (const auto id : {editor_first_light, editor_first_light + 1}) {
+  for (const auto id : {document.lightIds().front(), document.lightIds()[1]}) {
     document.select(id);
     frame();
-    key(ImGuiKey_Delete);
     key(ImGuiKey_D, true);
+    EXPECT_EQ(document.lightIds().size(),
+              original.environment_light.point_lights.size() + 1);
+    key(ImGuiKey_Z, true);
+    document.select(id);
+    key(ImGuiKey_Delete);
+    EXPECT_EQ(document.lightIds().size(),
+              original.environment_light.point_lights.size() - 1);
+    key(ImGuiKey_Z, true);
     EXPECT_EQ(*document.document(), original);
   }
   document.select(document.solidIds()[0]);
@@ -133,7 +140,7 @@ TEST_F(EditorUiInteraction,
        DoorButtonAndKeyboardEditsRetainIdentityThroughUndo) {
   const auto start_count = document.doorIds().size();
   const auto add = addButtonCenter();
-  click({add.x, add.y + 2 * ImGui::GetFrameHeightWithSpacing()});
+  click({add.x, add.y + 3 * ImGui::GetFrameHeightWithSpacing()});
   ASSERT_EQ(document.doorIds().size(), start_count + 1);
   const auto handle = document.selection();
   const auto id = std::get<DoorDefinition>(*document.object(handle)).id;
@@ -202,13 +209,13 @@ TEST_F(EditorUiInteraction, NewlyAddedSwitchUsesItsOwnFloorPlacementOffset) {
   frame();
   const auto add = addButtonCenter();
   const auto row = ImGui::GetFrameHeightWithSpacing();
-  click({add.x, add.y + row});
-  ASSERT_EQ(document.selection(), editor_light_switch);
-  click({add.x, add.y + 4 * row});
+  click({add.x, add.y + 2 * row});
+  ASSERT_EQ(document.selection(), document.switchIds().front());
+  click({add.x, add.y + 5 * row});
   click({800, 700});
-  ASSERT_TRUE(document.document()->light_switch);
-  EXPECT_FLOAT_EQ(document.document()->light_switch->position.y, 1.4F);
-  EXPECT_NE(document.document()->light_switch->position.z, 2.0F);
+  ASSERT_FALSE(document.document()->light_switches.empty());
+  EXPECT_FLOAT_EQ(document.document()->light_switches.front().position.y, 1.4F);
+  EXPECT_NE(document.document()->light_switches.front().position.z, 2.0F);
 }
 
 TEST_F(EditorUiInteraction,
@@ -297,7 +304,7 @@ TEST_F(EditorUiInteraction, UpperSurfacePreviewAndClickUseTheSameCandidate) {
   const float top =
       objects->Pos.y + objects->TitleBarHeight + objects->WindowPadding.y;
   click(
-      {objects->Pos.x + 30, top + 4 * ImGui::GetFrameHeightWithSpacing() + 8});
+      {objects->Pos.x + 30, top + 5 * ImGui::GetFrameHeightWithSpacing() + 8});
   const WorldPosition target{1, 3, -3};
   const auto projection =
       projectEditorLine(camera.frame(1600.0F / 900), target, target, {});
@@ -371,35 +378,34 @@ TEST_F(EditorUiInteraction,
 }
 
 TEST_F(EditorUiInteraction, SwitchButtonsPropertiesAndInputCapture) {
-  document.select(editor_light_switch);
+  document.select(document.switchIds().front());
   frame();
   key(ImGuiKey_D, true);
+  EXPECT_EQ(document.switchIds().size(), 2U);
+  key(ImGuiKey_Z, true);
   EXPECT_FALSE(document.dirty());
   key(ImGuiKey_Delete, false, true);
-  EXPECT_TRUE(document.document()->light_switch);
+  EXPECT_FALSE(document.document()->light_switches.empty());
   key(ImGuiKey_Delete);
-  ASSERT_FALSE(document.document()->light_switch);
+  ASSERT_TRUE(document.document()->light_switches.empty());
   const auto* objects = ImGui::FindWindowByName("Objects");
   const float object_top =
       objects->Pos.y + objects->TitleBarHeight + objects->WindowPadding.y;
   const float row = ImGui::GetFrameHeightWithSpacing();
-  click({objects->Pos.x + 60, object_top + row + 8});
-  ASSERT_TRUE(document.document()->light_switch);
-  EXPECT_EQ(document.selection(), editor_light_switch);
+  click({objects->Pos.x + 60, object_top + 2 * row + 8});
+  ASSERT_FALSE(document.document()->light_switches.empty());
+  EXPECT_EQ(document.selection(), document.switchIds().front());
   const auto created = *document.document();
-  click({objects->Pos.x + 60, object_top + row + 8});
+  click({objects->Pos.x + 60, object_top + 2 * row + 8});
+  EXPECT_EQ(document.switchIds().size(), 2U);
+  key(ImGuiKey_Z, true);
   EXPECT_EQ(*document.document(), created);
   const auto* properties = ImGui::FindWindowByName("Properties");
   const float top = properties->Pos.y + properties->TitleBarHeight +
                     properties->WindowPadding.y;
   click({properties->Pos.x + 40, top + 8});  // collapse Terrain
-  click({properties->Pos.x + 40, top + 4 * row + 8});
-  ASSERT_FALSE(document.document()->light_switch->initially_on);
-  EXPECT_FALSE(document.terrainStrokeActive());
-  key(ImGuiKey_Z, true);
-  EXPECT_EQ(*document.document(), created);
   // Select Point light 2 through the real combo popup.
-  click({properties->Pos.x + 70, top + 3 * row + 8});
+  click({properties->Pos.x + 70, top + 4 * row + 8});
   frame();
   frame();
   const ImGuiWindow* popup = nullptr;
@@ -409,11 +415,13 @@ TEST_F(EditorUiInteraction, SwitchButtonsPropertiesAndInputCapture) {
   ASSERT_NE(popup, nullptr);
   click({popup->Pos.x + 60, popup->Pos.y + popup->WindowPadding.y +
                                 ImGui::GetTextLineHeightWithSpacing() + 6});
-  ASSERT_EQ(document.document()->light_switch->point_light_index, 1U);
+  ASSERT_EQ(document.document()->light_switches.front().light_id,
+            "point-light-1");
+  EXPECT_EQ(document.document()->environment_light, created.environment_light);
   key(ImGuiKey_Z, true);
   EXPECT_EQ(*document.document(), created);
   // A yaw drag edits a draft and commits once when released.
-  const ImVec2 yaw{properties->Pos.x + 40, top + 2 * row + 8};
+  const ImVec2 yaw{properties->Pos.x + 40, top + 3 * row + 8};
   ImGui::GetIO().AddMousePosEvent(yaw.x, yaw.y);
   frame();
   ImGui::GetIO().AddMouseButtonEvent(0, true);
@@ -423,8 +431,8 @@ TEST_F(EditorUiInteraction, SwitchButtonsPropertiesAndInputCapture) {
   EXPECT_EQ(*document.document(), created);
   ImGui::GetIO().AddMouseButtonEvent(0, false);
   frame();
-  EXPECT_NE(document.document()->light_switch->yaw_degrees,
-            created.light_switch->yaw_degrees);
+  EXPECT_NE(document.document()->light_switches.front().yaw_degrees,
+            created.light_switches.front().yaw_degrees);
   key(ImGuiKey_Z, true);
   EXPECT_EQ(*document.document(), created);
   // Ctrl-click exact entry, including rejection of a non-finite value.
@@ -440,7 +448,30 @@ TEST_F(EditorUiInteraction, SwitchButtonsPropertiesAndInputCapture) {
       EXPECT_EQ(*document.document(), created);
       EXPECT_FALSE(document.editError().empty());
     } else {
-      EXPECT_FLOAT_EQ(document.document()->light_switch->yaw_degrees, 45);
+      EXPECT_FLOAT_EQ(document.document()->light_switches.front().yaw_degrees,
+                      45);
     }
   }
+}
+TEST_F(EditorUiInteraction, PointLightInitialAndShadowCheckboxesUseHistory) {
+  document.select(document.lightIds().front());
+  frame();
+  const auto original = *document.document();
+  const auto* properties = ImGui::FindWindowByName("Properties");
+  const float top = properties->Pos.y + properties->TitleBarHeight +
+                    properties->WindowPadding.y;
+  const float row = ImGui::GetFrameHeightWithSpacing();
+  click({properties->Pos.x + 40, top + 8});
+  click({properties->Pos.x + 40, top + 6 * row + 8});
+  EXPECT_FALSE(
+      document.document()->environment_light.point_lights.front().initially_on);
+  click({properties->Pos.x + 40, top + 7 * row + 8});
+  EXPECT_TRUE(document.document()
+                  ->environment_light.point_lights.front()
+                  .casts_shadows);
+  EXPECT_EQ(document.document()->light_switches, original.light_switches);
+  key(ImGuiKey_Z, true);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), original);
+  EXPECT_FALSE(document.dirty());
 }

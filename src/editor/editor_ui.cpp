@@ -161,7 +161,7 @@ void EditorUi::drawMenu(EditorDocument& document) {
   ImGui::EndMainMenuBar();
 }
 
-void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
+void EditorUi::drawDocumentSummary(EditorDocument& editor_document) {
   ImGui::SetNextWindowPos({10, 35}, ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize({320, 245}, ImGuiCond_FirstUseEver);
   ImGui::Begin("Document Summary");
@@ -190,13 +190,22 @@ void EditorUi::drawDocumentSummary(const EditorDocument& editor_document) {
     ImGui::TextUnformatted("Terrain: absent (interior)");
   ImGui::Text("Solids: %zu / %zu", document.solids.size(),
               level_maximum_solid_count);
-  ImGui::Text("Point lights: %zu",
+  ImGui::Text("Point lights: %zu / 8",
               document.environment_light.point_lights.size());
+  ImGui::Text("Shadow lights: %zu / 4",
+              static_cast<std::size_t>(std::count_if(
+                  document.environment_light.point_lights.begin(),
+                  document.environment_light.point_lights.end(),
+                  [](const auto& light) { return light.casts_shadows; })));
   ImGui::Text("Entries: %zu / 16; default: %s", document.entries.size(),
               document.default_entry.c_str());
   ImGui::Text("Props: %zu / %zu", document.props.size(), level_maximum_prop_count);
   ImGui::Text("Doors: %zu / %zu", document.doors.size(), level_maximum_door_count);
-  ImGui::Text("Light switch: %u / 1", document.light_switch ? 1U : 0U);
+  ImGui::Text("Light switches: %zu / 16", document.light_switches.size());
+  float ambient = document.environment_light.ambient_intensity;
+  if (ImGui::InputFloat("Ambient (0 to 0.20)", &ambient, .005F, .02F, "%.3f",
+                        ImGuiInputTextFlags_EnterReturnsTrue))
+    static_cast<void>(editor_document.setAmbient(ambient));
   ImGui::End();
 }
 
@@ -294,24 +303,38 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
             static_cast<void>(editor_document.makeSelectedEntryDefault());
           }
         } else if constexpr (std::is_same_v<T, PrototypePointLight>) {
+          std::array<char, 65> name{};
+          std::memcpy(name.data(), value.id.data(),
+                      std::min(value.id.size(), name.size() - 1));
+          if (ImGui::InputText("Light ID", name.data(), name.size()))
+            value.id = name.data();
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
           triple("Position", value.position);
           ImGui::DragFloat3("Light color", value.color.data(), 0.01F, 0, 0,
                             "%.3f");
           commit |= ImGui::IsItemDeactivatedAfterEdit();
           scalar("Intensity", value.intensity);
           scalar("Radius", value.radius);
+          commit |= ImGui::Checkbox("Initially on", &value.initially_on);
+          commit |= ImGui::Checkbox("Casts shadows", &value.casts_shadows);
         } else if constexpr (std::is_same_v<T, PrototypeLightSwitch>) {
+          std::array<char, 65> name{};
+          std::memcpy(name.data(), value.id.data(),
+                      std::min(value.id.size(), name.size() - 1));
+          if (ImGui::InputText("Switch ID", name.data(), name.size()))
+            value.id = name.data();
+          commit |= ImGui::IsItemDeactivatedAfterEdit();
           triple("Position", value.position);
           scalar("Yaw (degrees)", value.yaw_degrees, 0.5F);
-          int slot = value.point_light_index < prototype_point_light_count
-                         ? static_cast<int>(value.point_light_index)
-                         : -1;
-          if (ImGui::Combo("Linked light", &slot,
-                           "Point light 1\0Point light 2\0")) {
-            value.point_light_index = static_cast<std::uint32_t>(slot);
-            commit = true;
+          if (ImGui::BeginCombo("Linked light", value.light_id.c_str())) {
+            for (const auto& light : document.environment_light.point_lights)
+              if (ImGui::Selectable(light.id.c_str(),
+                                    light.id == value.light_id)) {
+                value.light_id = light.id;
+                commit = true;
+              }
+            ImGui::EndCombo();
           }
-          commit |= ImGui::Checkbox("Initially on", &value.initially_on);
         } else if constexpr (std::is_same_v<T, DoorDefinition>) {
           std::array<char, 65> name{};
           std::memcpy(name.data(), value.id.data(),
@@ -579,6 +602,8 @@ void EditorUi::drawObjects(EditorDocument& document) {
   const bool selected_content =
       selected_value &&
       (std::holds_alternative<DoorDefinition>(*selected_value) ||
+       std::holds_alternative<PrototypePointLight>(*selected_value) ||
+       std::holds_alternative<PrototypeLightSwitch>(*selected_value) ||
        editorAudioKind(*selected_value).has_value() ||
        std::holds_alternative<PrototypeStaticProp>(*selected_value));
   ImGui::BeginDisabled(!(selected_solid || selected_entry || selected_content));
@@ -586,12 +611,16 @@ void EditorUi::drawObjects(EditorDocument& document) {
     static_cast<void>(document.duplicateSelected());
   ImGui::EndDisabled();
   ImGui::SameLine();
-  ImGui::BeginDisabled(!selected_solid && !selected_entry &&
-                       !selected_content &&
-                       document.selection() != editor_light_switch);
+  ImGui::BeginDisabled(!selected_solid && !selected_entry && !selected_content);
   if (ImGui::Button("Delete")) static_cast<void>(document.removeSelected());
   ImGui::EndDisabled();
-  ImGui::BeginDisabled(document.document()->light_switch.has_value());
+  ImGui::BeginDisabled(document.lightIds().size() >=
+                       level_maximum_point_light_count);
+  if (ImGui::Button("Add point light"))
+    static_cast<void>(document.addPointLight());
+  ImGui::EndDisabled();
+  ImGui::BeginDisabled(document.switchIds().size() >=
+                       level_maximum_light_switch_count);
   if (ImGui::Button("Add light switch")) {
     if (document.addLightSwitch()) sculpting_ = false;
   }
@@ -703,14 +732,17 @@ void EditorUi::drawObjects(EditorDocument& document) {
   for (std::size_t i = 0; i < document.entryIds().size(); ++i)
     entry(document.entryIds()[i],
           "Entry: " + document.document()->entries[i].id);
-  entry(editor_first_light, "Point light 1");
-  entry(editor_first_light + 1, "Point light 2");
+  for (std::size_t i = 0; i < document.lightIds().size(); ++i)
+    entry(
+        document.lightIds()[i],
+        "Light: " + document.document()->environment_light.point_lights[i].id);
   for (std::size_t i = 0; i < document.propIds().size(); ++i)
     entry(document.propIds()[i], "Prop: " + document.document()->props[i].id);
   for (std::size_t i = 0; i < document.doorIds().size(); ++i)
     entry(document.doorIds()[i], "Door: " + document.document()->doors[i].id);
-  if (document.document()->light_switch)
-    entry(editor_light_switch, "Light switch");
+  for (std::size_t i = 0; i < document.switchIds().size(); ++i)
+    entry(document.switchIds()[i],
+          "Switch: " + document.document()->light_switches[i].id);
   for (std::size_t i = 0; i < document.solidIds().size(); ++i) {
     const auto& solid = document.document()->solids[i];
     const char* kinds[] = {"Floor", "Boundary", "Obstacle", "Walkable step",

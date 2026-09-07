@@ -189,7 +189,7 @@ TEST_F(AudioPersistence,
   const auto bytes = read(file);
   const auto loaded = loadLevelDocument(file);
   ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
-  EXPECT_EQ(loaded.source_version, 7U);
+  EXPECT_EQ(loaded.source_version, 8U);
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(makePrototypeLevel(*loaded.document).audio(), document.audio);
   ASSERT_TRUE(saveLevelDocument(file, *loaded.document));
@@ -215,7 +215,7 @@ TEST_F(AudioPersistence, V6OpensCleanAndExplicitSavePreservesAllPriorData) {
   ASSERT_TRUE(editor.save());
   const auto loaded = loadLevelDocument(file);
   ASSERT_TRUE(loaded);
-  EXPECT_EQ(loaded.source_version, 7U);
+  EXPECT_EQ(loaded.source_version, 8U);
   EXPECT_EQ(*loaded.document, expected);
 }
 

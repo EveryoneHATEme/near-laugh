@@ -276,7 +276,7 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       default_entry_(std::move(document.default_entry)),
       environment_light_(std::move(document.environment_light)),
       props_(std::move(document.props)),
-      light_switch_(std::move(document.light_switch)),
+      light_switches_(std::move(document.light_switches)),
       doors_(std::move(document.doors)),
       audio_(std::move(document.audio)) {}
 
@@ -325,24 +325,53 @@ PrototypeLevel loadPrototypeLevel(const std::filesystem::path& path) {
   return makePrototypeLevel(*result.document);
 }
 
-bool prototypeEnvironmentLightIsValid(
-    const PrototypeEnvironmentLight& light) noexcept {
-  const bool point_lights_are_valid = std::all_of(
-      light.point_lights.begin(), light.point_lights.end(),
-      [](const PrototypePointLight& point_light) {
-        return std::isfinite(point_light.position.x) &&
-               std::isfinite(point_light.position.y) &&
-               std::isfinite(point_light.position.z) &&
-               std::all_of(point_light.color.begin(), point_light.color.end(),
-                           [](float component) {
-                             return std::isfinite(component) &&
-                                    component >= 0.0F;
-                           }) &&
-               std::isfinite(point_light.intensity) &&
-               point_light.intensity > 0.0F &&
-               std::isfinite(point_light.radius) && point_light.radius > 0.0F;
-      });
-  return point_lights_are_valid && std::isfinite(light.ambient_intensity) &&
+std::string pointLightFieldError(const PrototypePointLight& light,
+                                 std::string* field) {
+  const auto at = [field](const char* name) {
+    if (field) *field = name;
+  };
+  at("position");
+  if (!finite(light.position)) return "position must be finite";
+  at("color");
+  for (float c : light.color)
+    if (!std::isfinite(c) || c < 0)
+      return "color must be finite and non-negative";
+  at("intensity");
+  if (!std::isfinite(light.intensity) || light.intensity <= 0)
+    return "intensity must be finite and positive";
+  at("radius");
+  if (!std::isfinite(light.radius) || light.radius <= 0)
+    return "radius must be finite and positive";
+  at("color");
+  for (float c : light.color)
+    if (!std::isfinite(c * light.intensity))
+      return "color times intensity overflows";
+  at("position");
+  for (float p : {light.position.x, light.position.y, light.position.z})
+    if (!std::isfinite(p + light.radius) || !std::isfinite(p - light.radius))
+      return "position and radius produce overflowing light bounds";
+  at("radius");
+  if (!std::isfinite(light.radius * light.radius))
+    return "squared radius overflows";
+  at("");
+  return {};
+}
+
+bool prototypeEnvironmentLightIsValid(const PrototypeEnvironmentLight& light) {
+  if (light.point_lights.size() > level_maximum_point_light_count) return false;
+  unsigned shadow_count{};
+  for (std::size_t i = 0; i < light.point_lights.size(); ++i) {
+    const auto& point = light.point_lights[i];
+    if (!levelEntryIdIsValid(point.id) || !pointLightFieldError(point).empty())
+      return false;
+    for (std::size_t j = 0; j < i; ++j)
+      if (point.id == light.point_lights[j].id) return false;
+    if (point.casts_shadows &&
+        (++shadow_count > level_maximum_shadow_light_count ||
+         point.radius < .25F || point.radius > 20))
+      return false;
+  }
+  return std::isfinite(light.ambient_intensity) &&
          light.ambient_intensity >= 0.0F &&
          light.ambient_intensity <= prototype_maximum_ambient_intensity;
 }
@@ -566,32 +595,39 @@ std::vector<LevelDiagnostic> validateLevelDocument(
                   "unknown structural material '" + document.terrain->material + "'");
 
   const PrototypeEnvironmentLight& light = document.environment_light;
+  if (light.point_lights.size() > level_maximum_point_light_count)
+    addValidation(diagnostics, source_path, "environment_light.point_lights",
+                  "exceeds the eight-light limit");
+  const auto shadow_count =
+      std::count_if(light.point_lights.begin(), light.point_lights.end(),
+                    [](const auto& point) { return point.casts_shadows; });
+  if (shadow_count >
+      static_cast<std::ptrdiff_t>(level_maximum_shadow_light_count))
+    addValidation(diagnostics, source_path, "environment_light.point_lights",
+                  "at most four lights may cast shadows, including initially "
+                  "disabled lights");
   for (std::size_t index = 0; index < light.point_lights.size(); ++index) {
     const PrototypePointLight& point = light.point_lights[index];
     const std::string path =
         "environment_light.point_lights[" + std::to_string(index) + "]";
-    if (!std::isfinite(point.position.x) || !std::isfinite(point.position.y) ||
-        !std::isfinite(point.position.z)) {
-      addValidation(diagnostics, source_path, path + ".position",
-                    "all components must be finite");
-    }
-    for (std::size_t component = 0; component < point.color.size();
-         ++component) {
-      if (!std::isfinite(point.color[component]) ||
-          point.color[component] < 0.0F) {
-        addValidation(diagnostics, source_path,
-                      path + ".color[" + std::to_string(component) + "]",
-                      "must be finite and non-negative");
+    const auto label = "light '" + point.id + "': ";
+    if (!levelEntryIdIsValid(point.id))
+      addValidation(diagnostics, source_path, path + ".id",
+                    label + "must match [a-z][a-z0-9-]{0,63}");
+    for (std::size_t j = 0; j < index; ++j)
+      if (light.point_lights[j].id == point.id) {
+        addValidation(diagnostics, source_path, path + ".id",
+                      label + "duplicate identifier");
+        break;
       }
-    }
-    if (!std::isfinite(point.intensity) || !(point.intensity > 0.0F)) {
-      addValidation(diagnostics, source_path, path + ".intensity",
-                    "must be finite and positive");
-    }
-    if (!std::isfinite(point.radius) || !(point.radius > 0.0F)) {
-      addValidation(diagnostics, source_path, path + ".radius",
-                    "must be finite and positive");
-    }
+    if (point.casts_shadows && (point.radius < .25F || point.radius > 20))
+      addValidation(
+          diagnostics, source_path, path + ".radius",
+          label + "shadowed radius must be between 0.25 and 20 metres");
+    std::string field;
+    if (auto error = pointLightFieldError(point, &field); !error.empty())
+      addValidation(diagnostics, source_path, path + "." + field,
+                    label + error);
   }
   if (!std::isfinite(light.ambient_intensity) ||
       light.ambient_intensity < 0.0F ||
@@ -668,23 +704,40 @@ std::vector<LevelDiagnostic> validateLevelDocument(
           label + "standing player clearance overlaps blocking geometry");
   }
 
-  if (document.light_switch) {
-    const auto& value = *document.light_switch;
+  if (document.light_switches.size() > level_maximum_light_switch_count)
+    addValidation(diagnostics, source_path, "light_switches",
+                  "exceeds the sixteen-switch limit");
+  for (std::size_t i = 0; i < document.light_switches.size(); ++i) {
+    const auto& value = document.light_switches[i];
+    const auto path = "light_switches[" + std::to_string(i) + "]";
+    const auto label = "switch '" + value.id + "': ";
+    if (!levelEntryIdIsValid(value.id))
+      addValidation(diagnostics, source_path, path + ".id",
+                    label + "must match [a-z][a-z0-9-]{0,63}");
+    for (std::size_t j = 0; j < i; ++j)
+      if (document.light_switches[j].id == value.id) {
+        addValidation(diagnostics, source_path, path + ".id",
+                      label + "duplicate identifier");
+        break;
+      }
     if (!std::isfinite(value.position.x) || !std::isfinite(value.position.y) ||
         !std::isfinite(value.position.z))
-      addValidation(diagnostics, source_path, "light_switch.position",
-                    "all components must be finite");
+      addValidation(diagnostics, source_path, path + ".position",
+                    label + "all components must be finite");
     if (!std::isfinite(value.yaw_degrees))
-      addValidation(diagnostics, source_path, "light_switch.yaw_degrees",
-                    "must be finite");
-    if (value.point_light_index >= prototype_point_light_count)
-      addValidation(diagnostics, source_path, "light_switch.point_light_index",
-                    "must select point light 0 or 1");
+      addValidation(diagnostics, source_path, path + ".yaw_degrees",
+                    label + "must be finite");
+    if (std::none_of(
+            light.point_lights.begin(), light.point_lights.end(),
+            [&](const auto& point) { return point.id == value.light_id; }))
+      addValidation(
+          diagnostics, source_path, path + ".light_id",
+          label + "references missing light '" + value.light_id + "'");
     for (const auto& corner : lightSwitchCorners(value)) {
       if (!std::isfinite(corner.x) || !std::isfinite(corner.y) ||
           !std::isfinite(corner.z)) {
-        addValidation(diagnostics, source_path, "light_switch.position",
-                      "transformed bounds must be finite");
+        addValidation(diagnostics, source_path, path + ".position",
+                      label + "transformed bounds must be finite");
         break;
       }
     }
@@ -775,7 +828,7 @@ bool prototypeLevelIsValid(const PrototypeLevel& level) {
   const LevelDocument document{level_format_version,   level.terrain(),
                                level.solids(),         level.entries(),
                                level.defaultEntryId(), level.environmentLight(),
-                               level.props(),          level.lightSwitch(),
+                               level.props(),          level.lightSwitches(),
                                level.doors(),          level.audio()};
   return validateLevelDocument(document).empty();
 }

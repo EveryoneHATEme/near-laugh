@@ -33,7 +33,7 @@ const LevelEntry& selectedEntry(const PrototypeLevel& level,
 
 Engine::Engine(const near_laugh::RuntimeConfig& config,
                ValidationDiagnostics& diagnostics, bool audio_fixture,
-               AudioOutput output)
+               AudioOutput output, FrameTimings* timings)
     : platform_(),
       window_(platform_, config.window_width, config.window_height,
               config.window_title),
@@ -48,12 +48,12 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
              audioNow()),
       physics_(level_, entry_),
       player_(physics_, entry_.pose.yaw_degrees),
-      light_switch_(level_.lightSwitch()),
+      light_switch_(level_.environmentLight(), level_.lightSwitches()),
       doors_(level_.doors()),
       renderer_(window_, window_.framebufferExtent(), level_,
                 {std::move(resources_.scene_vertex_shader),
                  std::move(resources_.scene_fragment_shader), resources_.root,
-                 caption_font_},
+                 caption_font_, timings},
                 diagnostics) {
   window_.setCursorCaptured(true);
   fixed_step_.reset();
@@ -70,9 +70,10 @@ void Engine::run() {
   }
 }
 
-bool Engine::tick() {
+bool Engine::tick(const PlayerActionSnapshot* development_input) {
   window_.pollEvents();
   input_ = input_mapper_.map(window_.input());
+  if (development_input) input_ = *development_input;
   const FramebufferExtent framebuffer = window_.framebufferExtent();
   const LoopDecision decision = decideLoopAction(
       window_.shouldClose(), framebuffer, window_.consumeFramebufferResize());

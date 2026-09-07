@@ -198,7 +198,7 @@ TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
                                             .environmentLight()),
                                const PrototypeEnvironmentLight&>);
   const PrototypeEnvironmentLight& light = level.environmentLight();
-  static_assert(prototype_point_light_count == 2U);
+  static_assert(level_maximum_point_light_count == 8U);
   ASSERT_EQ(light.point_lights.size(), 2U);
   EXPECT_TRUE(prototypeEnvironmentLightIsValid(light));
   EXPECT_FLOAT_EQ(light.ambient_intensity, 0.12F);
@@ -226,7 +226,7 @@ TEST(PrototypeLevel, HasValidImmutableEnvironmentLight) {
 
   const PrototypeLevel independently_constructed_level =
       loadPackagedPrototypeLevel();
-  for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
+  for (std::size_t index = 0; index < 2; ++index) {
     const WorldPosition& first = light.point_lights[index].position;
     const WorldPosition& second =
         independently_constructed_level.environmentLight()

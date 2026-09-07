@@ -114,7 +114,8 @@ struct FrameRequest {
   bool framebuffer_resized{};
   CameraFrame camera{};
   SpotLightFrame spot_light{};
-  std::array<bool, 2> point_light_enabled{true, true};
+  // Exact immutable scene order; values must be 0 or 1. Borrowed synchronously.
+  std::span<const std::uint8_t> point_light_enabled{};
   // Borrowed only for the synchronous render call; never retained by renderer.
   std::span<const OpaqueBoxFrame> opaque_boxes{};
   CaptionPresentation captions{};

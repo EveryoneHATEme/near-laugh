@@ -36,7 +36,7 @@ class EditorUi {
 
  private:
   void drawMenu(EditorDocument& document);
-  void drawDocumentSummary(const EditorDocument& document);
+  void drawDocumentSummary(EditorDocument& document);
   void drawObjects(EditorDocument& document);
   void drawAudioObjects(EditorDocument& document);
   void drawProperties(EditorDocument& document);

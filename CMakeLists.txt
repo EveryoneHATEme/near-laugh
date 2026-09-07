@@ -222,6 +222,10 @@ target_link_libraries(near_laugh_platform PRIVATE glfw)
 near_laugh_enable_warnings(near_laugh_platform)
 
 add_library(near_laugh_render STATIC
+    src/core/development/frame_timings.cpp
+    src/core/development/frame_capture.cpp
+    src/core/render/frame_readback.cpp
+    src/core/render/gpu_frame_timings.cpp
     src/core/render/text_resources.cpp
     src/core/render/scene_assets.cpp
     src/core/render/scene_resources.cpp
@@ -232,6 +236,7 @@ add_library(near_laugh_render STATIC
     src/core/render/graphics_pipeline.cpp
     src/core/render/immutable_mesh_buffer.cpp
     src/core/render/lighting_resources.cpp
+    src/core/render/point_shadow.cpp
     src/core/render/prototype_scene.cpp
     src/core/render/renderer.cpp
     src/core/render/sampled_texture.cpp
@@ -303,6 +308,7 @@ add_library(near_laugh_editor_core STATIC
     src/editor/editor_game_process.cpp
     src/editor/editor_camera.cpp
     src/editor/editor_commands.cpp
+    src/editor/editor_lighting_commands.cpp
     src/editor/editor_audio_commands.cpp
     src/editor/editor_document.cpp
     src/editor/editor_terrain.cpp
@@ -407,6 +413,23 @@ target_link_libraries(audio_captions_fixture PRIVATE near_laugh_runtime)
 near_laugh_enable_warnings(audio_captions_fixture)
 set_target_properties(audio_captions_fixture PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_dependencies(audio_captions_fixture near_laugh_packaged_resources)
+
+add_executable(interior_lighting_measure EXCLUDE_FROM_ALL
+    src/interior_lighting_measure_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(interior_lighting_measure PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(interior_lighting_measure PRIVATE near_laugh_runtime near_laugh_render)
+near_laugh_enable_warnings(interior_lighting_measure)
+set_target_properties(interior_lighting_measure PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(interior_lighting_measure near_laugh_packaged_resources)
+
+add_executable(interior_lighting_visual EXCLUDE_FROM_ALL
+    src/interior_lighting_visual_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(interior_lighting_visual PRIVATE src)
+target_link_libraries(interior_lighting_visual PRIVATE near_laugh_platform near_laugh_render
+    near_laugh_world near_laugh_editor_render near_laugh_imgui near_laugh_runtime)
+set_target_properties(interior_lighting_visual PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(interior_lighting_visual near_laugh_packaged_resources)
+near_laugh_enable_warnings(interior_lighting_visual)
 
 add_executable(level_editor
     src/editor/editor_application.cpp

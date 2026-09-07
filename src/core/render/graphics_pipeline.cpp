@@ -16,8 +16,9 @@ GraphicsPipeline::GraphicsPipeline(
     VkDescriptorSetLayout lighting_descriptor_layout,
     VkDescriptorSet lighting_descriptor_set,
     const std::filesystem::path& vertex_shader_path,
-    const std::filesystem::path& fragment_shader_path)
+    const std::filesystem::path& fragment_shader_path, Pass pass)
     : device_(device),
+      pass_(pass),
       texture_descriptor_layout_(texture_descriptor_layout),
       texture_descriptor_set_(texture_descriptor_set),
       lighting_descriptor_layout_(lighting_descriptor_layout),
@@ -83,13 +84,16 @@ void GraphicsPipeline::createPipeline(
     const VkVertexInputBindingDescription binding =
         sceneVertexBindingDescription();
     const auto attributes = sceneVertexAttributeDescriptions();
+    const std::array<VkVertexInputAttributeDescription, 2> shadow_attributes{
+        attributes[0], attributes[3]};
     VkPipelineVertexInputStateCreateInfo vertex_input{
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
     vertex_input.vertexBindingDescriptionCount = 1;
     vertex_input.pVertexBindingDescriptions = &binding;
-    vertex_input.vertexAttributeDescriptionCount =
-        static_cast<std::uint32_t>(attributes.size());
-    vertex_input.pVertexAttributeDescriptions = attributes.data();
+    vertex_input.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(
+        pass_ == Pass::Color ? attributes.size() : shadow_attributes.size());
+    vertex_input.pVertexAttributeDescriptions =
+        pass_ == Pass::Color ? attributes.data() : shadow_attributes.data();
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly{
         VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
@@ -118,7 +122,7 @@ void GraphicsPipeline::createPipeline(
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     VkPipelineColorBlendStateCreateInfo blend{
         VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-    blend.attachmentCount = 1;
+    blend.attachmentCount = pass_ == Pass::Color ? 1 : 0;
     blend.pAttachments = &blend_attachment;
     const std::array<VkDynamicState, 2> dynamic_states = {
         VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
@@ -144,7 +148,7 @@ void GraphicsPipeline::createPipeline(
 
     VkPipelineRenderingCreateInfo rendering_info{
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
-    rendering_info.colorAttachmentCount = 1;
+    rendering_info.colorAttachmentCount = pass_ == Pass::Color ? 1 : 0;
     rendering_info.pColorAttachmentFormats = &swapchain_format;
     rendering_info.depthAttachmentFormat = depth_format;
     VkGraphicsPipelineCreateInfo pipeline_info{
@@ -179,14 +183,15 @@ void GraphicsPipeline::createPipeline(
   vkDestroyShaderModule(device_, vertex_shader, nullptr);
 }
 
-void GraphicsPipeline::bindSceneState(
-    VkCommandBuffer command_buffer, const CameraFrame& camera,
-    SpotLightFrame spot_light, std::array<bool, 2> point_light_enabled) const {
+void GraphicsPipeline::bindSceneState(VkCommandBuffer command_buffer,
+                                      const CameraFrame& camera,
+                                      SpotLightFrame spot_light,
+                                      VkDescriptorSet frame_lighting) const {
   const ScenePushConstant push_constant =
-      makeScenePushConstant(camera, spot_light, point_light_enabled);
+      makeScenePushConstant(camera, spot_light);
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
   const auto descriptor_sets =
-      sceneDescriptorSets(texture_descriptor_set_, lighting_descriptor_set_);
+      sceneDescriptorSets(texture_descriptor_set_, frame_lighting);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           layout_, scene_texture_descriptor_set,
                           static_cast<std::uint32_t>(descriptor_sets.size()),

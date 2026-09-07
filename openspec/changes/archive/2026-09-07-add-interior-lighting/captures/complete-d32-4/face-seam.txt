@@ -1,0 +1,4 @@
+eye 5 2.5 4
+target 3 0 0
+vertical-fov 60
+framebuffer 1920 1080

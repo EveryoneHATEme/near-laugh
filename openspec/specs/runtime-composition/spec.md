@@ -101,7 +101,7 @@ The runtime SHALL supply at most one optional dynamic spot-light description con
 - **THEN** their spot-light contract contains only project-owned scalar lighting data and no gameplay, physics-library, platform, or graphics-backend types
 
 ### Requirement: Gameplay-independent point-light enable request
-For every scene frame, the runtime SHALL supply backend-neutral enabled state for each of the two authored point-light slots, defaulting to enabled. The request SHALL NOT expose switch definitions, input actions, physics hits, gameplay controllers, or backend types. The runtime SHALL retain light state across renderer outcomes; the renderer SHALL only present the supplied state.
+For every scene frame, the runtime SHALL supply backend-neutral enabled state for every light in the loaded bounded authored set, initialized from each light's own initial value. The request SHALL NOT expose switch definitions, input actions, physics hits, gameplay controllers, or backend types. The number and order of submitted enables SHALL match the immutable light set exactly; missing or mismatched data SHALL be rejected before GPU submission, and the empty set SHALL be valid. The runtime SHALL retain light state across renderer outcomes; the renderer SHALL only present the supplied state.
 
 #### Scenario: Switch changes a light
 - **WHEN** runtime interaction changes the linked point-light state
@@ -112,8 +112,12 @@ For every scene frame, the runtime SHALL supply backend-neutral enabled state fo
 - **THEN** the runtime retains its current light state and includes it in the next requested frame without replaying the press
 
 #### Scenario: Default frame has no overrides
-- **WHEN** a caller supplies no explicit point-light enable overrides
-- **THEN** both authored point lights are enabled independently of whether a spotlight is present
+- **WHEN** a caller supplies no point-light enable data for a nonempty authored light set
+- **THEN** the boundary rejects the incomplete request before submission; runtime startup must explicitly initialize enables from the authored light values
+
+#### Scenario: Enable data does not match the scene
+- **WHEN** a frame supplies fewer or more enable values than the immutable light set
+- **THEN** the boundary reports the mismatch before submission rather than enabling a different light or reading outside the data
 
 ### Requirement: Explicit run-local door coordination
 The runtime SHALL own mutable door motion, lock state, and temporary feedback independently from immutable authored definitions and renderer/physics resources. It SHALL advance motion and feedback only within the bounded fixed simulation steps, dispatch each sampled action batch once after simulation, and provide the same accepted leaf pose to collision, target queries, and presentation. Player camera interpolation SHALL remain safe with these current leaf poses. Minimized waits SHALL pause door motion and feedback and SHALL NOT accumulate catch-up or delayed actions. Presentation outcomes SHALL NOT reset state or replay concrete results.

@@ -10,10 +10,12 @@
 #include <string_view>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 7;
+inline constexpr std::uint32_t level_format_version = 8;
 inline constexpr std::size_t level_maximum_door_count = 32;
 inline constexpr std::size_t prototype_surface_count = 3;
-inline constexpr std::size_t prototype_point_light_count = 2;
+inline constexpr std::size_t level_maximum_point_light_count = 8;
+inline constexpr std::size_t level_maximum_light_switch_count = 16;
+inline constexpr std::size_t level_maximum_shadow_light_count = 4;
 inline constexpr std::size_t prototype_terrain_sample_count = 97;
 inline constexpr std::size_t prototype_terrain_cell_count =
     prototype_terrain_sample_count - 1;
@@ -95,11 +97,14 @@ struct PrototypePointLight {
   std::array<float, 3> color{};
   float intensity{};
   float radius{};
+  std::string id{};
+  bool initially_on{true};
+  bool casts_shadows{};
 };
 
 struct PrototypeEnvironmentLight {
   bool operator==(const PrototypeEnvironmentLight&) const = default;
-  std::array<PrototypePointLight, prototype_point_light_count> point_lights{};
+  std::vector<PrototypePointLight> point_lights{};
   float ambient_intensity{};
 };
 
@@ -126,8 +131,8 @@ struct PrototypeLightSwitch {
   bool operator==(const PrototypeLightSwitch&) const = default;
   WorldPosition position{};
   float yaw_degrees{};
-  std::uint32_t point_light_index{};
-  bool initially_on{true};
+  std::string light_id{};
+  std::string id{};
 };
 
 enum class DoorLockSide { None, PositiveZ, NegativeZ };
@@ -209,7 +214,7 @@ struct LevelDocument {
   std::string default_entry{};
   PrototypeEnvironmentLight environment_light{};
   std::vector<PrototypeStaticProp> props{};
-  std::optional<PrototypeLightSwitch> light_switch{};
+  std::vector<PrototypeLightSwitch> light_switches{};
   std::vector<DoorDefinition> doors{};
   LevelAudio audio{};
 };

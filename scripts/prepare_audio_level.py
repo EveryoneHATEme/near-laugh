@@ -1,9 +1,10 @@
 """Generate the separate P04 fixture from the unchanged apartment geometry."""
 import json
 from pathlib import Path
+from level_lighting_v8 import migrate_lighting, write_level
 
 root = Path(__file__).resolve().parents[1]
-level = json.loads((root / "resources/levels/apartment-stairs.level.json").read_text())
+level = migrate_lighting(json.loads((root / "resources/levels/apartment-stairs.level.json").read_text()))
 
 def position(x, y, z):
     return dict(x=float(x), y=float(y), z=float(z))
@@ -23,4 +24,4 @@ level["audio"] = dict(
     connections=[dict(id="room-door", room_a="lena-room", room_b="corridor", door="lena-room", closed_gain=.2, open_gain=1.0),
                  dict(id="kitchen-opening", room_a="corridor", room_b="kitchen", door=None, closed_gain=1.0, open_gain=1.0),
                  dict(id="stairs", room_a="corridor", room_b=None, door=None, closed_gain=.8, open_gain=.8)])
-(root / "resources/levels/audio-captions.level.json").write_text(json.dumps(level, indent=2) + "\n", encoding="utf-8")
+write_level(root / "resources/levels/audio-captions.level.json", level)

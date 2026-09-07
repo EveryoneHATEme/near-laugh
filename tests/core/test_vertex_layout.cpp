@@ -28,9 +28,7 @@ TEST(SceneVertex, MatchesVulkanPipelineDescription) {
   EXPECT_EQ(attributes[3].format, VK_FORMAT_R32G32_SFLOAT);
   EXPECT_EQ(attributes[3].offset,
             offsetof(PositionColorVertex, texture_coordinates));
-  EXPECT_EQ(attributes[4].location, 4U);
-  EXPECT_EQ(attributes[4].format, VK_FORMAT_R32_UINT);
-  EXPECT_EQ(attributes[4].offset, offsetof(PositionColorVertex, texture_layer));
+  EXPECT_EQ(attributes.size(), 4U);
   EXPECT_EQ(sizeof(PositionColorVertex), sizeof(float) * 8 + 8);
 }
 
@@ -78,7 +76,7 @@ TEST(ScenePipeline, PushConstantCarriesCameraAndGenericSpotLight) {
   EXPECT_EQ(push_constant.spot_color_and_intensity,
             spot_light.color_and_intensity);
   EXPECT_EQ(push_constant.light_controls,
-            (std::array<float, 4>{0.85F, 1.0F, 1.0F, 1.0F}));
+            (std::array<float, 4>{0.85F, 1.0F, 0, 0}));
 }
 
 TEST(ScenePipeline, PointLightPackingIsIndependentOfSpotlight) {
@@ -91,31 +89,36 @@ TEST(ScenePipeline, PointLightPackingIsIndependentOfSpotlight) {
               {0.85F, 1, 0, 0}};
     for (const bool first : {false, true}) {
       for (const bool second : {false, true}) {
-        const auto packed = makeScenePushConstant({}, spot, {first, second});
+        const auto packed = makeScenePushConstant({}, spot);
+        auto lights = loadPackagedPrototypeLevel().environmentLight();
+        lights.point_lights[0].initially_on = first;
+        lights.point_lights[1].initially_on = second;
+        const auto upload = makePrototypeLightingUpload(lights);
+        EXPECT_EQ(upload.point_lights[0].controls[0], first ? 1 : 0);
+        EXPECT_EQ(upload.point_lights[1].controls[0], second ? 1 : 0);
         EXPECT_TRUE(spotLightFrameIsValid(spot));
         EXPECT_EQ(packed.spot_position_and_range, spot.position_and_range);
         EXPECT_EQ(packed.spot_color_and_intensity, spot.color_and_intensity);
         EXPECT_EQ(packed.light_controls,
-                  (std::array<float, 4>{
-                      spot.outer_cosine_and_enabled[0], spot_on ? 1.0F : 0.0F,
-                      first ? 1.0F : 0.0F, second ? 1.0F : 0.0F}));
+                  (std::array<float, 4>{spot.outer_cosine_and_enabled[0],
+                                        spot_on ? 1.0F : 0.0F, 0, 0}));
       }
     }
   }
   const FrameRequest frame;
-  EXPECT_EQ(frame.point_light_enabled, (std::array<bool, 2>{true, true}));
+  EXPECT_TRUE(frame.point_light_enabled.empty());
 }
 
 TEST(SceneLighting, MatchesStd140UploadAndDescriptorContract) {
-  static_assert(prototype_point_light_count == 2U);
+  static_assert(level_maximum_point_light_count == 8U);
   EXPECT_EQ(alignof(PrototypePointLightUpload), 16U);
-  EXPECT_EQ(sizeof(PrototypePointLightUpload), 32U);
+  EXPECT_EQ(sizeof(PrototypePointLightUpload), 48U);
   EXPECT_EQ(offsetof(PrototypePointLightUpload, position_and_radius), 0U);
   EXPECT_EQ(offsetof(PrototypePointLightUpload, color_and_intensity), 16U);
   EXPECT_EQ(alignof(PrototypeLightingUpload), 16U);
   EXPECT_EQ(offsetof(PrototypeLightingUpload, point_lights), 0U);
-  EXPECT_EQ(offsetof(PrototypeLightingUpload, ambient_intensity), 64U);
-  EXPECT_EQ(sizeof(PrototypeLightingUpload), 80U);
+  EXPECT_EQ(offsetof(PrototypeLightingUpload, ambient_intensity), 384U);
+  EXPECT_EQ(sizeof(PrototypeLightingUpload), 1936U);
 
   constexpr VkDescriptorSetLayoutBinding binding =
       prototypeLightingDescriptorBinding();
@@ -129,7 +132,8 @@ TEST(SceneLighting, MatchesStd140UploadAndDescriptorContract) {
       loadPackagedPrototypeLevel().environmentLight();
   const PrototypeLightingUpload upload =
       makePrototypeLightingUpload(environment);
-  for (std::size_t index = 0; index < prototype_point_light_count; ++index) {
+  for (std::size_t index = 0; index < environment.point_lights.size();
+       ++index) {
     EXPECT_FLOAT_EQ(upload.point_lights[index].position_and_radius[0],
                     environment.point_lights[index].position.x);
     EXPECT_FLOAT_EQ(upload.point_lights[index].position_and_radius[1],
@@ -146,7 +150,7 @@ TEST(SceneLighting, MatchesStd140UploadAndDescriptorContract) {
                               environment.point_lights[index].intensity}));
   }
   EXPECT_FLOAT_EQ(upload.ambient_intensity[0], environment.ambient_intensity);
-  EXPECT_FLOAT_EQ(upload.ambient_intensity[1], 0.0F);
+  EXPECT_FLOAT_EQ(upload.ambient_intensity[1], 2.0F);
   EXPECT_FLOAT_EQ(upload.ambient_intensity[2], 0.0F);
   EXPECT_FLOAT_EQ(upload.ambient_intensity[3], 0.0F);
 }

@@ -1,0 +1,5 @@
+eye 3 2.5 4
+target 1 0 0
+vertical-fov 60
+framebuffer 1920 1080
+door control-door angle 0

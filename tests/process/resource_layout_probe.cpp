@@ -28,6 +28,10 @@ int main(int argc, char** argv) {
     if (!std::filesystem::is_regular_file(vertex) ||
         !std::filesystem::is_regular_file(fragment) ||
         !std::filesystem::is_regular_file(root /
+                                          "shaders/point_shadow_vertex.spv") ||
+        !std::filesystem::is_regular_file(
+            root / "shaders/point_shadow_fragment.spv") ||
+        !std::filesystem::is_regular_file(root /
                                           "shaders/caption_vertex.spv") ||
         !std::filesystem::is_regular_file(root /
                                           "shaders/caption_fragment.spv")) {
@@ -49,6 +53,10 @@ int main(int argc, char** argv) {
     }
     if (!std::filesystem::is_regular_file(level) ||
         !std::filesystem::is_regular_file(interior) ||
+        !std::filesystem::is_regular_file(
+            root / "levels/interior-lighting.level.json") ||
+        !std::filesystem::is_regular_file(
+            root / "levels/interior-lighting-capacity.level.json") ||
         !std::filesystem::is_regular_file(root /
                                           "levels/audio-captions.level.json")) {
       std::cerr << "Executable-relative level resource is missing: " << level

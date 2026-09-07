@@ -12,11 +12,13 @@ struct LevelDocument;
 struct EditorOverlayLine;
 class ValidationDiagnostics;
 class Window;
+struct FrameCapture;
 
 struct EditorRendererResources {
   std::filesystem::path vertex_shader{};
   std::filesystem::path fragment_shader{};
   std::filesystem::path resource_root{};
+  FrameCapture* capture{};
 };
 
 class EditorRenderer {

@@ -337,7 +337,7 @@ TEST(ChangingGeometry, RejectsInvalidAndUnboundedFrameData) {
 
 TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {
   auto document = prototypeLevelDocument();
-  document.light_switch->yaw_degrees = 37;
+  document.light_switches.front().yaw_degrees = 37;
   const auto level = makePrototypeLevel(document);
   const auto vertices = buildPrototypeSceneVertices(level);
   const auto without =
@@ -346,7 +346,7 @@ TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {
   auto terrain = *document.terrain;
   terrain.heights[0] += 0.01F;
   const auto rebuilt = buildPrototypeSceneVertices(terrain, document.solids,
-                                                   document.light_switch);
+                                                   document.light_switches);
   ASSERT_EQ(rebuilt.size(), vertices.size());
   WorldPosition minimum{100, 100, 100}, maximum{-100, -100, -100};
   for (std::size_t i = without.size(); i < vertices.size(); ++i) {
@@ -372,7 +372,7 @@ TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {
     maximum.z = std::max(maximum.z, v.position[2]);
   }
   WorldPosition bound_min{100, 100, 100}, bound_max{-100, -100, -100};
-  for (const auto p : lightSwitchCorners(*document.light_switch)) {
+  for (const auto p : lightSwitchCorners(document.light_switches.front())) {
     bound_min.x = std::min(bound_min.x, p.x);
     bound_max.x = std::max(bound_max.x, p.x);
     bound_min.y = std::min(bound_min.y, p.y);
@@ -403,9 +403,10 @@ TEST(SwitchGeometry, YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild) {
                   (ux * vy - uy * vx) * a.normal[2],
               0);
   }
-  document.light_switch->point_light_index = 2;
+  document.light_switches.front().yaw_degrees =
+      std::numeric_limits<float>::infinity();
   EXPECT_EQ(buildPrototypeSceneVertices(document.terrain, document.solids,
-                                        document.light_switch)
+                                        document.light_switches)
                 .size(),
             without.size());
 }

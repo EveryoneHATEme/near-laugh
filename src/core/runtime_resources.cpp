@@ -36,6 +36,8 @@ RuntimeResources resolveRuntimeResources(
                  : root / "levels" / "prototype.level.json"};
   requireFile(resources.scene_vertex_shader);
   requireFile(resources.scene_fragment_shader);
+  requireFile(root / "shaders" / "point_shadow_vertex.spv");
+  requireFile(root / "shaders" / "point_shadow_fragment.spv");
   requireFile(resources.prototype_level);
   return resources;
 }

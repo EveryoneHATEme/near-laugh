@@ -25,7 +25,8 @@ LevelDocument doorLevel() {
                  "prototype-floor"}};
   doc.entries = {{"start", {{0, 0, 3}, 180}}};
   doc.default_entry = "start";
-  doc.light_switch = PrototypeLightSwitch{{0, 1.2F, -1}, 0, 0, true};
+  doc.light_switches = {
+      PrototypeLightSwitch{{0, 1.2F, -1}, 0, "point-light-0", "switch"}};
   DoorDefinition door;
   door.id = "room";
   door.hinge_position = {-0.45F, 0.02F, 0};
@@ -436,7 +437,7 @@ TEST(DoorInteraction, HeldMissTransitionsAndActionPriorityDoNotReplay) {
   const auto level = makePrototypeLevel(doorLevel());
   PhysicsWorld physics(level);
   DoorController doors(level.doors());
-  LightSwitchController light(level.lightSwitch());
+  LightSwitchController light(level.environmentLight(), level.lightSwitches());
   AuthoredInteraction interaction;
   PlayerActionSnapshot input;
   const auto update = [&](bool active, PlayerViewPose view = doorView()) {
@@ -473,7 +474,7 @@ TEST(DoorInteraction,
   const auto level = makePrototypeLevel(doorLevel());
   PhysicsWorld physics(level);
   DoorController doors(level.doors());
-  LightSwitchController light(level.lightSwitch());
+  LightSwitchController light(level.environmentLight(), level.lightSwitches());
   AuthoredInteraction interaction;
   PlayerActionSnapshot input;
   (void)interaction.update(input, true, doorView(), level, physics, doors,
@@ -511,7 +512,8 @@ TEST(DoorInteraction, NearestLeafWinsIndependentlyOfStorageOrderAndReach) {
     const auto level = makePrototypeLevel(doc);
     PhysicsWorld physics(level);
     DoorController doors(level.doors());
-    LightSwitchController light(level.lightSwitch());
+    LightSwitchController light(level.environmentLight(),
+                                level.lightSwitches());
     AuthoredInteraction interaction;
     const auto press = [&](float z) {
       const PlayerViewPose view{{0, 1.2F, z}, {0, 0, -1}};
@@ -535,11 +537,12 @@ TEST(DoorInteraction, NearestLeafWinsIndependentlyOfStorageOrderAndReach) {
 TEST(DoorInteraction, TypeTieUsesAbsoluteMinimumTolerance) {
   for (const float offset : {0.0F, .00005F, .001F}) {
     auto doc = doorLevel();
-    doc.light_switch->position.z = .01F + offset;
+    doc.light_switches.front().position.z = .01F + offset;
     const auto level = makePrototypeLevel(doc);
     PhysicsWorld physics(level);
     DoorController doors(level.doors());
-    LightSwitchController light(level.lightSwitch());
+    LightSwitchController light(level.environmentLight(),
+                                level.lightSwitches());
     AuthoredInteraction interaction;
     (void)interaction.update({}, true, doorView(), level, physics, doors,
                              light);
@@ -568,7 +571,7 @@ TEST(DoorGameplay, FrameBatchesBoundStepsAndConsumeMinimizedPresses) {
   PhysicsWorld physics(level);
   PlayerController player(physics, -90);
   DoorController doors(level.doors());
-  LightSwitchController light(level.lightSwitch());
+  LightSwitchController light(level.environmentLight(), level.lightSwitches());
   AuthoredInteraction interaction;
   FixedStepAccumulator clock;
   PlayerActionSnapshot input;

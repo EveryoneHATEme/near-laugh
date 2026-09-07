@@ -121,21 +121,18 @@ std::string editorObjectFieldError(const EditorObjectValue& value) {
           if (!std::isfinite(v.pose.yaw_degrees))
             return "Entry yaw must be finite.";
         } else if constexpr (std::is_same_v<T, PrototypePointLight>) {
-          if (!finite(v.position)) return "Light position must be finite.";
-          if (!std::all_of(v.color.begin(), v.color.end(), [](float c) {
-                return std::isfinite(c) && c >= 0.0F;
-              }))
-            return "Light color must be finite and non-negative.";
-          if (!std::isfinite(v.intensity) || v.intensity <= 0.0F)
-            return "Light intensity must be finite and positive.";
-          if (!std::isfinite(v.radius) || v.radius <= 0.0F)
-            return "Light radius must be finite and positive.";
+          if (!levelEntryIdIsValid(v.id))
+            return "Light ID must match [a-z][a-z0-9-]{0,63}.";
+          if (auto error = pointLightFieldError(v); !error.empty())
+            return error;
         } else if constexpr (std::is_same_v<T, PrototypeLightSwitch>) {
+          if (!levelEntryIdIsValid(v.id))
+            return "Switch ID must match [a-z][a-z0-9-]{0,63}.";
+          if (!v.light_id.empty() && !levelEntryIdIsValid(v.light_id))
+            return "Linked light ID must match [a-z][a-z0-9-]{0,63}.";
           if (!finite(v.position)) return "Switch position must be finite.";
           if (!std::isfinite(v.yaw_degrees))
             return "Switch yaw must be finite.";
-          if (v.point_light_index >= prototype_point_light_count)
-            return "Switch must link Point light 1 or 2.";
           if (!lightSwitchIsValid(v))
             return "Switch bounds must remain finite.";
         } else if constexpr (std::is_same_v<T, DoorDefinition>) {
@@ -184,6 +181,8 @@ void EditorDocument::resetEditing() {
   entry_ids_.clear();
   door_ids_.clear();
   prop_ids_.clear();
+  light_ids_.clear();
+  switch_ids_.clear();
   launch_entry_ = document_ ? document_->default_entry : std::string{};
   next_object_id_ = editor_first_solid;
   if (document_) {
@@ -200,6 +199,11 @@ void EditorDocument::resetEditing() {
       door_ids_.push_back(next_object_id_++);
     for (std::size_t i = 0; i < document_->props.size(); ++i)
       prop_ids_.push_back(i == 0 ? editor_prop : next_object_id_++);
+    for (std::size_t i = 0;
+         i < document_->environment_light.point_lights.size(); ++i)
+      light_ids_.push_back(next_object_id_++);
+    for (std::size_t i = 0; i < document_->light_switches.size(); ++i)
+      switch_ids_.push_back(next_object_id_++);
   }
   selection_ = editor_no_object;
   resetAudioIds();
@@ -340,13 +344,12 @@ std::optional<EditorObjectValue> EditorDocument::object(
     EditorObjectId id) const {
   if (!document_) return std::nullopt;
   if (const auto index = entryIndex(id)) return document_->entries[*index];
-  if (id >= editor_first_light && id < editor_prop) {
-    return document_->environment_light.point_lights[id - editor_first_light];
-  }
+  if (const auto index = lightIndex(id))
+    return document_->environment_light.point_lights[*index];
   if (const auto index = propIndex(id)) return document_->props[*index];
   if (const auto index = doorIndex(id)) return document_->doors[*index];
-  if (id == editor_light_switch && document_->light_switch)
-    return *document_->light_switch;
+  if (const auto index = switchIndex(id))
+    return document_->light_switches[*index];
   if (const auto index = solidIndex(id)) return document_->solids[*index];
   return audioObject(id);
 }
@@ -387,11 +390,13 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
   }
   Edit edit{id,
             solidIndex(id).value_or(entryIndex(id).value_or(
-                doorIndex(id).value_or(propIndex(id).value_or(0)))),
+                doorIndex(id).value_or(propIndex(id).value_or(
+                    lightIndex(id).value_or(switchIndex(id).value_or(0)))))),
             before,
             std::move(value),
             selection_,
             selection_};
+  if (!prepareLightingEdit(edit)) return false;
   if (const auto* entry = std::get_if<LevelEntry>(&*edit.after)) {
     const auto& old = std::get<LevelEntry>(*before);
     if (old.id != entry->id && findLevelEntry(*document_, entry->id)) {
@@ -447,6 +452,16 @@ bool EditorDocument::addSolid(PrototypeSolid solid) {
 bool EditorDocument::duplicateSelected() {
   static_cast<void>(finishTerrainStroke());
   if (!document_) return false;
+  if (const auto index = lightIndex(selection_)) {
+    auto copy = document_->environment_light.point_lights[*index];
+    copy.position.x += 1.5F;
+    return addPointLight(std::move(copy));
+  }
+  if (const auto index = switchIndex(selection_)) {
+    auto copy = document_->light_switches[*index];
+    copy.position.x += .5F;
+    return addLightSwitch(std::move(copy));
+  }
   if (auto value = audioObject(selection_))
     return addAudioObject(std::move(*value));
   if (const auto index = doorIndex(selection_)) {
@@ -488,18 +503,6 @@ bool EditorDocument::duplicateSelected() {
   return addSolid(solid);
 }
 
-bool EditorDocument::addLightSwitch() {
-  static_cast<void>(finishTerrainStroke());
-  if (!document_ || document_->light_switch) return false;
-  auto position = document_->entries.empty()
-                      ? WorldPosition{}
-                      : document_->entries.front().pose.foot_position;
-  position.y += 1.65F;
-  return commit({editor_light_switch, 0, std::nullopt,
-                 PrototypeLightSwitch{position, 0, 0, true}, selection_,
-                 editor_light_switch});
-}
-
 bool EditorDocument::removeSelected() {
   static_cast<void>(finishTerrainStroke());
   if (auto value = audioObject(selection_)) {
@@ -515,8 +518,12 @@ bool EditorDocument::removeSelected() {
   if (const auto index = propIndex(selection_))
     return commit({selection_, *index, document_->props[*index], std::nullopt,
                    selection_, editor_no_object});
-  if (selection_ == editor_light_switch && document_ && document_->light_switch)
-    return commit({editor_light_switch, 0, *document_->light_switch,
+  if (const auto index = lightIndex(selection_))
+    return commit({selection_, *index,
+                   document_->environment_light.point_lights[*index],
+                   std::nullopt, selection_, editor_no_object});
+  if (const auto index = switchIndex(selection_))
+    return commit({selection_, *index, document_->light_switches[*index],
                    std::nullopt, selection_, editor_no_object});
   if (const auto index = entryIndex(selection_)) {
     const auto& entry = document_->entries[*index];
@@ -586,7 +593,9 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
   const auto& value = forward ? edit.after : edit.before;
   if (edit.audio_after)
     document_->audio = forward ? *edit.audio_after : *edit.audio_before;
-  if (applyAudioEdit(edit, forward)) {
+  if (applyLightingEdit(edit, forward)) {
+    // Lighting uses the same revision, selection and validation below.
+  } else if (applyAudioEdit(edit, forward)) {
     // Audio commands share the same revision, selection and validation below.
   } else if (edit.brush) {
     for (const auto& sample : edit.terrain)
@@ -668,14 +677,6 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
           solid_ids_.begin() + static_cast<std::ptrdiff_t>(edit.index),
           edit.id);
     }
-
-  } else if (edit.id == editor_light_switch) {
-    document_->light_switch =
-        value ? std::optional{std::get<PrototypeLightSwitch>(*value)}
-              : std::nullopt;
-  } else {
-    document_->environment_light.point_lights[edit.id - editor_first_light] =
-        std::get<PrototypePointLight>(*value);
   }
   if (edit.default_after)
     document_->default_entry =

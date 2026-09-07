@@ -92,7 +92,7 @@ TEST(PhysicsLifetime, FailureAfterSeveralDoorBodiesReleasesAllOwners) {
   auto doc = prototypeLevelDocument();
   doc.terrain.reset();
   doc.props.clear();
-  doc.light_switch.reset();
+  doc.light_switches.clear();
   doc.solids = {{{0, -.25F, 0},
                  {10, .25F, 10},
                  {160, 160, 160, 255},

@@ -19,8 +19,9 @@ inline constexpr WorldExtent light_switch_half_extent{0.09F, 0.13F, 0.02F};
 [[nodiscard]] std::optional<float> lightSwitchRayDistance(
     const PrototypeLightSwitch& light_switch, WorldPosition origin,
     WorldPosition direction) noexcept;
-[[nodiscard]] std::array<bool, prototype_point_light_count>
-initialPointLightEnabled(
-    const std::optional<PrototypeLightSwitch>& light_switch) noexcept;
+[[nodiscard]] bool lightSwitchPointInside(
+    const PrototypeLightSwitch& light_switch, WorldPosition point) noexcept;
+[[nodiscard]] std::vector<std::uint8_t> initialPointLightEnabled(
+    const PrototypeEnvironmentLight& environment_light);
 
 #endif

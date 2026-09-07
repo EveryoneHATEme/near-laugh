@@ -23,7 +23,8 @@ class Engine {
  public:
   Engine(const near_laugh::RuntimeConfig& config,
          ValidationDiagnostics& diagnostics, bool audio_fixture = false,
-         AudioOutput output = AudioOutput::Device);
+         AudioOutput output = AudioOutput::Device,
+         FrameTimings* timings = nullptr);
   ~Engine() = default;
 
   Engine(const Engine&) = delete;
@@ -32,10 +33,12 @@ class Engine {
   Engine& operator=(Engine&&) = delete;
 
   void run();
-  [[nodiscard]] bool tick();
+  [[nodiscard]] bool tick(
+      const PlayerActionSnapshot* development_input = nullptr);
 
  private:
   friend struct EngineAudioSmoke;
+  friend struct InteriorLightingMeasurement;
   bool samplePlayerInput(const PlayerActionSnapshot& input);
   void sampleFixtureControls(bool active, double now);
 

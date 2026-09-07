@@ -113,9 +113,10 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
                   return d.category == LevelDiagnosticCategory::Filesystem;
                 }),
             "Editor reported a preview resource failure");
-    require(preview_point_light_enabled_ ==
-                initialPointLightEnabled(document_.document()->light_switch),
-            "Editor preview lost authored point-light state");
+    require(
+        preview_point_light_enabled_ ==
+            initialPointLightEnabled(document_.document()->environment_light),
+        "Editor preview lost authored point-light state");
   };
   require(document_.saveAs(temporary.path / "working.level.json"),
           "Editor smoke Save As failed");
@@ -132,30 +133,36 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   require(*document_.document() == original && !document_.dirty(),
           "Editor smoke undo did not restore saved content");
 
-  document_.select(editor_light_switch);
+  document_.select(document_.switchIds().front());
   require(document_.removeSelected(), "Editor smoke switch removal failed");
   preview();
   require(document_.addLightSwitch(), "Editor smoke switch creation failed");
-  require(!document_.addLightSwitch() && !document_.duplicateSelected(),
-          "Editor smoke allowed another switch");
+  require(document_.duplicateSelected(),
+          "Editor smoke switch duplicate failed");
+  preview();
+  require(document_.undo(), "Editor smoke switch duplicate undo failed");
   preview();
   require(document_.undo() && document_.undo(),
           "Editor smoke switch restoration failed");
   preview();
-  auto light_switch = *document_.document()->light_switch;
+  const auto switch_id = document_.switchIds().front();
+  auto light_switch = document_.document()->light_switches.front();
   light_switch.yaw_degrees += 25;
   for (const auto slot : {0U, 1U}) {
     for (const bool on : {false, true}) {
-      light_switch.point_light_index = slot;
-      light_switch.initially_on = on;
-      require(document_.replaceObject(editor_light_switch, light_switch),
+      auto light = document_.document()->environment_light.point_lights[slot];
+      light_switch.light_id = light.id;
+      light.initially_on = on;
+      require(document_.replaceObject(document_.lightIds()[slot], light) ||
+                  document_.document()->environment_light.point_lights[slot] ==
+                      light,
+              "Editor smoke initial light property failed");
+      require(document_.replaceObject(switch_id, light_switch) ||
+                  document_.document()->light_switches.front() == light_switch,
               "Editor smoke switch properties failed");
       preview();
     }
   }
-  light_switch.initially_on = false;
-  require(document_.replaceObject(editor_light_switch, light_switch),
-          "Editor smoke initially-off switch failed");
   preview();
   require(document_.save(), "Editor smoke switch save failed");
   // Exercise every point/spot combination. Normal frames restore the
@@ -165,7 +172,10 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
     FrameRequest frame;
     frame.framebuffer = window_.framebufferExtent();
     frame.camera = camera_.frame(16.0F / 9.0F);
-    frame.point_light_enabled = {(mask & 1) != 0, (mask & 2) != 0};
+    const std::array<std::uint8_t, 2> enables{
+        static_cast<std::uint8_t>((mask & 1) != 0),
+        static_cast<std::uint8_t>((mask & 2) != 0)};
+    frame.point_light_enabled = enables;
     if (mask & 4)
       frame.spot_light = {
           {0, 2, 4, 10}, {0, 0, -1, 0.95F}, {1, 1, 1, 1}, {0.85F, 1, 0, 0}};
@@ -241,8 +251,8 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   auto light = original.environment_light.point_lights[0];
   light.position.x += 0.5F;
   light.intensity += 0.25F;
-  document_.select(editor_first_light);
-  require(document_.replaceObject(editor_first_light, light),
+  document_.select(document_.lightIds().front());
+  require(document_.replaceObject(document_.lightIds().front(), light),
           "Editor smoke light edit failed");
   preview();
   auto prop = original.props.front();
@@ -331,6 +341,98 @@ void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   preview();
   require(*document_.document() == furnished,
           "Content history lost authored state");
+  require(document_.open(valid_level.parent_path() /
+                         "interior-lighting-capacity.level.json"),
+          "Editor could not open the lighting capacity fixture");
+  preview();
+  const auto lighting_original = *document_.document();
+  const auto lighting_enables = preview_point_light_enabled_;
+  document_.select(document_.lightIds().front());
+  require(document_.duplicateSelected() == false,
+          "Editor exceeded the eight-light limit");
+  auto changed_light = lighting_original.environment_light.point_lights.front();
+  changed_light.initially_on = false;
+  require(document_.replaceObject(document_.lightIds().front(), changed_light),
+          "Lighting initial-state edit failed");
+#if defined(_WIN32)
+  static_cast<void>(
+      _putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", "shadow_image"));
+#else
+  static_cast<void>(
+      setenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", "shadow_image", 1));
+#endif
+  require(tick(), "Editor stopped during failed shadow replacement");
+#if defined(_WIN32)
+  static_cast<void>(_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", ""));
+#else
+  static_cast<void>(unsetenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE"));
+#endif
+  require(preview_point_light_enabled_ == lighting_enables &&
+              scene_resources_installed_,
+          "Failed shadow allocation changed the last usable preview state");
+  require(std::any_of(document_.diagnostics().begin(),
+                      document_.diagnostics().end(),
+                      [](const auto& diagnostic) {
+                        return diagnostic.message.find("Preview is stale") !=
+                               std::string::npos;
+                      }),
+          "Failed shadow replacement did not report a stale preview");
+  require(document_.undo(), "Shadow replacement undo failed");
+  preview();
+  require(*document_.document() == lighting_original,
+          "Shadow recovery lost authored state");
+  document_.select(document_.lightIds().back());
+  require(document_.removeSelected(), "Lighting capacity removal failed");
+  preview();
+  document_.select(document_.lightIds().front());
+  require(document_.duplicateSelected(), "Shadow-light duplication failed");
+  require(!document_.valid() && !document_.save(),
+          "Fifth shadow light passed Save preflight");
+  require(tick() && preview_point_light_enabled_.size() == 7,
+          "Invalid shadow budget did not retain its coherent preview");
+  require(document_.undo() && document_.undo(), "Shadow budget repair failed");
+  preview();
+  require(document_.saveAs(temporary.path /
+                           std::filesystem::path(u8"Свет и двери.json")),
+          "Lighting Unicode Save As failed");
+#if defined(_WIN32)
+  static_cast<void>(
+      _putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", "shadow_image"));
+#else
+  static_cast<void>(
+      setenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", "shadow_image", 1));
+#endif
+  launchPlay({*document_.path(), document_.launchEntry()});
+#if defined(_WIN32)
+  static_cast<void>(_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", ""));
+#else
+  static_cast<void>(unsetenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE"));
+#endif
+  require(
+      !game_process_.active() &&
+          std::any_of(document_.diagnostics().begin(),
+                      document_.diagnostics().end(),
+                      [](const auto& diagnostic) {
+                        return diagnostic.message.find("shadow_image") !=
+                               std::string::npos;
+                      }),
+      "Failed lighting Play preflight launched a game or lost its diagnostic");
+  require(document_.open(*document_.path()),
+          "Lighting reload after refused Play failed");
+  preview();
+  document_.requestNewInterior();
+  require(document_.document() && document_.switchIds().empty(),
+          "Empty lighting preview setup failed");
+  while (!document_.lightIds().empty()) {
+    document_.select(document_.lightIds().back());
+    require(document_.removeSelected(),
+            "Empty lighting preview deletion failed");
+    preview();
+  }
+  require(preview_point_light_enabled_.empty(),
+          "Empty editor scene retained a light enable");
+  require(document_.undo(), "Empty lighting preview undo failed");
+  preview();
   require(
       document_.open(valid_level.parent_path() / "audio-captions.level.json"),
       "Editor could not open the audio fixture");
@@ -593,9 +695,10 @@ void EditorApplication::synchronizeDocumentResources() {
       renderer_.clearDocument();
     }
     scene_resources_installed_ = document_.document().has_value();
-    preview_point_light_enabled_ = initialPointLightEnabled(
-        document_.document() ? document_.document()->light_switch
-                             : std::nullopt);
+    preview_point_light_enabled_ =
+        document_.document()
+            ? initialPointLightEnabled(document_.document()->environment_light)
+            : std::vector<std::uint8_t>{};
     rendered_document_revision_ = document_.revision();
     rendered_object_revision_ = document_.objectRevision();
   } catch (const std::exception& error) {

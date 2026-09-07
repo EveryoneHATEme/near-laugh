@@ -105,10 +105,17 @@ inline LevelDocument prototypeLevelDocument() {
   document.entries.front().pose = {
       {0.0F, prototypeTerrainHeightAt(*document.terrain, 0.0F, 7.0F), 7.0F},
       -90.0F};
-  document.environment_light = {
-      {{{{0.0F, 2.4F, 6.0F}, {0.30F, 0.50F, 0.90F}, 0.65F, 4.0F},
-        {{0.0F, 4.0F, -9.0F}, {1.00F, 0.48F, 0.20F}, 0.95F, 10.0F}}},
-      0.12F};
+  document.environment_light = {{{{0.0F, 2.4F, 6.0F},
+                                  {0.30F, 0.50F, 0.90F},
+                                  0.65F,
+                                  4.0F,
+                                  "point-light-0"},
+                                 {{0.0F, 4.0F, -9.0F},
+                                  {1.00F, 0.48F, 0.20F},
+                                  0.95F,
+                                  10.0F,
+                                  "point-light-1"}},
+                                0.12F};
   document.props.push_back(
       {"prototype-chair",
        "prototype-chair",
@@ -116,8 +123,8 @@ inline LevelDocument prototypeLevelDocument() {
        -25.0F,
        1.0F,
        {{{0.0F, 0.91F, 0.0F}, {0.55F, 0.91F, 0.48F}}}});
-  document.light_switch =
-      PrototypeLightSwitch{{0.0F, 1.6F, 1.05F}, 0.0F, 0, true};
+  document.light_switches = {PrototypeLightSwitch{
+      {0.0F, 1.6F, 1.05F}, 0.0F, "point-light-0", "light-switch-0"}};
   return document;
 }
 

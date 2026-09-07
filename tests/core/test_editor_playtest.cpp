@@ -88,6 +88,33 @@ TEST_F(EditorPlay, ConsumedLaunchRechecksTheSavedDocumentBeforeAssetPreflight) {
                std::runtime_error);
 }
 
+TEST_F(EditorPlay, BrokenLightingLinksRefuseLaunchAndRepairSavesTheV8Snapshot) {
+  ASSERT_TRUE(editor.addLightSwitch());
+  ASSERT_TRUE(
+      editor.saveAs(root / std::filesystem::path(u8"Свет и двери.json")));
+  editor.select(editor.lightIds().front());
+  ASSERT_TRUE(editor.removeSelected());
+  EXPECT_FALSE(editor.valid());
+  EXPECT_FALSE(play.request(editor, false));
+  EXPECT_FALSE(play.consume());
+  ASSERT_TRUE(editor.undo());
+  auto light = editor.document()->environment_light.point_lights.front();
+  light.id = "renamed-source";
+  light.initially_on = false;
+  light.casts_shadows = true;
+  ASSERT_TRUE(editor.replaceObject(editor.lightIds().front(), light));
+  ASSERT_TRUE(play.request(editor, false));
+  ASSERT_TRUE(play.saveAndPlay(editor));
+  const auto launch = play.consume();
+  ASSERT_TRUE(launch);
+  const auto snapshot = loadEditorPlayDocument(editor, *launch);
+  EXPECT_EQ(snapshot, *editor.document());
+  EXPECT_EQ(snapshot.light_switches.front().light_id, "renamed-source");
+  EXPECT_FALSE(snapshot.environment_light.point_lights.front().initially_on);
+  EXPECT_NE(bytes(launch->level_path).find("\"version\": 8"),
+            std::string::npos);
+}
+
 TEST_F(EditorPlay, CleanAndDirtyPlayUseChosenEntryAndRejectExternalChanges) {
   ASSERT_TRUE(editor.addEntry(editor.document()->entries[0].pose));
   ASSERT_TRUE(editor.saveAs(root / "level.json"));

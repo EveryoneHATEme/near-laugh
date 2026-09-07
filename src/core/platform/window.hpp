@@ -32,6 +32,9 @@ class Window {
   [[nodiscard]] FramebufferExtent framebufferExtent() const;
   [[nodiscard]] bool consumeFramebufferResize() noexcept;
   void setSize(std::uint32_t width, std::uint32_t height);
+  // Explicit desktop measurement caller; refuses an unavailable display mode.
+  void useFullscreenMode(std::uint32_t width, std::uint32_t height,
+                         std::uint32_t refresh_hz);
   void minimize();
   void restore();
   void cancelCloseRequest() noexcept;

@@ -40,8 +40,7 @@ std::array<WorldPosition, 8> lightSwitchCorners(
 
 bool lightSwitchIsValid(const PrototypeLightSwitch& light_switch) noexcept {
   if (!finite(light_switch.position) ||
-      !std::isfinite(light_switch.yaw_degrees) ||
-      light_switch.point_light_index >= prototype_point_light_count) {
+      !std::isfinite(light_switch.yaw_degrees)) {
     return false;
   }
   const auto corners = lightSwitchCorners(light_switch);
@@ -93,10 +92,24 @@ std::optional<float> lightSwitchRayDistance(
   return static_cast<float>(near);
 }
 
-std::array<bool, prototype_point_light_count> initialPointLightEnabled(
-    const std::optional<PrototypeLightSwitch>& light_switch) noexcept {
-  std::array<bool, prototype_point_light_count> enabled{true, true};
-  if (light_switch && lightSwitchIsValid(*light_switch))
-    enabled[light_switch->point_light_index] = light_switch->initially_on;
+bool lightSwitchPointInside(const PrototypeLightSwitch& value,
+                            WorldPosition point) noexcept {
+  if (!lightSwitchIsValid(value) || !finite(point)) return false;
+  const double yaw = yawRadians(value.yaw_degrees);
+  const double c = std::cos(yaw), s = std::sin(yaw);
+  const double x = double(point.x) - value.position.x;
+  const double z = double(point.z) - value.position.z;
+  return std::abs(c * x - s * z) <= light_switch_half_extent.x &&
+         std::abs(double(point.y) - value.position.y) <=
+             light_switch_half_extent.y &&
+         std::abs(s * x + c * z) <= light_switch_half_extent.z;
+}
+
+std::vector<std::uint8_t> initialPointLightEnabled(
+    const PrototypeEnvironmentLight& environment_light) {
+  std::vector<std::uint8_t> enabled;
+  enabled.reserve(environment_light.point_lights.size());
+  for (const auto& light : environment_light.point_lights)
+    enabled.push_back(light.initially_on ? 1 : 0);
   return enabled;
 }

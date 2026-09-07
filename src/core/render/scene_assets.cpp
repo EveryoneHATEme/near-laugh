@@ -75,7 +75,7 @@ PreparedSceneAssets prepareSceneAssets(const std::filesystem::path& root,
     return index;
   };
   const auto generated = buildPrototypeSceneVertices(
-      document.terrain, document.solids, document.light_switch);
+      document.terrain, document.solids, document.light_switches);
   const auto catalog = structuralMaterials();
   for (std::size_t role = 0; role < catalog.size(); ++role) {
     SceneBatchData batch;
@@ -142,7 +142,7 @@ PreparedSceneAssets prepareSceneAssets(const std::filesystem::path& root,
   document.terrain = level.terrain();
   document.solids = level.solids();
   document.props = level.props();
-  document.light_switch = level.lightSwitch();
+  document.light_switches = level.lightSwitches();
   document.doors = level.doors();
   return prepareSceneAssets(root, document);
 }

@@ -1,4 +1,6 @@
 add_executable(engine_tests
+    core/test_frame_timings.cpp
+    core/test_interior_lighting.cpp
     core/test_audio.cpp
     core/test_audio_fixture.cpp
     core/test_editor_audio.cpp
@@ -72,6 +74,9 @@ set_target_properties(vulkan_smoke PROPERTIES
 )
 add_dependencies(vulkan_smoke near_laugh_packaged_resources)
 add_test(NAME vulkan_smoke COMMAND vulkan_smoke)
+add_test(NAME vulkan_interior_lighting COMMAND vulkan_smoke --lighting)
+set_tests_properties(vulkan_interior_lighting PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 add_test(NAME vulkan_audio_runtime COMMAND vulkan_smoke --audio)
 set_tests_properties(vulkan_audio_runtime PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")

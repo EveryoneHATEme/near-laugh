@@ -36,9 +36,9 @@ class PrototypeLevel {
   [[nodiscard]] const std::vector<PrototypeStaticProp>& props() const noexcept {
     return props_;
   }
-  [[nodiscard]] const std::optional<PrototypeLightSwitch>& lightSwitch()
+  [[nodiscard]] const std::vector<PrototypeLightSwitch>& lightSwitches()
       const noexcept {
-    return light_switch_;
+    return light_switches_;
   }
   [[nodiscard]] const std::vector<DoorDefinition>& doors() const noexcept {
     return doors_;
@@ -56,7 +56,7 @@ class PrototypeLevel {
   std::string default_entry_;
   PrototypeEnvironmentLight environment_light_;
   std::vector<PrototypeStaticProp> props_;
-  std::optional<PrototypeLightSwitch> light_switch_;
+  std::vector<PrototypeLightSwitch> light_switches_;
   std::vector<DoorDefinition> doors_;
   LevelAudio audio_;
 };
@@ -66,7 +66,9 @@ class PrototypeLevel {
     const std::filesystem::path& path);
 
 [[nodiscard]] bool prototypeEnvironmentLightIsValid(
-    const PrototypeEnvironmentLight& light) noexcept;
+    const PrototypeEnvironmentLight& light);
+[[nodiscard]] std::string pointLightFieldError(const PrototypePointLight& light,
+                                               std::string* field = nullptr);
 [[nodiscard]] bool prototypeSurfaceIsValid(PrototypeSurface surface) noexcept;
 [[nodiscard]] bool prototypeSolidIsValid(const PrototypeSolid& solid) noexcept;
 [[nodiscard]] bool prototypeStaticPropIsValid(

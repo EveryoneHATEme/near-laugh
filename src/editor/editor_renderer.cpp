@@ -14,6 +14,7 @@
 
 #include "core/platform/window.hpp"
 #include "core/render/depth_attachment.hpp"
+#include "core/render/frame_readback.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/immutable_mesh_buffer.hpp"
 #include "core/render/lighting_resources.hpp"
@@ -99,7 +100,15 @@ class EditorRenderer::Impl {
   void replaceDocument(const LevelDocument& level);
   void replaceTerrain(const LevelDocument& level);
   void validateSceneAssets(const LevelDocument& level) const {
-    ::validateSceneAssets(level, resources_.resource_root);
+    const auto assets = prepareSceneAssets(resources_.resource_root, level);
+    // Preflight the saved snapshot against this device, including allocation
+    // and shader failures, before creating a separate playtest process.
+    SceneResources scene(context_.device(), context_.physicalDevice(),
+                         context_.graphicsQueue(),
+                         context_.queueFamilies().graphics, assets);
+    LightingResources lighting(context_.device(), context_.physicalDevice(),
+                               level.environment_light);
+    lighting.createShadowPipeline(scene, resources_.resource_root / "shaders");
   }
   [[nodiscard]] std::size_t terrainReplacementCount() const noexcept {
     return terrain_replacement_count_;
@@ -127,6 +136,7 @@ class EditorRenderer::Impl {
   EditorRendererResources resources_{};
   std::unique_ptr<SceneResources> scene_resources_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
+  std::unique_ptr<FrameReadback> readback_{};
   std::unique_ptr<ImmutableMeshBuffer> door_preview_{};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_format_{VK_FORMAT_UNDEFINED};
@@ -271,6 +281,8 @@ void EditorRenderer::Impl::replaceDocument(const LevelDocument& level) {
         "door_preview");
   auto lighting_resources = std::make_unique<LightingResources>(
       context_.device(), context_.physicalDevice(), level.environment_light);
+  lighting_resources->createShadowPipeline(
+      *scene, resources_.resource_root / "shaders");
   auto pipeline = std::make_unique<GraphicsPipeline>(
       context_.device(), swapchain_format_, depth_format_,
       scene->materialLayout(), scene->firstMaterial(),
@@ -398,6 +410,13 @@ void EditorRenderer::Impl::createSwapchain(FramebufferExtent framebuffer) {
   info.imageExtent = extent;
   info.imageArrayLayers = 1;
   info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  if (resources_.capture) {
+    if (!(support.capabilities.supportedUsageFlags &
+          VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
+      throw std::runtime_error(
+          "Fixed-frame readback requires transfer-source presentation images");
+    info.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+  }
   if (families.sharesFamily()) {
     info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
   } else {
@@ -573,6 +592,11 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   requireVulkan(vkBeginCommandBuffer(command_buffer, &begin_info),
                 "Begin Vulkan frame command buffer");
+  recordLifecycleEvent("editor.frame.begin");
+  if (lighting_resources_)
+    lighting_resources_->recordShadows(command_buffer, current_frame_,
+                                       *scene_resources_, nullptr,
+                                       door_preview_.get());
 
   VkImageMemoryBarrier2 to_color{};
   to_color.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -646,7 +670,6 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   rendering_info.colorAttachmentCount = 1;
   rendering_info.pColorAttachments = &color_attachment;
   rendering_info.pDepthAttachment = &depth_attachment;
-  recordLifecycleEvent("editor.frame.begin");
   vkCmdBeginRendering(command_buffer, &rendering_info);
   const VkViewport viewport{0.0F,
                             0.0F,
@@ -658,8 +681,9 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   vkCmdSetViewport(command_buffer, 0, 1, &viewport);
   vkCmdSetScissor(command_buffer, 0, 1, &scissor);
   if (pipeline_ != nullptr) {
-    pipeline_->bindSceneState(command_buffer, request.camera,
-                              request.spot_light, request.point_light_enabled);
+    pipeline_->bindSceneState(
+        command_buffer, request.camera, request.spot_light,
+        lighting_resources_->descriptorSet(current_frame_));
     scene_resources_->draw(command_buffer, *pipeline_);
     if (door_preview_) {
       pipeline_->bindMaterial(command_buffer,
@@ -672,13 +696,20 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   vkCmdEndRendering(command_buffer);
   recordLifecycleEvent("editor.frame.end");
 
+  const bool capture = resources_.capture && resources_.capture->requested;
+  if (capture)
+    readback_->record(command_buffer, swapchain_images_[image_index]);
   VkImageMemoryBarrier2 to_present{};
   to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-  to_present.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-  to_present.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+  to_present.srcStageMask =
+      capture ? VK_PIPELINE_STAGE_2_COPY_BIT
+              : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+  to_present.srcAccessMask = capture ? VK_ACCESS_2_TRANSFER_READ_BIT
+                                     : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
   to_present.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
   to_present.dstAccessMask = 0;
-  to_present.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  to_present.oldLayout = capture ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                                 : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
   to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -694,6 +725,10 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
 }
 
 FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
+  if (lighting_resources_)
+    lighting_resources_->validateEnables(request.point_light_enabled);
+  else
+    validatePointLightEnables(request.point_light_enabled, 0);
   recreate_requested_ = request.framebuffer_resized || recreate_requested_;
   if (recreate_requested_) {
     recreateSwapchain(request.framebuffer);
@@ -725,8 +760,15 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
         "Wait for prior use of Vulkan swapchain image");
   }
 
+  if (resources_.capture && resources_.capture->requested &&
+      (!readback_ || !readback_->matches(swapchain_extent_, swapchain_format_)))
+    readback_ = std::make_unique<FrameReadback>(
+        context_.device(), context_.physicalDevice(), swapchain_extent_,
+        swapchain_format_);
   requireVulkan(vkResetCommandPool(context_.device(), frame.command_pool, 0),
                 "Reset per-frame Vulkan command pool");
+  if (lighting_resources_)
+    lighting_resources_->update(current_frame_, request.point_light_enabled);
   recordFrame(frame.command_buffer, image_index, request);
   requireVulkan(vkResetFences(context_.device(), 1, &frame.completion),
                 "Reset Vulkan frame completion fence");
@@ -741,7 +783,7 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
   VkSemaphoreSubmitInfo signal_info{};
   signal_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
   signal_info.semaphore = render_finished_[image_index];
-  signal_info.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+  signal_info.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
   VkSubmitInfo2 submit_info{};
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
   submit_info.waitSemaphoreInfoCount = 1;
@@ -769,6 +811,13 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
   if (present != VK_SUCCESS && present != VK_SUBOPTIMAL_KHR &&
       present != VK_ERROR_OUT_OF_DATE_KHR) {
     requireVulkan(present, "Present Vulkan swapchain image");
+  }
+  if (resources_.capture && resources_.capture->requested) {
+    requireVulkan(
+        vkWaitForFences(context_.device(), 1, &frame.completion, VK_TRUE,
+                        std::numeric_limits<std::uint64_t>::max()),
+        "Wait for fixed-frame readback");
+    readback_->complete(*resources_.capture);
   }
   current_frame_ = (current_frame_ + 1) % frames_in_flight;
 

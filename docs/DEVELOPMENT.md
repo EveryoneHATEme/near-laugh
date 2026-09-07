@@ -90,6 +90,8 @@ resources/
   models/prototype_chair.glb
   shaders/prototype_scene_vertex.spv
   shaders/prototype_scene_fragment.spv
+  shaders/point_shadow_vertex.spv
+  shaders/point_shadow_fragment.spv
   shaders/caption_vertex.spv
   shaders/caption_fragment.spv
   textures/prototype_floor.png
@@ -97,15 +99,18 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-Levels write format version 7 and read exact versions 2–6 without modifying
+Levels write format version 8 and read exact versions 2–7 without modifying
 the source. The profile contains optional 97-by-97 terrain, 1–240 solids,
-1–16 entries/default, two lights/ambient, 0–128 props, an optional switch,
+1–16 entries/default, 0–8 lights/ambient, 0–128 props, 0–16 switches,
 and 0–32 doors, plus audio (up to 128 cues, 64 sources, 32 rooms and 64 connections).
 Prop/model/material and clip/caption IDs are logical names, never paths.
 Props have finite translation/yaw, positive uniform scale and 0–8 local boxes.
 Legacy chair/texture roles normalize to explicit legacy identities; v5 doors
 survive migration. Versions 2–6 map to empty audio. New fields in old versions,
-unknown fields and v1 fail. Older builds cannot read v7: use Save As or retain
+unknown fields and v1 fail. Legacy lights map to `point-light-0/1` without
+shadows, and the singleton switch maps to `light-switch-0`; its initial
+enable moves to the linked light. v7 audio is preserved. Older builds cannot
+read v8: use Save As or retain
 the original before conversion when it is still needed by an older build.
 
 The selected apartment derivatives are `models/apartment_chair.glb`,
@@ -121,7 +126,7 @@ Structural materials are independent of collision kind; terrain has one
 whole-surface material. Generated geometry keeps world-scaled UVs, while props
 keep authored UVs. Apartment textures use nearest sampling; legacy textures
 retain linear sampling. Phone cord alpha uses MASK cutoff 0.5; radio is OPAQUE.
-All surviving fragments use the existing two point lights/flashlight. There is
+All surviving fragments use the bounded authored point lights/flashlight. There is
 no PBR, emission, blended transparency or texture-paint workflow.
 
 ## Current Game Controls
@@ -176,23 +181,32 @@ can be added, duplicated, deleted, and edited. Entries can also be added,
 duplicated, renamed, and moved. IDs match `[a-z][a-z0-9-]{0,63}`; new entries use
 the first unused `entry-N`. Make default changes the authored startup entry.
 Renaming it updates the reference in one undoable edit. Choose another default
-before deleting the default entry; the last entry cannot be deleted. The two
-point lights can be selected and edited but cannot be added, duplicated, or
-removed. Props and doors support independent add/duplicate/delete, durable
+before deleting the default entry; the last entry cannot be deleted. Lights
+and switches support add/duplicate/delete with durable IDs and limits of 8/16.
+Props and doors support independent add/duplicate/delete, durable
 IDs, finite property edits and undo/redo. Removing the last prop is valid.
 Changing a prop model preserves its boxes; Reset model collision boxes is
 explicit. Yellow render bounds and cyan proxy bounds distinguish appearance
 from collision. Missing model references retain red selectable markers.
-Ambient and terrain layout remain read-only; terrain material is separate.
+Ambient is editable in [0, 0.20], including zero. Terrain layout remains
+read-only; terrain material is separate.
 
-**Add light switch** creates the optional singleton near the spawn at standing
-interaction height. Select **Light switch** in Objects or click its plate in
-the viewport. Delete removes it; duplication is unavailable. Properties expose
-Position, Yaw, Linked light (Point light 1/2), and Initially on. Exact numeric
-placement is available alongside surface mounting. All switch edits share
-undo/redo, validation, and dirty state. Switches, props and doors may lie outside
-terrain bounds. Preview follows the initial state, including link changes,
-removal, sculpting, and recovery. The editor does not run E interaction.
+**Add point light** creates an enabled, unshadowed source. Light properties
+include ID, position, RGB, intensity, radius, Initially on and Casts shadows.
+The summary shows the four-caster budget, which includes disabled sources.
+Duplicating a caster may exceed that budget; the repairable document remains
+editable, with Save/Play blocked and a clearly stale coherent preview.
+Renaming a light updates every incoming switch link in one undo step.
+Deleting it keeps broken links visible for repair.
+
+**Add light switch** creates a plate near the first entry at standing
+interaction height, linked to the first light, or an explicit broken link in
+a lightless document. Select a plate in Objects or the viewport. Properties
+expose ID, Position, Yaw and Linked light by durable ID. Duplication preserves
+the link. Selected lights show ranges/incoming links; selected plates show
+their outgoing link. Numeric edits and surface mounting share undo/redo and
+dirty state. Preview uses light initial values, independent of relinking or
+removing switches. The editor does not run E interaction.
 
 Properties expose solid geometry/tint/kind/material, entry ID/pose, lights,
 prop identity/model/transform/box list, and door ID, bottom hinge, closed yaw,
@@ -424,16 +438,20 @@ the saved-file Play transaction and a real native child argument probe.
 
 Light-switch coverage includes all point-light/spotlight enable combinations,
 editor add/remove and link changes, initial-state preview, and terrain rebuilds.
-After shader changes, regenerate and validate both packaged stages:
+After scene/shadow shader changes, regenerate and validate the changed stages:
 
 ```sh
 glslc -fshader-stage=vert --target-env=vulkan1.3 resources/shaders/prototype_scene_vertex.glsl -o resources/shaders/prototype_scene_vertex.spv
-glslc -fshader-stage=frag --target-env=vulkan1.3 --target-spv=spv1.5 resources/shaders/prototype_scene_fragment.glsl -o resources/shaders/prototype_scene_fragment.spv
+glslc -O -fshader-stage=frag --target-env=vulkan1.3 --target-spv=spv1.5 resources/shaders/prototype_scene_fragment.glsl -o resources/shaders/prototype_scene_fragment.spv
+glslc -fshader-stage=vert --target-env=vulkan1.3 resources/shaders/point_shadow_vertex.glsl -o resources/shaders/point_shadow_vertex.spv
+glslc -fshader-stage=frag --target-env=vulkan1.3 --target-spv=spv1.5 resources/shaders/point_shadow_fragment.glsl -o resources/shaders/point_shadow_fragment.spv
 spirv-val --target-env vulkan1.3 resources/shaders/prototype_scene_vertex.spv
 spirv-val --target-env vulkan1.3 resources/shaders/prototype_scene_fragment.spv
+spirv-val --target-env vulkan1.3 resources/shaders/point_shadow_vertex.spv
+spirv-val --target-env vulkan1.3 resources/shaders/point_shadow_fragment.spv
 ```
 
-The fragment stage deliberately targets SPIR-V 1.5: GLSL `discard` lowers to
+Both material fragment stages deliberately target SPIR-V 1.5: GLSL `discard` lowers to
 `OpKill` without requiring the optional `shaderDemoteToHelperInvocation`
 device feature. Keep the Vulkan 1.3 runtime feature baseline unchanged.
 
@@ -443,6 +461,65 @@ flashlight cone/range behavior, chair rendering and collision, and persistence
 through resize/recovery.
 
 ## Completion Checks
+
+The opt-in P10 timing executable is excluded from the default build. Build
+`interior_lighting_measure` explicitly in a separate Clang/Ninja Release tree
+for performance measurements; use the Debug target's `check` mode for Vulkan
+validation of query readback and recovery. It requires an available primary
+monitor mode of 1920x1080 at 60 Hz and switches its own window to fullscreen.
+Closing the window or interrupting its framebuffer invalidates a measurement.
+
+```powershell
+cmake --build build/p10-release --target interior_lighting_measure
+.\build\p10-release\bin\interior_lighting_measure.exe resources/levels/apartment-stairs.level.json stationary build/baseline.csv
+python scripts/summarize_lighting_timings.py build/baseline.csv
+.\scripts\measure_interior_lighting.ps1 -OutputDirectory build/p10-final-measurements
+```
+
+The output path must be new. Each `stationary` or `route` invocation records
+10 seconds warm-up and 60 seconds sampling and closes automatically. `route`
+drives the furnished interior's ordinary walking, both doors, switch and
+flashlight actions; it is a measurement fixture, not gameplay inferred from a
+filename. `check` records 40 frames with explicit swapchain recovery and is not
+a performance run. CSV writing occurs after GPU teardown and retains all raw
+rows; summaries use nearest-rank percentiles after warm-up. Retained evidence
+may use lossless `.csv.gz` files, which the summarizer also reads. Blank GPU fields
+mean unavailable timing. See the current
+[P10 validation record](../openspec/changes/archive/2026-09-07-add-interior-lighting/validation.md)
+for hardware, timing scopes, exact commands, results and acceptance status.
+
+The batch script runs three stationary and three route samples for each
+packaged six/eight-light scene, plus one equivalent unshadowed stationary and
+route baseline for each. It writes baseline copies with only `casts_shadows`
+disabled and retains per-run CSV/logs and `summary.json`. Run no concurrent
+game/editor, build or GPU tests during performance sampling. Run this GUI
+measurement on the ordinary interactive Windows desktop. An agent's isolated
+execution environment can change presentation pacing; use its approved desktop
+execution mode and retain failed diagnostic runs separately. The local T1
+gates are CPU/GPU p95 <=16.67 ms and frame p50/p95/p99 <=16.9/20/33.4 ms in
+every run. Preserve failures and inspect separated waits and action costs.
+
+`interior_lighting_visual` is a separate opt-in GPU readback target. It checks
+fixed 1920x1080 views, actual player-obstructed/reversed door poses, independent
+flashlight state and matching editor/runtime initial values. Lossless PNGs
+retain actual stored framebuffer RGB; they are not performance measurements.
+The optional isolated GLB controls verify texture alpha, factor/cutoff and
+both-sided OPAQUE/MASK shadow coverage without collision proxies.
+
+```powershell
+cmake --build --preset debug --target interior_lighting_visual
+python scripts/prepare_lighting_material_fixture.py build/material-controls
+.\build\debug\bin\interior_lighting_visual.exe build/lighting-captures build/material-controls
+python scripts/analyze_lighting_captures.py build/lighting-captures --prune-ppm
+```
+
+Both output directories must be fresh. The analyzer can rerun directly from
+its PNG files. `--prune-ppm` removes redundant PPMs only after verifying an
+exact RGB round trip. D16 fallback validation uses the existing test control
+`NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE=shadow_d32_unavailable`; clear it before
+ordinary runs. Reproduce the packaged lighting scenes with
+`python scripts/prepare_interior_lighting.py`; the historical level migration
+and audio preparation scripts also emit deterministic v8 data.
 
 Before reporting an implementation complete:
 

@@ -1,0 +1,6 @@
+eye 0 4.65 3.5
+target 0 4 -5
+vertical-fov 60
+framebuffer 1920 1080
+door lena-room angle 0
+door kitchen-door angle 90

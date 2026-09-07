@@ -10,14 +10,16 @@
 #include "core/world/level_document.hpp"
 
 namespace {
-const std::array<std::filesystem::path, 7> runtimeAssetPaths = {
+const std::array<std::filesystem::path, 9> runtimeAssetPaths = {
     "shaders/prototype_scene_vertex.spv",
     "shaders/prototype_scene_fragment.spv",
     "textures/prototype_floor.png",
     "textures/prototype_boundary.png",
     "textures/prototype_obstacle.png",
     "models/prototype_chair.glb",
-    "levels/prototype.level.json"};
+    "levels/prototype.level.json",
+    "shaders/point_shadow_vertex.spv",
+    "shaders/point_shadow_fragment.spv"};
 
 std::filesystem::path makeCompleteRuntimeRoot() {
   const std::filesystem::path root = (std::filesystem::temp_directory_path() /
@@ -119,6 +121,14 @@ TEST(RuntimeResources, MissingLevelReportsItsResolvedAbsolutePath) {
   const std::filesystem::path root = makeCompleteRuntimeRoot();
   expectMissingPathReported(root, "levels/prototype.level.json");
   std::filesystem::remove_all(root);
+}
+
+TEST(RuntimeResources, EveryMissingShadowShaderReportsItsResolvedAbsolutePath) {
+  for (const auto& relative : std::span{runtimeAssetPaths}.subspan(7, 2)) {
+    const auto root = makeCompleteRuntimeRoot();
+    expectMissingPathReported(root, relative);
+    std::filesystem::remove_all(root);
+  }
 }
 
 TEST(RuntimeResources, MissingShaderReportsResolvedAbsolutePath) {

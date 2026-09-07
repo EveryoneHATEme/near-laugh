@@ -28,7 +28,7 @@ sceneVertexBindingDescription() noexcept {
 static_assert(sceneVertexBindingDescription().stride ==
               sizeof(PositionColorVertex));
 
-[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 5>
+[[nodiscard]] constexpr std::array<VkVertexInputAttributeDescription, 4>
 sceneVertexAttributeDescriptions() noexcept {
   return {
       {{0, 0, VK_FORMAT_R32G32B32_SFLOAT,
@@ -39,10 +39,7 @@ sceneVertexAttributeDescriptions() noexcept {
         static_cast<std::uint32_t>(offsetof(PositionColorVertex, normal))},
        {3, 0, VK_FORMAT_R32G32_SFLOAT,
         static_cast<std::uint32_t>(
-            offsetof(PositionColorVertex, texture_coordinates))},
-       {4, 0, VK_FORMAT_R32_UINT,
-        static_cast<std::uint32_t>(
-            offsetof(PositionColorVertex, texture_layer))}}};
+            offsetof(PositionColorVertex, texture_coordinates))}}};
 }
 
 struct alignas(16) ScenePushConstant {
@@ -50,8 +47,7 @@ struct alignas(16) ScenePushConstant {
   std::array<float, 4> spot_position_and_range{};
   std::array<float, 4> spot_direction_and_inner_cosine{};
   std::array<float, 4> spot_color_and_intensity{};
-  // outer cosine, spotlight enabled, point light 0 enabled, point light 1
-  // enabled
+  // Outer cosine, spotlight enabled, reserved, reserved.
   std::array<float, 4> light_controls{};
 };
 
@@ -67,16 +63,13 @@ static_assert(sizeof(ScenePushConstant) == 128);
 static_assert(sizeof(ScenePushConstant) <= vulkan_minimum_push_constant_size);
 
 [[nodiscard]] constexpr ScenePushConstant makeScenePushConstant(
-    const CameraFrame& camera, SpotLightFrame spot_light = {},
-    std::array<bool, 2> point_light_enabled = {true, true}) noexcept {
+    const CameraFrame& camera, SpotLightFrame spot_light = {}) noexcept {
   return {camera,
           spot_light.position_and_range,
           spot_light.direction_and_inner_cosine,
           spot_light.color_and_intensity,
           {spot_light.outer_cosine_and_enabled[0],
-           spot_light.outer_cosine_and_enabled[1],
-           point_light_enabled[0] ? 1.0F : 0.0F,
-           point_light_enabled[1] ? 1.0F : 0.0F}};
+           spot_light.outer_cosine_and_enabled[1], 0, 0}};
 }
 
 [[nodiscard]] constexpr float spotLightDistanceFalloff(float distance,
@@ -137,6 +130,7 @@ sceneDescriptorSets(VkDescriptorSet texture,
 
 class GraphicsPipeline {
  public:
+  enum class Pass { Color, PointShadow };
   GraphicsPipeline(VkDevice device, VkFormat swapchain_format,
                    VkFormat depth_format,
                    VkDescriptorSetLayout texture_descriptor_layout,
@@ -144,7 +138,8 @@ class GraphicsPipeline {
                    VkDescriptorSetLayout lighting_descriptor_layout,
                    VkDescriptorSet lighting_descriptor_set,
                    const std::filesystem::path& vertex_shader_path,
-                   const std::filesystem::path& fragment_shader_path);
+                   const std::filesystem::path& fragment_shader_path,
+                   Pass pass = Pass::Color);
   ~GraphicsPipeline();
 
   GraphicsPipeline(const GraphicsPipeline&) = delete;
@@ -154,7 +149,7 @@ class GraphicsPipeline {
 
   void bindSceneState(VkCommandBuffer command_buffer, const CameraFrame& camera,
                       SpotLightFrame spot_light,
-                      std::array<bool, 2> point_light_enabled) const;
+                      VkDescriptorSet frame_lighting) const;
   void bindMaterial(VkCommandBuffer command_buffer,
                     VkDescriptorSet material) const;
 
@@ -167,6 +162,7 @@ class GraphicsPipeline {
   void cleanup() noexcept;
 
   VkDevice device_{VK_NULL_HANDLE};
+  Pass pass_;
   VkDescriptorSetLayout texture_descriptor_layout_{VK_NULL_HANDLE};
   VkDescriptorSet texture_descriptor_set_{VK_NULL_HANDLE};
   VkDescriptorSetLayout lighting_descriptor_layout_{VK_NULL_HANDLE};
