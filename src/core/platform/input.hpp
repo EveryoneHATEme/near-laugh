@@ -16,6 +16,7 @@ enum class PhysicalKey : std::size_t {
   E,
   R,
   F5,
+  F6,
   M,
   P,
   Count

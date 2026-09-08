@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <optional>
 
+#include "core/animation/character_scene.hpp"
 #include "core/platform/platform.hpp"
 #include "core/platform/window.hpp"
 #include "core/render/validation_diagnostics.hpp"
@@ -29,6 +30,7 @@ class EditorApplication {
 
   void run();
   void runSmoke(const std::filesystem::path& valid_level);
+  void runCharacterSmoke();
   [[nodiscard]] bool tick();
 
  private:
@@ -54,6 +56,8 @@ class EditorApplication {
   std::uint64_t rendered_object_revision_{};
   bool scene_resources_installed_{};
   std::vector<std::uint8_t> preview_point_light_enabled_{};
+  std::vector<CharacterPose> initial_character_palettes_{};
+  std::vector<CharacterPoseFrame> initial_character_frames_{};
 };
 
 #endif

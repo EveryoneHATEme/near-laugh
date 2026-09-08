@@ -14,9 +14,11 @@ double audioNow() {
       .count();
 }
 AudioContent preparedAudio(const std::filesystem::path& root,
-                           const LevelAudio& audio, const CaptionFont& font) {
+                           const LevelAudio& audio, const CaptionFont& font,
+                           const LevelCharacters& characters) {
   auto content = prepareAudioContent(root, audio);
   validateAudioCaptions(content, audio, font);
+  validateCharacterAudio(content, audio, characters);
   return content;
 }
 const LevelEntry& selectedEntry(const PrototypeLevel& level,
@@ -33,7 +35,8 @@ const LevelEntry& selectedEntry(const PrototypeLevel& level,
 
 Engine::Engine(const near_laugh::RuntimeConfig& config,
                ValidationDiagnostics& diagnostics, bool audio_fixture,
-               AudioOutput output, FrameTimings* timings)
+               AudioOutput output, FrameTimings* timings,
+               bool character_fixture, FrameCapture* capture)
     : platform_(),
       window_(platform_, config.window_width, config.window_height,
               config.window_title),
@@ -42,27 +45,42 @@ Engine::Engine(const near_laugh::RuntimeConfig& config,
       level_(loadPrototypeLevel(resources_.prototype_level)),
       entry_(selectedEntry(level_, config, resources_.prototype_level)),
       caption_font_(std::make_shared<CaptionFont>(resources_.root)),
+      character_assets_(
+          prepareCharacterAssets(resources_.root, level_.characters())),
       audio_(level_.audio(), level_.doors(),
-             preparedAudio(resources_.root, level_.audio(), *caption_font_),
+             preparedAudio(resources_.root, level_.audio(), *caption_font_,
+                           level_.characters()),
              level_.audio().sources.empty() ? AudioOutput::Silent : output,
              audioNow()),
       physics_(level_, entry_),
       player_(physics_, entry_.pose.yaw_degrees),
       light_switch_(level_.environmentLight(), level_.lightSwitches()),
       doors_(level_.doors()),
-      renderer_(window_, window_.framebufferExtent(), level_,
-                {std::move(resources_.scene_vertex_shader),
-                 std::move(resources_.scene_fragment_shader), resources_.root,
-                 caption_font_, timings},
-                diagnostics) {
+      characters_(level_.characters(), character_assets_, physics_, audio_),
+      renderer_(
+          window_, window_.framebufferExtent(), level_,
+          {std::move(resources_.scene_vertex_shader),
+           std::move(resources_.scene_fragment_shader), resources_.root,
+           caption_font_, timings, capture, characters_.renderInstances()},
+          diagnostics),
+      character_fixture_(character_fixture) {
   window_.setCursorCaptured(true);
   fixed_step_.reset();
   audio_.update(audioNow());
   if (audio_fixture) {
+    // The P04 fixture is the only external cue-start caller in Engine. Its
+    // sequence must never take a source reserved for a character action.
+    for (const auto id : {"radio", "phone-ring", "footsteps",
+                          "phone-conversation", "invitation"})
+      if (characters_.ownsSource(id))
+        throw std::runtime_error(
+            "Audio fixture cannot start actor-owned source '" +
+            std::string(id) + "'");
     audio_fixture_.emplace(audio_);
     audio_fixture_->restart();
   } else
     audio_.autoplay();
+  characters_.handoffAudio();
 }
 
 void Engine::run() {
@@ -70,7 +88,8 @@ void Engine::run() {
   }
 }
 
-bool Engine::tick(const PlayerActionSnapshot* development_input) {
+bool Engine::tick(const PlayerActionSnapshot* development_input,
+                  const CharacterDevelopmentInput* character_input) {
   window_.pollEvents();
   input_ = input_mapper_.map(window_.input());
   if (development_input) input_ = *development_input;
@@ -79,32 +98,43 @@ bool Engine::tick(const PlayerActionSnapshot* development_input) {
       window_.shouldClose(), framebuffer, window_.consumeFramebufferResize());
   switch (decision.action) {
     case LoopAction::Stop:
+      for (const auto& actor : level_.characters().actors)
+        (void)characters_.cancel(actor.id);
       audio_.cancelAll();
       (void)interaction_.update(input_, false, {}, level_, physics_, doors_,
                                 light_switch_);
       return false;
     case LoopAction::WaitForEvents:
-      audio_.suspend(true, audioNow());
-      sampleFixtureControls(false, audioNow());
+      suspendWorld(true, audioNow());
+      sampleFixtureControls(false, audioNow(), character_input);
+      (void)samplePlayerInput(input_);
       (void)interaction_.update(input_, false, {}, level_, physics_, doors_,
                                 light_switch_);
       window_.waitEvents();
       input_ = input_mapper_.map(window_.input());
-      sampleFixtureControls(false, audioNow());
+      sampleFixtureControls(false, audioNow(), character_input);
       samplePlayerInput(input_);
       (void)interaction_.update(input_, false, {}, level_, physics_, doors_,
                                 light_switch_);
       fixed_step_.reset();
       return !window_.shouldClose();
     case LoopAction::Render: {
-      const bool controls_active = samplePlayerInput(input_);
       const double now = audioNow();
-      audio_.suspend(audio_fixture_ && audio_fixture_->paused(), now);
-      sampleFixtureControls(controls_active, now);
+      sampleFixtureControls(window_.cursorCaptured() && !input_.menu, now,
+                            character_input);
+      suspendWorld(
+          character_paused_ || (audio_fixture_ && audio_fixture_->paused()),
+          now);
+      const bool controls_active = samplePlayerInput(input_);
       const FixedStepBatch simulation =
-          fixed_step_.sample(FixedStepAccumulator::Clock::now());
+          suspended_ ? FixedStepBatch{0, 1.F}
+                     : fixed_step_.sample(FixedStepAccumulator::Clock::now());
       for (int step = 0; step < simulation.complete_steps; ++step) {
+        physics_.advanceWorld(
+            static_cast<float>(FixedStepAccumulator::step_seconds));
         player_.fixedStep(
+            static_cast<float>(FixedStepAccumulator::step_seconds));
+        characters_.fixedStep(
             static_cast<float>(FixedStepAccumulator::step_seconds));
         doors_.fixedStep(static_cast<float>(FixedStepAccumulator::step_seconds),
                          physics_);
@@ -124,6 +154,7 @@ bool Engine::tick(const PlayerActionSnapshot* development_input) {
       for (std::size_t i = 0; i < level_.doors().size(); ++i)
         accepted_angles.push_back(doors_.state(i).angle);
       audio_.acceptedDoors(accepted_angles);
+      characters_.handoffAudio();
       if (audio_fixture_) audio_fixture_->update();
       frame.captions = audio_.captions();
       if (audio_.playback().warning() != audio_warning_) {
@@ -134,6 +165,7 @@ bool Engine::tick(const PlayerActionSnapshot* development_input) {
                                 doors_, light_switch_);
       frame.point_light_enabled = light_switch_.pointLightEnabled();
       frame.opaque_boxes = doors_.presentation();
+      frame.characters = characters_.presentation();
       const FrameOutcome outcome = renderer_.renderFrame(frame);
       return runtimeContinuesAfter(outcome) && !window_.shouldClose();
     }
@@ -141,12 +173,42 @@ bool Engine::tick(const PlayerActionSnapshot* development_input) {
   return false;
 }
 
-void Engine::sampleFixtureControls(bool active, double now) {
-  if (!audio_fixture_) return;
+void Engine::suspendWorld(bool suspended, double now) {
+  audio_.suspend(suspended, now);
+  if (suspended_ != suspended || suspended) fixed_step_.reset();
+  suspended_ = suspended;
+}
+
+void Engine::sampleFixtureControls(bool active, double now,
+                                   const CharacterDevelopmentInput* injected) {
   const auto& physical = window_.input();
-  audio_fixture_->controls(physical.isKeyDown(PhysicalKey::F5),
-                           physical.isKeyDown(PhysicalKey::M),
-                           physical.isKeyDown(PhysicalKey::P), active, now);
+  if (audio_fixture_)
+    audio_fixture_->controls(physical.isKeyDown(PhysicalKey::F5),
+                             physical.isKeyDown(PhysicalKey::M),
+                             physical.isKeyDown(PhysicalKey::P), active, now);
+  if (!character_fixture_) return;
+  const CharacterDevelopmentInput input =
+      injected ? *injected
+               : CharacterDevelopmentInput{physical.isKeyDown(PhysicalKey::F5),
+                                           physical.isKeyDown(PhysicalKey::F6),
+                                           physical.isKeyDown(PhysicalKey::P),
+                                           physical.isKeyDown(PhysicalKey::M)};
+  if (active) {
+    if (input.pause && !previous_character_input_.pause)
+      character_paused_ = !character_paused_;
+    if (input.mute && !previous_character_input_.mute)
+      audio_.mute(!audio_.muted());
+    if ((input.cancel && !previous_character_input_.cancel) ||
+        (input.restart && !previous_character_input_.restart)) {
+      for (const auto& actor : level_.characters().actors)
+        (void)characters_.cancel(actor.id);
+      if (input.restart && !previous_character_input_.restart)
+        for (const auto& actor : level_.characters().actors)
+          if (actor.initial_route)
+            (void)characters_.start(actor.id, *actor.initial_route);
+    }
+  }
+  previous_character_input_ = input;
 }
 
 bool Engine::samplePlayerInput(const PlayerActionSnapshot& input) {
@@ -163,7 +225,8 @@ bool Engine::samplePlayerInput(const PlayerActionSnapshot& input) {
     case PlayerCursorCaptureTransition::None:
       break;
   }
-  const bool controls_active = playerControlsActive(was_captured, transition);
+  const bool controls_active =
+      !suspended_ && playerControlsActive(was_captured, transition);
   player_.sampleInput(input, controls_active);
   flashlight_.samplePrimaryAction(input.primary_action, controls_active);
   return controls_active;

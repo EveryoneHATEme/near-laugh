@@ -44,7 +44,7 @@ version changes or main-spec edits occur during planning.
 ## Dependencies and Boundaries
 
 P07a; starts after archived P04 and P10. Follow with
-[P07b: scripted characters](../../add-scripted-characters/proposal.md), then
+[P07b: scripted characters](../2026-09-08-add-scripted-characters/proposal.md), then
 [P07c: authoring](../../add-character-authoring/proposal.md). Together these replace
 the original oversized P07; T2 is accepted only after all three.
 

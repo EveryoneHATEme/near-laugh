@@ -10,6 +10,7 @@
 
 #include "core/text/caption_font.hpp"
 #include "core/world/audio.hpp"
+#include "core/world/characters.hpp"
 
 namespace {
 constexpr std::size_t decoded_budget = 128 * 1024 * 1024;
@@ -218,6 +219,51 @@ void validateAudioCaptions(const AudioContent& content, const LevelAudio& audio,
         throw std::runtime_error("cue '" + cue.id + "', caption '" + track->id +
                                  "', segment " + std::to_string(i) + ": " +
                                  error.what());
+      }
+    }
+  }
+}
+
+void validateCharacterAudio(const AudioContent& content,
+                            const LevelAudio& audio,
+                            const LevelCharacters& characters) {
+  const auto diagnostics = validateCharacterDefinitions(characters, audio);
+  if (!diagnostics.empty())
+    throw std::runtime_error(diagnostics.front().document_path + ": " +
+                             diagnostics.front().message);
+  for (const auto& actor : characters.actors) {
+    for (const bool interaction : {false, true}) {
+      const auto& source_id =
+          interaction ? actor.interaction_source : actor.footstep_source;
+      if (!source_id) continue;
+      const auto source =
+          std::find_if(audio.sources.begin(), audio.sources.end(),
+                       [&](const auto& s) { return s.id == *source_id; });
+      const auto& cue = *findAudioCue(audio, source->cue);
+      try {
+        const auto& clip = content.clip(cue.clip);
+        if (!interaction) {
+          if (clip.duration() > .15)
+            throw std::runtime_error("footstep exceeds 0.15 seconds");
+        } else {
+          if (clip.duration() != 1.)
+            throw std::runtime_error(
+                "interaction must contain one second of PCM");
+          if (std::any_of(clip.samples.begin() + 12000 * clip.channels,
+                          clip.samples.end(),
+                          [](float sample) { return sample != 0; }))
+            throw std::runtime_error(
+                "interaction must be silent after 0.25 seconds");
+          const auto* caption =
+              cue.caption ? content.caption(*cue.caption) : nullptr;
+          if (!caption || caption->segments.size() != 1 ||
+              caption->segments[0].start != 0 || caption->segments[0].end != 1)
+            throw std::runtime_error(
+                "interaction requires a one-second caption");
+        }
+      } catch (const std::exception& error) {
+        throw std::runtime_error("actor '" + actor.id + "', source '" +
+                                 *source_id + "': " + error.what());
       }
     }
   }

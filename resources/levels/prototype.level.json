@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9718,5 +9718,10 @@
     "sources": [],
     "rooms": [],
     "connections": []
+  },
+  "characters": {
+    "actors": [],
+    "marks": [],
+    "routes": []
   }
 }

@@ -71,14 +71,18 @@ TEST(PlayerInterpolation, MultiStepIterationRetainsLatestTwoValidPoses) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   for (int step = 0; step < 120; ++step) {
+    physics.advanceWorld(delta);
     player.fixedStep(delta);
   }
   player.collapsePresentationState();
   PlayerActionSnapshot right;
   right.move_right = true;
   player.sampleInput(right, true);
+  physics.advanceWorld(delta);
   player.fixedStep(delta);
+  physics.advanceWorld(delta);
   player.fixedStep(delta);
+  physics.advanceWorld(delta);
   player.fixedStep(delta);
 
   const PlayerCameraPosition previous = player.interpolatedCameraPosition(0.0F);
@@ -95,12 +99,14 @@ TEST(PlayerInterpolation, InterpolatesStanceEyeHeightAndCanCollapse) {
   PhysicsWorld physics(level);
   PlayerController player(physics, level.playerSpawn().yaw_degrees);
   for (int step = 0; step < 120; ++step) {
+    physics.advanceWorld(delta);
     player.fixedStep(delta);
   }
   player.collapsePresentationState();
   PlayerActionSnapshot crouch;
   crouch.crouch = true;
   player.sampleInput(crouch, true);
+  physics.advanceWorld(delta);
   player.fixedStep(delta);
   const PlayerCameraPosition standing = player.interpolatedCameraPosition(0.0F);
   const PlayerCameraPosition halfway = player.interpolatedCameraPosition(0.5F);

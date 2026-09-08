@@ -1,0 +1,15 @@
+{
+  "generator": "scripts/prepare_scripted_character_audio.py",
+  "source": "Original deterministic synthetic effects and neutral Russian text; no external recordings",
+  "seed": 7002,
+  "sample_rate": 48000,
+  "profile": "PCM16 mono",
+  "footstep_seconds": 0.12,
+  "interaction_seconds": 1.0,
+  "interaction_audible_seconds": 0.2,
+  "files": {
+    "resources/audio/character-footstep.wav": "8752f0839d676d3ddf1bbb493b1a645f54c568dba6284120bd937b0441325ab7",
+    "resources/audio/character-interaction.wav": "699cd6be6f9acf67919142d058975f3523ef38e86cebc93f83e9baaecc924075",
+    "resources/captions/character-interaction.captions": "a7596cb2ef2a734e8f510cd619c0ee9216f0206e6386e0ec5566c5fa421a6933"
+  }
+}

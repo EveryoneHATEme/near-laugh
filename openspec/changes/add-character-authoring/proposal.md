@@ -42,10 +42,11 @@ retargeting UI or new physics dependency is needed.
 
 ## Dependencies and Boundaries
 
-P07c; implement and archive
-[P07b](../add-scripted-characters/proposal.md), which requires
-[P07a](../archive/2026-09-08-add-character-animation/proposal.md), then rebase on their resulting
-main requirements. No P05 events, P09 checkpoints or P11 tooling is needed.
+P07c follows accepted and archived
+[P07b](../archive/2026-09-08-add-scripted-characters/proposal.md) and
+[P07a](../archive/2026-09-08-add-character-animation/proposal.md). Rebase on their
+resulting main requirements and the [P07b handoff](../archive/2026-09-08-add-scripted-characters/handoff.md).
+No P05 events, P09 checkpoints or P11 tooling is needed.
 
 The three P07 changes jointly own T2. This split intentionally places complete
 feature authoring in the final P07 stage; it is not deferred to P11.

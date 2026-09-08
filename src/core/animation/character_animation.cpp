@@ -233,6 +233,20 @@ bool CharacterPlayback::advance(double elapsed) {
   refresh();
   return completed;
 }
+void CharacterPlayback::drive(double seconds, double blend_seconds) {
+  if (!std::isfinite(blend_seconds) || blend_seconds < 0)
+    throw std::invalid_argument(
+        "Character blend time must be finite and nonnegative");
+  const auto& selected = asset_->clips[clip_index_];
+  const auto target = normalizedTime(selected, seconds);
+  if (paused_) return;
+  time_ = target;
+  time_compensation_ = 0;
+  completion_reported_ = !selected.looping && time_ >= selected.duration;
+  transition_time_ +=
+      std::min(blend_seconds, transition_seconds - transition_time_);
+  refresh();
+}
 void CharacterPlayback::seek(double seconds) {
   const auto& selected = asset_->clips[clip_index_];
   time_ = normalizedTime(selected, seconds);

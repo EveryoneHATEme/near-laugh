@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 8;
+inline constexpr std::uint32_t level_format_version = 9;
 inline constexpr std::size_t level_maximum_door_count = 32;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t level_maximum_point_light_count = 8;
@@ -205,6 +205,44 @@ struct LevelAudio {
   std::vector<AudioConnectionDefinition> connections{};
 };
 
+inline constexpr std::size_t level_maximum_actor_count = 4;
+inline constexpr std::size_t level_maximum_character_mark_count = 32;
+inline constexpr std::size_t level_maximum_character_route_count = 16;
+inline constexpr std::size_t level_maximum_route_mark_count = 32;
+
+struct CharacterActorDefinition {
+  bool operator==(const CharacterActorDefinition&) const = default;
+  std::string id{};
+  std::string model{};
+  std::string initial_mark{};
+  std::optional<std::string> initial_route{};
+  float speed{1.0F};
+  std::optional<std::string> footstep_source{};
+  std::optional<std::string> interaction_source{};
+};
+
+struct CharacterMarkDefinition {
+  bool operator==(const CharacterMarkDefinition&) const = default;
+  std::string id{};
+  WorldPosition feet_position{};
+  float yaw_degrees{};
+};
+
+struct CharacterRouteDefinition {
+  bool operator==(const CharacterRouteDefinition&) const = default;
+  std::string id{};
+  std::string actor{};
+  std::vector<std::string> marks{};
+  std::optional<std::string> final_clip{};
+};
+
+struct LevelCharacters {
+  bool operator==(const LevelCharacters&) const = default;
+  std::vector<CharacterActorDefinition> actors{};
+  std::vector<CharacterMarkDefinition> marks{};
+  std::vector<CharacterRouteDefinition> routes{};
+};
+
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
@@ -217,6 +255,7 @@ struct LevelDocument {
   std::vector<PrototypeLightSwitch> light_switches{};
   std::vector<DoorDefinition> doors{};
   LevelAudio audio{};
+  LevelCharacters characters{};
 };
 
 enum class LevelDiagnosticCategory {

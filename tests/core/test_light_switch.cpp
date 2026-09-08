@@ -174,7 +174,10 @@ TEST(LightSwitchController, EventBatchesAndPresentationDoNotReplayPresses) {
     input.interact = true;
     player.sampleInput(input, true);
     const auto batch = clock.advance(elapsed);
-    for (int i = 0; i < batch.complete_steps; ++i) player.fixedStep(1.0F / 60);
+    for (int i = 0; i < batch.complete_steps; ++i) {
+      physics.advanceWorld(1.0F / 60);
+      player.fixedStep(1.0F / 60);
+    }
     const auto view = player.viewPose(batch.interpolation_alpha);
     controller.update(input.interact, true, view, physics);
     enabled = !enabled;

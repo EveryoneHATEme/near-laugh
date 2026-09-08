@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "core/world/audio.hpp"
+#include "core/world/characters.hpp"
 #include "core/world/door.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/scene_assets.hpp"
@@ -269,6 +270,53 @@ void addValidation(std::vector<LevelDiagnostic>& diagnostics,
 }
 }  // namespace
 
+float prototypeActorCapsuleOffset(const PrototypeTerrain* terrain,
+                                  WorldPosition feet, float radius) {
+  if (!terrain || !finite(feet) || !std::isfinite(radius) || radius <= 0 ||
+      !prototypeTerrainContains(*terrain, feet.x, feet.z))
+    return 0;
+  const auto cell = [&](float coordinate, float origin) {
+    return std::clamp(
+        int(std::floor((coordinate - origin) / terrain->sample_spacing)), 0,
+        int(prototype_terrain_cell_count) - 1);
+  };
+  std::vector<std::array<Vec, 3>> triangles;
+  for (int z = cell(feet.z - radius, terrain->origin.z);
+       z <= cell(feet.z + radius, terrain->origin.z); ++z)
+    for (int x = cell(feet.x - radius, terrain->origin.x);
+         x <= cell(feet.x + radius, terrain->origin.x); ++x) {
+      const auto a = vec(prototypeTerrainSamplePosition(*terrain, x, z));
+      const auto b = vec(prototypeTerrainSamplePosition(*terrain, x, z + 1));
+      const auto c =
+          vec(prototypeTerrainSamplePosition(*terrain, x + 1, z + 1));
+      const auto d = vec(prototypeTerrainSamplePosition(*terrain, x + 1, z));
+      triangles.push_back({a, b, c});
+      triangles.push_back({a, c, d});
+    }
+  const auto clear = [&](double offset) {
+    const Vec center{feet.x, double(feet.y) + radius + offset, feet.z};
+    for (const auto& triangle : triangles)
+      if (pointTriangleDistanceSquared(center, triangle[0], triangle[1],
+                                       triangle[2]) <
+          double(radius) * radius - 1.e-9)
+        return false;
+    return true;
+  };
+  if (clear(0)) return 0;
+  double lo = 0,
+         hi = radius * (1 / std::cos(prototype_terrain_maximum_slope_degrees *
+                                     std::numbers::pi / 180) -
+                        1);
+  for (int i = 0; i < 16; ++i) {
+    const double middle = (lo + hi) / 2;
+    if (clear(middle))
+      hi = middle;
+    else
+      lo = middle;
+  }
+  return float(hi);
+}
+
 PrototypeLevel::PrototypeLevel(LevelDocument document)
     : terrain_(std::move(document.terrain)),
       solids_(std::move(document.solids)),
@@ -278,7 +326,8 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       props_(std::move(document.props)),
       light_switches_(std::move(document.light_switches)),
       doors_(std::move(document.doors)),
-      audio_(std::move(document.audio)) {}
+      audio_(std::move(document.audio)),
+      characters_(std::move(document.characters)) {}
 
 bool levelEntryIdIsValid(std::string_view id) noexcept {
   return !id.empty() && id.size() <= level_maximum_entry_id_length &&
@@ -798,6 +847,111 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       validateLevelAudio(document.audio, document.doors, source_path);
   diagnostics.insert(diagnostics.end(), audio_diagnostics.begin(),
                      audio_diagnostics.end());
+  const auto character_diagnostics = validateCharacterDefinitions(
+      document.characters, document.audio, source_path);
+  diagnostics.insert(diagnostics.end(), character_diagnostics.begin(),
+                     character_diagnostics.end());
+  // Marks certify endpoint support and static clearance only. A door may block
+  // a later mark or segment; accepted traversal decides that during play.
+  for (std::size_t i = 0; i < document.characters.marks.size(); ++i) {
+    const auto& mark = document.characters.marks[i];
+    const auto path =
+        "characters.marks[" + std::to_string(i) + "].feet_position";
+    const auto label = "mark '" + mark.id + "': ";
+    if (!spawnSupported(support_terrain, document.solids, mark.feet_position))
+      addValidation(diagnostics, source_path, path,
+                    label +
+                        "requires structural or terrain foot support at its "
+                        "authored height");
+    auto capsule_feet = mark.feet_position;
+    capsule_feet.y += prototypeActorCapsuleOffset(
+        support_terrain, capsule_feet, test_mannequin_catalog.capsule_radius_m);
+    if (!spawnClear(support_terrain, document.solids, document.props,
+                    capsule_feet, test_mannequin_catalog.capsule_radius_m,
+                    test_mannequin_catalog.capsule_height_m))
+      addValidation(
+          diagnostics, source_path, path,
+          label + "standing actor clearance overlaps static geometry");
+  }
+  const auto actorBounds = [&](const CharacterActorDefinition& actor)
+      -> std::optional<DoorLeafPose> {
+    const auto* model = findCharacterModel(actor.model);
+    const auto* mark =
+        findCharacterMark(document.characters, actor.initial_mark);
+    if (!model || !mark || !finite(mark->feet_position)) return {};
+    auto p = mark->feet_position;
+    p.y += prototypeActorCapsuleOffset(support_terrain, p,
+                                       model->capsule_radius_m);
+    return DoorLeafPose{{p.x, p.y + model->capsule_height_m / 2, p.z},
+                        {model->capsule_radius_m, model->capsule_height_m / 2,
+                         model->capsule_radius_m},
+                        0};
+  };
+  for (std::size_t i = 0; i < document.characters.actors.size(); ++i) {
+    const auto& actor = document.characters.actors[i];
+    const auto bounds = actorBounds(actor);
+    if (!bounds) continue;
+    const auto path =
+        "characters.actors[" + std::to_string(i) + "].initial_mark";
+    const auto label = "actor '" + actor.id + "': ";
+    const auto* mark =
+        findCharacterMark(document.characters, actor.initial_mark);
+    const auto* model = findCharacterModel(actor.model);
+    auto capsule_feet = mark->feet_position;
+    capsule_feet.y += prototypeActorCapsuleOffset(support_terrain, capsule_feet,
+                                                  model->capsule_radius_m);
+    if (!spawnSupported(support_terrain, document.solids,
+                        mark->feet_position) ||
+        !spawnClear(support_terrain, document.solids, document.props,
+                    capsule_feet, model->capsule_radius_m,
+                    model->capsule_height_m))
+      addValidation(diagnostics, source_path, path,
+                    label + "initial mark requires supported static clearance");
+    for (std::size_t j = 0; j < i; ++j) {
+      const auto other = actorBounds(document.characters.actors[j]);
+      if (other && yawedBoxesOverlap(*bounds, *other)) {
+        addValidation(diagnostics, source_path, path,
+                      label + "initial proxy overlaps actor '" +
+                          document.characters.actors[j].id + "'");
+        addValidation(
+            diagnostics, source_path,
+            "characters.actors[" + std::to_string(j) + "].initial_mark",
+            "initial proxy overlaps actor '" + actor.id + "'");
+      }
+    }
+    for (std::size_t j = 0; j < document.entries.size(); ++j) {
+      const auto& entry = document.entries[j];
+      const auto p = entry.pose.foot_position;
+      const float r =
+          prototype_spawn_validation_radius + prototype_player_contact_padding;
+      const float h = prototype_spawn_validation_height +
+                      2 * prototype_player_contact_padding;
+      if (yawedBoxesOverlap(*bounds,
+                            {{p.x, p.y + h / 2, p.z}, {r, h / 2, r}, 0})) {
+        addValidation(
+            diagnostics, source_path, path,
+            label + "initial proxy overlaps entry '" + entry.id + "'");
+        addValidation(diagnostics, source_path,
+                      "entries[" + std::to_string(j) + "].foot_position",
+                      "entry '" + entry.id +
+                          "': standing clearance overlaps actor '" + actor.id +
+                          "'");
+      }
+    }
+    for (std::size_t j = 0; j < document.doors.size(); ++j) {
+      const auto& door = document.doors[j];
+      if (doorGeometryIsValid(door) &&
+          yawedBoxesOverlap(*bounds,
+                            doorLeafPose(door, doorInitialAngle(door)))) {
+        addValidation(diagnostics, source_path, path,
+                      label + "initial proxy overlaps door '" + door.id + "'");
+        addValidation(diagnostics, source_path,
+                      "doors[" + std::to_string(j) + "]",
+                      "door '" + door.id + "': initial leaf overlaps actor '" +
+                          actor.id + "'");
+      }
+    }
+  }
   return diagnostics;
 }
 
@@ -825,11 +979,11 @@ bool prototypeTerrainIsValid(const PrototypeTerrain& terrain) noexcept {
 }
 
 bool prototypeLevelIsValid(const PrototypeLevel& level) {
-  const LevelDocument document{level_format_version,   level.terrain(),
-                               level.solids(),         level.entries(),
-                               level.defaultEntryId(), level.environmentLight(),
-                               level.props(),          level.lightSwitches(),
-                               level.doors(),          level.audio()};
+  const LevelDocument document{
+      level_format_version, level.terrain(),        level.solids(),
+      level.entries(),      level.defaultEntryId(), level.environmentLight(),
+      level.props(),        level.lightSwitches(),  level.doors(),
+      level.audio(),        level.characters()};
   return validateLevelDocument(document).empty();
 }
 

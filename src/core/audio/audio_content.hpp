@@ -38,4 +38,9 @@ class CaptionFont;
 void validateAudioCaptions(const AudioContent& content, const LevelAudio& audio,
                            const CaptionFont& font);
 
+// Extra selected-content constraints for the concrete actor marker links.
+void validateCharacterAudio(const AudioContent& content,
+                            const LevelAudio& audio,
+                            const LevelCharacters& characters);
+
 #endif

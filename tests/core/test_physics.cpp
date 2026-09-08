@@ -50,6 +50,7 @@ PhysicsCharacterState simulate(PhysicsWorld& world, PhysicsVector horizontal,
       vertical_velocity = 0.0F;
     }
     vertical_velocity -= 18.0F * delta;
+    world.advanceWorld(delta);
     state =
         world.stepCharacter({{horizontal.x, vertical_velocity, horizontal.z},
                              {0.0F, -18.0F, 0.0F},
@@ -146,6 +147,7 @@ TEST(PhysicsWorld, AdvancesOnTheCallingThreadWithSingleThreadedJobs) {
   PhysicsWorld physics(level);
   const std::thread::id caller = std::this_thread::get_id();
   EXPECT_TRUE(physics.usesSingleThreadedJobs());
+  physics.advanceWorld(1.0F / 60.0F);
   const PhysicsCharacterState state = physics.stepCharacter(
       {{0.0F, -0.3F, 0.0F}, {0.0F, -18.0F, 0.0F}, false}, 1.0F / 60.0F);
   EXPECT_EQ(std::this_thread::get_id(), caller);

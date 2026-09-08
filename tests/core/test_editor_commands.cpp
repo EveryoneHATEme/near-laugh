@@ -451,6 +451,7 @@ TEST_F(EditorCommands,
     auto state = physics.characterState();
     for (int step = 0; step < 180; ++step) {
       float vertical = state.supported() ? 0 : state.linear_velocity.y;
+      physics.advanceWorld(1.0F / 60);
       state = physics.stepCharacter(
           {{0, vertical - 0.3F, 0}, {0, -18, 0}, false}, 1.0F / 60);
     }
@@ -643,7 +644,7 @@ TEST_F(EditorCommands, VersionTwoOpensCleanAndExplicitSaveWritesV8) {
   value.light_id = "point-light-1";
   ASSERT_TRUE(editor.replaceObject(editor.switchIds().front(), value));
   ASSERT_TRUE(editor.save());
-  EXPECT_NE(bytes(path).find("\"version\": 8"), std::string::npos);
+  EXPECT_NE(bytes(path).find("\"version\": 9"), std::string::npos);
   ASSERT_TRUE(editor.open(path));
   EXPECT_FALSE(editor.dirty());
   EXPECT_EQ(editor.document()->light_switches.front(), value);

@@ -14,6 +14,8 @@ int main(int argc, char** argv) {
 #endif
   try {
     const bool smoke = argc >= 2 && std::filesystem::path(argv[1]) == "--smoke";
+    const bool character_smoke =
+        argc == 2 && std::filesystem::path(argv[1]) == "--character-smoke";
     if ((!smoke && argc > 2) || (smoke && argc > 3)) {
       std::cerr << "usage: level_editor [level-path]\n"
                    "       level_editor --smoke [level-path]\n";
@@ -22,7 +24,10 @@ int main(int argc, char** argv) {
     const std::filesystem::path resource_root =
         launcher::executableResourceRoot();
     std::optional<std::filesystem::path> initial_level;
-    if (smoke) {
+    if (character_smoke) {
+      initial_level =
+          resource_root / "levels/scripted-characters-four.level.json";
+    } else if (smoke) {
       initial_level = argc == 3
                           ? std::filesystem::path(argv[2])
                           : resource_root / "levels" / "prototype.level.json";
@@ -32,7 +37,9 @@ int main(int argc, char** argv) {
     ValidationDiagnostics diagnostics;
     {
       EditorApplication application(resource_root, initial_level, diagnostics);
-      if (smoke)
+      if (character_smoke)
+        application.runCharacterSmoke();
+      else if (smoke)
         application.runSmoke(*initial_level);
       else
         application.run();

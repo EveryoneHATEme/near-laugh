@@ -36,3 +36,16 @@ home and asks Lena to open the door. The label only says “Голос за дв
 These synthetic voices are temporary acceptance content. Human listening for
 Russian intelligibility, spatial placement, and measured device latency is
 still required; generation and hashes alone do not establish those results.
+
+## Neutral scripted-character effects
+
+`python -B scripts/prepare_scripted_character_audio.py` reproducibly prepares
+original seeded effects without speech tools or external source audio.
+`scripted-characters-provenance.json` records the synthesis recipe, seed and
+SHA-256 hashes. The mono PCM16/48 kHz footstep lasts 0.12 seconds and has no
+caption. The interaction contains 0.20 seconds of effect followed by exact
+silence through 1.00 seconds, with a matching one-second Russian caption.
+The full second controls foreground arbitration and logical completion.
+Runtime preflight verifies the selected duration, trailing silence and caption
+bounds. Actor source links are exclusive, spatial, non-autoplay one-shots;
+accepted travel triggers contacts and the final clip uses its calibrated marker.

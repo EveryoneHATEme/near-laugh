@@ -16,6 +16,11 @@ struct FrameTimingSample {
   double cpu_active_ms{};
   double character_deformation_ms{};
   double character_upload_ms{};
+  double route_decision_ms{};
+  double actor_physics_ms{};
+  double character_pose_ms{};
+  double world_player_doors_ms{};
+  double character_audio_ms{};
   double fence_ms{};
   double acquire_ms{};
   double present_ms{};

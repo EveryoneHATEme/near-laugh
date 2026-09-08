@@ -1,0 +1,62 @@
+{
+  "four-caption.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "626e87592f3e134dd5d197824b930084df8a5a16d7877c381ffa455c5531319a"
+  },
+  "four-completed.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "db7336646711a9c6aa7e2ca9c87f4fe0ce303ebc3bd480acac6f1a2792d8c08b"
+  },
+  "four-door-blocked.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "2c475dd473f6ac0719a9c1d0532f2e1759e2be932491d67a41e73e5c0ddd9097"
+  },
+  "four-initial.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "910b066f1586a63b3ec8478f46a0e530c038e9aae9b0cdefcc2a6e951035d009"
+  },
+  "four-interacting.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "0922acd22dcc64c9d4061a4e713a1f47bbf2efe122d5a09991650acc9105e6b2"
+  },
+  "four-walking.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "52ca1f478bf413cf426109d29096982055ef1b630d2376af8d2e0166a360aa50"
+  },
+  "one-caption.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "626e87592f3e134dd5d197824b930084df8a5a16d7877c381ffa455c5531319a"
+  },
+  "one-completed.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "c940d8fd5d0661470529180b94f97952352a157c4c5846afda9fefcdc568cdea"
+  },
+  "one-door-blocked.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "60bbf63547e14a59e033ff5cd85af7307873f46cf2bee573af3ae2a5c89f2820"
+  },
+  "one-initial.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "811d54744c990d0685cd02918ece0a03fa4f8149b451fccd8ff147557d97264f"
+  },
+  "one-interacting.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "d5fa56989bda69a58d6798be2428be17b940160e620c3d1b442ef2f8d2f4d785"
+  },
+  "one-walking.png": {
+    "width": 800,
+    "height": 600,
+    "rgb_sha256": "74edc36ef8735be1fe969f22cdf1274b5529022552afaf44a9c4b450cbafec79"
+  }
+}

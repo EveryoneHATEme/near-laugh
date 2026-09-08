@@ -100,6 +100,8 @@ class CharacterPlayback {
   void selectClip(std::string_view clip);
   // Returns true once on crossing a one-shot endpoint; inspection emits nothing.
   bool advance(double elapsed_seconds);
+  // Drive a distance-calibrated clip while its transition uses simulation time.
+  void drive(double clip_seconds, double blend_seconds);
   void seek(double seconds);
   void restart();
   void setPaused(bool paused) noexcept { paused_ = paused; }

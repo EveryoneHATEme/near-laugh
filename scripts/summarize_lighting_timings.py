@@ -18,7 +18,9 @@ def summarize(path: Path):
     metrics = {}
     names = ["cpu_active_ms", "gpu_frame_ms", "gpu_shadow_ms", "interval_ms",
              "fence_ms", "acquire_ms", "present_ms"]
-    names += [name for name in ("character_deformation_ms", "character_upload_ms")
+    names += [name for name in ("character_deformation_ms", "character_upload_ms",
+                               "route_decision_ms", "actor_physics_ms", "character_pose_ms",
+                               "world_player_doors_ms", "character_audio_ms")
               if name in raw[0]]
     for name in names:
         values = sorted(float(row[name]) for row in rows if row[name] != "")

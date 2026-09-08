@@ -149,7 +149,7 @@ the actual game design requires one.
 
 The level may contain up to 16 non-blocking switch plates and 32 hinged doors.
 The displayed eye ray selects the nearest switch or accepted door leaf within
-2 metres. Terrain, structural solids, every authored prop proxy, and other
+2 metres. Terrain, structural solids, every authored prop proxy, accepted actor proxies, and other
 doors obstruct interaction. A selected door can target its own front surface;
 an inside origin is refused. Candidates within 0.1 mm of the true nearest
 distance choose doors first, then the durable ID within each type. Reordering
@@ -165,8 +165,8 @@ edges are consumed with R, E, then knock priority. Left mouse retains the
 independent flashlight/cursor behavior.
 
 Doors stop before obstructing terrain, solids, props, other leaves, or the
-player's current/interpolated presentation envelope. They do not push/crush the
-player or resume automatically after a blocker clears. Accepted poses are
+player's current/interpolated presentation envelope and accepted actor envelopes.
+They do not push/crush participants or resume automatically after a blocker clears. Accepted poses are
 shared by rendering, visibility and collision. Conservative clearance can
 stop a door slightly early, including space the player has just vacated.
 
@@ -205,8 +205,9 @@ yaw, including both presentation snapshots before the first frame. Every
 entry must have height-specific support and standing clearance.
 
 The level contains static world geometry with independently assigned materials,
-two authored point lights, zero through 128 fixed model placements, an optional
-switch, and hinged doors. Placements have stable model identities and zero
+zero through eight authored point lights, zero through 128 fixed model placements,
+up to 16 switches, hinged doors, authored audio and up to four characters.
+Placements have stable model identities and zero
 through eight independent collision boxes. Decorative phone/radio placements
 have no collision or interaction. The separate P04 fixture places authored
 radio and telephone sources at these props.
@@ -338,6 +339,32 @@ A generic AI framework is not a goal.
 
 Navigation, perception, animation state, spawning, or other actor systems
 should be added only when a concrete encounter requires them.
+
+### Current neutral character routes
+
+P07b supplies a neutral mannequin route fixture, independent of narrative
+events. Actors turn toward a segment, walk on accepted support, face each mark,
+then optionally perform Interact. Turns use idle at 120 degrees/second, with
+positive rotation for an exact 180-degree tie. Arrival requires feet within
+2 cm and facing within one degree. Supported steps are at most 30 cm; terrain
+uses the existing 50-degree slope limit. Actors do not jump, fall across gaps,
+sidestep, find paths or operate doors automatically.
+
+Player, static, door and actor obstruction retain the last supported pose and
+retry without timeout. Opposing routes may wait indefinitely. Standing time
+produces no walking contacts. Repeating an active start is idempotent; a
+different active route reports busy. Cancel retains placement and stops only
+the action's sounds; explicit restart uses that placement. Fresh process entry
+restores the authored starts, without changing the saved file.
+
+Short footsteps follow distance-calibrated contacts. The final interaction
+holds at its catalog marker if another foreground cue is active. Once free,
+one spatial cue starts at accepted feet with a one-second Russian caption.
+Its PCM contains a short effect followed by silence; logical completion and
+arbitration use the full second. Mute and device loss preserve route identities
+and captions. Capsule collision does not model animated limb contacts or foot
+planting; the neutral mannequin retains its source sole dip and standing pivot.
+See [development controls and evidence](DEVELOPMENT.md#p07b-scripted-characters).
 
 ## Combat
 

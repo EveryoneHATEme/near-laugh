@@ -59,7 +59,7 @@ TEST_F(InteriorLighting, EmptyAndCapacityCollectionsRoundTripAndKeepOrder) {
       const auto bytes = read(path);
       const auto loaded = loadLevelDocument(path);
       ASSERT_TRUE(loaded);
-      EXPECT_EQ(loaded.source_version, 8U);
+      EXPECT_EQ(loaded.source_version, 9U);
       EXPECT_EQ(*loaded.document, doc);
       ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
       EXPECT_EQ(read(path), bytes);
@@ -164,7 +164,7 @@ TEST_F(InteriorLighting, CurrentCodecRejectsMixedShapesAndNonBooleanFlags) {
         std::pair{"\"casts_shadows\": false", "\"casts_shadows\": null"},
         std::pair{"\"light_id\": \"point-light-0\"",
                   "\"point_light_index\": 0"},
-        std::pair{"\"version\": 8", "\"version\": 7"}}) {
+        std::pair{"\"version\": 9", "\"version\": 7"}}) {
     auto malformed = canonical;
     const auto at = malformed.find(from);
     ASSERT_NE(at, std::string::npos);

@@ -1,4 +1,7 @@
 add_executable(engine_tests
+    core/test_character_controller.cpp
+    core/test_actor_physics.cpp
+    core/test_character_definitions.cpp
     core/test_character_animation.cpp
     core/test_character_presentation.cpp
     core/test_frame_timings.cpp
@@ -81,6 +84,12 @@ add_test(NAME vulkan_interior_lighting COMMAND vulkan_smoke --lighting)
 set_tests_properties(vulkan_interior_lighting PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 add_test(NAME vulkan_audio_runtime COMMAND vulkan_smoke --audio)
+add_test(NAME vulkan_scripted_characters COMMAND vulkan_smoke --characters)
+add_test(NAME editor_scripted_characters COMMAND level_editor --character-smoke)
+set_tests_properties(editor_scripted_characters PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>")
+set_tests_properties(vulkan_scripted_characters PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 set_tests_properties(vulkan_audio_runtime PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 set_tests_properties(vulkan_smoke PROPERTIES

@@ -168,6 +168,7 @@ endfunction()
 near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
+    src/core/world/characters.cpp
     src/core/world/audio.cpp
     src/core/world/door.cpp
     src/core/world/scene_assets.cpp
@@ -180,9 +181,10 @@ target_link_libraries(near_laugh_world PRIVATE nlohmann_json::nlohmann_json)
 near_laugh_enable_warnings(near_laugh_world)
 
 add_library(near_laugh_animation STATIC
+    src/core/animation/character_scene.cpp
     src/core/animation/character_animation.cpp src/core/animation/character_asset.cpp)
 target_include_directories(near_laugh_animation PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(near_laugh_animation PRIVATE near_laugh_cgltf glm::glm)
+target_link_libraries(near_laugh_animation PRIVATE near_laugh_cgltf glm::glm near_laugh_world)
 near_laugh_enable_warnings(near_laugh_animation)
 
 add_library(near_laugh_text STATIC src/core/text/utf8.cpp src/core/text/caption_font.cpp)
@@ -268,6 +270,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 add_library(near_laugh_runtime STATIC
+    src/core/gameplay/character_controller.cpp
     src/core/gameplay/door_controller.cpp
     src/core/gameplay/authored_interaction.cpp
     src/core/application.cpp
@@ -423,6 +426,21 @@ target_link_libraries(audio_captions_fixture PRIVATE near_laugh_runtime)
 near_laugh_enable_warnings(audio_captions_fixture)
 set_target_properties(audio_captions_fixture PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_dependencies(audio_captions_fixture near_laugh_packaged_resources)
+
+add_executable(scripted_characters src/scripted_characters_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(scripted_characters PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(scripted_characters PRIVATE near_laugh_runtime)
+near_laugh_enable_warnings(scripted_characters)
+set_target_properties(scripted_characters PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(scripted_characters near_laugh_packaged_resources)
+
+add_executable(scripted_character_measure EXCLUDE_FROM_ALL
+    src/scripted_character_measure_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(scripted_character_measure PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(scripted_character_measure PRIVATE near_laugh_runtime)
+near_laugh_enable_warnings(scripted_character_measure)
+set_target_properties(scripted_character_measure PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(scripted_character_measure near_laugh_packaged_resources)
 
 add_executable(character_animation_viewer
     src/character_animation_viewer_main.cpp src/launcher/executable_path.cpp)

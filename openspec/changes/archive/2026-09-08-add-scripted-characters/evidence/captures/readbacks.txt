@@ -1,0 +1,1 @@
+Real Engine one/four routes, selected mannequin/third actor/renderer startup failures, repeated startup and recovery. Includes close accepted final pose and Russian caption inspections. Vulkan validation passed through teardown; accelerated simulation does not measure display latency.

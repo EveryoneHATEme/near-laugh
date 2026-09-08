@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "terrain": null,
   "solids": [
     {
@@ -1273,5 +1273,10 @@
     "sources": [],
     "rooms": [],
     "connections": []
+  },
+  "characters": {
+    "actors": [],
+    "marks": [],
+    "routes": []
   }
 }

@@ -246,6 +246,14 @@ scene/lighting/character set and installs it only after success; failure retains
 the previous set and matching pose contract. Pipelines and dependent GPU work
 finish before character buffers, materials and immutable CPU owners are released.
 
+Runtime character palettes come from fixed-step route playback. World placement
+uses current collision-accepted ground feet/yaw, including on slopes, while
+physics privately offsets its upright capsule. Color and shadow passes consume
+the same accepted pose. No renderer clock or separate placement interpolation
+can advance an actor through a blocker. The editor prepares initial idle poses
+without route autoplay and transactionally retains their CPU/GPU owners through
+replacement failures. Character reference diagnostics use its existing overlay.
+
 ## Russian captions
 
 The game draws resolved foreground and optional ambience text after the scene

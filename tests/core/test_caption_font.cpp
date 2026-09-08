@@ -32,11 +32,14 @@ TEST(CaptionFont, PinnedFontBakesRussianYoAndPunctuationIntoAnImmutableAtlas) {
 
 TEST(CaptionFont, EveryPackagedCaptionFitsAtSupportedAndHiDpiFramebufferSizes) {
   LevelAudio audio;
-  for (const auto& entry : audioCatalog())
+  for (const auto& entry : audioCatalog()) {
+    if (entry.id == "character-footstep")
+      continue;  // Uncaptioned ambience one-shot.
     audio.cues.push_back(
         {std::string(entry.id), std::string(entry.id), std::string(entry.id),
          entry.id == "radio" ? AudioCueKind::Ambience : AudioCueKind::Essential,
          false, true});
+  }
   const auto content = prepareAudioContent("resources", audio);
   const auto& font = fixtureFont();
   for (const auto& track : content.captions)

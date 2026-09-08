@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "terrain": null,
   "solids": [
     {
@@ -1445,5 +1445,10 @@
         "open_gain": 0.8
       }
     ]
+  },
+  "characters": {
+    "actors": [],
+    "marks": [],
+    "routes": []
   }
 }

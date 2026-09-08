@@ -146,6 +146,7 @@ void acceptedDoorCaptures(Window& window, ValidationDiagnostics& diagnostics,
   DoorController controller(level.doors());
   (void)controller.act(0, DoorAction::Interact, eye);
   for (int i = 0; i < 90; ++i) {
+    physics.advanceWorld(1.F / 60);
     (void)physics.stepCharacter({{}, {0, -18, 0}}, 1.F / 60);
     controller.fixedStep(1.F / 60, physics);
   }
@@ -156,10 +157,13 @@ void acceptedDoorCaptures(Window& window, ValidationDiagnostics& diagnostics,
         "Capture door did not stop against the actual player capsule");
   runtimeCaptures(window, diagnostics, root, output, "door-player-obstructed",
                   doc, eye, target, stopped.angle);
-  for (int i = 0; i < 45; ++i)
+  for (int i = 0; i < 45; ++i) {
+    physics.advanceWorld(1.F / 60);
     (void)physics.stepCharacter({{2, 0, 0}, {0, -18, 0}}, 1.F / 60);
+  }
   (void)controller.act(0, DoorAction::Interact, eye);
   for (int i = 0; i < 10; ++i) {
+    physics.advanceWorld(1.F / 60);
     (void)physics.stepCharacter({{}, {0, -18, 0}}, 1.F / 60);
     controller.fixedStep(1.F / 60, physics);
   }

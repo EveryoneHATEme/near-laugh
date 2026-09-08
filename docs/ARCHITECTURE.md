@@ -19,7 +19,7 @@ near_laugh
         |-> near_laugh_world -> nlohmann/json
         |-> near_laugh_physics -> near_laugh_world, Jolt
         |-> near_laugh_audio -> near_laugh_world, near_laugh_text, miniaudio
-        |-> near_laugh_animation -> near_laugh_cgltf, GLM
+        |-> near_laugh_animation -> near_laugh_world, near_laugh_cgltf, GLM
         `-> near_laugh_render -> near_laugh_platform, near_laugh_world,
                                 near_laugh_text, near_laugh_animation,
                                 Vulkan, GLFW, stb_image, near_laugh_cgltf
@@ -44,12 +44,12 @@ The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-8 level document, exact version-2/3/4/5/6/7 read
+- `near_laugh_world` owns the bounded version-9 level document, exact version-2/3/4/5/6/7/8 read
   compatibility, strict private JSON codec, shared validation, and immutable
   level data. It privately links
   `nlohmann/json`.
-- `near_laugh_physics` owns Jolt lifetime, static proxies, kinematic door leaves, and one
-  virtual character. It consumes immutable world data and privately links
+- `near_laugh_physics` owns Jolt lifetime, static proxies, kinematic door leaves,
+  up to four catalog actor capsules, and one virtual player character. It consumes immutable world data and privately links
   Jolt.
 - `near_laugh_render` owns Vulkan presentation and scene resources. It consumes
   immutable world data and uses the narrow internal GLFW/Vulkan surface bridge.
@@ -64,7 +64,7 @@ The concrete targets have these responsibilities:
 - `near_laugh_text` owns bounded UTF-8 decoding, trusted Noto Sans validation,
   atlas baking with the pinned stb dependency, and pure caption layout.
 - `near_laugh_runtime` owns application composition, player input mapping,
-  fixed-step player/door policy, interaction arbitration, flashlight and light state, frame interpolation,
+  fixed-step player/actor/door policy, concrete character routes, interaction arbitration, flashlight and light state, player frame interpolation,
   and the main-thread loop.
 - `near_laugh` is the game launcher. It discovers its native executable path,
   supplies the adjacent resource root and optional level/entry selection, and
@@ -92,9 +92,11 @@ not establish a reusable engine layer. It constructs, in dependency order:
 
 ```text
 Platform -> Window -> RuntimeResources -> PrototypeLevel
-         -> selected LevelEntry -> CaptionFont -> prepared audio/CueCoordinator
+         -> selected LevelEntry -> CaptionFont -> selected character assets
+         -> prepared audio/CueCoordinator
          -> PhysicsWorld -> PlayerController -> PlayerFlashlight
-         -> LightSwitchController -> DoorController -> AuthoredInteraction -> Renderer
+         -> LightSwitchController -> DoorController -> CharacterController
+         -> AuthoredInteraction -> Renderer
 ```
 
 RAII destruction reverses that order. Raw pointers and references are
@@ -129,8 +131,9 @@ retains application-lifetime control. Rendering does
 not interpret player actions, update simulation, poll events, or decide when
 the game exits.
 
-The player and physics advance on the main thread through a fixed-step
-accumulator. Jolt uses its single-threaded job implementation; the project has
+The runtime advances the physics world once before player movement in each
+fixed step. Individual participant movement does not advance the shared world.
+Jolt uses its single-threaded job implementation; the project has
 no runtime job system.
 
 ## Audio ownership and timing
@@ -160,7 +163,7 @@ connection-path products model transmission, and gains smooth over 50 ms.
 
 ## World Boundary
 
-The bounded v8 document contains optional 97-by-97 terrain, 1–240 axis-aligned
+The bounded v9 document contains optional 97-by-97 terrain, 1–240 axis-aligned
 solids, 1–16 named entries/default, 0–8 point lights plus ambient, 0–128 static
 model placements, 0–16 switches and 0–32 hinged door definitions. Terrain
 and solids select a game-owned structural material ID independently of collision
@@ -173,15 +176,49 @@ Audio records add up to 128 cues, 64 sources, 32 non-overlapping room boxes and
 connections reference rooms, outside, and optionally a door. Audio metadata
 validation performs no device, file decoding or GPU construction.
 
-Exact v2–v7 shapes normalize on read. The singleton chair becomes one
+Character data contains up to four actors, 32 feet/yaw marks and 16 actor-owned
+routes, each with 1–32 ordered mark references. Actor models and capsule metadata
+come from the prepared finite catalog. Shared validation checks source ownership,
+references, mark support/static clearance and initial actor/entry/door clearance.
+Authored marks and published actor feet stay anchored to supported ground.
+Physics derives a private vertical capsule offset on terrain slopes; shared
+validation and continuous motion use the same actual capsule placement.
+Endpoint validation does not certify route segment traversability.
+
+`CharacterController` borrows immutable definitions, physics and the cue
+coordinator, shares selected immutable animation assets, and owns independent
+action serials, route cursors, playback and palette storage. Each fixed step
+advances the shared world, player, actors in durable-ID order, then doors.
+Swept player and actor envelopes prevent crossing swaps; actor tops never
+become player support. Accepted actor placement blocks stance, interaction and
+door sweeps. Blocked routes retry; blocked doors require explicit reactivation.
+
+Route heading and mark facing use standing idle turns. Accepted horizontal
+distance drives the calibrated walk phase and contacts. Blocked time blends
+to idle without accumulating contacts. Interact holds at its marker while
+foreground audio is busy, then latches one owned cue instance. The main-loop
+handoff moves reserved sources to accepted feet and drains each contact once.
+Cancellation affects only matching action-owned sounds. The P04 development
+sequence rejects actor-reserved source IDs at composition.
+
+Current accepted feet/yaw and palettes are borrowed synchronously by rendering;
+actors have no independent placement interpolation. Development suspension
+and minimized waits freeze simulation, animation and cue clocks together and
+discard the accumulator. Cursor release continues ordinary world/audio time.
+Fresh processes restore authored initial routes; presentation recovery retains
+action identities. No save-game state or general scripting boundary is added.
+
+Exact v2–v8 shapes normalize on read. The singleton chair becomes one
 `prototype-chair` placement with its original transform/box/material; old surface
 roles map to their legacy materials. v2/v3 spawn becomes the `default` entry;
 v2 has no switch; v2–4 have no doors; v5 retains all authored doors. Explicit
-saves write canonical v8; opening never rewrites a source file. Versions 2–6
+saves write canonical v9; opening never rewrites a source file. Versions 2–6
 normalize to empty audio. Legacy light slots become `point-light-0/1`, both
 unshadowed; the optional switch becomes `light-switch-0` and moves its initial
 enable to the linked light. A missing switch leaves both lights on. v7 audio
-survives unchanged. Older executables cannot read v8; use Save As to
+survives unchanged. Exact v8 inputs preserve their lights/audio without legacy
+remapping; all older versions normalize to empty character collections and
+reject character fields in their original shapes. Older executables cannot read v9; use Save As to
 retain an original needed by an older build.
 
 World validation checks finite derived geometry, references, entry support and
@@ -205,7 +242,7 @@ owns run-local enables in immutable authored light order;
 Physics privately owns zero-velocity kinematic leaves and continuous conservative
 angular clearance queries. Each fixed step moves the player against installed
 leaves, retains a swept player envelope including character skin/stance, then
-advances doors in durable-ID order and installs accepted poses. Rendering and
+accepts actors, advances doors in durable-ID order and installs accepted poses. Rendering and
 targeting use those poses without separate door interpolation. No event queue,
 entity registry, physical hinge simulation or general interaction framework is
 introduced.
@@ -216,15 +253,16 @@ only after their frame-slot fence. The existing 128-byte camera/light push range
 does not grow. See RENDERING for material/profile and resource ownership.
 
 The explicit `character_animation_viewer` selects the prepared mannequin without
-changing level v8 or interpreting a filename as animation policy. Its caller owns
+changing level data or interpreting a filename as animation policy. Its caller owns
 independent playback and supplies up to four render-instance handles, skeleton
 identities, model-relative joint palettes and world translation/yaw. Frame spans
 are borrowed synchronously. The renderer validates the complete selected set,
 deforms source vertices once into separate fenced character buffers and shares
 immutable indices/materials per selected asset. Indexed color and shadow draws
 use the same slot geometry with per-instance vertex offsets. It never advances clips.
-The finite catalog carries measured contact/interaction phases for subsequent
-scripted-character work; actor records, routes and authoring remain P07b/P07c.
+The finite catalog carries calibrated stride, contact and interaction phases
+used by scripted routes. `scripted_characters` is an explicit development entry
+for route controls; ordinary game launches use the level's initial routes too.
 
 ## Editor Ownership
 
@@ -274,6 +312,16 @@ the prior coherent preview and its matching character-pose contract.
 New Interior creates a valid floor, default entry and lights, with no terrain,
 props or doors. Durable entry strings are separate from transient selection IDs;
 renaming a default entry updates its reference in one undoable command.
+
+Character-bearing files retain every actor/mark/route field through unrelated
+commands and saves. The editor owns frozen initial idle poses and shares their
+prepared assets with its renderer; routes never autoplay there. Invalid safe
+references produce red diagnostic markers; a missing initial mark anchors its
+diagnostic at the default entry. An orphan route uses its first surviving mark,
+or the default entry if none survives. Failed asset replacement retains the previous
+coherent preview. Play prepares selected characters and linked audio before
+creating a child. Dedicated character selection, properties and snapshot route
+inspection remain P07c work.
 
 Play prepares the current document and selected entry, completes pending edits,
 and requires Save and Play or Cancel when dirty. Unsaved work uses Save As.

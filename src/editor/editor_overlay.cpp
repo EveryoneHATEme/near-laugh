@@ -1,9 +1,11 @@
 #include "editor/editor_overlay.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <glm/gtc/type_ptr.hpp>
 #include <numbers>
 
+#include "core/world/characters.hpp"
 #include "core/world/door.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
@@ -97,6 +99,47 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     }
   };
   const auto& level = *document.document();
+  constexpr WorldColor character_invalid{255, 70, 70, 255};
+  const auto character_error = [&](const std::string& record) {
+    return std::any_of(document.diagnostics().begin(),
+                       document.diagnostics().end(),
+                       [&](const auto& diagnostic) {
+                         return diagnostic.document_path.starts_with(record);
+                       });
+  };
+  for (std::size_t i = 0; i < level.characters.marks.size(); ++i)
+    if (character_error("characters.marks[" + std::to_string(i) + "]"))
+      marker(level.characters.marks[i].feet_position, character_invalid);
+  for (std::size_t i = 0; i < level.characters.actors.size(); ++i) {
+    const auto& actor = level.characters.actors[i];
+    bool invalid =
+        character_error("characters.actors[" + std::to_string(i) + "]");
+    for (std::size_t r = 0; r < level.characters.routes.size(); ++r)
+      if (level.characters.routes[r].actor == actor.id &&
+          character_error("characters.routes[" + std::to_string(r) + "]"))
+        invalid = true;
+    if (!invalid) continue;
+    if (const auto* mark =
+            findCharacterMark(level.characters, actor.initial_mark))
+      marker(mark->feet_position, character_invalid);
+    else if (const auto* entry = findLevelEntry(level, level.default_entry))
+      marker(entry->pose.foot_position, character_invalid);
+  }
+  for (std::size_t i = 0; i < level.characters.routes.size(); ++i) {
+    const auto& route = level.characters.routes[i];
+    if (!character_error("characters.routes[" + std::to_string(i) + "]") ||
+        std::any_of(level.characters.actors.begin(),
+                    level.characters.actors.end(),
+                    [&](const auto& actor) { return actor.id == route.actor; }))
+      continue;
+    const CharacterMarkDefinition* anchor = nullptr;
+    for (const auto& id : route.marks)
+      if ((anchor = findCharacterMark(level.characters, id))) break;
+    if (anchor)
+      marker(anchor->feet_position, character_invalid);
+    else if (const auto* entry = findLevelEntry(level, level.default_entry))
+      marker(entry->pose.foot_position, character_invalid);
+  }
   constexpr WorldColor audio_color{210, 130, 255, 255};
   for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
     marker(level.audio.sources[i].position,

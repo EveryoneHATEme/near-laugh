@@ -102,18 +102,25 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-Levels write format version 8 and read exact versions 2–7 without modifying
+Levels write format version 9 and read exact versions 2–8 without modifying
 the source. The profile contains optional 97-by-97 terrain, 1–240 solids,
 1–16 entries/default, 0–8 lights/ambient, 0–128 props, 0–16 switches,
 and 0–32 doors, plus audio (up to 128 cues, 64 sources, 32 rooms and 64 connections).
+The required `characters` object contains arrays of up to four actors, 32 marks
+and 16 routes. Earlier packaged scenes retain empty character arrays; the
+one/four-actor scripted-character fixtures exercise authored initial routes.
+The editor renders initial idle poses and preserves these records through
+unrelated edits. Dedicated character authoring remains P07c.
 Prop/model/material and clip/caption IDs are logical names, never paths.
 Props have finite translation/yaw, positive uniform scale and 0–8 local boxes.
 Legacy chair/texture roles normalize to explicit legacy identities; v5 doors
 survive migration. Versions 2–6 map to empty audio. New fields in old versions,
 unknown fields and v1 fail. Legacy lights map to `point-light-0/1` without
 shadows, and the singleton switch maps to `light-switch-0`; its initial
-enable moves to the linked light. v7 audio is preserved. Older builds cannot
-read v8: use Save As or retain
+enable moves to the linked light. v7 audio is preserved. Exact v8 inputs preserve
+all prior values and normalize to empty characters, as do v2–v7 after their
+existing migrations. Versions 2–8 reject character fields. Older builds cannot
+read v9: use Save As or retain
 the original before conversion when it is still needed by an older build.
 
 The selected apartment derivatives are `models/apartment_chair.glb`,
@@ -156,7 +163,7 @@ requirements.
 
 The packaged switch is the pale plate on the central obstacle facing spawn.
 Walk forward from spawn to reach it. It controls Point light 1, initially on,
-and adds no collision body. Terrain, solids, all prop boxes and door leaves block interaction. E/R/knock require a release before the first press and between
+and adds no collision body. Terrain, solids, all prop boxes, door leaves and actor proxies block interaction. E/R/knock require a release before the first press and between
 presses; holding it through a miss, cursor transition, or minimization cannot
 trigger a later toggle. The light state persists through presentation recovery
 and resets on restart without modifying the level file. Flashlight controls
@@ -336,7 +343,7 @@ call, two seconds of silence, then the contradictory invitation behind the door.
 The ordinary game does not activate this sequence from the level filename.
 
 Fixture-only controls (while the cursor is captured): F5 cancels all instances
-and restarts, M toggles mute, P suspends/resumes cue time. Restart retains mute
+and restarts, M toggles mute, P suspends/resumes world and cue time together. Restart retains mute
 and pause settings. Existing E/R door controls and camera navigation remain
 available; Escape releases the cursor without pausing audio. Minimize suspends
 before waiting, and restore preserves cue offsets. There is no save-game or
@@ -390,10 +397,11 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-8 level data with exact version-2/3/4/5/6/7 read compatibility,
+- `near_laugh_world`: version-9 level data with exact version-2/3/4/5/6/7/8 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
-- `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors, and one virtual
-  character.
+- `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors,
+  up to four catalog actor capsules, and one virtual player character. The
+  fixed-step caller advances the shared world before participant movement.
 - `near_laugh_render`: Vulkan renderer, resource loading, and immutable scene
   GPU ownership.
 - `near_laugh_runtime`: application facade, composition, player input,
@@ -405,6 +413,9 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
   sampling/transitions and CPU deformation; one compiled cgltf owner is shared
   with the existing static loader.
 - `character_animation_viewer`: explicit P07a animation inspection and timing.
+- `scripted_characters`: P07b route development controls through the runtime.
+- `scripted_character_measure`: opt-in Release route comparison and short
+  Debug/Release timing-recovery checks.
 - `audio_captions_fixture`: explicit P04 demo using the internal runtime entry.
 - `near_laugh`: game launcher linking only `near_laugh_runtime`.
 - `near_laugh_editor_core`: document workflow, play preparation, native child
@@ -526,7 +537,9 @@ exact RGB round trip. D16 fallback validation uses the existing test control
 `NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE=shadow_d32_unavailable`; clear it before
 ordinary runs. Reproduce the packaged lighting scenes with
 `python scripts/prepare_interior_lighting.py`; the historical level migration
-and audio preparation scripts also emit deterministic v8 data.
+and audio preparation scripts also emit deterministic v9 data. Run
+`python scripts/level_characters_v9.py` for explicit packaged v8 migration;
+retained compatibility fixtures under `tests/fixtures/levels` stay unchanged.
 
 Before reporting an implementation complete:
 
@@ -596,3 +609,66 @@ retain failed gates and unavailable GPU fields. Existing T1 gates remain
 unchanged; this P07a fixture alone does not establish full T2.
 See [source preparation](../resources/characters/README.md) and the
 [P07a validation record](../openspec/changes/archive/2026-09-08-add-character-animation/validation.md).
+
+## P07b scripted characters
+
+Run `build/debug/bin/scripted_characters.exe`, optionally with `--four` or
+`--silent`. Ordinary `near_laugh --level resources/levels/scripted-characters.level.json
+--entry view` also starts the authored route; the filename selects no
+special gameplay. The walker turns at the corner, climbs three 20 cm rises,
+waits at the closed door, and performs the final interaction after the player
+opens it with E. The four-actor file adds an independent east route and opposing
+north/south actors that intentionally wait for each other.
+
+Development controls while the cursor is captured: F5 explicitly restarts each
+initial route from current accepted placement, F6 cancels, P suspends/resumes
+player/door/actor/animation/cue time together, and M mutes. F5 retains pause/mute
+settings. A new process restores authored placements. Escape releases the
+cursor and continues world/audio time. Minimized waits discard suspended time
+and held control edges; restore neither catches up nor restarts actions.
+
+The editor shows frozen initial idle poses, preserves character data through
+unrelated edits/undo/save, and preflights selected mannequin and actor-linked
+audio before Play. Invalid references have red diagnostic markers; missing
+initial marks use the default entry as their marker anchor. An orphan route
+uses its first surviving mark, falling back to the default entry. Dedicated lists,
+placement and snapshot preview are P07c.
+
+```powershell
+python -B scripts/prepare_scripted_characters.py
+python -B scripts/prepare_scripted_character_audio.py
+cmake --build --preset debug --target engine_tests scripted_characters scripted_character_measure level_editor vulkan_smoke -j 4
+ctest --preset debug --output-on-failure
+ctest --preset vulkan-smoke --output-on-failure
+.\scripts\measure_scripted_characters.ps1 -OutputDirectory build/scripted-debug-check -Check -DebugBuild
+cmake --preset debug -B build/p10-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build/p10-release --target scripted_character_measure -j 4
+.\scripts\measure_scripted_characters.ps1 -OutputDirectory build/scripted-release-check -Check
+.\scripts\measure_scripted_characters.ps1 -OutputDirectory build/scripted-release-timings
+```
+
+Use fresh output directories. The measurement keeps P07a's eight lights/four
+casters, initial doors, camera, fullscreen 1920x1080/60 Hz FIFO and disabled
+flashlight. It uses collision-valid short lanes beside the room chair, with
+explicit alternating out/back requests and final interactions. Geometry,
+entries and lighting remain identical for zero/one/four actors. Audio runs the
+real offline mixer at 48 kHz; captions are excluded from timing presentation
+to preserve the P07a color workload. This does not measure device callbacks.
+The script activates the measurement window; startup focus notifications are
+drained before timing. Any interruption during sampling invalidates the run.
+
+Three runs per count retain 10 seconds warmup and 60 seconds sampling each,
+with the unchanged P07a gates and no concurrent builds/tests/GPU work. Added
+CSV scopes separate route decisions, actor collision, pose/contact processing,
+world/player/doors and audio handoff/mixing from deformation/upload and GPU
+costs. Only callers supplying timing storage perform these clock reads.
+`-Check` instead captures 40 frames and a lossless measurement view, including
+recovery; these rows are functional evidence, never performance samples.
+
+The runtime Vulkan smoke retains route/door/action/caption readbacks beneath
+its working directory's `build/scripted-character-runtime-captures`. Contact
+tests retain a simulation/handoff/offline-onset CSV under `build/`. Neither
+proves physical output latency or listening quality. See the
+[P07b validation record](../openspec/changes/archive/2026-09-08-add-scripted-characters/validation.md)
+for retained runs, observations and unavailable evidence. T2 remains pending
+P07c's second scene authored and played with the editor.

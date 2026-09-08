@@ -1,0 +1,2 @@
+frame,elapsed_seconds,interval_ms,cpu_active_ms,fence_ms,acquire_ms,present_ms,gpu_frame_ms,gpu_shadow_ms,submitted,width,height,action,character_deformation_ms,character_upload_ms,route_decision_ms,actor_physics_ms,character_pose_ms,world_player_doors_ms,character_audio_ms
+0,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,,,0,0,0,"",0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000

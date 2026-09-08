@@ -68,7 +68,7 @@ TEST_F(InteriorLevel, CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries
     const auto first = bytes(p);
     const auto loaded = loadLevelDocument(p);
     ASSERT_TRUE(loaded);
-    EXPECT_EQ(loaded.source_version, 8U);
+    EXPECT_EQ(loaded.source_version, 9U);
     EXPECT_EQ(*loaded.document, doc);
     EXPECT_EQ(loaded.document->entries[0].id, "lower");
     ASSERT_TRUE(saveLevelDocument(p, *loaded.document));
@@ -97,7 +97,7 @@ TEST_F(InteriorLevel, LegacyVersionsNormalizeOnlyOnExplicitSave) {
     EXPECT_EQ(editor.document()->default_entry, "default");
     EXPECT_EQ(bytes(p), legacy);
     ASSERT_TRUE(editor.save());
-    EXPECT_EQ(loadLevelDocument(p).source_version, 8U);
+    EXPECT_EQ(loadLevelDocument(p).source_version, 9U);
   }
 }
 
@@ -204,7 +204,10 @@ TEST_F(InteriorLevel,
     for (float alpha : {0.0F, 0.5F, 1.0F})
       EXPECT_FLOAT_EQ(player.viewPose(alpha).position.y,
                       entry.pose.foot_position.y + player_standing_eye_height);
-    for (int i = 0; i < 60; ++i) player.fixedStep(1.0F / 60);
+    for (int i = 0; i < 60; ++i) {
+      physics.advanceWorld(1.0F / 60);
+      player.fixedStep(1.0F / 60);
+    }
     EXPECT_TRUE(player.state().supported());
     EXPECT_NEAR(player.state().foot_position.y, entry.pose.foot_position.y,
                 0.05F);
@@ -230,7 +233,10 @@ TEST_F(InteriorLevel,
     const auto level = makePrototypeLevel(doc);
     PhysicsWorld physics(level);
     PlayerController player(physics);
-    for (int i = 0; i < 60; ++i) player.fixedStep(1.0F / 60);
+    for (int i = 0; i < 60; ++i) {
+      physics.advanceWorld(1.0F / 60);
+      player.fixedStep(1.0F / 60);
+    }
     EXPECT_TRUE(player.state().supported());
     EXPECT_LT(std::abs(player.state().foot_position.y), .3F);
   }
@@ -261,13 +267,13 @@ TEST_F(InteriorLevel,
   ASSERT_TRUE(editor.open(path));
   const auto before = *editor.document();
   for (const auto& [from, to] :
-       {std::pair{"\"version\": 8", "\"version\": 5"},
+       {std::pair{"\"version\": 9", "\"version\": 5"},
         std::pair{"\"id\": \"lower\"", "\"id\": false"},
         std::pair{"\"id\": \"lower\"", "\"unknown\": \"lower\""},
         std::pair{"\"default_entry\": \"lower\"", "\"default_entry\": 1"},
         std::pair{"\"x\": 5.0", "\"x\": 3.4e38"},
-        std::pair{"\"version\": 8",
-                  "\"player_spawn\": null, \"version\": 8"}}) {
+        std::pair{"\"version\": 9",
+                  "\"player_spawn\": null, \"version\": 9"}}) {
     auto bad = canonical;
     const auto offset = bad.find(from);
     ASSERT_NE(offset, std::string::npos);
@@ -571,6 +577,7 @@ TEST_F(InteriorLevel, PackagedApartmentStairsWalkBothDirectionsFromBothStarts) {
       constexpr float dt = 1.0F / 60;
       const float vy =
           (state.supported() ? 0.0F : state.linear_velocity.y) - 18 * dt;
+      physics.advanceWorld(dt);
       state = physics.stepCharacter({{x, vy, z}, {0, -18, 0}, false}, dt);
       doors.fixedStep(dt, physics);
     };

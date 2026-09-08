@@ -111,7 +111,7 @@ TEST_F(EditorPlay, BrokenLightingLinksRefuseLaunchAndRepairSavesTheV8Snapshot) {
   EXPECT_EQ(snapshot, *editor.document());
   EXPECT_EQ(snapshot.light_switches.front().light_id, "renamed-source");
   EXPECT_FALSE(snapshot.environment_light.point_lights.front().initially_on);
-  EXPECT_NE(bytes(launch->level_path).find("\"version\": 8"),
+  EXPECT_NE(bytes(launch->level_path).find("\"version\": 9"),
             std::string::npos);
 }
 

@@ -41,6 +41,9 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     case GLFW_KEY_F5:
       input.setKey(PhysicalKey::F5, down);
       break;
+    case GLFW_KEY_F6:
+      input.setKey(PhysicalKey::F6, down);
+      break;
     case GLFW_KEY_M:
       input.setKey(PhysicalKey::M, down);
       break;

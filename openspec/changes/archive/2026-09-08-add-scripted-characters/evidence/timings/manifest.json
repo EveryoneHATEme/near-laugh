@@ -1,0 +1,38 @@
+{
+  "scripted-0-1.csv.gz": {
+    "source": "build/scripted-character-release-timings/scripted-0-1.csv",
+    "csv_sha256": "4bce8b0cb6c97899ecc7948447c4ec6af4b7b08e856f2e6f434b60c976438a43"
+  },
+  "scripted-0-2.csv.gz": {
+    "source": "build/scripted-character-release-baseline-resumed/scripted-0-1.csv",
+    "csv_sha256": "50706fcb171d98fa4be42e66e2976fc5b06c6100e829301d79060ee381253e6b"
+  },
+  "scripted-0-3.csv.gz": {
+    "source": "build/scripted-character-release-baseline-resumed/scripted-0-2.csv",
+    "csv_sha256": "1817338659494f62b4d9a6f811a0d1a7e52ef5115e4369a99ca968e731fd7c9b"
+  },
+  "scripted-1-1.csv.gz": {
+    "source": "build/scripted-character-release-actors/scripted-1-1.csv",
+    "csv_sha256": "2444051c03bd76abb1750c02bfc017c74a3945cf54ae5e150a4a2dee342a3b4d"
+  },
+  "scripted-1-2.csv.gz": {
+    "source": "build/scripted-character-release-actors/scripted-1-2.csv",
+    "csv_sha256": "17f0226f26c9a4da29ecdacec190cde8d1f5ad06197ec246bfc480ec69e09ecb"
+  },
+  "scripted-1-3.csv.gz": {
+    "source": "build/scripted-character-release-actors/scripted-1-3.csv",
+    "csv_sha256": "23002fdee03a8e50233d20d9eb4924236c6523513c7954a9667f44669bb2fef7"
+  },
+  "scripted-4-1.csv.gz": {
+    "source": "build/scripted-character-release-actors/scripted-4-1.csv",
+    "csv_sha256": "e696af3bbe3bc8ec1c3abc3d9932315d213650240ab0e91a72eb977524434af9"
+  },
+  "scripted-4-2.csv.gz": {
+    "source": "build/scripted-character-release-actors/scripted-4-2.csv",
+    "csv_sha256": "70866d0e13a3e7be2c4d41ca0670702cf7af3c0869ff9714fa5f7241496d4f0d"
+  },
+  "scripted-4-3.csv.gz": {
+    "source": "build/scripted-character-release-actors/scripted-4-3.csv",
+    "csv_sha256": "8c8f26a3eda22072ab11397e5bd342cea66203cd599a50b92b844e9c453ad0c0"
+  }
+}

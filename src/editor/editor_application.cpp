@@ -11,6 +11,7 @@
 
 #include "core/audio/transmission.hpp"
 #include "core/testing/test_controls.hpp"
+#include "core/world/characters.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_loop.hpp"
@@ -65,6 +66,72 @@ EditorApplication::EditorApplication(
 void EditorApplication::run() {
   while (tick()) {
   }
+}
+
+void EditorApplication::runCharacterSmoke() {
+  const auto require = [](bool condition, const char* message) {
+    if (!condition) throw std::runtime_error(message);
+  };
+  require(scene_resources_installed_ && initial_character_frames_.size() == 4,
+          "Editor did not prepare four initial actors");
+  const auto original = *document_.document();
+  const auto frozen = initial_character_palettes_;
+  for (int i = 0; i < 4; ++i) {
+    if (i == 2) renderer_.requestSwapchainRecreation();
+    require(tick(), "Editor character preview stopped");
+    require(initial_character_palettes_ == frozen,
+            "Editor played an initial route");
+  }
+  struct Temporary {
+    std::filesystem::path path =
+        std::filesystem::temp_directory_path() /
+        ("near-laugh-character-editor-" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()));
+    Temporary() { std::filesystem::create_directory(path); }
+    ~Temporary() {
+      std::error_code error;
+      std::filesystem::remove_all(path, error);
+    }
+  } temporary;
+  const auto original_root = resource_root_;
+  for (const auto directory : {"audio", "captions", "fonts"})
+    std::filesystem::copy(resource_root_ / directory,
+                          temporary.path / directory,
+                          std::filesystem::copy_options::recursive);
+  auto light = document_.document()->environment_light.point_lights.front();
+  light.intensity = .8F;
+  require(document_.replaceObject(document_.lightIds().front(), light),
+          "Editor light edit failed");
+  require(document_.document()->characters == original.characters,
+          "Light edit changed routes");
+  require(document_.saveAs(temporary.path / "characters.level.json"),
+          "Editor character Save As failed");
+  resource_root_ =
+      temporary
+          .path;  // All selected audio/font exists; mannequin alone is absent.
+  synchronizeDocumentResources();
+  require(initial_character_palettes_ == frozen &&
+              initial_character_frames_.size() == 4,
+          "Failed actor replacement discarded compatible pose storage");
+  require(tick(), "Stale actor preview cannot render");
+  launchPlay({*document_.path(), document_.launchEntry()});
+  require(!game_process_.active(),
+          "Missing selected mannequin created a child");
+  require(std::any_of(document_.diagnostics().begin(),
+                      document_.diagnostics().end(),
+                      [](const auto& d) {
+                        return d.message.find("actor '") != std::string::npos;
+                      }),
+          "Selected mannequin failure lost actor context");
+  resource_root_ = original_root;
+  require(document_.undo(), "Actor-bearing light undo failed");
+  synchronizeDocumentResources();
+  require(tick(), "Editor failed to restore valid actor assets");
+  require(document_.document()->characters == original.characters,
+          "Undo changed actor definitions");
+  require(initial_character_palettes_ == frozen,
+          "Editor recovery advanced initial animation");
 }
 
 void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
@@ -596,6 +663,7 @@ bool EditorApplication::tick() {
   frame.framebuffer_resized = window_.consumeFramebufferResize();
   frame.camera = camera;
   frame.point_light_enabled = preview_point_light_enabled_;
+  frame.characters = initial_character_frames_;
   const FrameOutcome outcome = renderer_.renderFrame(frame);
   return editorContinuesAfter(outcome) && !document_.exitRequested();
 }
@@ -657,6 +725,8 @@ void EditorApplication::launchPlay(const EditorLaunchRequest& launch) {
     const auto content = prepareAudioContent(resource_root_, saved.audio);
     const CaptionFont current_font(resource_root_);
     validateAudioCaptions(content, saved.audio, current_font);
+    validateCharacterAudio(content, saved.audio, saved.characters);
+    (void)prepareCharacterAssets(resource_root_, saved.characters);
     static_cast<void>(game_process_.start(editorGameExecutable(), launch));
   } catch (const std::exception& error) {
     document_.reportResourceError(
@@ -689,10 +759,49 @@ void EditorApplication::synchronizeDocumentResources() {
       if (scene_resources_installed_ &&
           rendered_object_revision_ == document_.objectRevision())
         renderer_.replaceTerrain(*document_.document());
-      else
-        renderer_.replaceDocument(*document_.document());
+      else {
+        const auto& definitions = document_.document()->characters;
+        LevelCharacters renderable;
+        std::vector<std::size_t> actor_indices;
+        for (std::size_t i = 0; i < definitions.actors.size(); ++i) {
+          const auto& actor = definitions.actors[i];
+          if (!findCharacterModel(actor.model) ||
+              !findCharacterMark(definitions, actor.initial_mark))
+            continue;
+          renderable.actors.push_back(actor);
+          actor_indices.push_back(i);
+        }
+        const auto assets = prepareCharacterAssets(resource_root_, renderable);
+        std::vector<CharacterRenderInstance> instances;
+        std::vector<CharacterPose> palettes;
+        std::vector<CharacterPoseFrame> frames;
+        palettes.reserve(assets.size());
+        for (std::size_t i = 0; i < assets.size(); ++i) {
+          const auto& actor = definitions.actors[actor_indices[i]];
+          const auto mark = std::find_if(
+              definitions.marks.begin(), definitions.marks.end(),
+              [&](const auto& m) { return m.id == actor.initial_mark; });
+          if (mark == definitions.marks.end())
+            throw std::runtime_error("actor '" + actor.id +
+                                     "': initial mark is missing");
+          instances.push_back({static_cast<std::uint32_t>(i), assets[i]});
+          palettes.push_back(CharacterPlayback(assets[i]).pose());
+          const auto p = mark->feet_position;
+          frames.push_back({static_cast<std::uint32_t>(i),
+                            assets[i]->skeleton_identity,
+                            palettes.back(),
+                            {p.x, p.y, p.z},
+                            mark->yaw_degrees});
+        }
+        renderer_.replaceDocument(*document_.document(), instances);
+        // Move storage only after the renderer commits its selected resources.
+        initial_character_palettes_ = std::move(palettes);
+        initial_character_frames_ = std::move(frames);
+      }
     } else {
       renderer_.clearDocument();
+      initial_character_frames_.clear();
+      initial_character_palettes_.clear();
     }
     scene_resources_installed_ = document_.document().has_value();
     preview_point_light_enabled_ =

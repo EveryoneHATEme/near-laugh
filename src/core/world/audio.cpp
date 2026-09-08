@@ -6,12 +6,14 @@
 #include <set>
 
 namespace {
-constexpr std::array<AudioCatalogEntry, 5> catalog{
+constexpr std::array<AudioCatalogEntry, 7> catalog{
     {{"radio", "Radio"},
      {"phone-ring", "Telephone ring"},
      {"footsteps", "Footsteps"},
      {"phone-conversation", "Telephone conversation"},
-     {"invitation", "Voice beyond the door"}}};
+     {"invitation", "Voice beyond the door"},
+     {"character-footstep", "Character foot contact"},
+     {"character-interaction", "Character interaction"}}};
 
 bool finite(WorldPosition p) noexcept {
   return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);

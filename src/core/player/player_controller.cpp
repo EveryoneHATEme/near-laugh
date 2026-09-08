@@ -72,8 +72,9 @@ void PlayerController::sampleInput(const PlayerActionSnapshot& actions,
                    -player_pitch_limit_degrees, player_pitch_limit_degrees);
   }
 
-  const bool jump_down = controls_active && actions.jump;
-  if (jump_down && !jump_was_down_) {
+  if (!controls_active) jump_pending_ = false;
+  const bool jump_down = actions.jump;
+  if (controls_active && jump_down && !jump_was_down_) {
     jump_pending_ = true;
   }
   jump_was_down_ = jump_down;

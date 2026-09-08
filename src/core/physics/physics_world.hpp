@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <span>
 
 #include "core/world/prototype_level.hpp"
 
@@ -51,6 +52,31 @@ struct PhysicsDoorAdvance {
   bool obstructed{};
 };
 
+struct PhysicsActorState {
+  WorldPosition feet_position{};
+  float yaw_degrees{};
+};
+
+enum class PhysicsActorObstruction {
+  None,
+  Static,
+  Door,
+  Player,
+  Actor,
+  Support
+};
+
+struct PhysicsActorAdvance {
+  PhysicsActorState state;
+  float horizontal_distance{};
+  PhysicsActorObstruction obstruction{PhysicsActorObstruction::None};
+};
+
+struct PhysicsActorMotion {
+  WorldPosition displacement{};
+  float yaw_degrees{};
+};
+
 class PhysicsWorld {
  public:
   explicit PhysicsWorld(const PrototypeLevel& level);
@@ -62,6 +88,9 @@ class PhysicsWorld {
   PhysicsWorld(PhysicsWorld&&) = delete;
   PhysicsWorld& operator=(PhysicsWorld&&) = delete;
 
+  // Once per fixed step, before player, actors, then doors. Moving an
+  // individual participant never advances the shared world.
+  void advanceWorld(float delta_seconds);
   [[nodiscard]] PhysicsCharacterState stepCharacter(
       const PhysicsCharacterMotion& motion, float delta_seconds);
   [[nodiscard]] PhysicsCharacterState characterState() const noexcept;
@@ -81,6 +110,14 @@ class PhysicsWorld {
                                                float requested_angle);
   [[nodiscard]] float doorAngle(std::size_t index) const;
   [[nodiscard]] std::size_t doorCount() const noexcept;
+  [[nodiscard]] std::size_t actorCount() const noexcept;
+  [[nodiscard]] PhysicsActorState actorState(std::size_t index) const;
+  [[nodiscard]] PhysicsActorAdvance advanceActor(std::size_t index,
+                                                 WorldPosition displacement,
+                                                 float yaw_degrees);
+  // Input/results retain authored order; acceptance runs in durable ID order.
+  [[nodiscard]] std::vector<PhysicsActorAdvance> advanceActors(
+      std::span<const PhysicsActorMotion> motions);
 
  private:
   class Impl;

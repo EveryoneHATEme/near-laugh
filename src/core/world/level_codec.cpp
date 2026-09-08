@@ -501,12 +501,69 @@ LevelAudio parseAudio(const Json& value) {
   return audio;
 }
 
+LevelCharacters parseCharacters(const Json& value) {
+  requireObjectFields(value, "characters", {"actors", "marks", "routes"});
+  const auto records = [&](std::string_view collection,
+                           std::size_t bound) -> const Json& {
+    const auto& array = value.at(collection);
+    if (!array.is_array() || array.size() > bound)
+      fail("characters." + std::string(collection),
+           "must be an array of at most " + std::to_string(bound) + " records");
+    return array;
+  };
+  LevelCharacters characters;
+  for (const auto& v : records("actors", level_maximum_actor_count)) {
+    const auto p =
+        "characters.actors[" + std::to_string(characters.actors.size()) + "]";
+    requireObjectFields(v, p,
+                        {"id", "model", "initial_mark", "initial_route",
+                         "speed", "footstep_source", "interaction_source"});
+    characters.actors.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parseAudioId(v.at("model"), p + ".model"),
+         parseAudioId(v.at("initial_mark"), p + ".initial_mark"),
+         parseAudioReference(v.at("initial_route"), p + ".initial_route"),
+         parseFloat(v.at("speed"), p + ".speed"),
+         parseAudioReference(v.at("footstep_source"), p + ".footstep_source"),
+         parseAudioReference(v.at("interaction_source"),
+                             p + ".interaction_source")});
+  }
+  for (const auto& v : records("marks", level_maximum_character_mark_count)) {
+    const auto p =
+        "characters.marks[" + std::to_string(characters.marks.size()) + "]";
+    requireObjectFields(v, p, {"id", "feet_position", "yaw_degrees"});
+    characters.marks.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parsePosition(v.at("feet_position"), p + ".feet_position"),
+         parseFloat(v.at("yaw_degrees"), p + ".yaw_degrees")});
+  }
+  for (const auto& v : records("routes", level_maximum_character_route_count)) {
+    const auto p =
+        "characters.routes[" + std::to_string(characters.routes.size()) + "]";
+    requireObjectFields(v, p, {"id", "actor", "marks", "final_clip"});
+    CharacterRouteDefinition route{
+        parseAudioId(v.at("id"), p + ".id"),
+        parseAudioId(v.at("actor"), p + ".actor"),
+        {},
+        parseAudioReference(v.at("final_clip"), p + ".final_clip")};
+    const auto& marks = v.at("marks");
+    if (!marks.is_array() || marks.size() > level_maximum_route_mark_count)
+      fail(p + ".marks", "must be an array of at most 32 mark references");
+    for (std::size_t i = 0; i < marks.size(); ++i)
+      route.marks.push_back(
+          parseAudioId(marks[i], p + ".marks[" + std::to_string(i) + "]"));
+    characters.routes.push_back(std::move(route));
+  }
+  return characters;
+}
+
 LevelDocument parseDocument(const Json& root) {
   if (!root.is_object()) fail("", "must be an object");
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
   if (version != 2 && version != 3 && version != 4 && version != 5 &&
-      version != 6 && version != 7 && version != level_format_version) {
+      version != 6 && version != 7 && version != 8 &&
+      version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
   }
@@ -538,11 +595,16 @@ LevelDocument parseDocument(const Json& root) {
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switch", "doors", "audio"});
-  } else {
+  } else if (version == 8) {
     requireObjectFields(
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switches", "doors", "audio"});
+  } else {
+    requireObjectFields(root, "",
+                        {"version", "terrain", "solids", "entries",
+                         "default_entry", "environment_light", "props",
+                         "light_switches", "doors", "audio", "characters"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -558,6 +620,8 @@ LevelDocument parseDocument(const Json& root) {
   }
   LevelDocument document;
   if (version >= 7) document.audio = parseAudio(root.at("audio"));
+  if (version >= 9)
+    document.characters = parseCharacters(root.at("characters"));
   if (version < 4 || !root.at("terrain").is_null())
     document.terrain = parseTerrain(root.at("terrain"), version);
   document.solids = std::move(solids);
@@ -829,6 +893,31 @@ std::string serializeDocument(const LevelDocument& document) {
                                     {"closed_gain", c.closed_gain},
                                     {"open_gain", c.open_gain}});
   root["audio"] = std::move(audio);
+  auto characters = Json::object();
+  characters["actors"] = Json::array();
+  for (const auto& a : document.characters.actors)
+    characters["actors"].push_back(
+        {{"id", a.id},
+         {"model", a.model},
+         {"initial_mark", a.initial_mark},
+         {"initial_route", referenceJson(a.initial_route)},
+         {"speed", a.speed},
+         {"footstep_source", referenceJson(a.footstep_source)},
+         {"interaction_source", referenceJson(a.interaction_source)}});
+  characters["marks"] = Json::array();
+  for (const auto& m : document.characters.marks)
+    characters["marks"].push_back(
+        {{"id", m.id},
+         {"feet_position", positionJson(m.feet_position)},
+         {"yaw_degrees", m.yaw_degrees}});
+  characters["routes"] = Json::array();
+  for (const auto& r : document.characters.routes)
+    characters["routes"].push_back(
+        {{"id", r.id},
+         {"actor", r.actor},
+         {"marks", r.marks},
+         {"final_clip", referenceJson(r.final_clip)}});
+  root["characters"] = std::move(characters);
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }
 

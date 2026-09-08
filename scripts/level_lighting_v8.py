@@ -1,13 +1,14 @@
 """Deterministic v7 lighting migration used by packaged-level preparation."""
 import json
 from pathlib import Path
+from level_characters_v9 import migrate_characters
 
 
 def migrate_lighting(level):
-    if level["version"] == 8:
+    if level["version"] in (8, 9):
         return level
     if level["version"] != 7:
-        raise ValueError("Preparation expects v7 or v8; legacy fixtures remain unchanged")
+        raise ValueError("Preparation expects v7, v8 or v9; legacy fixtures remain unchanged")
     lights = level["environment_light"]["point_lights"]
     switch = level["light_switch"]
     for index, light in enumerate(lights):
@@ -26,7 +27,7 @@ def migrate_lighting(level):
 
 
 def write_level(path, level):
-    Path(path).write_text(json.dumps(level, indent=2) + "\n", encoding="utf-8", newline="\n")
+    Path(path).write_text(json.dumps(migrate_characters(level), indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

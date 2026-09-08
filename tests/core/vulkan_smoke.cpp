@@ -30,6 +30,7 @@
 #include "core/world/prototype_level.hpp"
 #include "prototype_level_fixture.hpp"
 #include "runtime_audio_smoke.hpp"
+#include "runtime_character_smoke.hpp"
 
 namespace {
 RendererResources smokeResources() {
@@ -648,6 +649,13 @@ void runInteriorLightingSmoke() {
 
 int main(int argc, char** argv) {
   try {
+    if (argc == 2 && std::string_view(argv[1]) == "--characters") {
+      ValidationDiagnostics diagnostics;
+      EngineCharacterSmoke::run(diagnostics);
+      if (diagnostics.errorCount())
+        throw std::runtime_error("Character teardown recorded Vulkan errors");
+      return 0;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--lighting") {
       runInteriorLightingSmoke();
       return 0;
@@ -695,6 +703,7 @@ int main(int argc, char** argv) {
       PhysicsWorld physics(level, *entry);
       PlayerController player(physics, entry->pose.yaw_degrees);
       for (int step = 0; step < 120; ++step) {
+        physics.advanceWorld(1.0F / 60.0F);
         player.fixedStep(1.0F / 60.0F);
       }
       Renderer renderer(window, window.framebufferExtent(), level,

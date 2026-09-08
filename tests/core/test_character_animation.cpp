@@ -240,6 +240,29 @@ TEST(CharacterAnimation, InterruptedTransitionCapturesDisplayedLocalPose) {
   expectPoseNear(playback.localPose(), sampleCharacterPose(*asset, "interact", 0.15));
 }
 
+TEST(CharacterAnimation, DistanceDrivePreservesInterruptedBlendAndSavedPhase) {
+  const auto asset = tiny();
+  CharacterPlayback playback(asset);
+  playback.seek(.7);
+  const auto idle = playback.localPose();
+  playback.selectClip("walk");
+  playback.drive(.4, 0);
+  expectPoseNear(playback.localPose(), idle);
+  playback.drive(.4, .075);
+  const auto walking = playback.localPose();
+  playback.selectClip("idle");
+  playback.drive(0, 0);
+  expectPoseNear(playback.localPose(), walking);
+  playback.drive(.1, .15);
+  const auto stopped = playback.localPose();
+  playback.selectClip("walk");
+  playback.drive(.4, 0);
+  expectPoseNear(playback.localPose(), stopped);
+  playback.drive(.4, .15);
+  expectPoseNear(playback.localPose(), sampleCharacterPose(*asset, "walk", .4));
+  EXPECT_DOUBLE_EQ(playback.time(), .4);
+}
+
 TEST(CharacterAnimation, EquivalentElapsedTimeAndCommandsAcrossBatching) {
   const auto asset = tiny();
   CharacterPlayback a(asset), b(asset);

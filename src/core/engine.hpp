@@ -3,6 +3,7 @@
 
 #include "core/audio/apartment_audio_fixture.hpp"
 #include "core/gameplay/authored_interaction.hpp"
+#include "core/gameplay/character_controller.hpp"
 #include "core/gameplay/light_switch_controller.hpp"
 #include "core/gameplay/player_flashlight.hpp"
 #include "core/input/player_input.hpp"
@@ -19,12 +20,17 @@
 
 class ValidationDiagnostics;
 
+struct CharacterDevelopmentInput {
+  bool restart{}, cancel{}, pause{}, mute{};
+};
+
 class Engine {
  public:
   Engine(const near_laugh::RuntimeConfig& config,
          ValidationDiagnostics& diagnostics, bool audio_fixture = false,
          AudioOutput output = AudioOutput::Device,
-         FrameTimings* timings = nullptr);
+         FrameTimings* timings = nullptr, bool character_fixture = false,
+         FrameCapture* capture = nullptr);
   ~Engine() = default;
 
   Engine(const Engine&) = delete;
@@ -34,13 +40,17 @@ class Engine {
 
   void run();
   [[nodiscard]] bool tick(
-      const PlayerActionSnapshot* development_input = nullptr);
+      const PlayerActionSnapshot* development_input = nullptr,
+      const CharacterDevelopmentInput* character_input = nullptr);
 
  private:
   friend struct EngineAudioSmoke;
   friend struct InteriorLightingMeasurement;
+  friend struct EngineCharacterSmoke;
   bool samplePlayerInput(const PlayerActionSnapshot& input);
-  void sampleFixtureControls(bool active, double now);
+  void sampleFixtureControls(bool active, double now,
+                             const CharacterDevelopmentInput* input = nullptr);
+  void suspendWorld(bool suspended, double now);
 
   Platform platform_;
   Window window_;
@@ -48,6 +58,7 @@ class Engine {
   PrototypeLevel level_;
   const LevelEntry& entry_;
   std::shared_ptr<const CaptionFont> caption_font_;
+  std::vector<std::shared_ptr<const CharacterAsset>> character_assets_;
   CueCoordinator audio_;
   std::optional<ApartmentAudioFixture> audio_fixture_;
   std::string audio_warning_;
@@ -56,11 +67,14 @@ class Engine {
   PlayerFlashlight flashlight_{};
   LightSwitchController light_switch_;
   DoorController doors_;
+  CharacterController characters_;
   AuthoredInteraction interaction_{};
   Renderer renderer_;
   PlayerInputMapper input_mapper_{};
   PlayerActionSnapshot input_{};
   FixedStepAccumulator fixed_step_{};
+  bool character_fixture_{}, character_paused_{}, suspended_{};
+  CharacterDevelopmentInput previous_character_input_{};
 };
 
 #endif

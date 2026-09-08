@@ -103,3 +103,13 @@ arm reaching forward at the interaction marker. The bind pose extends its
 arms sideways; it is not a playback clip. Vulkan appearance, interpolated
 normals, actual shadows, transitions and recovery require separate viewer
 acceptance recorded in the OpenSpec change's validation record.
+
+P07b uses these catalog values directly for accepted-distance route playback.
+Zero-actor levels require no mannequin file; selected actors share one immutable
+asset and retain independent playback. Blocking blends to idle while preserving
+walk phase. Standing turns pivot the entire accepted model at 120 degrees/second.
+Physics keeps authored/render/audio feet on accepted ground and derives a private
+capsule offset on slopes. There is no foot IK; the measured source sole dip
+(2.654 cm), turn pivot and capsule-versus-limb limits remain visible limitations.
+The editor's P07b compatibility view shows frozen initial idle poses; P07c adds
+dedicated authoring and snapshot inspection.

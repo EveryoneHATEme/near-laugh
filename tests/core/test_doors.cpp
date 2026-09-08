@@ -36,6 +36,7 @@ LevelDocument doorLevel() {
 void steps(PhysicsWorld& physics, DoorController& doors, int count = 1,
            PhysicsVector velocity = {}) {
   for (int i = 0; i < count; ++i) {
+    physics.advanceWorld(1.0F / 60);
     (void)physics.stepCharacter({velocity}, 1.0F / 60);
     doors.fixedStep(1.0F / 60, physics);
   }
@@ -335,17 +336,20 @@ TEST(DoorPhysics, CrouchedCapsuleClearsLeafAndCannotStandIntoIt) {
   doc.doors[0].initially_open = true;
   const auto level = makePrototypeLevel(doc);
   PhysicsWorld physics(level);
+  physics.advanceWorld(1.0F / 60);
   (void)physics.stepCharacter({{}, {0, -18, 0}, true}, 1.0F / 60);
   ASSERT_EQ(physics.characterState().stance, PhysicsPlayerStance::Crouched);
   // The interpolated stance still includes the previous standing capsule.
   const auto changing = physics.advanceDoor(0, 0);
   EXPECT_TRUE(changing.obstructed);
   EXPECT_GT(changing.angle, 0);
+  physics.advanceWorld(1.0F / 60);
   (void)physics.stepCharacter({{}, {0, -18, 0}, true}, 1.0F / 60);
   const auto crouched = physics.advanceDoor(0, 0);
   EXPECT_FALSE(crouched.obstructed);
   EXPECT_FLOAT_EQ(crouched.angle, 0);
   const auto before = physics.characterState().foot_position;
+  physics.advanceWorld(1.0F / 60);
   (void)physics.stepCharacter({{}, {0, -18, 0}, false}, 1.0F / 60);
   EXPECT_EQ(physics.characterState().stance, PhysicsPlayerStance::Crouched);
   EXPECT_NEAR(physics.characterState().foot_position.x, before.x, .001F);
@@ -372,8 +376,10 @@ TEST(DoorPhysics, LowLeafAlsoStopsBeforeCrouchedPlayer) {
   doc.doors[0].initially_open = true;
   const auto level = makePrototypeLevel(doc);
   PhysicsWorld physics(level);
-  for (int i = 0; i < 2; ++i)
+  for (int i = 0; i < 2; ++i) {
+    physics.advanceWorld(1.0F / 60);
     (void)physics.stepCharacter({{}, {0, -18, 0}, true}, 1.0F / 60);
+  }
   ASSERT_EQ(physics.characterState().stance, PhysicsPlayerStance::Crouched);
   const auto position = physics.characterState().foot_position;
   const auto result = physics.advanceDoor(0, 0);
@@ -390,6 +396,7 @@ TEST(DoorPhysics, DiagonalVacatedSpaceIsProtectedUntilNextPlayerStep) {
   const auto level = makePrototypeLevel(doc);
   PhysicsWorld physics(level);
   const auto previous = physics.characterState().foot_position;
+  physics.advanceWorld(1.0F / 60);
   (void)physics.stepCharacter({{120, 0, 120}}, 1.0F / 60);
   const auto current = physics.characterState().foot_position;
   ASSERT_GT(current.x, 1.5F);
@@ -409,6 +416,7 @@ TEST(DoorPhysics, DiagonalVacatedSpaceIsProtectedUntilNextPlayerStep) {
                                  envelope(previous)));
   EXPECT_FALSE(yawedBoxesOverlap(doorLeafPose(level.doors()[0], stopped.angle),
                                  envelope(current)));
+  physics.advanceWorld(1.0F / 60);
   (void)physics.stepCharacter({{}}, 1.0F / 60);
   EXPECT_FALSE(physics.advanceDoor(0, 0).obstructed);
   EXPECT_FLOAT_EQ(physics.doorAngle(0), 0);
@@ -579,6 +587,7 @@ TEST(DoorGameplay, FrameBatchesBoundStepsAndConsumeMinimizedPresses) {
     player.sampleInput(input, true);
     const auto batch = clock.advance(elapsed);
     for (int i = 0; i < batch.complete_steps; ++i) {
+      physics.advanceWorld(1.0F / 60);
       player.fixedStep(1.0F / 60);
       doors.fixedStep(1.0F / 60, physics);
     }

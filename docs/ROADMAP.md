@@ -34,8 +34,12 @@ P07 consists of three sequential changes: P07a animation/rendering, P07b
 scripted movement, and P07c character authoring. P07a is implemented and archived;
 its [indexed validation record](../openspec/changes/archive/2026-09-08-add-character-animation/indexed-validation.md)
 retains 366 passing Debug tests, ten passing Vulkan checks and all nine Release
-samples passing the unchanged gates. P07b and P07c have detailed planning
-artifacts and remain unimplemented; complete T2 still requires both. The other six
+samples passing the unchanged gates. P07b's route/collision/audio and initial
+editor compatibility are implemented, accepted and archived; its
+[acceptance record](../openspec/changes/archive/2026-09-08-add-scripted-characters/validation.md)
+retains all nine passing measurements and the user's acceptance with physical
+listening and hardware latency unverified. P07c remains
+planned and unimplemented; complete T2 still requires its authoring workflow. The other six
 linked changes capture proposals only and still need detailed planning and
 review. Structural validation alone does not establish implementation readiness.
 Proposal-only feature changes do not qualify for the documentation-only
@@ -123,7 +127,7 @@ of an earlier capability in its supported scope.
 | P05 | [Event state and sequences](../openspec/changes/add-narrative-state-and-sequences/proposal.md) | P06, complete P07 chain through P07c |
 | P06 | [Household object interactions](../openspec/changes/add-household-interactions/proposal.md) | P04, P10 |
 | P07a | [Character animation and rendering](../openspec/changes/archive/2026-09-08-add-character-animation/proposal.md) | P04, P10 |
-| P07b | [Scripted character movement](../openspec/changes/add-scripted-characters/proposal.md) | P07a |
+| P07b | [Scripted character movement](../openspec/changes/archive/2026-09-08-add-scripted-characters/proposal.md) | P07a |
 | P07c | [Character authoring](../openspec/changes/add-character-authoring/proposal.md) | P07b |
 | P08 | [Deferred escape/help story draft](../openspec/changes/add-escape-and-help-outcomes/proposal.md) | T6 accepted, then story scope reviewed; P12 supplies the technical prerequisites |
 | P09 | [Checkpoint resume](../openspec/changes/add-checkpoint-resume/proposal.md) | P05 |
@@ -268,7 +272,7 @@ Keep this index and the proposal links usable when changes are archived.
 | Decision | Needed before | Starting assumption |
 | --- | --- | --- |
 | Light/shadow profile and performance budget | P10 design and T1 | A furnished control interior, explicit target hardware/resolution, measured frame times, and documented supported sources/occluders. |
-| Animated export profile and clip transitions | Remaining T2 acceptance in P07b/P07c | P07a accepts the prepared mannequin, idle/walk/interact, bounded pose blending and animated shadows with retained calibration and visual/performance evidence. Route foot contacts, standing yaw turns and the authoring workflow still need their own acceptance. |
+| Animated export profile and clip transitions | Remaining T2 acceptance in P07c | P07a accepts the prepared mannequin, idle/walk/interact, bounded pose blending and animated shadows. P07b accepts route foot contacts and standing yaw turns with retained visual/performance evidence and explicitly unverified physical listening/hardware latency. The authoring workflow still needs P07c acceptance. |
 | Supported object actions and placement rules | P06 design and T3 | Read a document, carry/place an object, and operate a household prop using bounded concrete actions. |
 | Supported event conditions/actions and timing policy | P05 design and T4 | Neutral tests for region entry, object state, elapsed active time, one-shot execution, interruption, and cancellation. No script language. |
 | Checkpoint boundaries, retention, and compatibility | P09 design and T5 | Safe named test-scene boundaries that restore all supported mutable state; actual story checkpoint locations are chosen later. |

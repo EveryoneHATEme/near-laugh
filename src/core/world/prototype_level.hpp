@@ -44,6 +44,9 @@ class PrototypeLevel {
     return doors_;
   }
   [[nodiscard]] const LevelAudio& audio() const noexcept { return audio_; }
+  [[nodiscard]] const LevelCharacters& characters() const noexcept {
+    return characters_;
+  }
 
  private:
   explicit PrototypeLevel(LevelDocument document);
@@ -59,6 +62,7 @@ class PrototypeLevel {
   std::vector<PrototypeLightSwitch> light_switches_;
   std::vector<DoorDefinition> doors_;
   LevelAudio audio_;
+  LevelCharacters characters_;
 };
 
 [[nodiscard]] PrototypeLevel makePrototypeLevel(const LevelDocument& document);
@@ -84,6 +88,11 @@ class PrototypeLevel {
     std::size_t sample_z) noexcept;
 [[nodiscard]] float prototypeTerrainMinimumHeight(
     const PrototypeTerrain& terrain) noexcept;
+// Ground feet remain the authored/model anchor. This raises the catalog
+// capsule just enough to clear nearby terrain, including triangle seams.
+[[nodiscard]] float prototypeActorCapsuleOffset(const PrototypeTerrain* terrain,
+                                                WorldPosition feet,
+                                                float radius);
 [[nodiscard]] bool prototypeLevelIsValid(const PrototypeLevel& level);
 [[nodiscard]] bool prototypeSpawnIsClear(const PrototypeLevel& level,
                                          float player_radius,
