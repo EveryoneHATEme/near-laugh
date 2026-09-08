@@ -1,32 +1,41 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  near-laugh is a purpose-built C++/Vulkan runtime and authoring tool
+  for one single-player narrative horror game, not a general-purpose engine.
+  Follow AGENTS.md for project constraints.
+  Use current main specs as the baseline for the selected change.
+  Build and validation procedures are documented in docs/DEVELOPMENT.md.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - State one intended outcome, explicit non-goals, and dependencies.
+    - Define observable acceptance criteria, including relevant failure cases.
+    - Distinguish required scope from possible follow-up work.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  specs:
+    - Specify observable behavior and intentional invariants.
+    - Include relevant failure, cancellation, and recovery scenarios.
+    - Do not freeze incidental implementation details.
+
+  design:
+    - Explain affected ownership, lifetime, and module boundaries.
+    - State compatibility and migration impact, or explicitly state none.
+    - Separate automated, GPU, manual, and performance validation.
+
+  tasks:
+    - Give each task a verifiable outcome and a validation method.
+    - Identify prerequisites and independently verifiable integration points.
+    - Separate implementation work from acceptance that requires a person or hardware.
+
+operations:
+  apply:
+    guidance:
+      - Recheck selected-change prerequisites against the current checkout.
+      - Use tasks.md as the implementation checklist; avoid parallel duplicate plans.
+      - Record validation evidence and unavailable checks without claiming success.
+
+  archive:
+    guidance:
+      - Distinguish verified results from explicitly accepted limitations.
+      - Report unresolved acceptance conditions before proceeding.

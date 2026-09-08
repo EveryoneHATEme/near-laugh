@@ -17,25 +17,127 @@ Do not infer weapons, damage, enemies, combat AI, or other shooter systems
 from legacy code, names, tests, documents, or the fact that the game uses
 a first-person perspective.
 
-## Read Before Making Architectural Changes
+## Context and Reading Policy
 
-Read:
+Load the smallest context sufficient for a correct change. This policy limits
+unnecessary reading, not required instructions, dependencies, or verification.
 
-* `docs/VISION.md`
-* `docs/ARCHITECTURE.md`
-* `docs/GAMEPLAY.md`
-* `docs/RENDERING.md`
-* `docs/DEVELOPMENT.md`
+### Task scope and discovery
+- Start with the requested outcome, `git status --short`, and likely affected
+  paths. Preserve pre-existing user changes.
+- Check applicable nested agent instructions before editing their files.
+- Discover paths with scoped `rg --files` or `git ls-files`; locate symbols with
+  scoped `rg -n`; then read the relevant definitions, callers, and tests.
+- Prefer focused excerpts for large files. Expand to complete functions or
+  related files whenever needed to understand behavior, invariants, or lifetime.
+- Do not survey the whole repository for a local task. Widen discovery only to
+  answer a concrete unresolved question; stop exploring once the edit and its
+  verification are sufficiently understood.
 
-Relevant requirements are defined in `openspec/specs/`.
+### Documentation routing
+- Architecture or ownership changes: `docs/ARCHITECTURE.md`; also consult
+  `docs/VISION.md` when product scope is involved.
+- Gameplay changes: relevant parts of `docs/GAMEPLAY.md` and `docs/VISION.md`.
+- Rendering changes: `docs/RENDERING.md` and relevant architectural constraints.
+- Build and validation: applicable sections of `docs/DEVELOPMENT.md`.
+- Read current specs for affected behavior. Documentation links elsewhere in
+  this file are references to relevant sections, not a mandatory full-doc sweep.
+- Flag conflicts with current product direction; resolve affected documentation
+  within the agreed scope rather than silently retaining obsolete assumptions.
 
-Active planned changes are defined in `openspec/changes/`.
+### OpenSpec
+- Trivial local fixes do not need a new change. Keep required spec updates when
+  behavior changes; context economy is not permission to bypass the workflow.
+- Work on the selected change, not every entry in `openspec/changes/`.
+- When using an OpenSpec skill, read its required inputs, including every path
+  returned in `contextFiles`. Do not load unrelated changes, specs, or skills.
+- Read archived changes only for a concrete history or regression question.
+- Keep progress in the selected change's task checklist; do not restate the
+  proposal, design, or task list after each implementation step.
+- Propose splitting oversized work into coherent changes before implementation;
+  never silently omit requirements or declare partial tasks complete.
 
-When older documentation or implementation assumptions conflict with the
-current project vision, do not silently preserve the older assumption.
+### Tool output
+- Do not dump directory trees, whole large files, asset data, or build logs.
+  Query the needed paths, symbols, metadata, or fields instead.
+- Avoid build trees, fetched dependencies, and generated assets in routine
+  source searches; inspect them when they are directly relevant to the issue.
+- Save verbose command output to a temporary log. Report the command, exit
+  status, summary, and relevant diagnostics; preserve the real exit status.
+- Treat truncated search or log output as incomplete. Narrow the query or read
+  another relevant range instead of assuming unseen output is unimportant.
+- Re-read unchanged material only when it is missing from usable context or a
+  new question requires a different part; do not repeat orientation rituals.
 
-Raise the conflict or update the affected documentation as part of the
-relevant change.
+### Verification and handoff
+- Run affected checks during iteration; run broader integration and Vulkan
+  validation when the change requires them. Never skip required validation
+  merely to save context, and report checks that could not be performed.
+- Delegate only bounded, independent questions when subagents are available;
+  request findings and file references rather than raw file dumps.
+- Keep routine updates brief. Final output should cover changes, checks and
+  results, and unresolved risks without repeating the full diff.
+- At a handoff, retain the goal, selected change, relevant paths, decisions,
+  completed checks, and next action. Do not copy the transcript or source files.
+
+## Subagent Delegation
+
+Use available subagents proactively under the triggers below. Do not wait for
+another explicit user request. This dispatch policy applies to the main agent;
+subagents must complete their assigned scope without spawning further agents.
+Respect user constraints, applicable instructions, and tool/permission limits.
+
+### When to delegate
+- Before substantial exploration or implementation, identify a bounded question
+  or work unit to delegate. Start with one subagent; keep at most two active.
+- Delegate before doing the same work locally when any of these applies:
+  - Finding the relevant behavior or cause requires investigating separate
+    subsystems, and the useful result is a compact code map or diagnosis.
+  - A verbose build/test run or a long log needs focused diagnosis.
+  - An implementation unit has explicit file ownership, agreed interfaces,
+    and no unresolved dependency on concurrent edits.
+  - A non-trivial change to resource lifetime, Vulkan synchronization, shared
+    interfaces, persistence, or another critical invariant needs independent
+    review before completion.
+- A bounded investigation may be delegated for context isolation even when
+  implementation must wait for its result. Parallelism is not required.
+- Stay local for straightforward edits, a targeted lookup, or tightly coupled
+  work that cannot be bounded safely. Do not invent work to satisfy a quota.
+- Announce the delegated scope briefly. For substantial work kept local, give
+  the concrete reason once. If subagent tools are unavailable, report that and
+  continue locally; never pretend that delegation occurred.
+
+### Assignment and return contract
+- Give each subagent one outcome, relevant paths/symbols, known facts and
+  constraints, the selected OpenSpec change/task when applicable, write
+  permissions, and a clear stopping condition. Do not paste the transcript.
+- Default to no source edits. For implementation, assign an explicit file set;
+  for builds/tests, identify allowed output paths and shared resource limits.
+- Require a compact return: findings or changes; evidence with file/symbol
+  references; exact checks and outcomes; uncertainties/blockers; next action.
+  Aim for 300 words, but never omit a critical finding to meet this target.
+- Keep raw searches, source dumps, and full logs out of the parent response.
+  Preserve necessary logs as artifacts and return their paths and diagnostics.
+- Subagents must follow applicable repository instructions and required skill
+  inputs. Report missing access or insufficient evidence rather than guessing.
+
+### Coordination and acceptance
+- Do not repeat a delegated investigation while it is running. Continue other
+  independent work, or wait when its answer is required for the next decision.
+- Treat the working tree as shared unless isolation has actually been verified.
+  Never allow overlapping concurrent writes, including the main agent's edits.
+  Coordinate build directories, generated files, GPU runs, and other shared
+  resources. Preserve pre-existing user changes.
+- The main agent owns cross-cutting decisions, the active OpenSpec workflow,
+  and its task checklist. Workers report task status; they do not independently
+  rewrite the plan, mark tasks complete, or start separate OpenSpec workflows.
+- Reuse the same subagent for follow-ups on the same scope. Recheck evidence
+  when relevant files change. Close its thread after accepting the result.
+- Review the actual diff and verify critical claims. Run the required final
+  checks on the integrated state; a subagent's "done" is not acceptance.
+  Wait for required results before claiming completion. Report failed,
+  unavailable, or skipped checks, and unresolved risks explicitly.
+
 
 ## Product Scope
 
@@ -271,7 +373,7 @@ practical.
 
 Before reporting a task as complete:
 
-* follow `docs/DEVELOPMENT.md`
+* follow the applicable validation sections of `docs/DEVELOPMENT.md`
 * review `git diff`
 * build the affected targets
 * run affected tests
