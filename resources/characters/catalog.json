@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "test-mannequin",
+      "resource": "characters/test-mannequin.glb",
+      "feet_origin": [
+        0,
+        0,
+        0
+      ],
+      "forward_axis": [
+        0,
+        0,
+        1
+      ],
+      "capsule": {
+        "radius_m": 0.25,
+        "height_m": 1.85
+      },
+      "preview_bounds": {
+        "min": [
+          -1.05,
+          -0.1,
+          -0.55
+        ],
+        "max": [
+          1.05,
+          1.9,
+          0.8
+        ]
+      },
+      "clips": {
+        "idle": {
+          "name": "idle",
+          "duration_s": 2.5,
+          "loop": true
+        },
+        "walk": {
+          "name": "walk",
+          "duration_s": 1.3333333730697632,
+          "loop": true
+        },
+        "interact": {
+          "name": "interact",
+          "duration_s": 2.0,
+          "loop": false
+        }
+      },
+      "walk_cycle_distance_m": 1.3061969054512663,
+      "walk_contact_phases": [
+        0.0,
+        0.5
+      ],
+      "interaction_phase": 0.36666666666666664,
+      "supported_speed_m_s": {
+        "min": 0.25,
+        "max": 1.5
+      }
+    }
+  ]
+}

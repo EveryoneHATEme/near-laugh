@@ -1,85 +1,77 @@
 ## Why
 
-The runtime has static props but no supported animated-character workflow.
-Prepare character import, clip playback, authored movement, and scene
-coordination on a neutral test character before choosing the cast or story.
+An animated model alone cannot walk an authored scene coherently. P07 needs
+bounded route actions whose accepted position agrees with collision, visible
+motion, shadows and localized sound before later events can drive characters.
 
 ## What Changes
 
-- Add a controlled animated-character export profile based on a representative
-  test asset: skeleton/skin data and a bounded set of standing, walking,
-  turning, and interaction clips. Determine supported transitions and scene-mark
-  alignment during design without requiring a particular story action.
-- Author character identities, placements, routes, scene marks, and initial
-  states. Use concrete route/clip controls and bounded reactions appropriate
-  to this game's small cast.
-- Keep authored route movement, visible pose, collision, footsteps, dialogue,
-  and interaction moments consistent. Define what happens when the player or a
-  door blocks a route; actors must not slide through geometry to meet a cue.
-- Exercise a test character walking between scene marks, turning, and playing
-  an interaction clip with a localized sound. Integrate animated-character
-  occlusion with P10's supported lighting/shadow profile.
-- Add actor/route selection, properties, route/clip preview, link validation,
-  and undo/redo. Own explicit run-local actor state and define restart and
-  suspension behavior. P09 later reconstructs safe checkpoint actor states.
-- Evolve serialized character data explicitly. Preserve resource ownership
-  during repeated scene entry, animation, and presentation recovery.
-- No combat states, health, generic behavior trees, crowd navigation,
-  full-body player embodiment, or required facial/lip-sync framework.
-  Add detailed acting only where the chosen scene/asset profile requires it.
+- Add zero to four named character placements, durable scene marks and ordered
+  routes using the P07a mannequin/clip catalog.
+- Implement explicit idle, turn, walk, blocked, interaction, completed and
+  canceled run-local results. Initial routes run once; later concrete requests
+  can start or cancel a route without a scripting system.
+- Advance only accepted route movement: the player, static geometry, other
+  actors and accepted door leaves block actors; actors also block the player,
+  door sweeps and interaction visibility. Actors wait and retry automatically;
+  obstructed doors retain P03's explicit reactivation policy.
+- Synchronize walking phase/footsteps with accepted travel and fire one
+  localized cue at the supported interaction marker. Define cancellation,
+  cue contention, suspension and fresh-run behavior.
+- **BREAKING**: write level v9 with required character collections; read exact
+  v2-v8 shapes without rewriting their source and normalize them to no actors.
+- Package a neutral route fixture and capacity/obstruction checks. Preserve
+  actor records through editor Open/Save/Play and show initial presentation;
+  dedicated actor authoring and interactive preview are P07c.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `scripted-characters`: Authored character definitions, routes, supported
-  scene actions, obstruction responses, and explicit run-local actor state.
-- `character-animation`: Controlled animated asset profile and coherent
-  visible motion/clip playback for the required scenes.
+- `scripted-characters`: Bounded authored actor/mark/route data, concrete
+  actions, accepted movement, sounds and explicit run-local state.
 
 ### Modified Capabilities
 
-- `level-persistence`: Persist character definitions, routes, and clip links.
-- `level-object-placement`: Place/select actors and their scene marks/routes.
-- `level-editor`: Preview supported animation and diagnose invalid actor data.
-- `physics-simulation`: Support the required character blocking and movement
-  beyond the one local player while preserving physics ownership.
-- `runtime-composition`: Own actor state and coordinate its simulation,
-  presentation, audio, suspension, and fresh scene entry.
-- `vulkan-renderer`: Present the supported animated character geometry and
-  changing poses with explicit GPU lifetime.
+- `level-persistence`: Character format, compatibility, validation and round trips.
+- `physics-simulation`: Bounded actor collision and coherent actor/player/door steps.
+- `interactive-doors`: Character obstruction preserves no-crushing door behavior.
+- `authored-interaction`: Actor proxies block door/switch visibility.
+- `runtime-composition`: Own and coordinate character state, audio and suspension.
+- `level-editor`: Preserve, initially display and preflight character-bearing files.
 
 ## Impact
 
-Affects private asset loading, animated rendering, actor gameplay, collision,
-sound-source updates, lighting integration, and editor preview. Keep the static
-asset profile separate where useful; P02's existing static props do not need
-animation machinery. Document the character export and scene-blocking workflow.
+Affects world codec/validation, concrete gameplay controllers, Jolt integration,
+runtime composition, existing cue coordination, selected resource preparation
+and minimal editor compatibility. Reuses P07a sampling and character shadows;
+does not change the static prop profile or add physics-derived render meshes.
 
 ## Dependencies and Boundaries
 
-P07; requires
-[P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) and
-[P10](../archive/2026-09-07-add-interior-lighting/proposal.md), including P02's static asset and
-P03's door prerequisites. Rebase on P10's resulting main specs and add its
-lighting capability to modified capabilities where actor occlusion changes
-requirements. T2 is a neutral character/route test, independent of P05 and P09.
-P05 later drives actor actions from events; P09 restores actor state. Character
-identity, motivation, dialogue, and escape behavior remain later content work.
+P07b retains the original `add-scripted-characters` change ID.
+[P07a](../archive/2026-09-08-add-character-animation/proposal.md) is implemented
+and archived; recheck its resulting main specs and handoff before applying these artifacts.
+[P07c](../add-character-authoring/proposal.md) completes the editor workflow and
+T2. P05 depends on the full P07 chain; P09 later reconstructs safe checkpoint
+states. Neither is required to run this neutral fixture.
+
+Routes support ordinary grounded walking on authored traversable surfaces.
+No navmesh, obstacle avoidance, autonomous door operation, combat, generic AI,
+general animation graph, root motion, prop manipulation, dialogue sequencing,
+save-game serialization or final cast/story is introduced.
 
 ## Acceptance Criteria
 
-- Import and preview the supported clips, then move a test character between
-  authored marks at the intended scale with aligned footsteps and transitions.
-- Blocking the corridor or closing a route door produces a defined pause or
-  authored response without teleportation through visible blocking geometry.
-- An interaction clip and associated sound originate at the correct scene mark.
-  Invalid route/clip/actor references identify the affected record.
-- In P10's supported cases, the animated character casts the expected shadow
-  consistently with its visible pose. Static props and door lighting still work.
-- Suspension freezes route/clip/audio coordination; resume does not duplicate
-  an action. Fresh scene entry resets actor state and presentation recovery
-  preserves it without duplicate actors or sounds.
-- Run route/state/import tests and animated Vulkan smoke; manually inspect the
-  neutral route, clip/lighting integration, and repeated recovery. Record the
-  supported asset profile, limits, and measured frame times.
+- The actor turns, walks between marks and performs Interact at the final
+  mark, with feet at the supported surface and sound at the visible action.
+- Player, thin wall, prop, stair, closed/closing/reversed door and second actor
+  cases produce deterministic accepted motion without tunneling or crushing.
+- Waiting produces no walking-in-place footsteps or early arrival/action;
+  clearing the route permits retry without teleporting.
+- Cancellation, restart, mute, no audio device, explicit suspension and
+  minimize/restore preserve the specified event identities and timing.
+- Runtime/initial editor views agree; exact legacy loads, canonical v9 saves,
+  malformed records, partial construction and repeated recovery are checked.
+- Retain full-route visual/listening observations, animated Vulkan validation
+  and one/four-actor release measurements. This stage alone does not close T2.

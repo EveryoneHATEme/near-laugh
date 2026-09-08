@@ -1,0 +1,15 @@
+idle-25 changed pixels=3765
+idle-50 changed pixels=3182
+idle-75 changed pixels=3783
+idle-99 changed pixels=226
+walk-25 changed pixels=6865
+walk-50 changed pixels=7642
+walk-75 changed pixels=6437
+walk-99 changed pixels=8
+interact-25 changed pixels=4325
+interact-50 changed pixels=4200
+interact-75 changed pixels=3310
+interact-99 changed pixels=9
+Off-screen idle shadow pixels=118595
+Off-screen interact shadow pixels=126416
+PASS: clip readbacks, interrupted blend, off-screen moving shadows, one/four/mixed/empty, reordered palettes, vertex/index resource failures, immutable indices through resize/recovery, editor transaction and final teardown

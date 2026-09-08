@@ -80,8 +80,8 @@ FetchContent_Declare(
     GIT_TAG 85cd62382dfea638278962690cf515023f33ed00
 )
 FetchContent_MakeAvailable(cgltf)
-add_library(near_laugh_cgltf INTERFACE)
-target_include_directories(near_laugh_cgltf SYSTEM INTERFACE
+add_library(near_laugh_cgltf STATIC src/core/render/cgltf_impl.cpp)
+target_include_directories(near_laugh_cgltf SYSTEM PUBLIC
     "${cgltf_SOURCE_DIR}"
 )
 
@@ -179,6 +179,12 @@ target_include_directories(near_laugh_world PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/
 target_link_libraries(near_laugh_world PRIVATE nlohmann_json::nlohmann_json)
 near_laugh_enable_warnings(near_laugh_world)
 
+add_library(near_laugh_animation STATIC
+    src/core/animation/character_animation.cpp src/core/animation/character_asset.cpp)
+target_include_directories(near_laugh_animation PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(near_laugh_animation PRIVATE near_laugh_cgltf glm::glm)
+near_laugh_enable_warnings(near_laugh_animation)
+
 add_library(near_laugh_text STATIC src/core/text/utf8.cpp src/core/text/caption_font.cpp)
 target_include_directories(near_laugh_text PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_text PRIVATE near_laugh_stb_image)
@@ -231,7 +237,8 @@ add_library(near_laugh_render STATIC
     src/core/render/scene_resources.cpp
     src/core/render/changing_mesh_buffer.cpp
     src/core/platform/glfw_vulkan_bridge.cpp
-    src/core/render/cgltf_impl.cpp
+    src/core/render/character_presentation.cpp
+    src/core/render/character_resources.cpp
     src/core/render/depth_attachment.cpp
     src/core/render/graphics_pipeline.cpp
     src/core/render/immutable_mesh_buffer.cpp
@@ -250,7 +257,7 @@ add_library(near_laugh_render STATIC
 target_include_directories(near_laugh_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(near_laugh_render
     PRIVATE near_laugh_platform near_laugh_world Vulkan::Vulkan glfw
-            near_laugh_stb_image near_laugh_cgltf near_laugh_text
+            near_laugh_stb_image near_laugh_cgltf near_laugh_text near_laugh_animation
 )
 near_laugh_enable_warnings(near_laugh_render)
 
@@ -278,7 +285,7 @@ target_include_directories(near_laugh_runtime
 )
 target_link_libraries(near_laugh_runtime
     PRIVATE near_laugh_platform near_laugh_world near_laugh_physics
-            near_laugh_render near_laugh_audio
+            near_laugh_render near_laugh_audio near_laugh_animation
 )
 target_compile_definitions(near_laugh_runtime PRIVATE
     GLM_FORCE_RADIANS
@@ -319,7 +326,7 @@ target_include_directories(near_laugh_editor_core
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${glm_SOURCE_DIR}
 )
 target_link_libraries(near_laugh_editor_core
-    PRIVATE near_laugh_platform near_laugh_world
+    PRIVATE near_laugh_platform near_laugh_world near_laugh_animation
 )
 target_compile_definitions(near_laugh_editor_core PRIVATE
     GLM_FORCE_RADIANS
@@ -384,6 +391,9 @@ set_target_properties(near_laugh PROPERTIES
 )
 add_custom_target(near_laugh_packaged_resources ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/characters"
+            "${CMAKE_BINARY_DIR}/bin/resources/characters"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/resources/audio"
             "${CMAKE_BINARY_DIR}/bin/resources/audio"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -413,6 +423,15 @@ target_link_libraries(audio_captions_fixture PRIVATE near_laugh_runtime)
 near_laugh_enable_warnings(audio_captions_fixture)
 set_target_properties(audio_captions_fixture PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_dependencies(audio_captions_fixture near_laugh_packaged_resources)
+
+add_executable(character_animation_viewer
+    src/character_animation_viewer_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(character_animation_viewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(character_animation_viewer PRIVATE near_laugh_animation
+    near_laugh_platform near_laugh_render near_laugh_world near_laugh_text)
+near_laugh_enable_warnings(character_animation_viewer)
+set_target_properties(character_animation_viewer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(character_animation_viewer near_laugh_packaged_resources)
 
 add_executable(interior_lighting_measure EXCLUDE_FROM_ALL
     src/interior_lighting_measure_main.cpp src/launcher/executable_path.cpp)

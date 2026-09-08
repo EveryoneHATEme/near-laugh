@@ -1,0 +1,38 @@
+[
+  {
+    "file": "character-indexed-debug-4.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "891c6b5153c9cf297622b22ecc2d698d56f67e10f61cb4921c2f720f9ca3e8b6",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "file": "character-indexed-release-0.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "8a8a0d1f29b76f2dffc847d26481b906c7f644fe4e4db1bed2dec2275b9a541b",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "file": "character-indexed-release-1.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "d66f11cb8520e468e566499df001bec81dc6bcf1b1543cf574a177a1d0aae296",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "file": "character-indexed-release-4.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "0a988dc53580bd02a18f8d35fd890f341bd2dda8ad93e093b07e213cc2d85119",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  }
+]

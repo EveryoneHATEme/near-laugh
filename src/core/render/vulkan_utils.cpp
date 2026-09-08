@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "core/testing/test_controls.hpp"
+
 const char* vulkanResultName(VkResult result) noexcept {
   switch (result) {
     case VK_SUCCESS:
@@ -98,14 +100,32 @@ VkSurfaceFormatKHR chooseSurfaceFormat(
   if (formats.empty()) {
     throw std::runtime_error("Surface reports no supported formats");
   }
+  VkSurfaceFormatKHR selected = formats.front();
   for (const VkSurfaceFormatKHR format : formats) {
     if ((format.format == VK_FORMAT_B8G8R8A8_SRGB ||
          format.format == VK_FORMAT_R8G8B8A8_SRGB) &&
         format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      return format;
+      selected = format;
+      break;
     }
   }
-  return formats.front();
+  if (forcedVulkanFailureAt("alternate_surface_format")) {
+    for (const auto& alternative : formats) {
+      const auto format = alternative.format;
+      if (format != selected.format &&
+          alternative.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+          (format == VK_FORMAT_B8G8R8A8_SRGB ||
+           format == VK_FORMAT_R8G8B8A8_SRGB ||
+           format == VK_FORMAT_B8G8R8A8_UNORM ||
+           format == VK_FORMAT_R8G8B8A8_UNORM)) {
+        recordLifecycleEvent("swapchain.surface_format.alternate.selected");
+        return alternative;
+      }
+    }
+    throw std::runtime_error(
+        "Surface exposes no alternate RGBA8/BGRA8 format for recovery test");
+  }
+  return selected;
 }
 
 VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities,

@@ -1,0 +1,8 @@
+{
+  "build/p10-release/bin/character_animation_viewer.exe": "2b5ddc6e8578df435b0356a99fc2d65cc7cb8b442dffef73f96da834048a64b5",
+  "src/character_animation_viewer_main.cpp": "1bf93b12c3967d54c72be5b9a4337701fb335bb9bb473558ec31df67532a9f04",
+  "resources/levels/interior-lighting-capacity.level.json": "4c0b696a879f4052c1f4aabd0b4ad7f3cb3bb7cdce365611dc74b079b3d8c1ae",
+  "resources/characters/test-mannequin.glb": "35bc29b259644b784b1bb3fe97e880ac0d7f51d4f5309965ebcfc47d2ac800c4",
+  "scripts/measure_character_animation.ps1": "5f064f3786e2dc6af2fad89e3f78851f2c7fe286ada61636a55ed59d92f8f6d4",
+  "scripts/summarize_lighting_timings.py": "2f4af1b244582b4c004fbd3e15143c6f46baa136b1c1e066d96a942ead948038"
+}

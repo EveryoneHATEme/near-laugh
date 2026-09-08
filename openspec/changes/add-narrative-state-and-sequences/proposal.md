@@ -60,7 +60,8 @@ with the supported state/event model and timing rules.
 ## Dependencies and Boundaries
 
 P05; requires [P06](../add-household-interactions/proposal.md) and
-[P07](../add-scripted-characters/proposal.md), including their P04 audio/text
+[P07 through P07c](../add-character-authoring/proposal.md), including P07a's
+animation and P07b's route actions, and their P04 audio/text
 and P10 lighting prerequisites. Rebase on their resulting capabilities and
 add modified-capability entries where event integration changes requirements.
 This change owns event-driven integration of the earlier technical systems.

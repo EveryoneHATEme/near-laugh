@@ -1,0 +1,44 @@
+{
+  "baseline": "../captures/captures.json",
+  "same_rgb_and_dimensions": [
+    "bind.png",
+    "editor-retained-four.png",
+    "four-independent.png",
+    "idle-0.png",
+    "idle-25.png",
+    "idle-50.png",
+    "idle-75.png",
+    "idle-99.png",
+    "interact-0.png",
+    "interact-50.png",
+    "interact-75.png",
+    "interact-99.png",
+    "offscreen-idle.png",
+    "offscreen-interact.png",
+    "offscreen-light-only.png",
+    "recovered-frozen.png",
+    "static-door-ambient-control.png",
+    "static-door-flashlight-control.png",
+    "transition-before-interruption.png",
+    "transition-interrupted-middle.png",
+    "walk-0.png",
+    "walk-25.png",
+    "walk-50.png",
+    "walk-75.png",
+    "walk-99.png"
+  ],
+  "different": [
+    "interact-25.png"
+  ],
+  "additional": [
+    "four-mixed-equivalent.png"
+  ],
+  "different_rgb_details": {
+    "interact-25.png": {
+      "changed_channels": 3,
+      "maximum_byte_difference": 11,
+      "mean_byte_difference": 1.4146090534979424e-05,
+      "changed_pixels": 1
+    }
+  }
+}

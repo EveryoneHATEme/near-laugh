@@ -1,0 +1,40 @@
+{
+  "views": [
+    "front (+Z camera)",
+    "side (-X camera)"
+  ],
+  "columns": [
+    {
+      "name": "bind",
+      "clip": null,
+      "time_s": 0
+    },
+    {
+      "name": "idle-0",
+      "clip": "idle",
+      "time_s": 0
+    },
+    {
+      "name": "walk-left-contact",
+      "clip": "walk",
+      "time_s": 0.0
+    },
+    {
+      "name": "walk-midstep",
+      "clip": "walk",
+      "time_s": 0.3333333432674408
+    },
+    {
+      "name": "walk-right-contact",
+      "clip": "walk",
+      "time_s": 0.6666666865348816
+    },
+    {
+      "name": "interact-reach",
+      "clip": "interact",
+      "time_s": 0.7333333333333333
+    }
+  ],
+  "pixels_per_metre": 150,
+  "rendering": "independent Python CPU skinning, orthographic flat triangle lighting"
+}

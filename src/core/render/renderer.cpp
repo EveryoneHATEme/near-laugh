@@ -11,6 +11,7 @@
 
 #include "core/platform/window.hpp"
 #include "core/render/changing_mesh_buffer.hpp"
+#include "core/render/character_resources.hpp"
 #include "core/render/depth_attachment.hpp"
 #include "core/render/frame_readback.hpp"
 #include "core/render/gpu_frame_timings.hpp"
@@ -117,6 +118,7 @@ class Renderer::Impl {
   RendererResources resources_{};
   std::unique_ptr<SceneResources> scene_resources_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
+  std::unique_ptr<CharacterResources> characters_{};
   std::unique_ptr<FrameReadback> readback_{};
   std::shared_ptr<const CaptionFont> caption_font_;
   std::unique_ptr<TextResources> text_;
@@ -177,6 +179,10 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
     scene_resources_ = std::make_unique<SceneResources>(
         context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
         context_.queueFamilies().graphics, assets);
+    if (!resources_.characters.empty())
+      characters_ = std::make_unique<CharacterResources>(
+          context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
+          context_.queueFamilies().graphics, resources_.characters);
     lighting_resources_ = std::make_unique<LightingResources>(
         context_.device(), context_.physicalDevice(),
         level_.environmentLight());
@@ -198,6 +204,7 @@ Renderer::Impl::Impl(const Window& window, FramebufferExtent initial_extent,
     pipeline_.reset();
     cleanupSwapchain();
     lighting_resources_.reset();
+    characters_.reset();
     scene_resources_.reset();
     throw;
   }
@@ -214,6 +221,7 @@ Renderer::Impl::~Impl() {
   pipeline_.reset();
   cleanupSwapchain();
   lighting_resources_.reset();
+  characters_.reset();
   scene_resources_.reset();
   recordLifecycleEvent("renderer.destroyed");
 }
@@ -443,7 +451,7 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
       request.opaque_boxes.empty()
           ? nullptr
           : frames_[current_frame_].changing_mesh.get(),
-      nullptr);
+      nullptr, characters_.get());
   if (frames_[current_frame_].timings)
     frames_[current_frame_].timings->endShadows(command_buffer);
 
@@ -533,6 +541,8 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
                             scene_resources_->obstacleMaterial());
     frames_[current_frame_].changing_mesh->draw(command_buffer);
   }
+  if (characters_)
+    characters_->draw(command_buffer, current_frame_, *pipeline_);
   if (text_) text_->draw(command_buffer, static_cast<unsigned>(current_frame_));
   vkCmdEndRendering(command_buffer);
 
@@ -567,6 +577,12 @@ void Renderer::Impl::recordFrame(VkCommandBuffer command_buffer,
 
 FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   lighting_resources_->validateEnables(request.point_light_enabled);
+  if (characters_)
+    characters_->validate(request.characters);
+  else if (!request.characters.empty())
+    throw std::invalid_argument("Character instance " +
+        std::to_string(request.characters.front().instance) +
+        ": no characters were selected for this scene");
   FrameTimingSample* timing =
       resources_.timings ? &resources_.timings->current() : nullptr;
   const auto mark = [timing] {
@@ -589,6 +605,11 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
   }
 
   FrameSlot& frame = frames_[current_frame_];
+  if (characters_) {
+    const auto start = mark();
+    characters_->deform(request.characters);
+    if (timing) timing->character_deformation_ms += duration(start);
+  }
   const auto caption_layout = caption_font_->layout(
       request.captions, swapchain_extent_.width, swapchain_extent_.height);
   if (!caption_layout.vertices.empty() && !text_)
@@ -603,6 +624,11 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
       "Wait for frame slot completion before reuse");
   if (timing) timing->fence_ms += duration(wait_start);
   if (frame.timings) frame.timings->readCompleted();
+  if (characters_) {
+    const auto start = mark();
+    characters_->upload(current_frame_);
+    if (timing) timing->character_upload_ms += duration(start);
+  }
   if (text_)
     text_->update(static_cast<unsigned>(current_frame_),
                   caption_layout.vertices);

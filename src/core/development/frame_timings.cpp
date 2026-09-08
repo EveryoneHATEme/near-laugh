@@ -56,7 +56,7 @@ void FrameTimings::writeCsv(const std::filesystem::path& path) const {
       << std::fixed << std::setprecision(6)
       << "frame,elapsed_seconds,interval_ms,cpu_active_ms,fence_ms,acquire_ms,"
          "present_ms,gpu_frame_ms,gpu_shadow_ms,submitted,width,height,"
-         "action\n";
+         "action,character_deformation_ms,character_upload_ms\n";
   for (std::size_t i = 0; i < samples_.size(); ++i) {
     const auto& row = samples_[i];
     output << i << ',' << row.elapsed_seconds << ',' << row.interval_ms << ','
@@ -66,7 +66,9 @@ void FrameTimings::writeCsv(const std::filesystem::path& path) const {
     output << ',';
     if (row.gpu_shadow_ms) output << *row.gpu_shadow_ms;
     output << ',' << row.submitted << ',' << row.width << ',' << row.height
-           << ',' << std::quoted(row.action) << '\n';
+           << ',' << std::quoted(row.action) << ','
+           << row.character_deformation_ms << ',' << row.character_upload_ms
+           << '\n';
   }
   output.close();
 }

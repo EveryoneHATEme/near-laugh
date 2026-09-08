@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "units": "metres and seconds",
+  "joint_sample_rate_hz": 240,
+  "mesh_sample_rate_hz": 60,
+  "mesh_pose_count_including_bind": 355,
+  "sampled_mesh_bounds": {
+    "min": [
+      -0.9722270932333511,
+      -0.026539780967277035,
+      -0.4843010945763614
+    ],
+    "max": [
+      0.9722271209897374,
+      1.829178023462839,
+      0.7271702752079897
+    ]
+  },
+  "preview_margin_m": 0.05,
+  "preview_rounding_m": 0.05,
+  "rest_left_ankle_to_toe": [
+    3.947665208614559e-09,
+    -0.08849998624854344,
+    0.14900006303278135
+  ],
+  "rest_minimum_sole_y_m": 0.0004614405495992009,
+  "rest_torso_radius_y_0_8_to_1_3_m": 0.18274493970244113,
+  "capsule_margin_m": 0.02,
+  "capsule_rounding_m": 0.05,
+  "contacts": [
+    {
+      "joint": "foot_l",
+      "phase": 0.0,
+      "position": [
+        0.08900004029628676,
+        0.10369948428921019,
+        0.266897475319941
+      ]
+    },
+    {
+      "joint": "foot_r",
+      "phase": 0.5,
+      "position": [
+        -0.08900004151183122,
+        0.10369908457519736,
+        0.2668972425174587
+      ]
+    }
+  ],
+  "stance_fits": [
+    {
+      "joint": "ball_l",
+      "phase_window": [
+        0.125,
+        0.5
+      ],
+      "backward_speed_m_s": 0.9796188459029115,
+      "maximum_fit_residual_m": 6.236333297293672e-05
+    },
+    {
+      "joint": "ball_r",
+      "phase_window": [
+        0.625,
+        1.0
+      ],
+      "backward_speed_m_s": 0.9796764538824377,
+      "maximum_fit_residual_m": 0.0001815972612643213
+    }
+  ],
+  "walk_cycle_distance_m": 1.3061969054512663,
+  "native_walk_speed_m_s": 0.9796476498926746,
+  "minimum_contact_spacing_at_1_5_m_s": 0.4353989684837554,
+  "p07b_minimum_required_spacing_s": 0.2,
+  "interaction": {
+    "joint": "hand_l",
+    "time_s": 0.7333333333333333,
+    "phase": 0.36666666666666664,
+    "position": [
+      0.14161782694456712,
+      1.2784002778520112,
+      0.5206234516930416
+    ],
+    "rule": "maximum forward reach"
+  }
+}

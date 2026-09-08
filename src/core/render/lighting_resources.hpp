@@ -62,6 +62,7 @@ class GraphicsPipeline;
 class SceneResources;
 class ChangingMeshBuffer;
 class ImmutableMeshBuffer;
+class CharacterResources;
 
 // Shared game/editor implementation. All mutable uploads and depth storage
 // belong to a frame slot; callers wait its completion fence before update.
@@ -79,7 +80,8 @@ class LightingResources {
   void recordShadows(VkCommandBuffer commands, std::size_t slot,
                      const SceneResources& scene,
                      const ChangingMeshBuffer* changing,
-                     const ImmutableMeshBuffer* editor_doors);
+                     const ImmutableMeshBuffer* editor_doors,
+                     const CharacterResources* characters = nullptr);
   [[nodiscard]] VkDescriptorSetLayout descriptorSetLayout() const noexcept {
     return layout_;
   }

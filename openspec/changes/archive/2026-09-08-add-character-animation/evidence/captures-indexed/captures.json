@@ -1,0 +1,137 @@
+{
+  "bind.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "bb2cf27a878c794387e74e831480b51f494735b630655f0c27d590df3dc425b1"
+  },
+  "editor-retained-four.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "cbb7d493c156b209a8f165d4aa2e02823851b5160de462f55a46ef95ae352495"
+  },
+  "four-independent.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "e00cbfa1c7d519eb645f309ff13b467c7976ce4192f079bb5c811ba39ed2ab42"
+  },
+  "four-mixed-equivalent.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "e00cbfa1c7d519eb645f309ff13b467c7976ce4192f079bb5c811ba39ed2ab42"
+  },
+  "idle-0.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "37b8f99400175e62ec8be65f3478e74691f46e693f738eb42a10e84ad335a5ab"
+  },
+  "idle-25.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "36015b510bc88db94ad01ea634441dfe1a4c919dde3e8a08dbebaa7d910146ed"
+  },
+  "idle-50.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "0198ffbb2a50f95c79f745a2e0e41292fa6eea1fd4065e85cd92ecdbbbf99cd9"
+  },
+  "idle-75.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "703efb2796f1f89256f9dc5b5a11c46f7987a1ad4b821ffa5a16251606864e45"
+  },
+  "idle-99.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "7d5e043dbc451fca41e0556f46efc76eb88c21b72a4297003f837d9c874352bc"
+  },
+  "interact-0.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "06671e15532a52fb5d5723c03fc4132882f1d7aacf0d1aaea2afe708a50f4b83"
+  },
+  "interact-25.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "470e607f3c01e1bb9ac16db75a43499a5a116526d9209ec965f7f4d6f35823c1"
+  },
+  "interact-50.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "4af1264f34ac73baeb5c3b910162c037c43f5c67e6eceb136bf07d848998250c"
+  },
+  "interact-75.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "c7e137844ff7feca18493fb00639fd8a86fa7f5fa2915646c7c3fb447f1f145a"
+  },
+  "interact-99.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "1c8c302ae5b7f068e91ead8ac0132680651b2afeb18600913c8f659f59e296e8"
+  },
+  "offscreen-idle.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "d9134eda78f4424b184bf45abacd079ccc9fa52829ee674e5773c5c0738655a4"
+  },
+  "offscreen-interact.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "c2eb775951c30533982814eb8be16386e1ba9125e2b18d76b621b2f1fc324dff"
+  },
+  "offscreen-light-only.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "215d163eb33499bc637ac41241b38ad58cd57bb9e25e226a6d232a79debe0479"
+  },
+  "recovered-frozen.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "7163e1db57abf5ec1ac373a9809f31f5687b75514530c9b28b2bebc4137926ef"
+  },
+  "static-door-ambient-control.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "bc9e39fd12d23af395cb111c32e642ef794d5e42153cbfed1507b0612f075f32"
+  },
+  "static-door-flashlight-control.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "ae21ebd81700a60df815e5c583c639e16c072f00902f2e2a463cfb9fb2b6d0d2"
+  },
+  "transition-before-interruption.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "8f45263de238947502eb341361416fbdbdde746a666babead85cf5f01239e267"
+  },
+  "transition-interrupted-middle.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "7163e1db57abf5ec1ac373a9809f31f5687b75514530c9b28b2bebc4137926ef"
+  },
+  "walk-0.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "5d07daeee281ed1e69745a9723ecffe711881f61882e8d91e7f744ec6ee3eaeb"
+  },
+  "walk-25.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "4fb1d7376a220f3028f6c61c810289b39712ba279d86ca9b41a0ce8c34b061b1"
+  },
+  "walk-50.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "1d1fd103bf298430b0e1318919c3f501aedcd21d432e82865a4a98cb362c2c93"
+  },
+  "walk-75.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "cf13d7b137eff720af089edff505768c4294f10556a6e577291840df9c0c9b2f"
+  },
+  "walk-99.png": {
+    "width": 960,
+    "height": 540,
+    "rgb_sha256": "0bef81f887bc5c4c1c31eeb2afcb66f1a58eb10f4ee993bbe77d975bbcf2bf28"
+  }
+}

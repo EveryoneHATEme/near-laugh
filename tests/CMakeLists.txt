@@ -1,4 +1,6 @@
 add_executable(engine_tests
+    core/test_character_animation.cpp
+    core/test_character_presentation.cpp
     core/test_frame_timings.cpp
     core/test_interior_lighting.cpp
     core/test_audio.cpp
@@ -45,7 +47,8 @@ target_link_libraries(engine_tests PRIVATE
     near_laugh_runtime near_laugh_platform near_laugh_world near_laugh_physics
     near_laugh_render near_laugh_editor_core near_laugh_editor_ui
     near_laugh_editor_render near_laugh_audio near_laugh_text
-    Vulkan::Vulkan near_laugh_imgui GTest::gtest_main
+    Vulkan::Vulkan near_laugh_imgui GTest::gtest_main near_laugh_animation
+    nlohmann_json::nlohmann_json
 )
 near_laugh_enable_warnings(engine_tests)
 
@@ -197,3 +200,29 @@ set_tests_properties(executable_relative_resource_layout PROPERTIES
     LABELS "process"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working"
 )
+
+add_test(NAME character_executable_relative_resources
+    COMMAND character_animation_viewer --preflight)
+set_tests_properties(character_executable_relative_resources PROPERTIES
+    LABELS "process"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")
+add_test(NAME character_isolated_prepared_resources
+    COMMAND ${CMAKE_COMMAND} -DVIEWER=$<TARGET_FILE:character_animation_viewer>
+        -DRESOURCES=$<TARGET_FILE_DIR:character_animation_viewer>/resources
+        -DWORK=${CMAKE_BINARY_DIR}/tests/resource-layout-working
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/process/check_character_resources.cmake)
+set_tests_properties(character_isolated_prepared_resources PROPERTIES LABELS "process")
+
+add_executable(character_animation_smoke core/character_animation_smoke.cpp
+    ${CMAKE_SOURCE_DIR}/src/launcher/executable_path.cpp)
+target_include_directories(character_animation_smoke PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(character_animation_smoke PRIVATE near_laugh_animation
+    near_laugh_platform near_laugh_render near_laugh_world near_laugh_editor_render
+    near_laugh_imgui)
+near_laugh_enable_warnings(character_animation_smoke)
+set_target_properties(character_animation_smoke PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(character_animation_smoke near_laugh_packaged_resources)
+add_test(NAME vulkan_character_animation COMMAND character_animation_smoke)
+set_tests_properties(vulkan_character_animation PROPERTIES LABELS "vulkan-smoke"
+    TIMEOUT 180 WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/tests/resource-layout-working")

@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #include "core/render/changing_mesh_buffer.hpp"
+#include "core/render/character_resources.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/scene_resources.hpp"
 #include "core/render/vulkan_utils.hpp"
@@ -322,7 +323,8 @@ void LightingResources::recordShadows(VkCommandBuffer commands,
                                       std::size_t index,
                                       const SceneResources& scene,
                                       const ChangingMeshBuffer* changing,
-                                      const ImmutableMeshBuffer* editor_doors) {
+                                      const ImmutableMeshBuffer* editor_doors,
+                                      const CharacterResources* characters) {
   auto& slot = slots_.at(index);
   if (!shadow_pipeline_)
     throw std::logic_error("Shadow pipeline was not prepared");
@@ -384,6 +386,7 @@ void LightingResources::recordShadows(VkCommandBuffer commands,
         if (changing) changing->draw(commands);
         if (editor_doors) editor_doors->bindAndDraw(commands);
       }
+      if (characters) characters->draw(commands, index, *shadow_pipeline_);
     }
     vkCmdEndRendering(commands);
   }

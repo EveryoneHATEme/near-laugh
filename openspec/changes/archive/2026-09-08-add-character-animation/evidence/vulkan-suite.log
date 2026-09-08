@@ -1,0 +1,30 @@
+[HANDLER_OUTPUT] 
+Test project D:/programming/near-laugh/build/debug
+
+      Start 353: vulkan_smoke
+ 1/10 Test #353: vulkan_smoke .........................   Passed    2.90 sec
+      Start 354: vulkan_interior_lighting
+ 2/10 Test #354: vulkan_interior_lighting .............   Passed    4.99 sec
+      Start 355: vulkan_audio_runtime
+ 3/10 Test #355: vulkan_audio_runtime .................   Passed    4.12 sec
+      Start 356: vulkan_interior_apartment
+ 4/10 Test #356: vulkan_interior_apartment ............   Passed    2.94 sec
+      Start 357: vulkan_interior_lower-landing
+ 5/10 Test #357: vulkan_interior_lower-landing ........   Passed    3.15 sec
+      Start 358: vulkan_smoke_validation_error
+ 6/10 Test #358: vulkan_smoke_validation_error ........   Passed    2.77 sec
+      Start 359: vulkan_lifecycle_smoke
+ 7/10 Test #359: vulkan_lifecycle_smoke ...............   Passed   14.11 sec
+      Start 366: editor_vulkan_smoke
+ 8/10 Test #366: editor_vulkan_smoke ..................   Passed    4.49 sec
+      Start 367: editor_vulkan_construction_failure
+ 9/10 Test #367: editor_vulkan_construction_failure ...   Passed    0.37 sec
+      Start 373: vulkan_character_animation
+10/10 Test #373: vulkan_character_animation ...........   Passed    4.03 sec
+
+100% tests passed, 0 tests failed out of 10
+
+Label Time Summary:
+vulkan-smoke    =  43.88 sec*proc (10 tests)
+
+Total Test time (real) =  43.92 sec

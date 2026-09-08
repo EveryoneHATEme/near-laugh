@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "source_files_checked": 128,
+  "source_tree_sha256_before": "b58db47745041ca96bd05da9165cfd06295ef4edfa5886b19ab168be7a4cc81b",
+  "source_tree_sha256_after": "b58db47745041ca96bd05da9165cfd06295ef4edfa5886b19ab168be7a4cc81b",
+  "two_complete_runs_byte_identical": true,
+  "prepared_resources_match_repeated_runs": true,
+  "generated_sha256": {
+    "catalog.json": "1b6b6fcd44eadc8f8de93747e160b64760cecc241eae16cb86505915dec66690",
+    "character_catalog.hpp": "c0a3e34333b5d3088faed75495d530e0fa5e53ae6b62564872e0bdde08d63a56",
+    "evidence/calibration.json": "aabfbb746303cce80494c3bf1ac6c6e6123c0b236a5e5929377c752f9ce1108f",
+    "evidence/joint-samples.csv": "0fb377975470839f534a312884235e0d5a918dd22439b1a0e4d87ac5233d7066",
+    "evidence/pose-reference.json": "956f2cf44f2706fea4a44da5613a43758df9314833cba4fed593d0686dc0a913",
+    "evidence/pose-reference.png": "b59d5e60fbabb47312e83c16f15118a66cc9ff635919d0b08ec62625bbf408dd",
+    "LICENSE-Quaternius.txt": "6d01f55c6e4c49a2c9963e147e561945ae2c83958c8ca667d90a6bffdbfac061",
+    "manifest.json": "1dd67d061de11f9afc61c0a74b682b2e03f6083c9ee38a429108e3031f0db3bd",
+    "test-mannequin.glb": "35bc29b259644b784b1bb3fe97e880ac0d7f51d4f5309965ebcfc47d2ac800c4"
+  }
+}

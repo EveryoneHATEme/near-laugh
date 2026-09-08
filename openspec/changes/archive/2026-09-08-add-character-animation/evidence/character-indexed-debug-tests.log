@@ -1,0 +1,744 @@
+[HANDLER_OUTPUT] 
+Test project D:/programming/near-laugh/build/debug
+
+        Start   1: CharacterAnimation.TinyBindGeometryAndAbsentChannels
+  1/366 Test   #1: CharacterAnimation.TinyBindGeometryAndAbsentChannels ....................................   Passed    0.06 sec
+        Start   2: CharacterAnimation.TwoJointReferenceSkinningAndWorldYaw
+  2/366 Test   #2: CharacterAnimation.TwoJointReferenceSkinningAndWorldYaw .................................   Passed    0.03 sec
+        Start   3: CharacterAnimation.LoopEdgesClampAndOneShotCompletion
+  3/366 Test   #3: CharacterAnimation.LoopEdgesClampAndOneShotCompletion ...................................   Passed    0.03 sec
+        Start   4: CharacterAnimation.PauseSeekAndIndependentInstances
+  4/366 Test   #4: CharacterAnimation.PauseSeekAndIndependentInstances .....................................   Passed    0.03 sec
+        Start   5: CharacterAnimation.InterruptedTransitionCapturesDisplayedLocalPose
+  5/366 Test   #5: CharacterAnimation.InterruptedTransitionCapturesDisplayedLocalPose ......................   Passed    0.04 sec
+        Start   6: CharacterAnimation.EquivalentElapsedTimeAndCommandsAcrossBatching
+  6/366 Test   #6: CharacterAnimation.EquivalentElapsedTimeAndCommandsAcrossBatching .......................   Passed    0.04 sec
+        Start   7: CharacterAnimation.RejectsInvalidPlaybackAndPoseWithoutChangingState
+  7/366 Test   #7: CharacterAnimation.RejectsInvalidPlaybackAndPoseWithoutChangingState ....................   Passed    0.03 sec
+        Start   8: CharacterAnimation.RejectsMalformedAssetsWithFileAndFieldContext
+  8/366 Test   #8: CharacterAnimation.RejectsMalformedAssetsWithFileAndFieldContext ........................   Passed    0.33 sec
+        Start   9: CharacterAnimation.RejectsFileAndKeyCountLimitsBeforeHandoff
+  9/366 Test   #9: CharacterAnimation.RejectsFileAndKeyCountLimitsBeforeHandoff ............................   Passed    0.05 sec
+        Start  10: CharacterAnimation.PreparedMannequinBindAndEveryClipProduceFiniteGeometry
+ 10/366 Test  #10: CharacterAnimation.PreparedMannequinBindAndEveryClipProduceFiniteGeometry ...............   Passed    0.75 sec
+        Start  11: CharacterAnimation.GeometryAndParserAllocationLimitsRejectBeforeDecoding
+ 11/366 Test  #11: CharacterAnimation.GeometryAndParserAllocationLimitsRejectBeforeDecoding ................   Passed    0.60 sec
+        Start  12: CharacterAnimation.NormalizedUnsignedUvAndWeightsAreDecoded
+ 12/366 Test  #12: CharacterAnimation.NormalizedUnsignedUvAndWeightsAreDecoded .............................   Passed    0.04 sec
+        Start  13: CharacterAnimation.RepeatedSmallBatchesReachExactOneShotAndLoopEdges
+ 13/366 Test  #13: CharacterAnimation.RepeatedSmallBatchesReachExactOneShotAndLoopEdges ....................   Passed    0.03 sec
+        Start  14: CharacterAnimation.CatalogRejectsInvalidMovementContactAndBoundsMetadata
+ 14/366 Test  #14: CharacterAnimation.CatalogRejectsInvalidMovementContactAndBoundsMetadata ................   Passed    0.03 sec
+        Start  15: CharacterPresentation.EmptySelectionNeedsNoAssetOrGeometry
+ 15/366 Test  #15: CharacterPresentation.EmptySelectionNeedsNoAssetOrGeometry ..............................   Passed    0.03 sec
+        Start  16: CharacterPresentation.FourIndependentPosesShareIndicesAndPreserveTriangles
+ 16/366 Test  #16: CharacterPresentation.FourIndependentPosesShareIndicesAndPreserveTriangles ..............   Passed    0.03 sec
+        Start  17: CharacterPresentation.DistinctAssetsWithSameSkeletonRetainTheirOwnIndicesAndMaterials
+ 17/366 Test  #17: CharacterPresentation.DistinctAssetsWithSameSkeletonRetainTheirOwnIndicesAndMaterials ...   Passed    0.03 sec
+        Start  18: CharacterPresentation.RejectsIncompleteDuplicateUnknownAndStalePalettes
+ 18/366 Test  #18: CharacterPresentation.RejectsIncompleteDuplicateUnknownAndStalePalettes .................   Passed    0.03 sec
+        Start  19: CharacterPresentation.RejectsSelectionAndDerivedRangeOverflow
+ 19/366 Test  #19: CharacterPresentation.RejectsSelectionAndDerivedRangeOverflow ...........................   Passed    0.03 sec
+        Start  20: CharacterPresentation.RejectsEmptyIncompleteAndOverlappingIndexRanges
+ 20/366 Test  #20: CharacterPresentation.RejectsEmptyIncompleteAndOverlappingIndexRanges ...................   Passed    0.03 sec
+        Start  21: CharacterPresentation.FullSharedProfileCountsEveryInstanceDraw
+ 21/366 Test  #21: CharacterPresentation.FullSharedProfileCountsEveryInstanceDraw ..........................   Passed    0.04 sec
+        Start  22: CharacterPresentation.ValidatesWholeRequestBeforeWritingOutput
+ 22/366 Test  #22: CharacterPresentation.ValidatesWholeRequestBeforeWritingOutput ..........................   Passed    0.03 sec
+        Start  23: FrameCapture.ByteCountRejectsZeroAndOverflowBeforeAllocation
+ 23/366 Test  #23: FrameCapture.ByteCountRejectsZeroAndOverflowBeforeAllocation ............................   Passed    0.03 sec
+        Start  24: FrameTimings.TimestampPeriodAndValidBitsHandleCounterWrap
+ 24/366 Test  #24: FrameTimings.TimestampPeriodAndValidBitsHandleCounterWrap ...............................   Passed    0.03 sec
+        Start  25: FrameTimings.UnavailableTimestampIsNeverReportedAsZeroGpuWork
+ 25/366 Test  #25: FrameTimings.UnavailableTimestampIsNeverReportedAsZeroGpuWork ...........................   Passed    0.03 sec
+        Start  26: FrameTimings.CpuActiveExcludesWaitsAndGpuReadbackUpdatesOriginalSample
+ 26/366 Test  #26: FrameTimings.CpuActiveExcludesWaitsAndGpuReadbackUpdatesOriginalSample ..................   Passed    0.03 sec
+        Start  27: FrameTimings.StorageRefusesUnboundedCapture
+ 27/366 Test  #27: FrameTimings.StorageRefusesUnboundedCapture .............................................   Passed    0.09 sec
+        Start  28: InteriorLighting.EmptyAndCapacityCollectionsRoundTripAndKeepOrder
+ 28/366 Test  #28: InteriorLighting.EmptyAndCapacityCollectionsRoundTripAndKeepOrder .......................   Passed    1.04 sec
+        Start  29: InteriorLighting.CountsIdentityLinksShadowBudgetAndFiniteFieldsAreAuthoritative
+ 29/366 Test  #29: InteriorLighting.CountsIdentityLinksShadowBudgetAndFiniteFieldsAreAuthoritative .........   Passed    0.38 sec
+        Start  30: InteriorLighting.CurrentCodecRejectsMixedShapesAndNonBooleanFlags
+ 30/366 Test  #30: InteriorLighting.CurrentCodecRejectsMixedShapesAndNonBooleanFlags .......................   Passed    0.51 sec
+        Start  31: InteriorLighting.RetainedV7AudioFixtureMigratesWithoutChangingContentOrSource
+ 31/366 Test  #31: InteriorLighting.RetainedV7AudioFixtureMigratesWithoutChangingContentOrSource ...........   Passed    0.11 sec
+        Start  32: InteriorLightState.SharedLinksUnlinkedValuesAndFreshRunRemainIndependent
+ 32/366 Test  #32: InteriorLightState.SharedLinksUnlinkedValuesAndFreshRunRemainIndependent ................   Passed    0.03 sec
+        Start  33: InteriorLightState.NearestToleranceUsesTrueMinimumAndDurableIdsAcrossOrderings
+ 33/366 Test  #33: InteriorLightState.NearestToleranceUsesTrueMinimumAndDurableIdsAcrossOrderings ..........   Passed    0.05 sec
+        Start  34: InteriorLightState.FrameEnablesRequireExactCountAndBinaryValues
+ 34/366 Test  #34: InteriorLightState.FrameEnablesRequireExactCountAndBinaryValues .........................   Passed    0.03 sec
+        Start  35: PointShadowMath.FaceProjectionMatchesRenderingAndCrossEdgeReprojection
+ 35/366 Test  #35: PointShadowMath.FaceProjectionMatchesRenderingAndCrossEdgeReprojection ..................   Passed    0.03 sec
+        Start  36: PointShadowProfile.RequiresSampledDepthAndBoundedImageLimitsWithD16Fallback
+ 36/366 Test  #36: PointShadowProfile.RequiresSampledDepthAndBoundedImageLimitsWithD16Fallback .............   Passed    0.03 sec
+        Start  37: AudioDefinitions.EmptyAndCompleteProfilesNeedNoDevicesOrResourceFiles
+ 37/366 Test  #37: AudioDefinitions.EmptyAndCompleteProfilesNeedNoDevicesOrResourceFiles ...................   Passed    0.03 sec
+        Start  38: AudioDefinitions.CollectionBoundsAndIdentityAreValidatedIndependently
+ 38/366 Test  #38: AudioDefinitions.CollectionBoundsAndIdentityAreValidatedIndependently ...................   Passed    0.07 sec
+        Start  39: AudioDefinitions.EveryCollectionCanUseItsFullCapacity
+ 39/366 Test  #39: AudioDefinitions.EveryCollectionCanUseItsFullCapacity ...................................   Passed    0.03 sec
+        Start  40: AudioDefinitions.ForegroundCaptionsAutoplayAndCatalogAreChecked
+ 40/366 Test  #40: AudioDefinitions.ForegroundCaptionsAutoplayAndCatalogAreChecked .........................   Passed    0.03 sec
+        Start  41: AudioDefinitions.InvalidNumbersAndUnrepresentableRoomBoundsAreRejected
+ 41/366 Test  #41: AudioDefinitions.InvalidNumbersAndUnrepresentableRoomBoundsAreRejected ..................   Passed    0.03 sec
+        Start  42: AudioDefinitions.SharedFacesAreValidButOverlappingInteriorsAreNot
+ 42/366 Test  #42: AudioDefinitions.SharedFacesAreValidButOverlappingInteriorsAreNot .......................   Passed    0.03 sec
+        Start  43: AudioDefinitions.BrokenLinksAndDuplicateDoorConnectionsRemainDiagnosable
+ 43/366 Test  #43: AudioDefinitions.BrokenLinksAndDuplicateDoorConnectionsRemainDiagnosable ................   Passed    0.03 sec
+        Start  44: AudioPersistence.OrderedAudioAndAllPriorFieldsSurviveCanonicalRoundTrips
+ 44/366 Test  #44: AudioPersistence.OrderedAudioAndAllPriorFieldsSurviveCanonicalRoundTrips ................   Passed    0.24 sec
+        Start  45: AudioPersistence.V6OpensCleanAndExplicitSavePreservesAllPriorData
+ 45/366 Test  #45: AudioPersistence.V6OpensCleanAndExplicitSavePreservesAllPriorData .......................   Passed    0.27 sec
+        Start  46: AudioPersistence.VersionShapesAndAudioFieldTypesAreStrictAndTransactional
+ 46/366 Test  #46: AudioPersistence.VersionShapesAndAudioFieldTypesAreStrictAndTransactional ...............   Passed    1.56 sec
+        Start  47: AudioPersistence.SelectedResourcesAreDeduplicatedAndUnselectedFilesAreNotRequired
+ 47/366 Test  #47: AudioPersistence.SelectedResourcesAreDeduplicatedAndUnselectedFilesAreNotRequired .......   Passed    0.06 sec
+        Start  48: AudioPersistence.CorruptStereoAndUnsupportedPcmFailBeforePlayback
+ 48/366 Test  #48: AudioPersistence.CorruptStereoAndUnsupportedPcmFailBeforePlayback .......................   Passed    0.13 sec
+        Start  49: AudioPersistence.CaptionsRejectMalformedUtf8BadTimingAndOverlongText
+ 49/366 Test  #49: AudioPersistence.CaptionsRejectMalformedUtf8BadTimingAndOverlongText ....................   Passed    0.12 sec
+        Start  50: AudioPersistence.NativeUnicodePathsAndMissingCaptionDiagnostics
+ 50/366 Test  #50: AudioPersistence.NativeUnicodePathsAndMissingCaptionDiagnostics .........................   Passed    0.07 sec
+        Start  51: AudioPersistence.FileDurationAndAggregateDecodeLimitsAreChecked
+ 51/366 Test  #51: AudioPersistence.FileDurationAndAggregateDecodeLimitsAreChecked .........................   Passed    0.98 sec
+        Start  52: AudioPlayback.EmptyOfflineEngineRendersSilenceAndCanBeRecreated
+ 52/366 Test  #52: AudioPlayback.EmptyOfflineEngineRendersSilenceAndCanBeRecreated .........................   Passed    0.03 sec
+        Start  53: AudioPlayback.ExplicitSilentOutputClearsSamplesWithoutADevice
+ 53/366 Test  #53: AudioPlayback.ExplicitSilentOutputClearsSamplesWithoutADevice ...........................   Passed    0.03 sec
+        Start  54: AudioPlayback.RealOfflinePcmTracksListenerRotationDistanceAndMovingSources
+ 54/366 Test  #54: AudioPlayback.RealOfflinePcmTracksListenerRotationDistanceAndMovingSources ..............   Passed    0.04 sec
+        Start  55: AudioPlayback.MuteAdvancesCursorSuspensionFreezesAndStopReleasesVoices
+ 55/366 Test  #55: AudioPlayback.MuteAdvancesCursorSuspensionFreezesAndStopReleasesVoices ..................   Passed    0.04 sec
+        Start  56: AudioPlayback.SilentFallbackReleasesVoicesAndRetainsPreparedContent
+ 56/366 Test  #56: AudioPlayback.SilentFallbackReleasesVoicesAndRetainsPreparedContent .....................   Passed    0.04 sec
+        Start  57: AudioTransmission.HalfOpenMembershipDistinguishesRoomsFloorsAndOutside
+ 57/366 Test  #57: AudioTransmission.HalfOpenMembershipDistinguishesRoomsFloorsAndOutside ..................   Passed    0.03 sec
+        Start  58: AudioTransmission.AcceptedNegativeDoorAnglesAndLockOnlyChanges
+ 58/366 Test  #58: AudioTransmission.AcceptedNegativeDoorAnglesAndLockOnlyChanges ..........................   Passed    0.03 sec
+        Start  59: AudioTransmission.StrongestAlternatePathWinsAndCyclesCannotAmplify
+ 59/366 Test  #59: AudioTransmission.StrongestAlternatePathWinsAndCyclesCannotAmplify ......................   Passed    0.03 sec
+        Start  60: CueCoordinator.ForegroundStartBusyCancelAndCompleteAreExplicit
+ 60/366 Test  #60: CueCoordinator.ForegroundStartBusyCancelAndCompleteAreExplicit ..........................   Passed    0.05 sec
+        Start  61: CueCoordinator.SilentAndMutedRunsPreserveEssentialTextAndFreezeSuspendedTime
+ 61/366 Test  #61: CueCoordinator.SilentAndMutedRunsPreserveEssentialTextAndFreezeSuspendedTime ............   Passed    0.08 sec
+        Start  62: CueCoordinator.AmbienceLaneUsesEffectiveGainThenDurableId
+ 62/366 Test  #62: CueCoordinator.AmbienceLaneUsesEffectiveGainThenDurableId ...............................   Passed    0.05 sec
+        Start  63: CueCoordinator.CursorDriftRealignsLoopsWithoutReplayingCaptionsOrInstances
+ 63/366 Test  #63: CueCoordinator.CursorDriftRealignsLoopsWithoutReplayingCaptionsOrInstances ..............   Passed    0.05 sec
+        Start  64: CueCoordinator.InitializationVoiceAndDeviceLossFailuresRetainTheTimeline
+ 64/366 Test  #64: CueCoordinator.InitializationVoiceAndDeviceLossFailuresRetainTheTimeline ................   Passed    0.13 sec
+        Start  65: AudioFixture.ActualContentKeepsFullCallBeforeInvitationInAudibleMutedAndSilentRuns
+ 65/366 Test  #65: AudioFixture.ActualContentKeepsFullCallBeforeInvitationInAudibleMutedAndSilentRuns ......   Passed    0.51 sec
+        Start  66: AudioFixture.ControlsConsumeInactiveHoldsAndPreserveOffsetsAcrossLongSuspension
+ 66/366 Test  #66: AudioFixture.ControlsConsumeInactiveHoldsAndPreserveOffsetsAcrossLongSuspension .........   Passed    0.08 sec
+        Start  67: AudioFixture.RequiredSourcesAndAcceptedDoorPosesAreObservable
+ 67/366 Test  #67: AudioFixture.RequiredSourcesAndAcceptedDoorPosesAreObservable ...........................   Passed    0.12 sec
+        Start  68: EditorAudio.RenameReferencesUndoAtomicallyAndPreservePreexistingBrokenReferences
+ 68/366 Test  #68: EditorAudio.RenameReferencesUndoAtomicallyAndPreservePreexistingBrokenReferences ........   Passed    0.05 sec
+        Start  69: EditorAudio.EveryAudioKindKeepsAllocatedIdentityThroughDuplicateDeleteAndHistory
+ 69/366 Test  #69: EditorAudio.EveryAudioKindKeepsAllocatedIdentityThroughDuplicateDeleteAndHistory ........   Passed    0.07 sec
+        Start  70: EditorAudio.SourcesUseNearestSurfaceOffsetsAndRoomsPickOnlyTheirWireEdges
+ 70/366 Test  #70: EditorAudio.SourcesUseNearestSurfaceOffsetsAndRoomsPickOnlyTheirWireEdges ...............   Passed    0.06 sec
+        Start  71: EditorAudio.AuditionIsExplicitUsesSnapshotAndStopsOnEveryDocumentRevision
+ 71/366 Test  #71: EditorAudio.AuditionIsExplicitUsesSnapshotAndStopsOnEveryDocumentRevision ...............   Passed    0.27 sec
+        Start  72: CaptionFont.PinnedFontBakesRussianYoAndPunctuationIntoAnImmutableAtlas
+ 72/366 Test  #72: CaptionFont.PinnedFontBakesRussianYoAndPunctuationIntoAnImmutableAtlas ..................   Passed    0.08 sec
+        Start  73: CaptionFont.EveryPackagedCaptionFitsAtSupportedAndHiDpiFramebufferSizes
+ 73/366 Test  #73: CaptionFont.EveryPackagedCaptionFitsAtSupportedAndHiDpiFramebufferSizes .................   Passed    0.15 sec
+        Start  74: CaptionFont.EmptySmallAndUnfittableTextStayBounded
+ 74/366 Test  #74: CaptionFont.EmptySmallAndUnfittableTextStayBounded ......................................   Passed    0.07 sec
+        Start  75: CaptionFont.MissingAndModifiedFontsFailBeforeParsingWithPathContext
+ 75/366 Test  #75: CaptionFont.MissingAndModifiedFontsFailBeforeParsingWithPathContext .....................   Passed    0.08 sec
+        Start  76: SceneAuthoring.EmptyInteriorSavesAndReopensWithoutUnusedPropsOrDoors
+ 76/366 Test  #76: SceneAuthoring.EmptyInteriorSavesAndReopensWithoutUnusedPropsOrDoors ....................   Passed    0.05 sec
+        Start  77: SceneAuthoring.SharedModelsHaveIndependentIdentityAndUndoRestoresTheSameCopy
+ 77/366 Test  #77: SceneAuthoring.SharedModelsHaveIndependentIdentityAndUndoRestoresTheSameCopy ............   Passed    0.03 sec
+        Start  78: SceneAuthoring.RenamingAndChangingModelsPreservesProxyOwnership
+ 78/366 Test  #78: SceneAuthoring.RenamingAndChangingModelsPreservesProxyOwnership .........................   Passed    0.03 sec
+        Start  79: SceneAuthoring.DecorativeAndMissingModelPlacementsRemainSelectable
+ 79/366 Test  #79: SceneAuthoring.DecorativeAndMissingModelPlacementsRemainSelectable ......................   Passed    0.03 sec
+        Start  80: SceneAuthoring.OverflowingModelOrYawedProxyEditsPreserveTheDocument
+ 80/366 Test  #80: SceneAuthoring.OverflowingModelOrYawedProxyEditsPreserveTheDocument .....................   Passed    0.04 sec
+        Start  81: SceneAuthoring.MaterialsAreIndependentAndUnknownReferencesRemainRepairable
+ 81/366 Test  #81: SceneAuthoring.MaterialsAreIndependentAndUnknownReferencesRemainRepairable ..............   Passed    0.03 sec
+        Start  82: SceneAuthoring.TerrainMaterialAndSculptingShareHistoryWithoutLosingContent
+ 82/366 Test  #82: SceneAuthoring.TerrainMaterialAndSculptingShareHistoryWithoutLosingContent ..............   Passed    0.13 sec
+        Start  83: SceneAuthoring.DoorIdentityAndInvalidInitialStateSurviveHistory
+ 83/366 Test  #83: SceneAuthoring.DoorIdentityAndInvalidInitialStateSurviveHistory .........................   Passed    0.04 sec
+        Start  84: SceneAuthoring.DoorPlacementUsesBottomHingeAndRefusesWallOrUnderside
+ 84/366 Test  #84: SceneAuthoring.DoorPlacementUsesBottomHingeAndRefusesWallOrUnderside ....................   Passed    0.03 sec
+        Start  85: SceneAuthoring.AllLegacyVersionsNormalizeWithoutChangingSourceBytes
+ 85/366 Test  #85: SceneAuthoring.AllLegacyVersionsNormalizeWithoutChangingSourceBytes .....................   Passed    1.19 sec
+        Start  86: SceneAuthoring.MultipleProxyBoxesGateAllEntriesAndInitialDoors
+ 86/366 Test  #86: SceneAuthoring.MultipleProxyBoxesGateAllEntriesAndInitialDoors ..........................   Passed    0.03 sec
+        Start  87: DoorGeometry.SharedPoseCornersAndPresentationAgreeForBothDirections
+ 87/366 Test  #87: DoorGeometry.SharedPoseCornersAndPresentationAgreeForBothDirections .....................   Passed    0.03 sec
+        Start  88: DoorGeometry.RayReachInsideAndMiss
+ 88/366 Test  #88: DoorGeometry.RayReachInsideAndMiss ......................................................   Passed    0.03 sec
+        Start  89: DoorWorld.ProfileIdentityAndInitialLocksValidate
+ 89/366 Test  #89: DoorWorld.ProfileIdentityAndInitialLocksValidate ........................................   Passed    0.03 sec
+        Start  90: DoorWorld.MaximumIndependentDoorDefinitionsFitThePresentationBound
+ 90/366 Test  #90: DoorWorld.MaximumIndependentDoorDefinitionsFitThePresentationBound ......................   Passed    0.03 sec
+        Start  91: DoorWorld.InitialDoorChecksEveryEntryAndAllStaticProxies
+ 91/366 Test  #91: DoorWorld.InitialDoorChecksEveryEntryAndAllStaticProxies ................................   Passed    0.03 sec
+        Start  92: DoorWorld.TerrainIntersectionAndUpperFloorAreHeightSpecific
+ 92/366 Test  #92: DoorWorld.TerrainIntersectionAndUpperFloorAreHeightSpecific .............................   Passed    0.04 sec
+        Start  93: DoorWorld.InitialStandingEntryIncludesRaisedCapsuleAndContactSkin
+ 93/366 Test  #93: DoorWorld.InitialStandingEntryIncludesRaisedCapsuleAndContactSkin .......................   Passed    0.03 sec
+        Start  94: DoorWorld.RoundTripPreservesIdentityStateAndRuntimeDoesNotWrite
+ 94/366 Test  #94: DoorWorld.RoundTripPreservesIdentityStateAndRuntimeDoesNotWrite .........................   Passed    0.05 sec
+        Start  95: DoorPhysics.VisibilityTargetsOwnLeafAndBlocksSwitch
+ 95/366 Test  #95: DoorPhysics.VisibilityTargetsOwnLeafAndBlocksSwitch .....................................   Passed    0.03 sec
+        Start  96: DoorPhysics.ContinuousArcStopsAtThinIntermediateBlocker
+ 96/366 Test  #96: DoorPhysics.ContinuousArcStopsAtThinIntermediateBlocker .................................   Passed    0.03 sec
+        Start  97: DoorPhysics.ContinuousArcIncludesTerrainAndEveryAuthoredPropBox
+ 97/366 Test  #97: DoorPhysics.ContinuousArcIncludesTerrainAndEveryAuthoredPropBox .........................   Passed    0.05 sec
+        Start  98: DoorPhysics.CrouchedCapsuleClearsLeafAndCannotStandIntoIt
+ 98/366 Test  #98: DoorPhysics.CrouchedCapsuleClearsLeafAndCannotStandIntoIt ...............................   Passed    0.03 sec
+        Start  99: DoorPhysics.StandingContactSkinRemainsOutsideMovingLeaf
+ 99/366 Test  #99: DoorPhysics.StandingContactSkinRemainsOutsideMovingLeaf .................................   Passed    0.03 sec
+        Start 100: DoorPhysics.LowLeafAlsoStopsBeforeCrouchedPlayer
+100/366 Test #100: DoorPhysics.LowLeafAlsoStopsBeforeCrouchedPlayer ........................................   Passed    0.03 sec
+        Start 101: DoorPhysics.DiagonalVacatedSpaceIsProtectedUntilNextPlayerStep
+101/366 Test #101: DoorPhysics.DiagonalVacatedSpaceIsProtectedUntilNextPlayerStep ..........................   Passed    0.03 sec
+        Start 102: DoorPhysics.MeetingLeavesUseStableIdentityOrder
+102/366 Test #102: DoorPhysics.MeetingLeavesUseStableIdentityOrder .........................................   Passed    0.04 sec
+        Start 103: DoorPhysics.BothSwingSignsAndBoundsRetainFloorClearance
+103/366 Test #103: DoorPhysics.BothSwingSignsAndBoundsRetainFloorClearance .................................   Passed    0.04 sec
+        Start 104: DoorGameplay.LocksKnockReversalAndEndpointState
+104/366 Test #104: DoorGameplay.LocksKnockReversalAndEndpointState .........................................   Passed    0.03 sec
+        Start 105: DoorGameplay.PlayerObstructionStopsWithoutResumeOrPush
+105/366 Test #105: DoorGameplay.PlayerObstructionStopsWithoutResumeOrPush ..................................   Passed    0.04 sec
+        Start 106: DoorGameplay.EndpointRetryAfterObstructionWithNoProgress
+106/366 Test #106: DoorGameplay.EndpointRetryAfterObstructionWithNoProgress ................................   Passed    0.03 sec
+        Start 107: DoorGameplay.FrameBatchesBoundStepsAndConsumeMinimizedPresses
+107/366 Test #107: DoorGameplay.FrameBatchesBoundStepsAndConsumeMinimizedPresses ...........................   Passed    0.03 sec
+        Start 108: DoorGameplay.FeedbackReplacementExpiresWithoutMovingOrUnlockingLeaf
+108/366 Test #108: DoorGameplay.FeedbackReplacementExpiresWithoutMovingOrUnlockingLeaf .....................   Passed    0.03 sec
+        Start 109: DoorInteraction.HeldMissTransitionsAndActionPriorityDoNotReplay
+109/366 Test #109: DoorInteraction.HeldMissTransitionsAndActionPriorityDoNotReplay .........................   Passed    0.03 sec
+        Start 110: DoorInteraction.OpenLeafAllowsSwitchAndNearestUnsupportedActionDoesNotFallThrough
+110/366 Test #110: DoorInteraction.OpenLeafAllowsSwitchAndNearestUnsupportedActionDoesNotFallThrough .......   Passed    0.03 sec
+        Start 111: DoorInteraction.NearestLeafWinsIndependentlyOfStorageOrderAndReach
+111/366 Test #111: DoorInteraction.NearestLeafWinsIndependentlyOfStorageOrderAndReach ......................   Passed    0.03 sec
+        Start 112: DoorInteraction.TypeTieUsesAbsoluteMinimumTolerance
+112/366 Test #112: DoorInteraction.TypeTieUsesAbsoluteMinimumTolerance .....................................   Passed    0.04 sec
+        Start 113: DoorFeedback.RefusalAndKnockAreDistinctWithoutChangingLeafGeometry
+113/366 Test #113: DoorFeedback.RefusalAndKnockAreDistinctWithoutChangingLeafGeometry ......................   Passed    0.03 sec
+        Start 114: DoorInput.LockMappingRetainsOtherActionsAndLook
+114/366 Test #114: DoorInput.LockMappingRetainsOtherActionsAndLook .........................................   Passed    0.03 sec
+        Start 115: EditorPlay.UnsavedRequiresSaveConfirmationAndSaveAsThenOneConsumedIntent
+115/366 Test #115: EditorPlay.UnsavedRequiresSaveConfirmationAndSaveAsThenOneConsumedIntent ................   Passed    0.05 sec
+        Start 116: EditorPlay.CancelFailedSaveAndChangedDocumentNeverArmALaterLaunch
+116/366 Test #116: EditorPlay.CancelFailedSaveAndChangedDocumentNeverArmALaterLaunch .......................   Passed    0.03 sec
+        Start 117: EditorPlay.ConsumedLaunchRechecksTheSavedDocumentBeforeAssetPreflight
+117/366 Test #117: EditorPlay.ConsumedLaunchRechecksTheSavedDocumentBeforeAssetPreflight ...................   Passed    0.04 sec
+        Start 118: EditorPlay.BrokenLightingLinksRefuseLaunchAndRepairSavesTheV8Snapshot
+118/366 Test #118: EditorPlay.BrokenLightingLinksRefuseLaunchAndRepairSavesTheV8Snapshot ...................   Passed    0.04 sec
+        Start 119: EditorPlay.CleanAndDirtyPlayUseChosenEntryAndRejectExternalChanges
+119/366 Test #119: EditorPlay.CleanAndDirtyPlayUseChosenEntryAndRejectExternalChanges ......................   Passed    0.05 sec
+        Start 120: EditorPlay.NativeChildReceivesLiteralUnicodeArgumentsAndReportsExit
+120/366 Test #120: EditorPlay.NativeChildReceivesLiteralUnicodeArgumentsAndReportsExit .....................   Passed    0.62 sec
+        Start 121: EditorPlay.ClosingTheOwnerLeavesItsCreatedChildRunningIndependently
+121/366 Test #121: EditorPlay.ClosingTheOwnerLeavesItsCreatedChildRunningIndependently .....................   Passed    0.48 sec
+        Start 122: InteriorLevel.CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries
+122/366 Test #122: InteriorLevel.CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries ................   Passed    0.21 sec
+        Start 123: InteriorLevel.LegacyVersionsNormalizeOnlyOnExplicitSave
+123/366 Test #123: InteriorLevel.LegacyVersionsNormalizeOnlyOnExplicitSave .................................   Passed    0.48 sec
+        Start 124: InteriorLevel.AllEntryIdentifiersAndPosesGateSaveAndRuntime
+124/366 Test #124: InteriorLevel.AllEntryIdentifiersAndPosesGateSaveAndRuntime .............................   Passed    0.03 sec
+        Start 125: InteriorLevel.HeightSpecificSupportAndStandingClearanceProtectEveryFloor
+125/366 Test #125: InteriorLevel.HeightSpecificSupportAndStandingClearanceProtectEveryFloor ................   Passed    0.04 sec
+        Start 126: InteriorLevel.JoltAndInitialPresentationUseSelectedEntryWithoutTerrain
+126/366 Test #126: InteriorLevel.JoltAndInitialPresentationUseSelectedEntryWithoutTerrain ..................   Passed    0.04 sec
+        Start 127: InteriorLevel.SupportedTerrainSlopesPermitOrdinaryCapsuleGroundContact
+127/366 Test #127: InteriorLevel.SupportedTerrainSlopesPermitOrdinaryCapsuleGroundContact ..................   Passed    0.10 sec
+        Start 128: InteriorLevel.YawedProxyClearanceUsesItsRotatedAxes
+128/366 Test #128: InteriorLevel.YawedProxyClearanceUsesItsRotatedAxes .....................................   Passed    0.03 sec
+        Start 129: InteriorLevel.StrictCurrentVersionFieldsAndUnsafeBoundsPreserveTheOpenDocument
+129/366 Test #129: InteriorLevel.StrictCurrentVersionFieldsAndUnsafeBoundsPreserveTheOpenDocument ..........   Passed    0.09 sec
+        Start 130: InteriorLevel.EmptyEditorMeshAndInteriorGeometryKeepStructuralBounds
+130/366 Test #130: InteriorLevel.EmptyEditorMeshAndInteriorGeometryKeepStructuralBounds ....................   Passed    0.03 sec
+        Start 131: InteriorLevel.EntryCommandsKeepDurableReferencesAndHistoryAtomic
+131/366 Test #131: InteriorLevel.EntryCommandsKeepDurableReferencesAndHistoryAtomic ........................   Passed    0.04 sec
+        Start 132: InteriorLevel.NewInteriorUsesPendingReplacementAndSafeInvalidFilesStayEditable
+132/366 Test #132: InteriorLevel.NewInteriorUsesPendingReplacementAndSafeInvalidFilesStayEditable ..........   Passed    0.04 sec
+        Start 133: InteriorLevel.SurfacePickingUsesActualNearestFaceAndSuppressesUnavailablePlacement
+133/366 Test #133: InteriorLevel.SurfacePickingUsesActualNearestFaceAndSuppressesUnavailablePlacement ......   Passed    0.03 sec
+        Start 134: InteriorLevel.FloorAndWallAnchorsPreservePropertiesAndMountSwitchOutward
+134/366 Test #134: InteriorLevel.FloorAndWallAnchorsPreservePropertiesAndMountSwitchOutward ................   Passed    0.03 sec
+        Start 135: InteriorLevel.TerrainStrokeRevalidatesEveryEntryWhileUpperSupportRemainsClear
+135/366 Test #135: InteriorLevel.TerrainStrokeRevalidatesEveryEntryWhileUpperSupportRemainsClear ...........   Passed    0.14 sec
+        Start 136: InteriorLevel.PackagedApartmentStairsWalkBothDirectionsFromBothStarts
+136/366 Test #136: InteriorLevel.PackagedApartmentStairsWalkBothDirectionsFromBothStarts ...................   Passed    0.19 sec
+        Start 137: LaunchOptions.NativePathsAndStrictOptionsAreResolvedBeforeStartup
+137/366 Test #137: LaunchOptions.NativePathsAndStrictOptionsAreResolvedBeforeStartup .......................   Passed    0.03 sec
+        Start 138: EditorBridge.SuccessfulStartupShutsDownInReverseOrder
+138/366 Test #138: EditorBridge.SuccessfulStartupShutsDownInReverseOrder ...................................   Passed    0.03 sec
+        Start 139: EditorBridge.PartialInitializationCleansOnlyCreatedOwners
+139/366 Test #139: EditorBridge.PartialInitializationCleansOnlyCreatedOwners ...............................   Passed    0.03 sec
+        Start 140: EditorBridge.ConcreteOwnersAreNonCopyable
+140/366 Test #140: EditorBridge.ConcreteOwnersAreNonCopyable ...............................................   Passed    0.03 sec
+        Start 141: EditorCamera.UsesKnownVulkanTransformAndFramebufferAspect
+141/366 Test #141: EditorCamera.UsesKnownVulkanTransformAndFramebufferAspect ...............................   Passed    0.03 sec
+        Start 142: EditorCamera.CoversMovementAxesSprintMouseLookAndPitchLimit
+142/366 Test #142: EditorCamera.CoversMovementAxesSprintMouseLookAndPitchLimit .............................   Passed    0.03 sec
+        Start 143: EditorCamera.BoundsTimingAndResetsAcrossWait
+143/366 Test #143: EditorCamera.BoundsTimingAndResetsAcrossWait ............................................   Passed    0.03 sec
+        Start 144: EditorInputOwnership.UiCaptureSuppressesConflictingCameraInput
+144/366 Test #144: EditorInputOwnership.UiCaptureSuppressesConflictingCameraInput ..........................   Passed    0.03 sec
+        Start 145: EditorCommands.SelectionAndIdentitySurviveInsertionRemovalUndoAndOpen
+145/366 Test #145: EditorCommands.SelectionAndIdentitySurviveInsertionRemovalUndoAndOpen ...................   Passed    0.20 sec
+        Start 146: EditorCommands.AllPropertiesAreUndoableAndPersistSemantically
+146/366 Test #146: EditorCommands.AllPropertiesAreUndoableAndPersistSemantically ...........................   Passed    0.33 sec
+        Start 147: EditorCommands.RejectsInvalidFieldsWithoutRevisionSelectionOrHistoryChanges
+147/366 Test #147: EditorCommands.RejectsInvalidFieldsWithoutRevisionSelectionOrHistoryChanges .............   Passed    0.11 sec
+        Start 148: EditorCommands.InvalidGameplayRemainsEditableButSaveIsGated
+148/366 Test #148: EditorCommands.InvalidGameplayRemainsEditableButSaveIsGated .............................   Passed    0.15 sec
+        Start 149: EditorCommands.SavedRevisionSurvivesUndoAndBranchesNeverBecomeFalselyClean
+149/366 Test #149: EditorCommands.SavedRevisionSurvivesUndoAndBranchesNeverBecomeFalselyClean ..............   Passed    0.15 sec
+        Start 150: EditorCommands.HistoryRetainsNewest128OperationsAndRefreshesPreviewOnUndoRedo
+150/366 Test #150: EditorCommands.HistoryRetainsNewest128OperationsAndRefreshesPreviewOnUndoRedo ...........   Passed    1.34 sec
+        Start 151: EditorCommands.SolidCountBoundAndRequiredEntryAreProtected
+151/366 Test #151: EditorCommands.SolidCountBoundAndRequiredEntryAreProtected ..............................   Passed    0.90 sec
+        Start 152: EditorCommands.TerrainGestureUsesPressSettingsAndOneMixedHistoryEntry
+152/366 Test #152: EditorCommands.TerrainGestureUsesPressSettingsAndOneMixedHistoryEntry ...................   Passed    0.32 sec
+        Start 153: EditorCommands.EmptyStationaryAndZeroSmoothGesturesDoNotAddHistory
+153/366 Test #153: EditorCommands.EmptyStationaryAndZeroSmoothGesturesDoNotAddHistory ......................   Passed    0.11 sec
+        Start 154: EditorCommands.TerrainDiagnosticsIdentifySlopeCellsAndRefreshOnRepair
+154/366 Test #154: EditorCommands.TerrainDiagnosticsIdentifySlopeCellsAndRefreshOnRepair ...................   Passed    0.12 sec
+        Start 155: EditorCommands.TerrainSpawnSupportAndCloseRefreshEvenDuringAStroke
+155/366 Test #155: EditorCommands.TerrainSpawnSupportAndCloseRefreshEvenDuringAStroke ......................   Passed    0.12 sec
+        Start 156: EditorCommands.SavedSculptedTerrainFeedsMatchingRuntimeMeshAndCollision
+156/366 Test #156: EditorCommands.SavedSculptedTerrainFeedsMatchingRuntimeMeshAndCollision .................   Passed    0.42 sec
+        Start 157: EditorCommands.LightingCollectionsKeepIdentityHistoryAndDirtyState
+157/366 Test #157: EditorCommands.LightingCollectionsKeepIdentityHistoryAndDirtyState ......................   Passed    0.32 sec
+        Start 158: EditorCommands.SharedLinksRenameAtomicallyAndDeletionLeavesRepairableLinks
+158/366 Test #158: EditorCommands.SharedLinksRenameAtomicallyAndDeletionLeavesRepairableLinks ..............   Passed    0.14 sec
+        Start 159: EditorCommands.ShadowBudgetInvalidityIsUndoableAndLightlessSwitchesStayEditable
+159/366 Test #159: EditorCommands.ShadowBudgetInvalidityIsUndoableAndLightlessSwitchesStayEditable .........   Passed    0.16 sec
+        Start 160: EditorCommands.InitialValuesAreIndependentOfSwitchLinksAndTerrainHistory
+160/366 Test #160: EditorCommands.InitialValuesAreIndependentOfSwitchLinksAndTerrainHistory ................   Passed    0.15 sec
+        Start 161: EditorCommands.VersionTwoOpensCleanAndExplicitSaveWritesV8
+161/366 Test #161: EditorCommands.VersionTwoOpensCleanAndExplicitSaveWritesV8 ..............................   Passed    0.35 sec
+        Start 162: EditorTerrain.ControlsAcceptBoundsAndRejectInvalidFieldsTransactionally
+162/366 Test #162: EditorTerrain.ControlsAcceptBoundsAndRejectInvalidFieldsTransactionally .................   Passed    0.03 sec
+        Start 163: EditorTerrain.FalloffHasFixedCenterInteriorBoundaryAndOutsideWeights
+163/366 Test #163: EditorTerrain.FalloffHasFixedCenterInteriorBoundaryAndOutsideWeights ....................   Passed    0.03 sec
+        Start 164: EditorTerrain.RaiseAndLowerAreExactDeterministicAndBoundedAtTerrainEdges
+164/366 Test #164: EditorTerrain.RaiseAndLowerAreExactDeterministicAndBoundedAtTerrainEdges ................   Passed    0.03 sec
+        Start 165: EditorTerrain.SmoothingUsesPreStampWeightedNeighborhoodAndClampedBorders
+165/366 Test #165: EditorTerrain.SmoothingUsesPreStampWeightedNeighborhoodAndClampedBorders ................   Passed    0.03 sec
+        Start 166: EditorTerrain.NonFiniteInputAndResultsNeverProduceInvalidWrites
+166/366 Test #166: EditorTerrain.NonFiniteInputAndResultsNeverProduceInvalidWrites .........................   Passed    0.03 sec
+        Start 167: EditorTerrain.PathCarriesRemainderAndIsIndependentOfInputBatching
+167/366 Test #167: EditorTerrain.PathCarriesRemainderAndIsIndependentOfInputBatching .......................   Passed    0.03 sec
+        Start 168: EditorTerrain.OverlappingStampsRecordFirstBeforeAndFinalAfterOnlyOnce
+168/366 Test #168: EditorTerrain.OverlappingStampsRecordFirstBeforeAndFinalAfterOnlyOnce ...................   Passed    0.03 sec
+        Start 169: EditorPicking.PointerRaysMatchCameraAndLogicalPixelScaling
+169/366 Test #169: EditorPicking.PointerRaysMatchCameraAndLogicalPixelScaling ..............................   Passed    0.03 sec
+        Start 170: EditorPicking.ExactTerrainTrianglesIncludeDiagonalsAndBorders
+170/366 Test #170: EditorPicking.ExactTerrainTrianglesIncludeDiagonalsAndBorders ...........................   Passed    0.04 sec
+        Start 171: EditorPlacement.NearestBoxesInsideOriginsEdgesMissesAndStableSelection
+171/366 Test #171: EditorPlacement.NearestBoxesInsideOriginsEdgesMissesAndStableSelection ..................   Passed    0.12 sec
+        Start 172: EditorPlacement.PicksVisibleModelBoundsIndependentlyOfProxyAndMarkers
+172/366 Test #172: EditorPlacement.PicksVisibleModelBoundsIndependentlyOfProxyAndMarkers ...................   Passed    0.12 sec
+        Start 173: EditorPlacement.PlacementPreservesPropertiesAndObjectSpecificVerticalAnchors
+173/366 Test #173: EditorPlacement.PlacementPreservesPropertiesAndObjectSpecificVerticalAnchors ............   Passed    0.12 sec
+        Start 174: EditorPlacement.ViewportCaptureNavigationAndMissesDoNotMutateDocuments
+174/366 Test #174: EditorPlacement.ViewportCaptureNavigationAndMissesDoNotMutateDocuments ..................   Passed    0.13 sec
+        Start 175: EditorPlacement.PropertyDragCreatesOneCommandAndRejectsStaleDrafts
+175/366 Test #175: EditorPlacement.PropertyDragCreatesOneCommandAndRejectsStaleDrafts ......................   Passed    0.11 sec
+        Start 176: EditorPlacement.SafeInvalidPreviewAndOverlayReflectEditedGeometry
+176/366 Test #176: EditorPlacement.SafeInvalidPreviewAndOverlayReflectEditedGeometry .......................   Passed    0.12 sec
+        Start 177: EditorPlacement.TerrainToolSuppressesUiAndNavigationAndDoesNotBridgeMisses
+177/366 Test #177: EditorPlacement.TerrainToolSuppressesUiAndNavigationAndDoesNotBridgeMisses ..............   Passed    0.12 sec
+        Start 178: EditorPlacement.StationaryPointerDoesNotStampAgainAsIntersectionMoves
+178/366 Test #178: EditorPlacement.StationaryPointerDoesNotStampAgainAsIntersectionMoves ...................   Passed    0.31 sec
+        Start 179: EditorPlacement.BrushFootprintAndInvalidTriangleOverlaysFollowTerrain
+179/366 Test #179: EditorPlacement.BrushFootprintAndInvalidTriangleOverlaysFollowTerrain ...................   Passed    0.11 sec
+        Start 180: EditorPlacement.SwitchYawPickingPlacementAndDraftValidation
+180/366 Test #180: EditorPlacement.SwitchYawPickingPlacementAndDraftValidation .............................   Passed    0.14 sec
+        Start 181: EditorOverlay.ClipsLinesToVulkanNearFarAndSidePlanes
+181/366 Test #181: EditorOverlay.ClipsLinesToVulkanNearFarAndSidePlanes ....................................   Passed    0.03 sec
+        Start 182: EditorUiInteraction.AddButtonDoesNotClickThroughAndShortcutsUndoDuplicateDelete
+182/366 Test #182: EditorUiInteraction.AddButtonDoesNotClickThroughAndShortcutsUndoDuplicateDelete .........   Passed    0.15 sec
+        Start 183: EditorUiInteraction.LightingShortcutsAndCameraNavigationRespectCapture
+183/366 Test #183: EditorUiInteraction.LightingShortcutsAndCameraNavigationRespectCapture ..................   Passed    0.15 sec
+        Start 184: EditorUiInteraction.AudioButtonsSelectionAndShortcutsUseTheSameHistory
+184/366 Test #184: EditorUiInteraction.AudioButtonsSelectionAndShortcutsUseTheSameHistory ..................   Passed    0.17 sec
+        Start 185: EditorUiInteraction.DoorButtonAndKeyboardEditsRetainIdentityThroughUndo
+185/366 Test #185: EditorUiInteraction.DoorButtonAndKeyboardEditsRetainIdentityThroughUndo .................   Passed    0.14 sec
+        Start 186: EditorUiInteraction.UnsavedModalBlocksUnderlyingViewportAndShortcuts
+186/366 Test #186: EditorUiInteraction.UnsavedModalBlocksUnderlyingViewportAndShortcuts ....................   Passed    0.12 sec
+        Start 187: EditorUiInteraction.NumericDragCommitsOnceOnRelease
+187/366 Test #187: EditorUiInteraction.NumericDragCommitsOnceOnRelease .....................................   Passed    0.12 sec
+        Start 188: EditorUiInteraction.NewlyAddedSwitchUsesItsOwnFloorPlacementOffset
+188/366 Test #188: EditorUiInteraction.NewlyAddedSwitchUsesItsOwnFloorPlacementOffset ......................   Passed    0.11 sec
+        Start 189: EditorUiInteraction.NewInteriorClearsTerrainToolsAndPlayDialogsConsumeOneSaveAs
+189/366 Test #189: EditorUiInteraction.NewInteriorClearsTerrainToolsAndPlayDialogsConsumeOneSaveAs .........   Passed    0.21 sec
+        Start 190: EditorUiInteraction.UpperSurfacePreviewAndClickUseTheSameCandidate
+190/366 Test #190: EditorUiInteraction.UpperSurfacePreviewAndClickUseTheSameCandidate ......................   Passed    0.11 sec
+        Start 191: EditorUiInteraction.TerrainCheckboxDragAndCaptureProduceOneUndoableGesture
+191/366 Test #191: EditorUiInteraction.TerrainCheckboxDragAndCaptureProduceOneUndoableGesture ..............   Passed    0.23 sec
+        Start 192: EditorUiInteraction.SwitchButtonsPropertiesAndInputCapture
+192/366 Test #192: EditorUiInteraction.SwitchButtonsPropertiesAndInputCapture ..............................   Passed    0.16 sec
+        Start 193: EditorUiInteraction.PointLightInitialAndShadowCheckboxesUseHistory
+193/366 Test #193: EditorUiInteraction.PointLightInitialAndShadowCheckboxesUseHistory ......................   Passed    0.13 sec
+        Start 194: EditorDocument.OpenIsTransactionalAndReportsRejectedPath
+194/366 Test #194: EditorDocument.OpenIsTransactionalAndReportsRejectedPath ................................   Passed    0.11 sec
+        Start 195: EditorDocument.SaveAsUpdatesPathAndSaveFailurePreservesState
+195/366 Test #195: EditorDocument.SaveAsUpdatesPathAndSaveFailurePreservesState ............................   Passed    0.25 sec
+        Start 196: EditorDocument.CleanActionsExecuteWithoutPrompt
+196/366 Test #196: EditorDocument.CleanActionsExecuteWithoutPrompt .........................................   Passed    0.18 sec
+        Start 197: EditorDocument.DirtyCloseSupportsSaveDiscardAndCancel
+197/366 Test #197: EditorDocument.DirtyCloseSupportsSaveDiscardAndCancel ...................................   Passed    0.40 sec
+        Start 198: EditorDocument.DirtyExitSupportsSaveDiscardAndCancel
+198/366 Test #198: EditorDocument.DirtyExitSupportsSaveDiscardAndCancel ....................................   Passed    0.42 sec
+        Start 199: EditorDocument.DirtyOpenSupportsSaveDiscardCancelAndFailedCandidate
+199/366 Test #199: EditorDocument.DirtyOpenSupportsSaveDiscardCancelAndFailedCandidate .....................   Passed    0.78 sec
+        Start 200: EditorDocument.FailedPendingSaveRetainsActionAndDocument
+200/366 Test #200: EditorDocument.FailedPendingSaveRetainsActionAndDocument ................................   Passed    0.11 sec
+        Start 201: EditorLoop.CoversNormalCloseZeroExtentAndRestorePaths
+201/366 Test #201: EditorLoop.CoversNormalCloseZeroExtentAndRestorePaths ...................................   Passed    0.03 sec
+        Start 202: EditorLoop.ExplicitlyConsumesEveryRendererOutcome
+202/366 Test #202: EditorLoop.ExplicitlyConsumesEveryRendererOutcome .......................................   Passed    0.03 sec
+        Start 203: InputAccumulator.TracksEngineOwnedKeysAndButtons
+203/366 Test #203: InputAccumulator.TracksEngineOwnedKeysAndButtons ........................................   Passed    0.03 sec
+        Start 204: InputAccumulator.ResetsCursorDeltaPerEventBatch
+204/366 Test #204: InputAccumulator.ResetsCursorDeltaPerEventBatch .........................................   Passed    0.03 sec
+        Start 205: InputAccumulator.WaitedBatchIsSampledBeforeTheNextPollBatch
+205/366 Test #205: InputAccumulator.WaitedBatchIsSampledBeforeTheNextPollBatch .............................   Passed    0.03 sec
+        Start 206: InputAccumulator.CaptureResetDiscardsCursorJump
+206/366 Test #206: InputAccumulator.CaptureResetDiscardsCursorJump .........................................   Passed    0.03 sec
+        Start 207: PlayerInputMapper.MapsEveryRequiredDefaultControl
+207/366 Test #207: PlayerInputMapper.MapsEveryRequiredDefaultControl .......................................   Passed    0.03 sec
+        Start 208: PlayerInputMapper.NewBatchClearsLookAndPreservesHeldActions
+208/366 Test #208: PlayerInputMapper.NewBatchClearsLookAndPreservesHeldActions .............................   Passed    0.03 sec
+        Start 209: PlayerInputMapper.InteractionIsIndependentOfMouseActions
+209/366 Test #209: PlayerInputMapper.InteractionIsIndependentOfMouseActions ................................   Passed    0.03 sec
+        Start 210: LevelDocument.FixedProfileAndPackagedAssetMatchCurrentSceneExactly
+210/366 Test #210: LevelDocument.FixedProfileAndPackagedAssetMatchCurrentSceneExactly ......................   Passed    0.25 sec
+        Start 211: LevelDocument.ValidationIsFieldAwareAndAuthoritative
+211/366 Test #211: LevelDocument.ValidationIsFieldAwareAndAuthoritative ....................................   Passed    0.03 sec
+        Start 212: LevelDocument.EnforcesSolidCapAndFiniteSupportedValues
+212/366 Test #212: LevelDocument.EnforcesSolidCapAndFiniteSupportedValues ..................................   Passed    0.04 sec
+        Start 213: LevelDocument.StrictParserRejectsMalformedUnsupportedAndUnknownShapes
+213/366 Test #213: LevelDocument.StrictParserRejectsMalformedUnsupportedAndUnknownShapes ...................   Passed    0.62 sec
+        Start 214: LevelDocument.RuntimeLoaderRejectsMissingParseAndValidationFailures
+214/366 Test #214: LevelDocument.RuntimeLoaderRejectsMissingParseAndValidationFailures .....................   Passed    0.21 sec
+        Start 215: LevelDocument.CanonicalSaveRoundTripsBytesUnderNonClassicGlobalLocale
+215/366 Test #215: LevelDocument.CanonicalSaveRoundTripsBytesUnderNonClassicGlobalLocale ...................   Passed    0.28 sec
+        Start 216: LevelDocument.InvalidAndFilesystemFailuresDoNotReplacePriorData
+216/366 Test #216: LevelDocument.InvalidAndFilesystemFailuresDoNotReplacePriorData .........................   Passed    0.07 sec
+        Start 217: LevelDocument.SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting
+217/366 Test #217: LevelDocument.SwitchRoundTripsAndVersionTwoNormalizesWithoutRewriting ...................   Passed    0.69 sec
+        Start 218: LevelDocument.LegacySwitchParserRequiresExactShapeAndTypes
+218/366 Test #218: LevelDocument.LegacySwitchParserRequiresExactShapeAndTypes ..............................   Passed    1.55 sec
+        Start 219: LightSwitchWorld.CollectionHandoffBoundsAndFieldValidation
+219/366 Test #219: LightSwitchWorld.CollectionHandoffBoundsAndFieldValidation ..............................   Passed    0.05 sec
+        Start 220: StaticVisibility.SegmentIncludesEndpointAndSolidInteriorButNotBeyond
+220/366 Test #220: StaticVisibility.SegmentIncludesEndpointAndSolidInteriorButNotBeyond ....................   Passed    0.04 sec
+        Start 221: StaticVisibility.TerrainRotatedProxyAndPlayerExclusionUsePhysicsFixtures
+221/366 Test #221: StaticVisibility.TerrainRotatedProxyAndPlayerExclusionUsePhysicsFixtures ................   Passed    0.04 sec
+        Start 222: LightSwitchTarget.InclusiveReachMissInsideAndYaw
+222/366 Test #222: LightSwitchTarget.InclusiveReachMissInsideAndYaw ........................................   Passed    0.03 sec
+        Start 223: LightSwitchController.InitialValuesTogglesAndRestartPreserveAuthoredState
+223/366 Test #223: LightSwitchController.InitialValuesTogglesAndRestartPreserveAuthoredState ...............   Passed    0.10 sec
+        Start 224: LightSwitchController.RejectedAndInactivePressesCannotBeDeferred
+224/366 Test #224: LightSwitchController.RejectedAndInactivePressesCannotBeDeferred ........................   Passed    0.05 sec
+        Start 225: LightSwitchController.EventBatchesAndPresentationDoNotReplayPresses
+225/366 Test #225: LightSwitchController.EventBatchesAndPresentationDoNotReplayPresses .....................   Passed    0.04 sec
+        Start 226: ExecutablePath.GrowsNativeBufferAndNormalizesTheResult
+226/366 Test #226: ExecutablePath.GrowsNativeBufferAndNormalizesTheResult ..................................   Passed    0.03 sec
+        Start 227: ExecutablePath.ReportsActionableNativeDiscoveryFailure
+227/366 Test #227: ExecutablePath.ReportsActionableNativeDiscoveryFailure ..................................   Passed    0.03 sec
+        Start 228: ExecutablePath.DiscoversTheRunningModuleWithoutNativeTypes
+228/366 Test #228: ExecutablePath.DiscoversTheRunningModuleWithoutNativeTypes ..............................   Passed    0.03 sec
+        Start 229: FrameContract.CameraFrameIsBackendNeutralColumnMajorScalarData
+229/366 Test #229: FrameContract.CameraFrameIsBackendNeutralColumnMajorScalarData ..........................   Passed    0.03 sec
+        Start 230: FrameContract.ExposesEveryBackendNeutralOutcome
+230/366 Test #230: FrameContract.ExposesEveryBackendNeutralOutcome .........................................   Passed    0.03 sec
+        Start 231: FrameContract.ZeroExtentCannotReachGpuSubmission
+231/366 Test #231: FrameContract.ZeroExtentCannotReachGpuSubmission ........................................   Passed    0.03 sec
+        Start 232: FrameContract.ValidatesSourceIndependentSpotLightData
+232/366 Test #232: FrameContract.ValidatesSourceIndependentSpotLightData ...................................   Passed    0.03 sec
+        Start 233: RuntimeLoop.StopsBeforeRenderingAfterClose
+233/366 Test #233: RuntimeLoop.StopsBeforeRenderingAfterClose ..............................................   Passed    0.03 sec
+        Start 234: RuntimeLoop.WaitsForAZeroFramebuffer
+234/366 Test #234: RuntimeLoop.WaitsForAZeroFramebuffer ....................................................   Passed    0.03 sec
+        Start 235: RuntimeLoop.CreatesOneExplicitFrameRequest
+235/366 Test #235: RuntimeLoop.CreatesOneExplicitFrameRequest ..............................................   Passed    0.03 sec
+        Start 236: FixedStepAccumulator.RetainsSubStepRemainder
+236/366 Test #236: FixedStepAccumulator.RetainsSubStepRemainder ............................................   Passed    0.03 sec
+        Start 237: FixedStepAccumulator.ExecutesExactAndMultipleCompleteSteps
+237/366 Test #237: FixedStepAccumulator.ExecutesExactAndMultipleCompleteSteps ..............................   Passed    0.03 sec
+        Start 238: FixedStepAccumulator.CapsStallContributionAtSixSteps
+238/366 Test #238: FixedStepAccumulator.CapsStallContributionAtSixSteps ....................................   Passed    0.03 sec
+        Start 239: FixedStepAccumulator.ResetClearsRemainderAndClockOrigin
+239/366 Test #239: FixedStepAccumulator.ResetClearsRemainderAndClockOrigin .................................   Passed    0.03 sec
+        Start 240: PlayerInterpolation.ZeroStepKeepsPositionWhileLookIsLatest
+240/366 Test #240: PlayerInterpolation.ZeroStepKeepsPositionWhileLookIsLatest ..............................   Passed    0.12 sec
+        Start 241: PlayerInterpolation.MultiStepIterationRetainsLatestTwoValidPoses
+241/366 Test #241: PlayerInterpolation.MultiStepIterationRetainsLatestTwoValidPoses ........................   Passed    0.13 sec
+        Start 242: PlayerInterpolation.InterpolatesStanceEyeHeightAndCanCollapse
+242/366 Test #242: PlayerInterpolation.InterpolatesStanceEyeHeightAndCanCollapse ...........................   Passed    0.13 sec
+        Start 243: PlayerFlashlight.StartsOffAndTogglesOnlyOnArmedActivePresses
+243/366 Test #243: PlayerFlashlight.StartsOffAndTogglesOnlyOnArmedActivePresses ............................   Passed    0.03 sec
+        Start 244: PlayerFlashlight.InactiveRecapturePressIsSuppressedUntilRelease
+244/366 Test #244: PlayerFlashlight.InactiveRecapturePressIsSuppressedUntilRelease .........................   Passed    0.03 sec
+        Start 245: PlayerFlashlight.ProducesGenericSpotLightFromSuppliedViewPose
+245/366 Test #245: PlayerFlashlight.ProducesGenericSpotLightFromSuppliedViewPose ...........................   Passed    0.03 sec
+        Start 246: RuntimeResources.ExplicitLevelDoesNotRequireTheUnselectedPrototype
+246/366 Test #246: RuntimeResources.ExplicitLevelDoesNotRequireTheUnselectedPrototype ......................   Passed    0.06 sec
+        Start 247: RuntimeResources.ResolvesShadersIndependentlyOfWorkingDirectory
+247/366 Test #247: RuntimeResources.ResolvesShadersIndependentlyOfWorkingDirectory .........................   Passed    0.03 sec
+        Start 248: RuntimeResources.EveryMissingTextureReportsItsResolvedAbsolutePath
+248/366 Test #248: RuntimeResources.EveryMissingTextureReportsItsResolvedAbsolutePath ......................   Passed    0.49 sec
+        Start 249: RuntimeResources.MissingModelReportsItsResolvedAbsolutePath
+249/366 Test #249: RuntimeResources.MissingModelReportsItsResolvedAbsolutePath .............................   Passed    0.20 sec
+        Start 250: RuntimeResources.MissingLevelReportsItsResolvedAbsolutePath
+250/366 Test #250: RuntimeResources.MissingLevelReportsItsResolvedAbsolutePath .............................   Passed    0.06 sec
+        Start 251: RuntimeResources.EveryMissingShadowShaderReportsItsResolvedAbsolutePath
+251/366 Test #251: RuntimeResources.EveryMissingShadowShaderReportsItsResolvedAbsolutePath .................   Passed    0.08 sec
+        Start 252: RuntimeResources.MissingShaderReportsResolvedAbsolutePath
+252/366 Test #252: RuntimeResources.MissingShaderReportsResolvedAbsolutePath ...............................   Passed    0.04 sec
+        Start 253: RuntimeResources.SelectedDependenciesResolveFromAnotherWorkingDirectory
+253/366 Test #253: RuntimeResources.SelectedDependenciesResolveFromAnotherWorkingDirectory .................   Passed    0.23 sec
+        Start 254: ValidationDiagnostics.DecodesSeverityAndCategoryNames
+254/366 Test #254: ValidationDiagnostics.DecodesSeverityAndCategoryNames ...................................   Passed    0.04 sec
+        Start 255: ValidationDiagnostics.CountsErrorsSafelyAcrossThreads
+255/366 Test #255: ValidationDiagnostics.CountsErrorsSafelyAcrossThreads ...................................   Passed    0.04 sec
+        Start 256: ShaderProvider.MissingAssetReportsItsPath
+256/366 Test #256: ShaderProvider.MissingAssetReportsItsPath ...............................................   Passed    0.04 sec
+        Start 257: ShaderProvider.RejectsMalformedSpirvSize
+257/366 Test #257: ShaderProvider.RejectsMalformedSpirvSize ................................................   Passed    0.03 sec
+        Start 258: ShaderProvider.LoadsProjectShaders
+258/366 Test #258: ShaderProvider.LoadsProjectShaders ......................................................   Passed    0.04 sec
+        Start 259: ShaderProvider.PackagedStagesUseOnlyEnabledDeviceCapabilities
+259/366 Test #259: ShaderProvider.PackagedStagesUseOnlyEnabledDeviceCapabilities ...........................   Passed    0.03 sec
+        Start 260: ShaderProvider.PackagedStagesMatchHostPushConstantOffsets
+260/366 Test #260: ShaderProvider.PackagedStagesMatchHostPushConstantOffsets ...............................   Passed    0.03 sec
+        Start 261: StaticModelLoader.RejectsMalformedAndUnsupportedStructureWithPath
+261/366 Test #261: StaticModelLoader.RejectsMalformedAndUnsupportedStructureWithPath .......................   Passed    0.97 sec
+        Start 262: StaticModelLoader.ExpandsIndexedAndNonIndexedDataInDeclaredOrder
+262/366 Test #262: StaticModelLoader.ExpandsIndexedAndNonIndexedDataInDeclaredOrder ........................   Passed    0.20 sec
+        Start 263: StaticModelLoader.RejectsInvalidAccessorDataDeterministically
+263/366 Test #263: StaticModelLoader.RejectsInvalidAccessorDataDeterministically ...........................   Passed    0.46 sec
+        Start 264: StaticModelLoader.CombinesNodeAndPlacementTransformsAndPreservesUvs
+264/366 Test #264: StaticModelLoader.CombinesNodeAndPlacementTransformsAndPreservesUvs .....................   Passed    0.11 sec
+        Start 265: StaticModelLoader.RejectsSingularAndNonFiniteGeometry
+265/366 Test #265: StaticModelLoader.RejectsSingularAndNonFiniteGeometry ...................................   Passed    0.19 sec
+        Start 266: StaticModelLoader.LoadsPackagedPrototypeChairThroughProductionPath
+266/366 Test #266: StaticModelLoader.LoadsPackagedPrototypeChairThroughProductionPath ......................   Passed    0.11 sec
+        Start 267: StaticModelLoader.LoadsTheSelectedPreparedMaterialsAndCatalogBounds
+267/366 Test #267: StaticModelLoader.LoadsTheSelectedPreparedMaterialsAndCatalogBounds .....................   Passed    0.04 sec
+        Start 268: StaticModelLoader.RejectsUnpreparedShadingAndBlendWithAssetContext
+268/366 Test #268: StaticModelLoader.RejectsUnpreparedShadingAndBlendWithAssetContext ......................   Passed    0.12 sec
+        Start 269: StaticModelLoader.RejectsOverflowingBufferAndAccessorRangesBeforeRead
+269/366 Test #269: StaticModelLoader.RejectsOverflowingBufferAndAccessorRangesBeforeRead ...................   Passed    0.03 sec
+        Start 270: StaticModelLoader.RejectsExternalImagesUnsupportedSamplersAndShading
+270/366 Test #270: StaticModelLoader.RejectsExternalImagesUnsupportedSamplersAndShading ....................   Passed    0.09 sec
+        Start 271: SceneAssets.RepeatedPlacementsShareMaterialAndKeepIndependentTransforms
+271/366 Test #271: SceneAssets.RepeatedPlacementsShareMaterialAndKeepIndependentTransforms .................   Passed    0.12 sec
+        Start 272: SceneAssets.SelectedOnlyPreflightAndEmptySceneNeedNoUnusedModelFiles
+272/366 Test #272: SceneAssets.SelectedOnlyPreflightAndEmptySceneNeedNoUnusedModelFiles ....................   Passed    0.11 sec
+        Start 273: SceneAssets.LegacyChairUsesExplicitLegacyMaterialAndDoorAliasStaysOpaque
+273/366 Test #273: SceneAssets.LegacyChairUsesExplicitLegacyMaterialAndDoorAliasStaysOpaque ................   Passed    0.13 sec
+        Start 274: TextureAssets.FixedPrototypeTexturesAreDistinctOpaqueRgbaTiles
+274/366 Test #274: TextureAssets.FixedPrototypeTexturesAreDistinctOpaqueRgbaTiles ..........................   Passed    0.05 sec
+        Start 275: TextureAssets.SelectedStructuralTexturesKeepTheirOwnDimensionsAndPixels
+275/366 Test #275: TextureAssets.SelectedStructuralTexturesKeepTheirOwnDimensionsAndPixels .................   Passed    0.04 sec
+        Start 276: TextureAssets.EmbeddedDecodeMatchesFileAndRejectsBadOrOversizedImages
+276/366 Test #276: TextureAssets.EmbeddedDecodeMatchesFileAndRejectsBadOrOversizedImages ...................   Passed    0.03 sec
+        Start 277: SceneMaterial.MaskUsesSampleTimesFactorAndOpaqueIgnoresAlpha
+277/366 Test #277: SceneMaterial.MaskUsesSampleTimesFactorAndOpaqueIgnoresAlpha ............................   Passed    0.03 sec
+        Start 278: SceneVertex.MatchesVulkanPipelineDescription
+278/366 Test #278: SceneVertex.MatchesVulkanPipelineDescription ............................................   Passed    0.03 sec
+        Start 279: ImmutableMeshBuffer.AcceptsOnlyCompleteDrawableTriangleStreams
+279/366 Test #279: ImmutableMeshBuffer.AcceptsOnlyCompleteDrawableTriangleStreams ..........................   Passed    0.03 sec
+        Start 280: ScenePipeline.SceneDataFitsTheSharedPushConstantRange
+280/366 Test #280: ScenePipeline.SceneDataFitsTheSharedPushConstantRange ...................................   Passed    0.03 sec
+        Start 281: ScenePipeline.PushConstantCarriesCameraAndGenericSpotLight
+281/366 Test #281: ScenePipeline.PushConstantCarriesCameraAndGenericSpotLight ..............................   Passed    0.03 sec
+        Start 282: ScenePipeline.PointLightPackingIsIndependentOfSpotlight
+282/366 Test #282: ScenePipeline.PointLightPackingIsIndependentOfSpotlight .................................   Passed    0.67 sec
+        Start 283: ScenePipeline.ReservesTwoImmutableDescriptorSets
+283/366 Test #283: ScenePipeline.ReservesTwoImmutableDescriptorSets ........................................   Passed    0.03 sec
+        Start 284: SceneLighting.MatchesStd140UploadAndDescriptorContract
+284/366 Test #284: SceneLighting.MatchesStd140UploadAndDescriptorContract ..................................   Passed    0.11 sec
+        Start 285: SceneLighting.RadiusBoundedFalloffIsExactAndBounded
+285/366 Test #285: SceneLighting.RadiusBoundedFalloffIsExactAndBounded .....................................   Passed    0.04 sec
+        Start 286: SceneLighting.SpotLightFalloffIsConeRangeOrientationAndStateBounded
+286/366 Test #286: SceneLighting.SpotLightFalloffIsConeRangeOrientationAndStateBounded .....................   Passed    0.04 sec
+        Start 287: PrototypeLevel.HasValidContainedMovementTestGeometry
+287/366 Test #287: PrototypeLevel.HasValidContainedMovementTestGeometry ....................................   Passed    0.12 sec
+        Start 288: PrototypeLevel.HasValidBoundedSculptableTerrain
+288/366 Test #288: PrototypeLevel.HasValidBoundedSculptableTerrain .........................................   Passed    0.12 sec
+        Start 289: PrototypeLevel.RejectsInvalidTerrainFixtures
+289/366 Test #289: PrototypeLevel.RejectsInvalidTerrainFixtures ............................................   Passed    0.13 sec
+        Start 290: PrototypeLevel.PreservesLegacyMaterialAssignments
+290/366 Test #290: PrototypeLevel.PreservesLegacyMaterialAssignments .......................................   Passed    0.12 sec
+        Start 291: PrototypeLevel.RejectsInvalidSurfaceRoles
+291/366 Test #291: PrototypeLevel.RejectsInvalidSurfaceRoles ...............................................   Passed    0.28 sec
+        Start 292: PrototypeLevel.HasOneValidFilesystemFreeStaticChairDescription
+292/366 Test #292: PrototypeLevel.HasOneValidFilesystemFreeStaticChairDescription ..........................   Passed    0.12 sec
+        Start 293: PrototypeLevel.RejectsInvalidStaticChairFixtures
+293/366 Test #293: PrototypeLevel.RejectsInvalidStaticChairFixtures ........................................   Passed    0.12 sec
+        Start 294: PrototypeLevel.HasValidImmutableEnvironmentLight
+294/366 Test #294: PrototypeLevel.HasValidImmutableEnvironmentLight ........................................   Passed    0.20 sec
+        Start 295: PrototypeLevel.RejectsInvalidEnvironmentLightFixtures
+295/366 Test #295: PrototypeLevel.RejectsInvalidEnvironmentLightFixtures ...................................   Passed    0.12 sec
+        Start 296: PrototypeLevel.SpawnFacesSceneAndClearsEverySolid
+296/366 Test #296: PrototypeLevel.SpawnFacesSceneAndClearsEverySolid .......................................   Passed    0.11 sec
+        Start 297: PrototypeLevel.RenderingAndPhysicsDeriveFromMatchingSolids
+297/366 Test #297: PrototypeLevel.RenderingAndPhysicsDeriveFromMatchingSolids ..............................   Passed    0.12 sec
+        Start 298: SurfaceFormat.RecoveryControlChoosesOnlyAnAdvertisedReadbackFormat
+298/366 Test #298: SurfaceFormat.RecoveryControlChoosesOnlyAnAdvertisedReadbackFormat ......................   Passed    0.03 sec
+        Start 299: VulkanResult.NamesKnownAndUnknownResults
+299/366 Test #299: VulkanResult.NamesKnownAndUnknownResults ................................................   Passed    0.03 sec
+        Start 300: QueueFamilies.PrefersOneFamilySupportingBothOperations
+300/366 Test #300: QueueFamilies.PrefersOneFamilySupportingBothOperations ..................................   Passed    0.03 sec
+        Start 301: QueueFamilies.SupportsDistinctGraphicsAndPresentationFamilies
+301/366 Test #301: QueueFamilies.SupportsDistinctGraphicsAndPresentationFamilies ...........................   Passed    0.03 sec
+        Start 302: QueueFamilies.RejectsMissingRequirement
+302/366 Test #302: QueueFamilies.RejectsMissingRequirement .................................................   Passed    0.03 sec
+        Start 303: SwapchainSelection.PrefersSrgbAndClampsVariableExtent
+303/366 Test #303: SwapchainSelection.PrefersSrgbAndClampsVariableExtent ...................................   Passed    0.03 sec
+        Start 304: SwapchainSelection.RequiresColorAttachmentImageUsage
+304/366 Test #304: SwapchainSelection.RequiresColorAttachmentImageUsage ....................................   Passed    0.03 sec
+        Start 305: SwapchainSelection.PrefersOpaqueCompositeAlpha
+305/366 Test #305: SwapchainSelection.PrefersOpaqueCompositeAlpha ..........................................   Passed    0.03 sec
+        Start 306: SwapchainSelection.ChoosesDeterministicSupportedCompositeAlphaFallback
+306/366 Test #306: SwapchainSelection.ChoosesDeterministicSupportedCompositeAlphaFallback ..................   Passed    0.03 sec
+        Start 307: DepthSelection.PrefersFirstSupportedCandidateAndFallsBack
+307/366 Test #307: DepthSelection.PrefersFirstSupportedCandidateAndFallsBack ...............................   Passed    0.04 sec
+        Start 308: TextureMipLevels.CoversEveryLevelDownToOneTexel
+308/366 Test #308: TextureMipLevels.CoversEveryLevelDownToOneTexel .........................................   Passed    0.03 sec
+        Start 309: TextureFormatSupport.RequiresSamplingFilteringBlittingAndTransfer
+309/366 Test #309: TextureFormatSupport.RequiresSamplingFilteringBlittingAndTransfer .......................   Passed    0.03 sec
+        Start 310: MemorySelection.UsesCompatiblePreferredOrFallbackType
+310/366 Test #310: MemorySelection.UsesCompatiblePreferredOrFallbackType ...................................   Passed    0.03 sec
+        Start 311: Ownership.RuntimeAndVulkanOwnersAreNonCopyable
+311/366 Test #311: Ownership.RuntimeAndVulkanOwnersAreNonCopyable ..........................................   Passed    0.03 sec
+        Start 312: PlatformFailure.ForcedInitializationFailureIsDeterministic
+312/366 Test #312: PlatformFailure.ForcedInitializationFailureIsDeterministic ..............................   Passed    0.03 sec
+        Start 313: PhysicsLifetime.RepeatedCreateDestroyLeavesNoGlobalOwner
+313/366 Test #313: PhysicsLifetime.RepeatedCreateDestroyLeavesNoGlobalOwner ................................   Passed    0.15 sec
+        Start 314: PhysicsLifetime.InteriorPartialConstructionAndWallsRetainOwnership
+314/366 Test #314: PhysicsLifetime.InteriorPartialConstructionAndWallsRetainOwnership ......................   Passed    0.10 sec
+        Start 315: PhysicsLifetime.FailureAfterSeveralDoorBodiesReleasesAllOwners
+315/366 Test #315: PhysicsLifetime.FailureAfterSeveralDoorBodiesReleasesAllOwners ..........................   Passed    0.04 sec
+        Start 316: PhysicsLifetime.RejectsDuplicateActiveRuntimeWithoutDamagingOwner
+316/366 Test #316: PhysicsLifetime.RejectsDuplicateActiveRuntimeWithoutDamagingOwner .......................   Passed    0.13 sec
+        Start 317: PhysicsLifetime.PartialInitializationFailuresReleaseEveryStage
+317/366 Test #317: PhysicsLifetime.PartialInitializationFailuresReleaseEveryStage ..........................   Passed    0.20 sec
+        Start 318: PhysicsWorld.AdvancesOnTheCallingThreadWithSingleThreadedJobs
+318/366 Test #318: PhysicsWorld.AdvancesOnTheCallingThreadWithSingleThreadedJobs ...........................   Passed    0.13 sec
+        Start 319: PhysicsWorld.StaticTerrainSupportsTheFallingCharacter
+319/366 Test #319: PhysicsWorld.StaticTerrainSupportsTheFallingCharacter ...................................   Passed    0.14 sec
+        Start 320: PhysicsWorld.TraversesTerrainFeaturesAndCannotEscapeAtADepression
+320/366 Test #320: PhysicsWorld.TraversesTerrainFeaturesAndCannotEscapeAtADepression .......................   Passed    0.23 sec
+        Start 321: PhysicsWorld.StaticBoundaryBlocksCharacter
+321/366 Test #321: PhysicsWorld.StaticBoundaryBlocksCharacter ..............................................   Passed    0.15 sec
+        Start 322: PhysicsWorld.StaticObstacleRejectsForwardMovement
+322/366 Test #322: PhysicsWorld.StaticObstacleRejectsForwardMovement .......................................   Passed    0.17 sec
+        Start 323: PhysicsWorld.StaticChairProxyMatchesPlacementAndBlocksThePlayer
+323/366 Test #323: PhysicsWorld.StaticChairProxyMatchesPlacementAndBlocksThePlayer .........................   Passed    0.17 sec
+        Start 324: PhysicsCharacter.SpawnsUnsupportedThenSettlesStably
+324/366 Test #324: PhysicsCharacter.SpawnsUnsupportedThenSettlesStably .....................................   Passed    0.15 sec
+        Start 325: PhysicsCharacter.SlidesTangentiallyAlongBoundary
+325/366 Test #325: PhysicsCharacter.SlidesTangentiallyAlongBoundary ........................................   Passed    0.15 sec
+        Start 326: PhysicsCharacter.TraversesAuthoredLowStepWithoutEmbedding
+326/366 Test #326: PhysicsCharacter.TraversesAuthoredLowStepWithoutEmbedding ...............................   Passed    0.14 sec
+        Start 327: PhysicsCharacter.CrouchPreservesFootPosition
+327/366 Test #327: PhysicsCharacter.CrouchPreservesFootPosition ............................................   Passed    0.13 sec
+        Start 328: PhysicsCharacter.LowClearanceRouteRejectsStandingPlayer
+328/366 Test #328: PhysicsCharacter.LowClearanceRouteRejectsStandingPlayer .................................   Passed    0.14 sec
+        Start 329: PhysicsCharacter.CrouchesThroughRouteAndStandsAfterClearance
+329/366 Test #329: PhysicsCharacter.CrouchesThroughRouteAndStandsAfterClearance ............................   Passed    0.15 sec
+        Start 330: PlayerMovement.EveryGroundAxisUsesCurrentYaw
+330/366 Test #330: PlayerMovement.EveryGroundAxisUsesCurrentYaw ............................................   Passed    0.43 sec
+        Start 331: PlayerMovement.DiagonalIsNormalizedAndSprintUsesSevenMetersPerSecond
+331/366 Test #331: PlayerMovement.DiagonalIsNormalizedAndSprintUsesSevenMetersPerSecond ....................   Passed    0.24 sec
+        Start 332: PlayerMovement.GravityAndGroundedMotionUseDifferentPolicies
+332/366 Test #332: PlayerMovement.GravityAndGroundedMotionUseDifferentPolicies .............................   Passed    0.13 sec
+        Start 333: PlayerMovement.AirControlApproachesRequestAtBoundedAcceleration
+333/366 Test #333: PlayerMovement.AirControlApproachesRequestAtBoundedAcceleration .........................   Passed    0.13 sec
+        Start 334: PlayerJump.LatchSurvivesAZeroStepRenderIteration
+334/366 Test #334: PlayerJump.LatchSurvivesAZeroStepRenderIteration ........................................   Passed    0.12 sec
+        Start 335: PlayerJump.HeldJumpIsConsumedExactlyOnceAcrossCatchUpSteps
+335/366 Test #335: PlayerJump.HeldJumpIsConsumedExactlyOnceAcrossCatchUpSteps ..............................   Passed    0.14 sec
+        Start 336: PlayerJump.AirbornePressWaitsForFirstEligibleGroundedStep
+336/366 Test #336: PlayerJump.AirbornePressWaitsForFirstEligibleGroundedStep ...............................   Passed    0.14 sec
+        Start 337: PlayerCamera.RetainsVulkanProjectionStorageAndAspectBehavior
+337/366 Test #337: PlayerCamera.RetainsVulkanProjectionStorageAndAspectBehavior ............................   Passed    0.12 sec
+        Start 338: PlayerCamera.AppliesLookOncePerSampleAndClampsPitch
+338/366 Test #338: PlayerCamera.AppliesLookOncePerSampleAndClampsPitch .....................................   Passed    0.15 sec
+        Start 339: PlayerCamera.UsesActualStanceEyeHeight
+339/366 Test #339: PlayerCamera.UsesActualStanceEyeHeight ..................................................   Passed    0.14 sec
+        Start 340: PlayerView.UsesInterpolatedStandingAndCrouchedEye
+340/366 Test #340: PlayerView.UsesInterpolatedStandingAndCrouchedEye .......................................   Passed    0.13 sec
+        Start 341: PlayerView.DirectionMatchesLookAndSharedCameraPose
+341/366 Test #341: PlayerView.DirectionMatchesLookAndSharedCameraPose ......................................   Passed    0.12 sec
+        Start 342: PlayerCursor.ReleasePrecedesRecaptureAndTransitionsNeutralizeControls
+342/366 Test #342: PlayerCursor.ReleasePrecedesRecaptureAndTransitionsNeutralizeControls ...................   Passed    0.03 sec
+        Start 343: PlayerCursor.ReleasedControlsAreNeutralWhileAirbornePhysicsContinues
+343/366 Test #343: PlayerCursor.ReleasedControlsAreNeutralWhileAirbornePhysicsContinues ....................   Passed    0.13 sec
+        Start 344: PrototypeScene.ContainsTerrainBoundariesAndMultipleColoredObjects
+344/366 Test #344: PrototypeScene.ContainsTerrainBoundariesAndMultipleColoredObjects .......................   Passed    0.13 sec
+        Start 345: PrototypeScene.AppendsContinuousWorldScaledTerrainTriangles
+345/366 Test #345: PrototypeScene.AppendsContinuousWorldScaledTerrainTriangles .............................   Passed    0.12 sec
+        Start 346: PrototypeScene.CenterObjectsOverlapInDepthFromInitialPose
+346/366 Test #346: PrototypeScene.CenterObjectsOverlapInDepthFromInitialPose ...............................   Passed    0.12 sec
+        Start 347: PrototypeScene.ExpandsEverySolidFaceAtItsAuthoredBoundsAndColor
+347/366 Test #347: PrototypeScene.ExpandsEverySolidFaceAtItsAuthoredBoundsAndColor .........................   Passed    0.13 sec
+        Start 348: PrototypeScene.GivesEveryFaceAConsistentOutwardUnitNormal
+348/366 Test #348: PrototypeScene.GivesEveryFaceAConsistentOutwardUnitNormal ...............................   Passed    0.13 sec
+        Start 349: PrototypeScene.GivesEveryFaceFiniteContinuousWorldScaledCoordinates
+349/366 Test #349: PrototypeScene.GivesEveryFaceFiniteContinuousWorldScaledCoordinates .....................   Passed    0.12 sec
+        Start 350: PrototypeScene.FaceTextureAxesFollowEachOutwardNormal
+350/366 Test #350: PrototypeScene.FaceTextureAxesFollowEachOutwardNormal ...................................   Passed    0.13 sec
+        Start 351: PrototypeScene.LargeSurfacesRepeatAndDrawKeysMatchAssignedMaterials
+351/366 Test #351: PrototypeScene.LargeSurfacesRepeatAndDrawKeysMatchAssignedMaterials .....................   Passed    0.12 sec
+        Start 352: PrototypeScene.StructuralAppearanceChangesWithoutChangingSolidGeometry
+352/366 Test #352: PrototypeScene.StructuralAppearanceChangesWithoutChangingSolidGeometry ..................   Passed    0.06 sec
+        Start 353: ChangingGeometry.InitialAndMovingDoorBoxesHaveFiniteOutwardNormals
+353/366 Test #353: ChangingGeometry.InitialAndMovingDoorBoxesHaveFiniteOutwardNormals ......................   Passed    0.03 sec
+        Start 354: ChangingGeometry.RejectsInvalidAndUnboundedFrameData
+354/366 Test #354: ChangingGeometry.RejectsInvalidAndUnboundedFrameData ....................................   Passed    0.03 sec
+        Start 355: SwitchGeometry.YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild
+355/366 Test #355: SwitchGeometry.YawedOpaquePlateMatchesBoundsAndSurvivesTerrainRebuild ...................   Passed    0.06 sec
+        Start 363: runtime_public_consumer
+356/366 Test #363: runtime_public_consumer .................................................................   Passed    0.05 sec
+        Start 364: public_boundary_headers
+357/366 Test #364: public_boundary_headers .................................................................   Passed    0.03 sec
+        Start 365: public_boundary_negative
+358/366 Test #365: public_boundary_negative ................................................................   Passed    0.03 sec
+        Start 366: public_boundary_jolt_negative
+359/366 Test #366: public_boundary_jolt_negative ...........................................................   Passed    0.04 sec
+        Start 367: source_boundary_check
+360/366 Test #367: source_boundary_check ...................................................................   Passed    9.73 sec
+        Start 368: editor_executable_resources
+361/366 Test #368: editor_executable_resources .............................................................   Passed    0.03 sec
+        Start 371: executable_relative_resource_layout
+362/366 Test #371: executable_relative_resource_layout .....................................................   Passed    0.01 sec
+        Start 372: unicode_executable_resource_layout
+363/366 Test #372: unicode_executable_resource_layout ......................................................   Passed    0.53 sec
+        Start 373: game_launch_option_failures
+364/366 Test #373: game_launch_option_failures .............................................................   Passed    0.12 sec
+        Start 374: character_executable_relative_resources
+365/366 Test #374: character_executable_relative_resources .................................................   Passed    0.16 sec
+        Start 375: character_isolated_prepared_resources
+366/366 Test #375: character_isolated_prepared_resources ...................................................   Passed    0.29 sec
+
+100% tests passed, 0 tests failed out of 366
+
+Label Time Summary:
+boundary    =   9.92 sec*proc (6 tests)
+process     =   1.12 sec*proc (5 tests)
+unit        =  45.61 sec*proc (355 tests)
+
+Total Test time (real) =  57.12 sec

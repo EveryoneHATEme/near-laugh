@@ -1,0 +1,47 @@
+[
+  {
+    "file": "characters-0-1.csv.gz",
+    "csv_sha256": "0c1886735160fdfe5ab8af96dd6b5b57f147dc2e4d66f4766b9661a62b2c05b0",
+    "gzip_sha256": "636be58b1b0379acbd7d265bd6bc1f34cd103d97a45d5bd3ef7fc0951b8ff4c4"
+  },
+  {
+    "file": "characters-0-2.csv.gz",
+    "csv_sha256": "72605f7aa88f4b6458e875b3f0628fd41bada6a0587e7dd378df6524ff76bf4e",
+    "gzip_sha256": "60ba9b286541dea2eb7e01b8d42a58440844dc88438dabf948788ecb2e4f4795"
+  },
+  {
+    "file": "characters-0-3.csv.gz",
+    "csv_sha256": "7bcaa583e1b0f79eef76cdecdb9b82e4d92d795ccc348d1bb4eaabc3b2e6f291",
+    "gzip_sha256": "7ba924c19947ad26ed1a76b19ee0833c7c950718d7c624006ca3ce01f7c14a21"
+  },
+  {
+    "file": "characters-1-1.csv.gz",
+    "csv_sha256": "d2c315649463b14c5fd6c555397b53a563a33ee64c19325067d6b4fa68ca373e",
+    "gzip_sha256": "bbdc4852381ca2c7de06440cb06e7d5f2cbb4d0994ae1f9e3c872962369b0659"
+  },
+  {
+    "file": "characters-1-2.csv.gz",
+    "csv_sha256": "0debfc35ec022c2fc411097e303439467045f932577612680d07f4a8b7afb925",
+    "gzip_sha256": "98618849158127bcfaf0cd93ba42928820a4edf168b19baab915e40eacbe4354"
+  },
+  {
+    "file": "characters-1-3.csv.gz",
+    "csv_sha256": "0e59fab59f80df626a842d8fdd1cda72b58dc031b6b6f2ee2b7614d7549dc705",
+    "gzip_sha256": "6228884195d5aacdeb85c03a14e763936eff32b7d436f6ef443b7f092b357fff"
+  },
+  {
+    "file": "characters-4-1.csv.gz",
+    "csv_sha256": "635cf0f22f720979a4fe832fea91d056354773abffb6750add0889f652ba372d",
+    "gzip_sha256": "73c4de5ab802e87211bf871aead93f4a322de0d050a48c0d5eabf330d442b7e5"
+  },
+  {
+    "file": "characters-4-2.csv.gz",
+    "csv_sha256": "202bdf369a1f0846387f16af793e6ead87197495334e386d1fd1459c5eeb3c11",
+    "gzip_sha256": "23eff45e2be37adc89b25ae62c3d2a524719db3e3563defa1ab74b8afcc5e0b0"
+  },
+  {
+    "file": "characters-4-3.csv.gz",
+    "csv_sha256": "08e08b9881f28825f7b01a1c7c456303ceac9ae19a4c92d5f6fd97c8cc046a58",
+    "gzip_sha256": "20b0dad4307349801c877c6f3e03445bcc1f79a06564e0cbc633b1eb2e86e1e0"
+  }
+]

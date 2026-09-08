@@ -16,8 +16,11 @@ def summarize(path: Path):
     if not rows:
         raise ValueError(f"{path}: no post-warmup samples")
     metrics = {}
-    for name in ("cpu_active_ms", "gpu_frame_ms", "gpu_shadow_ms", "interval_ms",
-                 "fence_ms", "acquire_ms", "present_ms"):
+    names = ["cpu_active_ms", "gpu_frame_ms", "gpu_shadow_ms", "interval_ms",
+             "fence_ms", "acquire_ms", "present_ms"]
+    names += [name for name in ("character_deformation_ms", "character_upload_ms")
+              if name in raw[0]]
+    for name in names:
         values = sorted(float(row[name]) for row in rows if row[name] != "")
         if any(not math.isfinite(value) or value < 0 for value in values):
             raise ValueError(f"{path}: invalid {name} value")

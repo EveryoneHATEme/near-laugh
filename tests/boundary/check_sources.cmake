@@ -37,6 +37,9 @@ foreach(DECODER_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
 endforeach()
 
 foreach(CGLTF_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    if(CGLTF_SOURCE MATCHES "src/core/animation/character_asset[.]cpp$")
+        continue()
+    endif()
     if(CGLTF_SOURCE MATCHES
        "[/\\\\]src[/\\\\]core[/\\\\]render[/\\\\](cgltf_impl|static_model_loader)[.]cpp$")
         continue()
@@ -49,6 +52,10 @@ foreach(CGLTF_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
 endforeach()
 
 foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
+    # Deliberately malformed animated GLB fixtures are encoded in the test only.
+    if(JSON_SOURCE MATCHES "tests/core/test_character_animation[.]cpp$")
+        continue()
+    endif()
     if(JSON_SOURCE MATCHES
        "[/\\\\]src[/\\\\]core[/\\\\]world[/\\\\]level_codec[.]cpp$")
         continue()
@@ -126,6 +133,8 @@ file(GLOB_RECURSE RUNTIME_HEADERS
      "${SOURCE_ROOT}/src/core/physics/*.hpp"
      "${SOURCE_ROOT}/src/core/simulation/*.hpp"
      "${SOURCE_ROOT}/src/core/world/*.hpp")
+file(GLOB ANIMATION_HEADERS "${SOURCE_ROOT}/src/core/animation/*.hpp")
+list(APPEND RUNTIME_HEADERS ${ANIMATION_HEADERS})
 list(APPEND RUNTIME_HEADERS "${SOURCE_ROOT}/src/core/frame.hpp")
 foreach(RUNTIME_HEADER IN LISTS RUNTIME_HEADERS)
     file(READ "${RUNTIME_HEADER}" RUNTIME_HEADER_CONTENT)

@@ -1,0 +1,96 @@
+{
+  "baseline": "openspec/changes/add-character-animation/evidence/timings",
+  "csv_hashes_verified": 9,
+  "gzip_hashes_verified": 9,
+  "baseline_files_unchanged": {
+    "characters-0-1.csv.gz": "8f63989b867d650c0ba957977cb97b3bf341f1037cb462efded4793e9ff40007",
+    "characters-0-1.log": "abe54fd37f6ec54b658dd704d15c64a1d42061842225732837673467819c303a",
+    "characters-0-2.csv.gz": "acb403522d6e299a742915b508d1d894928a4085762944c858dbd6ba50bbcbd0",
+    "characters-0-2.log": "abe54fd37f6ec54b658dd704d15c64a1d42061842225732837673467819c303a",
+    "characters-0-3.csv.gz": "1aeda1cd1beb3c884c567018559eefddef51e795848811b7b56481f07c0eb734",
+    "characters-0-3.log": "abe54fd37f6ec54b658dd704d15c64a1d42061842225732837673467819c303a",
+    "characters-1-1.csv.gz": "1986a7df14348465682cfa3433fc78b5a9323fc8b60ac2b020d3fe03b615a616",
+    "characters-1-1.log": "134f29e95e08f84f085c4e61226d5afdbea8a2548d8c9b04268c456d555dabc2",
+    "characters-1-2.csv.gz": "54c6200a106f39941e543d90209e59bc77a92610f9885ac15864b29d2bcd1967",
+    "characters-1-2.log": "585f5b67d02f70b360406aa9c769f10db91acb8a9588750e4e2bac58ca06bcbe",
+    "characters-1-3.csv.gz": "8d8d0c87a0f2a79ae5437a4c2e54428856257ac4795b5e24c5ba0ce08b8e9470",
+    "characters-1-3.log": "7e5695b9488f4f1d4c3e622209c87dd0313642420cfdaa2cc7f9cd4cc39525b5",
+    "characters-4-1.csv.gz": "9f26b5be2193e93ae5d53b19a2402f3c88279e0618456bdd7fb7de654f09c7d7",
+    "characters-4-1.log": "ed72fde63a6453810d970df9af4eeaaf383b66b1200eadd625fc853b6da2b1a1",
+    "characters-4-2.csv.gz": "57a1efaff55b5073dce1595886f3588b74685f410238df3af522ad22d84418c8",
+    "characters-4-2.log": "ed72fde63a6453810d970df9af4eeaaf383b66b1200eadd625fc853b6da2b1a1",
+    "characters-4-3.csv.gz": "25cf59f263245bf0cbb28719c2950b95694d75d686bbb7c35e20253071650d7f",
+    "characters-4-3.log": "ed72fde63a6453810d970df9af4eeaaf383b66b1200eadd625fc853b6da2b1a1",
+    "input-hashes.json": "3be6ad70b3272cbe213d7bba71014d53aaa8b748100f98de5eb70c28366df26f",
+    "retention.json": "ef06ca6867585a9762f4189b9b604efa5a24e226a14e5271096142212e503f00",
+    "summary.json": "287ca3bdaa12871014256ba9c14e0e2f94984ab3b0958e76b4d31286e9034804",
+    "views/character-benchmark-final-debug-4-errors.log": "4ca3199b51faa67e064eece6c0431b727a5071d4d6d95f97e450eac0165de8f2",
+    "views/character-benchmark-final-debug-4.csv": "14cc5bf2b9b7c5a2c6fae971bfb6ca4bca1031e9c3895d62ff0c0d47ba51a60e",
+    "views/character-benchmark-final-debug-4.log": "d635e6f8d4ba967b16f980329481a146591885bb464f1cf00d1823aca62c4923",
+    "views/character-benchmark-final-debug-4.png": "bea08db5af525c16301a37e63474d47bfcea841a548a21b5580b1f58527b908b",
+    "views/character-benchmark-final-release-0-errors.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "views/character-benchmark-final-release-0.csv": "b4f68f6570b4f045fad9f74cda8a056d1104c40c048c062d4d3b8f9dac1fb43c",
+    "views/character-benchmark-final-release-0.log": "02d7a1bcf1ecb751d1fd31f84b2c7e150980ccdebf1c61e70bff63716813e507",
+    "views/character-benchmark-final-release-0.png": "0e2e10d76feb1e2bbf34f0ff5279fb7a1ae5ab590022adf016d4d05f11ce6e2f",
+    "views/character-benchmark-final-release-1-errors.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "views/character-benchmark-final-release-1.csv": "c93734e95260c7f20281a9603990257b46b0cfbadd411b4a48ed85caf0917649",
+    "views/character-benchmark-final-release-1.log": "a31239c72c9ab1d4106ba86abbeb970eca960e3539cc357d2c6ca5471f63de71",
+    "views/character-benchmark-final-release-1.png": "04203bf40ee9ac6ad6add08a7b17b198d9cb1c8c963f085d58ca388ee53a522b",
+    "views/character-benchmark-view-final.csv": "4e26a66be73a2894cfb282a86345b07b4d708928dde99a6018c2e56942c2bc4d",
+    "views/character-benchmark-view-final.png": "15bd004d00723f701854062c47dc8fd293fdab62c9d7215c6746b15faffc0146",
+    "views/checks.json": "27fabf1e16edf504f495365baf71a8ca37aa67d2ebfadd654e9ff907a1ae17c4"
+  },
+  "input_comparisons": {
+    "src/character_animation_viewer_main.cpp": {
+      "sha256": "1bf93b12c3967d54c72be5b9a4337701fb335bb9bb473558ec31df67532a9f04",
+      "unchanged": true
+    },
+    "resources/levels/interior-lighting-capacity.level.json": {
+      "sha256": "4c0b696a879f4052c1f4aabd0b4ad7f3cb3bb7cdce365611dc74b079b3d8c1ae",
+      "unchanged": true
+    },
+    "resources/characters/test-mannequin.glb": {
+      "sha256": "35bc29b259644b784b1bb3fe97e880ac0d7f51d4f5309965ebcfc47d2ac800c4",
+      "unchanged": true
+    },
+    "scripts/measure_character_animation.ps1": {
+      "sha256": "5f064f3786e2dc6af2fad89e3f78851f2c7fe286ada61636a55ed59d92f8f6d4",
+      "unchanged": true
+    },
+    "scripts/summarize_lighting_timings.py": {
+      "sha256": "2f4af1b244582b4c004fbd3e15143c6f46baa136b1c1e066d96a942ead948038",
+      "unchanged": true
+    },
+    "resources/shaders/caption_fragment.spv": {
+      "sha256": "0b493e18bd03dcc0f10e706030ea8f2f9fd624bbf88c644ac4232cf3e878e979",
+      "unchanged": null,
+      "baseline_hash_available": false
+    },
+    "resources/shaders/caption_vertex.spv": {
+      "sha256": "221d665eeb5c0f39e91a513535b1a42022c36bc6896cf29cc7acf992c0474224",
+      "unchanged": null,
+      "baseline_hash_available": false
+    },
+    "resources/shaders/point_shadow_fragment.spv": {
+      "sha256": "f99b27def47be73439118caa17b30d31b62dc11c52ac45a1997c582652bd2521",
+      "unchanged": null,
+      "baseline_hash_available": false
+    },
+    "resources/shaders/point_shadow_vertex.spv": {
+      "sha256": "33cb3571d51a46de0e069f8882170a27ce2b70e20db22edbd162858703058f8e",
+      "unchanged": null,
+      "baseline_hash_available": false
+    },
+    "resources/shaders/prototype_scene_fragment.spv": {
+      "sha256": "1c43507e9d8c6657ddf29805b96461a8ad95ddc5874adab161dc423ec5409224",
+      "unchanged": null,
+      "baseline_hash_available": false
+    },
+    "resources/shaders/prototype_scene_vertex.spv": {
+      "sha256": "627a28f67182ba027cdea53da29255081659d2f09f87823a945c5ba0b7c36df0",
+      "unchanged": null,
+      "baseline_hash_available": false
+    }
+  },
+  "baseline_release_executable_sha256": "2b5ddc6e8578df435b0356a99fc2d65cc7cb8b442dffef73f96da834048a64b5"
+}

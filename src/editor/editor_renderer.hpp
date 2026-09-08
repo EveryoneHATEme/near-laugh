@@ -7,6 +7,7 @@
 #include <span>
 
 #include "core/frame.hpp"
+#include "core/render/character_presentation.hpp"
 
 struct LevelDocument;
 struct EditorOverlayLine;
@@ -35,6 +36,10 @@ class EditorRenderer {
 
   void beginUiFrame();
   void replaceDocument(const LevelDocument& level);
+  // A candidate owns the full static/animated scene until successful install.
+  // Failure retains the previous scene and compatible pose selection.
+  void replaceDocument(const LevelDocument& level,
+                       std::span<const CharacterRenderInstance> characters);
   void replaceTerrain(const LevelDocument& level);
   void validateSceneAssets(const LevelDocument& level) const;
   [[nodiscard]] std::size_t terrainReplacementCount() const noexcept;

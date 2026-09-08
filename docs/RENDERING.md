@@ -28,10 +28,13 @@ teardown and cause smoke tests to fail after orderly cleanup.
 The runtime submits at most one `FrameRequest` per loop iteration. It contains:
 
 - the current framebuffer extent and resize state;
-- a standard-layout, column-major camera view-projection matrix; and
-- at most one source-independent dynamic `SpotLightFrame`; and
-- a borrowed span containing exactly one 0/1 enable per authored point light; and
-- at most 192 source-independent opaque boxes for accepted door poses and feedback.
+- a standard-layout, column-major camera view-projection matrix;
+- at most one source-independent dynamic `SpotLightFrame`;
+- a borrowed span containing exactly one 0/1 enable per authored point light;
+- at most 192 source-independent opaque boxes for accepted door poses and feedback;
+- borrowed resolved foreground/ambience captions; and
+- a borrowed exact set of zero through four selected character palettes and
+  finite world translation/yaw, identified by render handles and skeleton tags.
 
 A zero extent is skipped before GPU submission. The renderer owns swapchain
 out-of-date and suboptimal handling and returns a backend-neutral `Rendered`,
@@ -123,8 +126,9 @@ cleared dummy layer keeps the descriptor valid with no casters. Failure to
 create the profile is reported instead of disabling shadows.
 
 Each enabled source renders six ordinary Dynamic Rendering depth passes before
-the color pass. Every static material batch and exactly the current accepted
-changing boxes participate; editor preview uses the authored initial door mesh.
+the color pass. Every static material batch, the current accepted changing boxes
+and selected deformed character ranges participate; editor preview uses the
+authored initial door mesh.
 Both sides cast shadows, OPAQUE ignores alpha and MASK uses the same material
 texture/factor/cutoff as the color pass. Render triangles cast shadows even
 when a prop has no collision proxies. Player capsules and editor overlays do
@@ -150,8 +154,9 @@ readbacks and measured T1 results are recorded in the change validation record.
 ## Ownership and Lifetime
 
 `Renderer` owns the Vulkan context, static scene resources, lighting resources,
-changing door geometry, swapchain resources and pipeline. Swapchain-independent
-textures, lighting and static mesh uploads survive resize and presentation recovery.
+changing door and character geometry, swapchain resources and pipeline.
+Swapchain-independent textures, lighting, static mesh uploads and character
+resources survive resize and presentation recovery.
 The pipeline borrows descriptor handles and owns no geometry.
 
 Teardown destroys pipelines before the descriptors and mesh buffers they use;
@@ -203,6 +208,43 @@ to the Vulkan view volume. The editor renderer draws
 these lines through the ImGui background draw list, above scene geometry and
 below UI panels, using the existing Vulkan backend. They intentionally have no
 scene depth test and do not alter runtime frame requests or level data.
+
+## Prepared character presentation
+
+The separate animation target decodes the controlled mannequin profile: one
+skin, at most 65 joints/80 nodes, an identity mesh with one or two indexed
+primitives, 10,000 source vertices/50,000 indices, and exactly idle/walk/interact.
+Inputs are embedded GLB up to 16 MiB with at most 32 MiB decoded CPU data and a
+separate 32 MiB parser allocation budget. Only finite unit-scale TR,
+LINEAR translation/rotation channels and constant diffuse
+two-sided OPAQUE materials are accepted. Static loading keeps its own profile.
+See [character preparation and calibration](../resources/characters/README.md).
+
+Selected instances share immutable assets and primitive materials. Each supplied
+palette contains model-relative global joint matrices in the asset's skin order;
+inverse binds are applied during deformation, followed by world translation/yaw
+once. Local pose sampling uses node order, including constant ancestors. The
+renderer checks the complete selected instance set, skeleton identity, palette
+size and finite transforms before submission and retains no caller frame storage.
+CPU skinning evaluates and uploads each source vertex once per instance into
+the existing vertex layout, capped at 40,000 vertices across four instances.
+Each distinct asset shares one immutable uint32 index range and its primitive
+materials. Indexed draws preserve declared triangle order, using checked
+first-index/count and per-instance signed vertex offsets. The aggregate draw
+limit is 200,000 indices, counting every instance even when indices are shared.
+Normal deformation is normalized after weighted
+rotation and one placement transform. The same ranges feed color and every
+enabled point-shadow face, including off-screen silhouettes.
+
+Character resources own the immutable index buffer, initialized once through
+coherent host memory, and separate persistently mapped coherent vertex buffers
+for the two existing frame slots. CPU validation/deformation finishes before
+image acquisition; writes wait for the slot fence. Empty selection allocates
+no character GPU buffers/materials. Swapchain and attachment-format recovery
+retain character resources. Editor replacement builds a complete candidate
+scene/lighting/character set and installs it only after success; failure retains
+the previous set and matching pose contract. Pipelines and dependent GPU work
+finish before character buffers, materials and immutable CPU owners are released.
 
 ## Russian captions
 

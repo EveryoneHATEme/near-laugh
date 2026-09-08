@@ -1,12 +1,43 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstdlib>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 #include "core/render/vulkan_utils.hpp"
+
+TEST(SurfaceFormat, RecoveryControlChoosesOnlyAnAdvertisedReadbackFormat) {
+  struct ClearFailureStage {
+    ~ClearFailureStage() {
+#ifdef _WIN32
+      _putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", "");
+#else
+      unsetenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE");
+#endif
+    }
+  } clear;
+#ifdef _WIN32
+  ASSERT_EQ(_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE",
+                      "alternate_surface_format"),
+            0);
+#else
+  ASSERT_EQ(setenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE",
+                   "alternate_surface_format", 1),
+            0);
+#endif
+  const VkSurfaceFormatKHR srgb{VK_FORMAT_B8G8R8A8_SRGB,
+                                VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+  const VkSurfaceFormatKHR unorm{VK_FORMAT_B8G8R8A8_UNORM,
+                                 VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+  const VkSurfaceFormatKHR unsupported{VK_FORMAT_R8_UNORM,
+                                       VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+  EXPECT_EQ(chooseSurfaceFormat({unsupported, srgb, unorm}).format,
+            unorm.format);
+  EXPECT_THROW((void)chooseSurfaceFormat({unsupported, srgb}), std::runtime_error);
+}
 
 TEST(VulkanResult, NamesKnownAndUnknownResults) {
   EXPECT_STREQ(vulkanResultName(VK_ERROR_DEVICE_LOST), "VK_ERROR_DEVICE_LOST");

@@ -1,0 +1,911 @@
+[
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-0-1.csv.gz",
+    "raw_rows": 4198,
+    "sample_rows": 3600,
+    "first_sample_seconds": 10.016484,
+    "last_sample_seconds": 69.994445,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.5544,
+        "p95": 0.7134,
+        "p99": 0.7873,
+        "max": 2.0852
+      },
+      "gpu_frame_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 9.30332,
+        "p95": 9.5072,
+        "p99": 9.92656,
+        "max": 11.75824
+      },
+      "gpu_shadow_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 1.65,
+        "p95": 1.77624,
+        "p99": 1.8815,
+        "max": 3.57316
+      },
+      "interval_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 16.6603,
+        "p95": 17.3627,
+        "p99": 17.6505,
+        "max": 19.759
+      },
+      "fence_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0076,
+        "p95": 0.0115,
+        "p99": 0.0142,
+        "max": 0.0935
+      },
+      "acquire_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 15.9837,
+        "p95": 16.6722,
+        "p99": 16.9495,
+        "max": 19.4074
+      },
+      "present_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.1151,
+        "p95": 0.2354,
+        "p99": 0.5566,
+        "max": 1.7109
+      },
+      "character_deformation_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      },
+      "character_upload_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "pass",
+      "interval_ms.p50<=16.9": "pass",
+      "interval_ms.p95<=20": "pass",
+      "interval_ms.p99<=33.4": "pass"
+    },
+    "actions": {
+      "characters-0": {
+        "frames": 3600,
+        "max_cpu_ms": 2.0852,
+        "max_gpu_ms": 11.75824,
+        "max_interval_ms": 19.759
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-0-2.csv.gz",
+    "raw_rows": 4198,
+    "sample_rows": 3600,
+    "first_sample_seconds": 10.010679,
+    "last_sample_seconds": 69.987488,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.4849,
+        "p95": 0.6905,
+        "p99": 0.7559,
+        "max": 1.3715
+      },
+      "gpu_frame_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 9.35772,
+        "p95": 9.5406,
+        "p99": 9.67104,
+        "max": 10.03756
+      },
+      "gpu_shadow_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 1.6634,
+        "p95": 1.83428,
+        "p99": 1.90508,
+        "max": 2.34832
+      },
+      "interval_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 16.6699,
+        "p95": 17.3749,
+        "p99": 17.6789,
+        "max": 18.8197
+      },
+      "fence_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0073,
+        "p95": 0.0114,
+        "p99": 0.0159,
+        "max": 0.0344
+      },
+      "acquire_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 16.0653,
+        "p95": 16.7135,
+        "p99": 16.9724,
+        "max": 18.3205
+      },
+      "present_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.085,
+        "p95": 0.2687,
+        "p99": 0.6577,
+        "max": 1.2322
+      },
+      "character_deformation_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      },
+      "character_upload_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "pass",
+      "interval_ms.p50<=16.9": "pass",
+      "interval_ms.p95<=20": "pass",
+      "interval_ms.p99<=33.4": "pass"
+    },
+    "actions": {
+      "characters-0": {
+        "frames": 3600,
+        "max_cpu_ms": 1.3715,
+        "max_gpu_ms": 10.03756,
+        "max_interval_ms": 18.8197
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-0-3.csv.gz",
+    "raw_rows": 4198,
+    "sample_rows": 3600,
+    "first_sample_seconds": 10.010015,
+    "last_sample_seconds": 69.986918,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.5601,
+        "p95": 0.7147,
+        "p99": 0.7879,
+        "max": 1.1191
+      },
+      "gpu_frame_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 9.29868,
+        "p95": 9.48156,
+        "p99": 9.71324,
+        "max": 13.44463
+      },
+      "gpu_shadow_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 1.64544,
+        "p95": 1.77168,
+        "p99": 1.87384,
+        "max": 5.59955
+      },
+      "interval_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 16.6682,
+        "p95": 17.3686,
+        "p99": 17.6504,
+        "max": 18.2501
+      },
+      "fence_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0074,
+        "p95": 0.0113,
+        "p99": 0.0146,
+        "max": 0.1045
+      },
+      "acquire_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 15.9923,
+        "p95": 16.6704,
+        "p99": 16.9084,
+        "max": 17.3179
+      },
+      "present_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.1148,
+        "p95": 0.2554,
+        "p99": 0.5499,
+        "max": 1.309
+      },
+      "character_deformation_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      },
+      "character_upload_ms": {
+        "available": 3600,
+        "unavailable": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "pass",
+      "interval_ms.p50<=16.9": "pass",
+      "interval_ms.p95<=20": "pass",
+      "interval_ms.p99<=33.4": "pass"
+    },
+    "actions": {
+      "characters-0": {
+        "frames": 3600,
+        "max_cpu_ms": 1.1191,
+        "max_gpu_ms": 13.44463,
+        "max_interval_ms": 18.2501
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-1-1.csv.gz",
+    "raw_rows": 4196,
+    "sample_rows": 3599,
+    "first_sample_seconds": 10.012572,
+    "last_sample_seconds": 69.989612,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 1.3528,
+        "p95": 1.6646,
+        "p99": 1.859,
+        "max": 2.886
+      },
+      "gpu_frame_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 11.04392,
+        "p95": 11.4408,
+        "p99": 11.72244,
+        "max": 14.07438
+      },
+      "gpu_shadow_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 2.99896,
+        "p95": 3.28,
+        "p99": 3.53016,
+        "max": 5.41038
+      },
+      "interval_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 16.6976,
+        "p95": 17.3982,
+        "p99": 17.7241,
+        "max": 33.1708
+      },
+      "fence_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 0.0126,
+        "p95": 0.0183,
+        "p99": 0.0251,
+        "max": 0.1808
+      },
+      "acquire_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 15.1848,
+        "p95": 15.9692,
+        "p99": 16.2483,
+        "max": 31.5915
+      },
+      "present_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 0.0919,
+        "p95": 0.2455,
+        "p99": 0.5763,
+        "max": 1.6707
+      },
+      "character_deformation_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 0.514,
+        "p95": 0.773,
+        "p99": 0.9093,
+        "max": 1.0927
+      },
+      "character_upload_ms": {
+        "available": 3599,
+        "unavailable": 0,
+        "p50": 0.1787,
+        "p95": 0.239,
+        "p99": 0.3157,
+        "max": 0.8784
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "pass",
+      "interval_ms.p50<=16.9": "pass",
+      "interval_ms.p95<=20": "pass",
+      "interval_ms.p99<=33.4": "pass"
+    },
+    "actions": {
+      "characters-1": {
+        "frames": 3599,
+        "max_cpu_ms": 2.886,
+        "max_gpu_ms": 14.07438,
+        "max_interval_ms": 33.1708
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-1-2.csv.gz",
+    "raw_rows": 4193,
+    "sample_rows": 3598,
+    "first_sample_seconds": 10.013373,
+    "last_sample_seconds": 69.990617,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 1.2735,
+        "p95": 1.6046,
+        "p99": 1.8092,
+        "max": 3.3257
+      },
+      "gpu_frame_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 10.93484,
+        "p95": 11.28576,
+        "p99": 11.59032,
+        "max": 14.17871
+      },
+      "gpu_shadow_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 2.90684,
+        "p95": 3.18832,
+        "p99": 3.42516,
+        "max": 5.70551
+      },
+      "interval_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 16.6821,
+        "p95": 17.3957,
+        "p99": 17.7033,
+        "max": 33.0188
+      },
+      "fence_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.0124,
+        "p95": 0.018,
+        "p99": 0.025,
+        "max": 0.0436
+      },
+      "acquire_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 15.2517,
+        "p95": 15.9963,
+        "p99": 16.26,
+        "max": 31.6955
+      },
+      "present_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.0813,
+        "p95": 0.2336,
+        "p99": 0.579,
+        "max": 1.1451
+      },
+      "character_deformation_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.5066,
+        "p95": 0.7365,
+        "p99": 0.8799,
+        "max": 1.2952
+      },
+      "character_upload_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.1832,
+        "p95": 0.2512,
+        "p99": 0.3074,
+        "max": 1.0108
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "pass",
+      "interval_ms.p50<=16.9": "pass",
+      "interval_ms.p95<=20": "pass",
+      "interval_ms.p99<=33.4": "pass"
+    },
+    "actions": {
+      "characters-1": {
+        "frames": 3598,
+        "max_cpu_ms": 3.3257,
+        "max_gpu_ms": 14.17871,
+        "max_interval_ms": 33.0188
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-1-3.csv.gz",
+    "raw_rows": 4194,
+    "sample_rows": 3598,
+    "first_sample_seconds": 10.011578,
+    "last_sample_seconds": 69.988422,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 1.3614,
+        "p95": 1.6818,
+        "p99": 1.8615,
+        "max": 4.7599
+      },
+      "gpu_frame_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 10.9668,
+        "p95": 11.36884,
+        "p99": 11.70856,
+        "max": 14.34943
+      },
+      "gpu_shadow_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 2.94324,
+        "p95": 3.2388,
+        "p99": 3.54064,
+        "max": 6.06051
+      },
+      "interval_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 16.6955,
+        "p95": 17.3845,
+        "p99": 17.6477,
+        "max": 33.2467
+      },
+      "fence_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.0133,
+        "p95": 0.0187,
+        "p99": 0.0245,
+        "max": 0.086
+      },
+      "acquire_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 15.1699,
+        "p95": 15.9307,
+        "p99": 16.1918,
+        "max": 32.0269
+      },
+      "present_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.0887,
+        "p95": 0.2331,
+        "p99": 0.5798,
+        "max": 1.651
+      },
+      "character_deformation_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.5111,
+        "p95": 0.7666,
+        "p99": 0.9026,
+        "max": 3.0565
+      },
+      "character_upload_ms": {
+        "available": 3598,
+        "unavailable": 0,
+        "p50": 0.1826,
+        "p95": 0.2401,
+        "p99": 0.322,
+        "max": 1.6852
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "pass",
+      "interval_ms.p50<=16.9": "pass",
+      "interval_ms.p95<=20": "pass",
+      "interval_ms.p99<=33.4": "pass"
+    },
+    "actions": {
+      "characters-1": {
+        "frames": 3598,
+        "max_cpu_ms": 4.7599,
+        "max_gpu_ms": 14.34943,
+        "max_interval_ms": 33.2467
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-4-1.csv.gz",
+    "raw_rows": 2101,
+    "sample_rows": 1801,
+    "first_sample_seconds": 10.000819,
+    "last_sample_seconds": 69.993677,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 4.7299,
+        "p95": 5.819,
+        "p99": 6.401,
+        "max": 7.1456
+      },
+      "gpu_frame_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 16.08656,
+        "p95": 16.969,
+        "p99": 17.36212,
+        "max": 18.74551
+      },
+      "gpu_shadow_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 7.16192,
+        "p95": 8.0482,
+        "p99": 8.39236,
+        "max": 9.77315
+      },
+      "interval_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 33.3416,
+        "p95": 34.1224,
+        "p99": 34.4546,
+        "max": 34.947
+      },
+      "fence_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 0.0209,
+        "p95": 0.0271,
+        "p99": 0.0318,
+        "max": 0.1715
+      },
+      "acquire_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 28.437,
+        "p95": 29.2956,
+        "p99": 29.6405,
+        "max": 30.0153
+      },
+      "present_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 0.0949,
+        "p95": 0.2864,
+        "p99": 0.6414,
+        "max": 1.0254
+      },
+      "character_deformation_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 2.1475,
+        "p95": 3.2032,
+        "p99": 3.8814,
+        "max": 4.2943
+      },
+      "character_upload_ms": {
+        "available": 1801,
+        "unavailable": 0,
+        "p50": 1.753,
+        "p95": 2.1131,
+        "p99": 2.2906,
+        "max": 2.4647
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "FAIL",
+      "interval_ms.p50<=16.9": "FAIL",
+      "interval_ms.p95<=20": "FAIL",
+      "interval_ms.p99<=33.4": "FAIL"
+    },
+    "actions": {
+      "characters-4": {
+        "frames": 1801,
+        "max_cpu_ms": 7.1456,
+        "max_gpu_ms": 18.74551,
+        "max_interval_ms": 34.947
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-4-2.csv.gz",
+    "raw_rows": 2101,
+    "sample_rows": 1800,
+    "first_sample_seconds": 10.030486,
+    "last_sample_seconds": 69.991207,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 4.539,
+        "p95": 5.62,
+        "p99": 6.4074,
+        "max": 8.806
+      },
+      "gpu_frame_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 16.11784,
+        "p95": 16.92336,
+        "p99": 17.46064,
+        "max": 21.24284
+      },
+      "gpu_shadow_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 7.16384,
+        "p95": 7.9644,
+        "p99": 8.46952,
+        "max": 10.64492
+      },
+      "interval_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 33.336,
+        "p95": 34.047,
+        "p99": 34.324,
+        "max": 34.7698
+      },
+      "fence_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 0.0198,
+        "p95": 0.0264,
+        "p99": 0.0343,
+        "max": 0.0764
+      },
+      "acquire_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 28.6536,
+        "p95": 29.3888,
+        "p99": 29.6642,
+        "max": 30.0887
+      },
+      "present_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 0.0764,
+        "p95": 0.3361,
+        "p99": 0.6059,
+        "max": 1.016
+      },
+      "character_deformation_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 2.0905,
+        "p95": 2.9632,
+        "p99": 3.9276,
+        "max": 4.8411
+      },
+      "character_upload_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 1.7576,
+        "p95": 2.1314,
+        "p99": 2.4343,
+        "max": 3.9765
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "FAIL",
+      "interval_ms.p50<=16.9": "FAIL",
+      "interval_ms.p95<=20": "FAIL",
+      "interval_ms.p99<=33.4": "FAIL"
+    },
+    "actions": {
+      "characters-4": {
+        "frames": 1800,
+        "max_cpu_ms": 8.806,
+        "max_gpu_ms": 21.24284,
+        "max_interval_ms": 34.7698
+      }
+    }
+  },
+  {
+    "path": "openspec/changes/add-character-animation/evidence/timings/characters-4-3.csv.gz",
+    "raw_rows": 2101,
+    "sample_rows": 1800,
+    "first_sample_seconds": 10.02512,
+    "last_sample_seconds": 69.986745,
+    "percentile_method": "nearest rank",
+    "non_submitted_sample_rows": 0,
+    "framebuffer_sizes": [
+      "1920x1080"
+    ],
+    "metrics": {
+      "cpu_active_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 4.606,
+        "p95": 5.9483,
+        "p99": 6.6458,
+        "max": 7.7191
+      },
+      "gpu_frame_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 16.04332,
+        "p95": 17.01348,
+        "p99": 17.528,
+        "max": 19.41893
+      },
+      "gpu_shadow_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 7.0912,
+        "p95": 8.02453,
+        "p99": 8.4352,
+        "max": 10.16029
+      },
+      "interval_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 33.332,
+        "p95": 34.0646,
+        "p99": 34.335,
+        "max": 35.1888
+      },
+      "fence_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 0.0205,
+        "p95": 0.0271,
+        "p99": 0.0331,
+        "max": 0.3889
+      },
+      "acquire_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 28.5896,
+        "p95": 29.383,
+        "p99": 29.6815,
+        "max": 30.4489
+      },
+      "present_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 0.0774,
+        "p95": 0.3279,
+        "p99": 0.6275,
+        "max": 1.4557
+      },
+      "character_deformation_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 2.1359,
+        "p95": 3.3776,
+        "p99": 4.1259,
+        "max": 5.118
+      },
+      "character_upload_ms": {
+        "available": 1800,
+        "unavailable": 0,
+        "p50": 1.7708,
+        "p95": 2.1672,
+        "p99": 2.4889,
+        "max": 3.3491
+      }
+    },
+    "gates": {
+      "cpu_active_ms.p95<=16.67": "pass",
+      "gpu_frame_ms.p95<=16.67": "FAIL",
+      "interval_ms.p50<=16.9": "FAIL",
+      "interval_ms.p95<=20": "FAIL",
+      "interval_ms.p99<=33.4": "FAIL"
+    },
+    "actions": {
+      "characters-4": {
+        "frames": 1800,
+        "max_cpu_ms": 7.7191,
+        "max_gpu_ms": 19.41893,
+        "max_interval_ms": 35.1888
+      }
+    }
+  }
+]

@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "author": "Quaternius",
+  "license": "CC0-1.0",
+  "source": {
+    "source_page": "https://quaternius.itch.io/universal-animation-library",
+    "edition": "Standard",
+    "itch_upload_id": "17958403",
+    "archive": "downloads/Universal Animation Library[Standard].zip",
+    "archive_bytes": 15904933,
+    "archive_sha256": "cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724",
+    "archive_crc_verified": true,
+    "extracted_glb_matches_archive": true,
+    "glb": "source/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb",
+    "glb_bytes": 7618436,
+    "glb_sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
+    "included_license_sha256": "6d01f55c6e4c49a2c9963e147e561945ae2c83958c8ca667d90a6bffdbfac061"
+  },
+  "derivative": {
+    "file": "test-mannequin.glb",
+    "bytes": 959160,
+    "sha256": "35bc29b259644b784b1bb3fe97e880ac0d7f51d4f5309965ebcfc47d2ac800c4",
+    "catalog_sha256": "1b6b6fcd44eadc8f8de93747e160b64760cecc241eae16cb86505915dec66690",
+    "catalog_header_sha256": "c0a3e34333b5d3088faed75495d530e0fa5e53ae6b62564872e0bdde08d63a56",
+    "selected_clips": {
+      "Idle_Loop": "idle",
+      "Walk_Loop": "walk",
+      "Interact": "interact"
+    },
+    "joint_count": 65,
+    "node_count": 67,
+    "source_vertices": 8546,
+    "indices": 41232
+  },
+  "preparation": {
+    "script": "scripts/prepare_character_animation.py",
+    "version": 1,
+    "dependencies": "Python standard library",
+    "maximum_unit_scale_drift": 4.76837158203125e-07,
+    "scale_normalization_limit": 1e-05,
+    "bind_maximum_displacement_m": 6.315132953828305e-07,
+    "bind_displacement_limit_m": 0.0001,
+    "repeated_preparation_byte_identical": true,
+    "conversions": [
+      "Keep only idle/walk/interact with stable logical names",
+      "Remove secondary UV data and 40 unselected clips",
+      "Normalize negligible rest and constant animation scales to one; remove scale channels",
+      "Normalize rest/key quaternions; preserve hierarchy and root orientation",
+      "Recompute inverse binds from normalized rest transforms",
+      "Preserve both base colors; use opaque two-sided diffuse metallic=0 roughness=1",
+      "Repack only used accessors into embedded binary"
+    ]
+  }
+}

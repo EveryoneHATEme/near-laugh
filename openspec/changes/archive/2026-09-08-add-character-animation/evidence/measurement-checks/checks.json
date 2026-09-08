@@ -1,0 +1,29 @@
+[
+  {
+    "capture": "character-check-readback-debug.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "f13ee827e5d252cfebe1db9a773f07d087c05530067c5785d3f1e7f44a1c271f",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "capture": "character-check-readback-release-1.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "7f50195f22aebae9264e26e951e6a5933111afbcad5a20648a933838b3de0a24",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "capture": "character-check-readback-release-4.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "7021e301eb032ca18e4460918b149809b8a71a560c1059aac142d111638d9604",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  }
+]

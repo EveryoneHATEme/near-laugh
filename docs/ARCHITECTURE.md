@@ -19,11 +19,14 @@ near_laugh
         |-> near_laugh_world -> nlohmann/json
         |-> near_laugh_physics -> near_laugh_world, Jolt
         |-> near_laugh_audio -> near_laugh_world, near_laugh_text, miniaudio
+        |-> near_laugh_animation -> near_laugh_cgltf, GLM
         `-> near_laugh_render -> near_laugh_platform, near_laugh_world,
-                                near_laugh_text, Vulkan, GLFW, stb_image, cgltf
+                                near_laugh_text, near_laugh_animation,
+                                Vulkan, GLFW, stb_image, near_laugh_cgltf
 
 level_editor
-  |-> near_laugh_editor_core -> near_laugh_platform, near_laugh_world
+  |-> near_laugh_editor_core -> near_laugh_platform, near_laugh_world,
+  |                             near_laugh_animation
   |-> near_laugh_editor_ui -> near_laugh_editor_core, near_laugh_platform,
   |                           near_laugh_world, near_laugh_text, ImGui, GLFW
   |-> near_laugh_editor_render -> near_laugh_render, near_laugh_platform,
@@ -31,13 +34,17 @@ level_editor
   |-> near_laugh_platform
   |-> near_laugh_audio
   `-> near_laugh_world
+
+character_animation_viewer
+  `-> near_laugh_animation, near_laugh_render, near_laugh_platform,
+      near_laugh_world, near_laugh_text
 ```
 
 The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-7 level document, exact version-2/3/4/5/6 read
+- `near_laugh_world` owns the bounded version-8 level document, exact version-2/3/4/5/6/7 read
   compatibility, strict private JSON codec, shared validation, and immutable
   level data. It privately links
   `nlohmann/json`.
@@ -46,7 +53,11 @@ The concrete targets have these responsibilities:
   Jolt.
 - `near_laugh_render` owns Vulkan presentation and scene resources. It consumes
   immutable world data and uses the narrow internal GLFW/Vulkan surface bridge.
-  Image decoding and the one bounded GLB loader remain renderer-private.
+  Image decoding and the bounded static GLB profile remain renderer-private.
+- `near_laugh_animation` owns the separate prepared skeletal GLB profile,
+  immutable CPU assets, local TR sampling, short transitions and deformation.
+  Runtime, viewer and editor link this CPU target; GLM and cgltf stay private.
+  Static and animated loading share one compiled cgltf implementation owner.
 - `near_laugh_audio` owns selected PCM/caption preparation, miniaudio playback,
   authored room transmission and the concrete cue coordinator. Backend types
   stay private. Device-free rendering runs the same mixer as device playback.
@@ -65,6 +76,8 @@ The concrete targets have these responsibilities:
   scene resources, and the ImGui Vulkan backend.
 - `level_editor` composes the editor modules without linking
   `near_laugh_runtime` or `near_laugh_physics`.
+- `character_animation_viewer` composes explicit animation inspection and
+  measurement without the runtime, physics or audio coordinator.
 
 All target include and link relationships are declared in `CMakeLists.txt`.
 The public runtime boundary is the PImpl-based `near_laugh::Application` and
@@ -107,8 +120,9 @@ reset after the wait.
 The renderer receives immutable level data at construction and a
 backend-neutral `FrameRequest` at runtime. A request contains framebuffer
 state, a column-major camera matrix, at most one source-independent spot
-light, an exact-size borrowed span of point-light enables, and up to 192 changing
-opaque boxes, and borrowed resolved foreground/ambience captions. Boxes carry
+light, an exact-size borrowed span of point-light enables, up to 192 changing
+opaque boxes, borrowed resolved foreground/ambience captions, and the exact
+selected set of zero through four character poses. Boxes carry
 geometry and tint, not door IDs or action policy. Rendering returns
 `Rendered`, `Skipped`, or `Recovered`; the runtime handles every outcome and
 retains application-lifetime control. Rendering does
@@ -201,6 +215,17 @@ placements into immutable material batches and uploads changing generated boxes
 only after their frame-slot fence. The existing 128-byte camera/light push range
 does not grow. See RENDERING for material/profile and resource ownership.
 
+The explicit `character_animation_viewer` selects the prepared mannequin without
+changing level v8 or interpreting a filename as animation policy. Its caller owns
+independent playback and supplies up to four render-instance handles, skeleton
+identities, model-relative joint palettes and world translation/yaw. Frame spans
+are borrowed synchronously. The renderer validates the complete selected set,
+deforms source vertices once into separate fenced character buffers and shares
+immutable indices/materials per selected asset. Indexed color and shadow draws
+use the same slot geometry with per-instance vertex offsets. It never advances clips.
+The finite catalog carries measured contact/interaction phases for subsequent
+scripted-character work; actor records, routes and authoring remain P07b/P07c.
+
 ## Editor Ownership
 
 The standalone editor constructs Vulkan diagnostics, `Platform`, `Window`, the
@@ -244,7 +269,8 @@ shares property commands, placement and history. Light renames update all
 incoming links atomically; deletion retains broken references for repair.
 Preview uses light initial values independently of links. Successful resource
 replacement installs the scene, lighting, shadows and matching enable vector
-together; a failed replacement retains the prior coherent preview.
+together with its selected character resources; a failed replacement retains
+the prior coherent preview and its matching character-pose contract.
 New Interior creates a valid floor, default entry and lights, with no terrain,
 props or doors. Durable entry strings are separate from transient selection IDs;
 renaming a default entry updates its reference in one undoable command.

@@ -109,6 +109,19 @@ struct OpaqueBoxFrame {
   std::uint32_t surface{2};
 };
 
+inline constexpr std::size_t frame_maximum_character_count = 4;
+
+// Model-relative joint globals and one world placement. The skeleton identity
+// prevents a palette from a replaced model being submitted to the new asset.
+// All storage belongs to the caller and is borrowed only during renderFrame.
+struct CharacterPoseFrame {
+  std::uint32_t instance{};
+  std::uint64_t skeleton_identity{};
+  std::span<const std::array<float, 16>> joint_globals{};
+  std::array<float, 3> position{};
+  float yaw_degrees{};
+};
+
 struct FrameRequest {
   FramebufferExtent framebuffer{};
   bool framebuffer_resized{};
@@ -119,6 +132,7 @@ struct FrameRequest {
   // Borrowed only for the synchronous render call; never retained by renderer.
   std::span<const OpaqueBoxFrame> opaque_boxes{};
   CaptionPresentation captions{};
+  std::span<const CharacterPoseFrame> characters{};
 };
 
 [[nodiscard]] constexpr bool frameRequestCanSubmit(

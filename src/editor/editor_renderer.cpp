@@ -14,6 +14,7 @@
 
 #include "core/platform/window.hpp"
 #include "core/render/depth_attachment.hpp"
+#include "core/render/character_resources.hpp"
 #include "core/render/frame_readback.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/immutable_mesh_buffer.hpp"
@@ -97,7 +98,8 @@ class EditorRenderer::Impl {
   ~Impl();
 
   void beginUiFrame();
-  void replaceDocument(const LevelDocument& level);
+  void replaceDocument(const LevelDocument& level,
+                       std::span<const CharacterRenderInstance> characters);
   void replaceTerrain(const LevelDocument& level);
   void validateSceneAssets(const LevelDocument& level) const {
     const auto assets = prepareSceneAssets(resources_.resource_root, level);
@@ -136,6 +138,7 @@ class EditorRenderer::Impl {
   EditorRendererResources resources_{};
   std::unique_ptr<SceneResources> scene_resources_{};
   std::unique_ptr<LightingResources> lighting_resources_{};
+  std::unique_ptr<CharacterResources> characters_{};
   std::unique_ptr<FrameReadback> readback_{};
   std::unique_ptr<ImmutableMeshBuffer> door_preview_{};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
@@ -169,7 +172,13 @@ EditorRenderer::~EditorRenderer() = default;
 void EditorRenderer::beginUiFrame() { impl_->beginUiFrame(); }
 
 void EditorRenderer::replaceDocument(const LevelDocument& level) {
-  impl_->replaceDocument(level);
+  impl_->replaceDocument(level, {});
+}
+
+void EditorRenderer::replaceDocument(
+    const LevelDocument& level,
+    std::span<const CharacterRenderInstance> characters) {
+  impl_->replaceDocument(level, characters);
 }
 
 void EditorRenderer::replaceTerrain(const LevelDocument& level) {
@@ -237,6 +246,7 @@ EditorRenderer::Impl::Impl(const Window& window,
     pipeline_.reset();
     cleanupSwapchain();
     lighting_resources_.reset();
+    characters_.reset();
     door_preview_.reset();
     scene_resources_.reset();
     throw;
@@ -252,6 +262,7 @@ EditorRenderer::Impl::~Impl() {
   pipeline_.reset();
   cleanupSwapchain();
   lighting_resources_.reset();
+  characters_.reset();
   door_preview_.reset();
   scene_resources_.reset();
   recordLifecycleEvent("editor.renderer.destroyed");
@@ -259,42 +270,59 @@ EditorRenderer::Impl::~Impl() {
 
 void EditorRenderer::Impl::beginUiFrame() { ImGui_ImplVulkan_NewFrame(); }
 
-void EditorRenderer::Impl::replaceDocument(const LevelDocument& level) {
-  requireVulkan(vkDeviceWaitIdle(context_.device()),
-                "Wait for editor frames before replacing the level");
-  const auto assets = prepareSceneAssets(resources_.resource_root, level);
-  auto scene = std::make_unique<SceneResources>(
-      context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
-      context_.queueFamilies().graphics, assets);
-  std::vector<OpaqueBoxFrame> boxes;
-  for (const auto& door : level.doors) {
-    if (!doorGeometryIsValid(door)) continue;
-    const auto leaf = doorPresentationBoxes(door, doorInitialAngle(door),
-                                            door.initially_locked);
-    boxes.insert(boxes.end(), leaf.begin(), leaf.end());
-  }
-  const auto door_vertices = buildOpaqueBoxVertices(boxes);
-  std::unique_ptr<ImmutableMeshBuffer> door_preview;
-  if (!door_vertices.empty())
-    door_preview = std::make_unique<ImmutableMeshBuffer>(
-        context_.device(), context_.physicalDevice(), door_vertices,
-        "door_preview");
-  auto lighting_resources = std::make_unique<LightingResources>(
-      context_.device(), context_.physicalDevice(), level.environment_light);
-  lighting_resources->createShadowPipeline(
-      *scene, resources_.resource_root / "shaders");
-  auto pipeline = std::make_unique<GraphicsPipeline>(
-      context_.device(), swapchain_format_, depth_format_,
-      scene->materialLayout(), scene->firstMaterial(),
-      lighting_resources->descriptorSetLayout(),
-      lighting_resources->descriptorSet(), resources_.vertex_shader,
-      resources_.fragment_shader);
+void EditorRenderer::Impl::replaceDocument(
+    const LevelDocument& level,
+    std::span<const CharacterRenderInstance> characters) {
+  try {
+    requireVulkan(vkDeviceWaitIdle(context_.device()),
+                  "Wait for editor frames before replacing the level");
+    const auto assets = prepareSceneAssets(resources_.resource_root, level);
+    auto scene = std::make_unique<SceneResources>(
+        context_.device(), context_.physicalDevice(), context_.graphicsQueue(),
+        context_.queueFamilies().graphics, assets);
+    std::unique_ptr<CharacterResources> character_resources;
+    if (!characters.empty())
+      character_resources = std::make_unique<CharacterResources>(
+          context_.device(), context_.physicalDevice(),
+          context_.graphicsQueue(), context_.queueFamilies().graphics,
+          characters);
+    std::vector<OpaqueBoxFrame> boxes;
+    for (const auto& door : level.doors) {
+      if (!doorGeometryIsValid(door)) continue;
+      const auto leaf = doorPresentationBoxes(door, doorInitialAngle(door),
+                                              door.initially_locked);
+      boxes.insert(boxes.end(), leaf.begin(), leaf.end());
+    }
+    const auto door_vertices = buildOpaqueBoxVertices(boxes);
+    std::unique_ptr<ImmutableMeshBuffer> door_preview;
+    if (!door_vertices.empty())
+      door_preview = std::make_unique<ImmutableMeshBuffer>(
+          context_.device(), context_.physicalDevice(), door_vertices,
+          "door_preview");
+    auto lighting_resources = std::make_unique<LightingResources>(
+        context_.device(), context_.physicalDevice(), level.environment_light);
+    lighting_resources->createShadowPipeline(
+        *scene, resources_.resource_root / "shaders");
+    auto pipeline = std::make_unique<GraphicsPipeline>(
+        context_.device(), swapchain_format_, depth_format_,
+        scene->materialLayout(), scene->firstMaterial(),
+        lighting_resources->descriptorSetLayout(),
+        lighting_resources->descriptorSet(), resources_.vertex_shader,
+        resources_.fragment_shader);
 
-  pipeline_ = std::move(pipeline);
-  lighting_resources_ = std::move(lighting_resources);
-  door_preview_ = std::move(door_preview);
-  scene_resources_ = std::move(scene);
-  recordLifecycleEvent("editor.document-resources.replaced");
+    pipeline_ = std::move(pipeline);
+    lighting_resources_ = std::move(lighting_resources);
+    characters_ = std::move(character_resources);
+    door_preview_ = std::move(door_preview);
+    scene_resources_ = std::move(scene);
+    recordLifecycleEvent("editor.document-resources.replaced");
+  } catch (const std::exception& error) {
+    throw std::runtime_error(
+        std::string("Editor preview is stale; previous complete scene and "
+                    "character selection retained. Correct the selected assets "
+                    "and retry replacement: ") +
+        error.what());
+  }
 }
 
 void EditorRenderer::Impl::clearDocument() {
@@ -302,6 +330,7 @@ void EditorRenderer::Impl::clearDocument() {
                 "Wait for editor frames before closing the level");
   pipeline_.reset();
   lighting_resources_.reset();
+  characters_.reset();
   door_preview_.reset();
   scene_resources_.reset();
   recordLifecycleEvent("editor.document-resources.cleared");
@@ -596,7 +625,7 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
   if (lighting_resources_)
     lighting_resources_->recordShadows(command_buffer, current_frame_,
                                        *scene_resources_, nullptr,
-                                       door_preview_.get());
+                                       door_preview_.get(), characters_.get());
 
   VkImageMemoryBarrier2 to_color{};
   to_color.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -690,6 +719,8 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
                               scene_resources_->obstacleMaterial());
       door_preview_->bindAndDraw(command_buffer);
     }
+    if (characters_)
+      characters_->draw(command_buffer, current_frame_, *pipeline_);
   }
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
   recordLifecycleEvent("editor.ui.drawn");
@@ -725,6 +756,12 @@ void EditorRenderer::Impl::recordFrame(VkCommandBuffer command_buffer,
 }
 
 FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
+  if (characters_)
+    characters_->validate(request.characters);
+  else if (!request.characters.empty())
+    throw std::invalid_argument("Character instance " +
+        std::to_string(request.characters.front().instance) +
+        ": no characters were selected for this editor scene");
   if (lighting_resources_)
     lighting_resources_->validateEnables(request.point_light_enabled);
   else
@@ -736,10 +773,12 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
   }
 
   FrameSlot& frame = frames_[current_frame_];
+  if (characters_) characters_->deform(request.characters);
   requireVulkan(
       vkWaitForFences(context_.device(), 1, &frame.completion, VK_TRUE,
                       std::numeric_limits<std::uint64_t>::max()),
       "Wait for frame slot completion before reuse");
+  if (characters_) characters_->upload(current_frame_);
 
   std::uint32_t image_index = 0;
   const VkResult acquire = vkAcquireNextImageKHR(

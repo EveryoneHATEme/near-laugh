@@ -14,6 +14,8 @@ struct FrameTimingSample {
   double elapsed_seconds{};
   double interval_ms{};
   double cpu_active_ms{};
+  double character_deformation_ms{};
+  double character_upload_ms{};
   double fence_ms{};
   double acquire_ms{};
   double present_ms{};

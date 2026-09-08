@@ -1,0 +1,14 @@
+Vulkan validation: enabled
+Selected Vulkan GPU: AMD Radeon(TM) Graphics (graphics queue 0, present queue 0)
+Point shadow depth: D32, 6 layers per slot, 13108000 allocated bytes across two slots
+Swapchain: format 50, extent 1280x720, images 2
+Validation enabled; FIFO; characters 1; interactive clip inspection
+Vulkan validation: enabled
+Selected Vulkan GPU: AMD Radeon(TM) Graphics (graphics queue 0, present queue 0)
+Point shadow depth: D32, 6 layers per slot, 13108000 allocated bytes across two slots
+Swapchain: format 50, extent 1280x720, images 2
+Vulkan validation: enabled
+Selected Vulkan GPU: AMD Radeon(TM) Graphics (graphics queue 0, present queue 0)
+Point shadow depth: D32, 6 layers per slot, 13108000 allocated bytes across two slots
+Swapchain: format 50, extent 1280x720, images 2
+Captured 377 frames

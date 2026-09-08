@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "core/frame.hpp"
+#include "core/render/character_presentation.hpp"
 
 class Window;
 class ValidationDiagnostics;
@@ -21,6 +22,7 @@ struct RendererResources {
   std::shared_ptr<const CaptionFont> caption_font{};
   FrameTimings* timings{};
   FrameCapture* capture{};
+  std::vector<CharacterRenderInstance> characters{};
 };
 
 class Renderer {

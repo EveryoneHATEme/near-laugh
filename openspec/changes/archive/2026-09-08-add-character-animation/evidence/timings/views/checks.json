@@ -1,0 +1,38 @@
+[
+  {
+    "file": "character-benchmark-final-debug-4.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "1e3802114f8e50834f40b72334839b5eff8baf415e954c143e02448478964ecb",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "file": "character-benchmark-final-release-0.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "8a8a0d1f29b76f2dffc847d26481b906c7f644fe4e4db1bed2dec2275b9a541b",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "file": "character-benchmark-final-release-1.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "2ea354c38b5391d36e7aeca6d00664258e8731f8d6263176be193ca847deb92b",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  },
+  {
+    "file": "character-benchmark-view-final.png",
+    "width": 1920,
+    "height": 1080,
+    "rgb_sha256": "4d01ea79e3bce92b2ea271ba792797b43aa07ca6a5e867692d74b646990ac41b",
+    "frames": 40,
+    "submitted": 38,
+    "all_submitted_gpu_timestamps_available": true
+  }
+]

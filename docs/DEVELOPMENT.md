@@ -87,6 +87,9 @@ resources/
   captions/*.captions
   fonts/NotoSans-Regular.ttf
   fonts/OFL.txt
+  characters/test-mannequin.glb
+  characters/catalog.json
+  characters/LICENSE-Quaternius.txt
   models/prototype_chair.glb
   shaders/prototype_scene_vertex.spv
   shaders/prototype_scene_fragment.spv
@@ -387,7 +390,7 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-7 level data with exact version-2/3/4/5/6 read compatibility,
+- `near_laugh_world`: version-8 level data with exact version-2/3/4/5/6/7 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
 - `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors, and one virtual
   character.
@@ -398,6 +401,10 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
 - `near_laugh_audio`: bounded PCM/caption preparation, miniaudio playback,
   authored room/door transmission, cue coordination and compiled P04 fixture.
 - `near_laugh_text`: trusted font validation, atlas baking and caption layout.
+- `near_laugh_animation`: bounded animated GLB decoding, deterministic TR
+  sampling/transitions and CPU deformation; one compiled cgltf owner is shared
+  with the existing static loader.
+- `character_animation_viewer`: explicit P07a animation inspection and timing.
 - `audio_captions_fixture`: explicit P04 demo using the internal runtime entry.
 - `near_laugh`: game launcher linking only `near_laugh_runtime`.
 - `near_laugh_editor_core`: document workflow, play preparation, native child
@@ -532,3 +539,60 @@ Before reporting an implementation complete:
 6. report any step the environment could not perform.
 
 Compilation alone is not behavioral validation.
+
+## P07a character animation
+
+Run `build/debug/bin/character_animation_viewer.exe` from any working directory.
+F5 cycles the first mannequin through idle/walk/interact; additional instances
+use independent clips and offsets. P pauses, A/D seeks by 0.1 s and pauses,
+Space restarts, M switches one/four instances, E changes the fixed inspection
+view, R toggles the spotlight and Escape closes. Clip/time/status and controls
+appear on screen. Minimize freezes playback without accumulating waited time.
+The viewer owns no gameplay or audio coordinator and ordinary level filenames
+activate no viewer sequence.
+
+`--preflight` validates/deforms all three prepared clips without creating a
+window. The process tests also run a copied executable containing only the
+prepared character resources, from a different working directory.
+
+```powershell
+cmake --preset debug
+cmake --build --preset debug --target character_animation_viewer character_animation_smoke
+.\build\debug\bin\character_animation_viewer.exe --preflight
+.\build\debug\bin\character_animation_smoke.exe build/character-captures
+python scripts/retain_character_captures.py build/character-captures build/character-captures-png
+.\scripts\check_character_viewer.ps1 -OutputDirectory build/character-viewer-controls
+ctest --preset vulkan-smoke --output-on-failure
+cmake --preset debug -B build/p10-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build/p10-release --target character_animation_viewer
+.\build\p10-release\bin\character_animation_viewer.exe --check 4 build/character-timing-check.csv
+.\scripts\measure_character_animation.ps1 -OutputDirectory build/character-timings
+```
+
+Capture/timing output paths must be fresh. The smoke executable records bind,
+clip and interrupted-transition poses, off-screen shadows and editor retention,
+and checks injected allocation/upload failures and recovery with validation
+alive through teardown. The retention script verifies exact stored RGB after
+converting PPM readbacks to PNG, and preserves hashes and readback results.
+The Windows desktop control script sends actual viewer keys and retains
+screenshots/logs. `--check` records 40 frames with requested swapchain recovery
+and drains timing queries through teardown; its short CSV is a functional check.
+It also saves the rendered measurement view after recovery beside the CSV with
+the same stem and a `.ppm` extension; both paths must be fresh. Inspect this
+readback to verify character placement and visibility in the fullscreen scene.
+Use the Debug viewer with this mode to enable Vulkan validation, then recheck
+the final Release build before sampling. Capture waits are excluded from
+performance runs; `--measure` requests no framebuffer readback.
+
+Release measurement uses the packaged eight-light/four-caster interior with
+the same fixed camera and initial doors for zero, one and four characters.
+The script records three runs per setup, each with 10 s warm-up and 60 s
+sampling at fullscreen 1920x1080/60 Hz. It preserves all nine raw CSV/log pairs
+and writes `summary.json`. Raw CSV separates active CPU, character deformation/upload,
+GPU whole-frame/shadows and presentation/fence waits. Run it on the ordinary
+interactive desktop without concurrent builds or GPU work. CPU/GPU p95 must
+meet 16.67 ms and frame p50/p95/p99 must meet 16.9/20/33.4 ms in every run;
+retain failed gates and unavailable GPU fields. Existing T1 gates remain
+unchanged; this P07a fixture alone does not establish full T2.
+See [source preparation](../resources/characters/README.md) and the
+[P07a validation record](../openspec/changes/archive/2026-09-08-add-character-animation/validation.md).
