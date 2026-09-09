@@ -3,15 +3,12 @@
 #include <string>
 #include <utility>
 
-namespace {
-std::filesystem::path resolvedPath(const std::filesystem::path& path) {
-  return std::filesystem::absolute(path).lexically_normal();
-}
-}  // namespace
-
 bool EditorDocument::open(const std::filesystem::path& path) {
-  const std::filesystem::path candidate_path = resolvedPath(path);
-  LevelDocumentLoadResult candidate = loadLevelDocument(candidate_path);
+  const auto candidate_path = resolvePath(path);
+  if (!candidate_path) {
+    return false;
+  }
+  LevelDocumentLoadResult candidate = loadLevelDocument(*candidate_path);
   if (!candidate) {
     diagnostics_ = std::move(candidate.diagnostics);
     return false;
@@ -56,9 +53,12 @@ bool EditorDocument::saveAs(const std::filesystem::path& path) {
                       "No level document is open");
     return false;
   }
-  const std::filesystem::path candidate_path = resolvedPath(path);
+  const auto candidate_path = resolvePath(path);
+  if (!candidate_path) {
+    return false;
+  }
   const LevelDocumentSaveResult result =
-      saveLevelDocument(candidate_path, *document_);
+      saveLevelDocument(*candidate_path, *document_);
   if (!result) {
     diagnostics_ = result.diagnostics;
     return false;
@@ -73,7 +73,10 @@ bool EditorDocument::saveAs(const std::filesystem::path& path) {
 void EditorDocument::requestOpen(const std::filesystem::path& path) {
   static_cast<void>(finishTerrainStroke());
   if (dirty()) {
-    pending_ = {EditorPendingActionKind::Open, resolvedPath(path)};
+    const auto candidate_path = resolvePath(path);
+    if (candidate_path) {
+      pending_ = {EditorPendingActionKind::Open, *candidate_path};
+    }
     return;
   }
   static_cast<void>(open(path));
@@ -176,6 +179,23 @@ bool EditorDocument::performPendingAction() {
       return true;
   }
   return false;
+}
+
+std::optional<std::filesystem::path> EditorDocument::resolvePath(
+    const std::filesystem::path& path) {
+  if (path.empty()) {
+    setOperationError(LevelDiagnosticCategory::Filesystem, path,
+                      "Choose a level file path");
+    return std::nullopt;
+  }
+  std::error_code error;
+  auto absolute_path = std::filesystem::absolute(path, error);
+  if (error) {
+    setOperationError(LevelDiagnosticCategory::Filesystem, path,
+                      "Cannot resolve the level file path: " + error.message());
+    return std::nullopt;
+  }
+  return absolute_path.lexically_normal();
 }
 
 void EditorDocument::setOperationError(LevelDiagnosticCategory category,

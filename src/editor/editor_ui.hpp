@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "core/frame.hpp"
+#include "editor/editor_character_preview.hpp"
 #include "editor/editor_playtest.hpp"
 #include "editor/editor_property_edit.hpp"
 
@@ -25,6 +26,9 @@ class EditorUi {
             std::string_view process_status = {});
   EditorAuditionAction drawAudition(const EditorAuditionView& view,
                                     bool can_start);
+  std::optional<EditorCharacterPreviewRequest> drawCharacterPreview(
+      const EditorDocument& document, EditorCharacterPreview& preview,
+      bool can_start);
   bool takePlayAttempt() { return std::exchange(play_attempt_, false); }
   [[nodiscard]] std::optional<EditorLaunchRequest> takeLaunchRequest() {
     return playtest_.consume();
@@ -32,6 +36,8 @@ class EditorUi {
   [[nodiscard]] std::optional<WorldPosition> updateViewport(
       EditorDocument& document, const CameraFrame& camera, bool navigating);
   void finishFrame();
+  // Fixed-scene GPU smoke excludes changing panel text from pixel comparisons.
+  void collapsePanelsForCapture(bool collapsed);
   [[nodiscard]] bool sculpting() const noexcept { return sculpting_; }
 
  private:
@@ -39,6 +45,9 @@ class EditorUi {
   void drawDocumentSummary(EditorDocument& document);
   void drawObjects(EditorDocument& document);
   void drawAudioObjects(EditorDocument& document);
+  void drawCharacterObjects(EditorDocument& document);
+  void drawCharacterProperties(EditorDocument& document);
+  void selectObject(EditorDocument& document, EditorObjectId id);
   void drawProperties(EditorDocument& document);
   void drawTerrainBrush(EditorDocument& document);
   void drawValidation(const EditorDocument& document);
@@ -63,6 +72,10 @@ class EditorUi {
   bool save_pending_action_{};
   EditorPlaytest playtest_{};
   bool play_attempt_{};
+  EditorCharacterPreviewRequest preview_request_{};
+  std::uint64_t preview_generation_{}, preview_revision_{},
+      preview_selection_revision_{};
+  EditorObjectId preview_selection_{};
 };
 
 #endif

@@ -58,5 +58,13 @@ class EditorGameProcess {
   std::unique_ptr<Impl> impl_;
 };
 
+// The application validates GPU scene resources before this final, device-free
+// selected-content preflight. Failures throw before any child is created.
+[[nodiscard]] bool launchEditorPlay(const EditorDocument& document,
+                                    const EditorLaunchRequest& request,
+                                    const std::filesystem::path& resource_root,
+                                    const std::filesystem::path& executable,
+                                    EditorGameProcess& process);
+
 [[nodiscard]] std::filesystem::path editorGameExecutable();
 #endif

@@ -29,7 +29,13 @@ using EditorObjectValue =
     std::variant<PrototypeSolid, LevelEntry, PrototypePointLight,
                  PrototypeStaticProp, PrototypeLightSwitch, DoorDefinition,
                  AudioCueDefinition, AudioSourceDefinition, AudioRoomDefinition,
-                 AudioConnectionDefinition>;
+                 AudioConnectionDefinition, CharacterActorDefinition,
+                 CharacterMarkDefinition, CharacterRouteDefinition>;
+enum class EditorCharacterKind : std::size_t { Actor, Mark, Route };
+[[nodiscard]] std::optional<EditorCharacterKind> editorCharacterKind(
+    const EditorObjectValue& value);
+[[nodiscard]] std::string editorCharacterFieldError(
+    const EditorObjectValue& value);
 enum class EditorAudioKind : std::size_t { Cue, Source, Room, Connection };
 [[nodiscard]] std::optional<EditorAudioKind> editorAudioKind(
     const EditorObjectValue& value);
@@ -84,6 +90,13 @@ class EditorDocument {
   }
   [[nodiscard]] EditorObjectId selection() const noexcept { return selection_; }
   void select(EditorObjectId id);
+  [[nodiscard]] std::uint64_t selectionRevision() const noexcept {
+    return selection_revision_;
+  }
+  // Actor placement edits its shared initial mark, preserving actor selection.
+  [[nodiscard]] EditorObjectId placementTarget() const;
+  [[nodiscard]] bool placeSelected(const EditorSurfaceHit& hit,
+                                   const EditorPlacementOffsets& offsets);
   [[nodiscard]] bool replaceObject(EditorObjectId id, EditorObjectValue value);
   [[nodiscard]] bool addSolid(PrototypeSolid solid);
   [[nodiscard]] bool addLightSwitch();
@@ -97,6 +110,11 @@ class EditorDocument {
   }
   [[nodiscard]] bool addDoor();
   [[nodiscard]] bool addAudio(EditorAudioKind kind);
+  [[nodiscard]] bool addCharacter(EditorCharacterKind kind);
+  [[nodiscard]] const std::vector<EditorObjectId>& characterIds(
+      EditorCharacterKind kind) const {
+    return character_ids_.at(static_cast<std::size_t>(kind));
+  }
   [[nodiscard]] const std::vector<EditorObjectId>& audioIds(
       EditorAudioKind kind) const {
     return audio_ids_.at(static_cast<std::size_t>(kind));
@@ -195,6 +213,9 @@ class EditorDocument {
     std::optional<std::vector<PrototypeLightSwitch>> switches_before{},
         switches_after{};
     std::optional<float> ambient_before{}, ambient_after{};
+    std::optional<LevelCharacters> characters_before{}, characters_after{};
+    std::optional<std::array<std::vector<EditorObjectId>, 3>>
+        character_ids_before{}, character_ids_after{};
   };
   [[nodiscard]] bool addPointLight(PrototypePointLight value);
   [[nodiscard]] bool addLightSwitch(PrototypeLightSwitch value);
@@ -204,6 +225,15 @@ class EditorDocument {
   [[nodiscard]] std::optional<std::size_t> switchIndex(EditorObjectId id) const;
   void resetEditing();
   void resetAudioIds();
+  void resetCharacterIds();
+  [[nodiscard]] std::optional<EditorObjectValue> characterObject(
+      EditorObjectId id) const;
+  [[nodiscard]] bool prepareCharacterEdit(Edit& edit);
+  [[nodiscard]] bool addCharacterObject(
+      EditorObjectValue value,
+      std::optional<CharacterMarkDefinition> mark = {});
+  [[nodiscard]] bool duplicateCharacter(EditorObjectValue value);
+  [[nodiscard]] bool removeCharacter();
   [[nodiscard]] std::optional<EditorObjectValue> audioObject(
       EditorObjectId id) const;
   [[nodiscard]] bool addAudioObject(EditorObjectValue value);
@@ -221,6 +251,8 @@ class EditorDocument {
   void performClose() noexcept;
   void performExit() noexcept;
   [[nodiscard]] bool performPendingAction();
+  [[nodiscard]] std::optional<std::filesystem::path> resolvePath(
+      const std::filesystem::path& path);
   void setOperationError(LevelDiagnosticCategory category,
                          const std::filesystem::path& path,
                          std::string message);
@@ -235,10 +267,12 @@ class EditorDocument {
   std::vector<EditorObjectId> prop_ids_{};
   std::vector<EditorObjectId> light_ids_{}, switch_ids_{};
   std::array<std::vector<EditorObjectId>, 4> audio_ids_{};
+  std::array<std::vector<EditorObjectId>, 3> character_ids_{};
   std::string launch_entry_{};
   std::uint32_t source_version_{level_format_version};
   EditorObjectId next_object_id_{editor_first_solid};
   EditorObjectId selection_{};
+  std::uint64_t selection_revision_{};
   std::deque<Edit> history_{};
   std::size_t history_position_{};
   std::uint64_t current_revision_{};

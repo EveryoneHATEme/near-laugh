@@ -109,8 +109,8 @@ and 0–32 doors, plus audio (up to 128 cues, 64 sources, 32 rooms and 64 connec
 The required `characters` object contains arrays of up to four actors, 32 marks
 and 16 routes. Earlier packaged scenes retain empty character arrays; the
 one/four-actor scripted-character fixtures exercise authored initial routes.
-The editor renders initial idle poses and preserves these records through
-unrelated edits. Dedicated character authoring remains P07c.
+The editor renders initial idle poses and supports character list/property
+commands, surface placement and explicit silent clip/schematic route inspection.
 Prop/model/material and clip/caption IDs are logical names, never paths.
 Props have finite translation/yaw, positive uniform scale and 0–8 local boxes.
 Legacy chair/texture roles normalize to explicit legacy identities; v5 doors
@@ -245,10 +245,11 @@ Editor shortcuts (suppressed during camera navigation, active field editing,
 or modal dialogs):
 
 - Ctrl+Z: undo; Ctrl+Y or Ctrl+Shift+Z: redo.
-- Ctrl+D: duplicate a solid, door or prop at an offset, an entry at the same
-  pose, or an audio record with a new durable ID.
-- Delete: remove the selected solid, removable entry, switch, prop, door or
-  audio record.
+- Ctrl+D: duplicate the selected supported object. Actor duplication includes
+  an independent initial mark and clears route/sound links; route duplication
+  preserves its owner and ordered links. Named records receive new durable IDs.
+- Delete: remove the selected supported object, except the default/last entry.
+  Incoming links remain visible for repair or undo.
 - Ctrl+S: save the current valid document.
 
 History retains up to 128 committed edits and clears on document replacement.
@@ -298,8 +299,9 @@ In **Playtest**, choose **Start entry** and **Play**. The selection is editor
 state and does not change the authored default or dirty state. Play finishes
 pending edits and validates all entries. Dirty work requires **Save and Play**
 or **Cancel**; unsaved work then uses Save As. A fresh read must match the
-prepared editor document before launch. Required selected assets are decoded
-before creating the child; a missing/unsupported asset launches nothing. If the disk file changed externally,
+prepared editor document before launch, including a second freshness check after
+selected resource preparation. Required selected assets are decoded before
+creating the child; a missing/unsupported asset launches nothing. If the disk file changed externally,
 explicitly Save or Open it and try again. Errors and canceled dialogs launch
 nothing and leave no deferred request.
 
@@ -627,12 +629,62 @@ settings. A new process restores authored placements. Escape releases the
 cursor and continues world/audio time. Minimized waits discard suspended time
 and held control edges; restore neither catches up nor restarts actions.
 
-The editor shows frozen initial idle poses, preserves character data through
+The editor shows initial idle poses, preserves character data through
 unrelated edits/undo/save, and preflights selected mannequin and actor-linked
-audio before Play. Invalid references have red diagnostic markers; missing
-initial marks use the default entry as their marker anchor. An orphan route
-uses its first surviving mark, falling back to the default entry. Dedicated lists,
-placement and snapshot preview are P07c.
+audio before Play. Actor catalog visual bounds, mark/facing handles and ordered
+route links are viewport-selectable. A selected actor distinguishes visual bounds
+from the cyan capsule proxy. Missing links are labeled at resolved marks; records
+without a finite spatial anchor retain list/Properties access without a fallback
+position. A missing endpoint leaves a gap in the route overlay.
+
+In **Objects > Characters**, add/select actors, marks and routes. **Properties**
+edits their durable IDs, catalog model, speed, initial route and sound links,
+mark feet/yaw, route owner, ordered mark links and optional final `interact`.
+Actor placement belongs to its initial mark: **Select/edit initial mark** opens
+that mark's properties, which identify all sharing actors and route entries.
+Adding an actor reuses an explicitly selected mark, or creates a new initial
+mark in the same command. New placement may overlap existing content until
+it is moved. **Place on surface** works for actors and scene marks; actor placement
+edits the shared initial mark, whose consumers remain visible in Properties.
+Feet use the exact nearest upward structural/terrain hit, including upper floors.
+Walls and undersides block placement, Escape cancels, and a click makes one edit.
+Duplicating an actor creates an independent
+offset initial mark and clears its route/sound links. A missing initial mark
+must be repaired before duplication. Route duplication retains its owner/order.
+**Duplicate**, **Delete**, Ctrl+D, Delete and Ctrl+Z/Ctrl+Y use the shared history;
+compound actor/mark creation and incoming-link renames each undo in one step.
+Deletion leaves broken references visible; new automatic IDs do not reconnect
+them. Unknown references and finite invalid values remain repairable and block
+Save/Play until corrected. Nonfinite values and capacity overflow are refused.
+
+**Character inspection** starts only on explicit request. Select an actor for
+idle/walk/interact playback, optionally choose a scene mark for inspection, or
+select a mark and choose the actor to inspect there. **Preview clip** uses the
+shared 0.15-second transitions; **Pause/Resume preview**, **Restart preview**,
+**Stop preview** and **Clip time** affect only the snapshot. Seeking is silent.
+Select a route for **Start route snapshot**: the panel lists its ordered marks,
+current segment/target, standing turn/walk/final-action stage and feet/yaw.
+This is schematic motion, including interpolated stair elevation; it excludes
+collision, door operation and sound. Use saved-file **Play** for physical checks.
+Missing required references or current character resources prevent Start with
+diagnostics. Other actors retain initial poses. Edits, undo/redo, selection,
+New/Open/Close, minimize and Play stop snapshots; restoration never restarts them.
+Starting character inspection stops audio audition and starting audition stops
+character inspection. Changing list selection commits a pending character field
+before selecting the next record. Preview controls leave authored values and
+history unchanged; text/numeric focus captures navigation input.
+
+Playback updates fenced character vertex buffers while static geometry,
+materials, indices and lighting remain installed. Resize and attachment-format
+recovery preserve the current running or paused snapshot. Failed resource
+replacement retains the complete previous scene with a stale diagnostic; it
+requires correction or undo before a new snapshot can start. An edit made while
+minimized installs on restoration without resuming inspection. The character
+Vulkan smoke checks presented seek/pause pixels and final GPU teardown.
+The independent second-scene authoring and ordinary Play acceptance are recorded
+in [P07c validation](../openspec/changes/archive/2026-09-09-add-character-authoring/validation.md).
+Automated checks alone do not establish T2 acceptance: the retained scene,
+desktop evidence and explicit audio-observation limits are part of that record.
 
 ```powershell
 python -B scripts/prepare_scripted_characters.py

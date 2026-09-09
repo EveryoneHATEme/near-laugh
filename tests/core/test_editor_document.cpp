@@ -80,6 +80,50 @@ TEST(EditorDocument, SaveAsUpdatesPathAndSaveFailurePreservesState) {
   std::filesystem::remove_all(root);
 }
 
+TEST(EditorDocument, EmptySaveAsPreservesUnsavedInteriorAndHistory) {
+  EditorDocument document;
+  document.requestNewInterior();
+  changeYaw(document);
+  const float edited_yaw =
+      document.document()->entries.front().pose.yaw_degrees;
+
+  EXPECT_FALSE(document.saveAs({}));
+  ASSERT_TRUE(document.document());
+  EXPECT_FALSE(document.path());
+  EXPECT_TRUE(document.dirty());
+  EXPECT_EQ(document.document()->entries.front().pose.yaw_degrees, edited_yaw);
+  ASSERT_FALSE(document.diagnostics().empty());
+  EXPECT_EQ(document.diagnostics().front().category,
+            LevelDiagnosticCategory::Filesystem);
+  EXPECT_TRUE(document.diagnostics().front().source_path.empty());
+  ASSERT_TRUE(document.undo());
+  EXPECT_EQ(document.document()->entries.front().pose.yaw_degrees,
+            edited_yaw - 1.0F);
+}
+
+TEST(EditorDocument, EmptyPathsPreserveSavedIdentityEditsAndPendingAction) {
+  EditorDocument document;
+  ASSERT_TRUE(document.open(packagedLevel()));
+  changeYaw(document);
+  document.requestClose();
+  const float edited_yaw =
+      document.document()->entries.front().pose.yaw_degrees;
+
+  EXPECT_FALSE(document.saveAs({}));
+  EXPECT_FALSE(document.open({}));
+  document.requestOpen({});
+  ASSERT_TRUE(document.document());
+  EXPECT_EQ(document.path(), packagedLevel());
+  EXPECT_TRUE(document.dirty());
+  EXPECT_EQ(document.document()->entries.front().pose.yaw_degrees, edited_yaw);
+  EXPECT_EQ(document.pendingAction().kind, EditorPendingActionKind::Close);
+  ASSERT_FALSE(document.diagnostics().empty());
+  EXPECT_EQ(document.diagnostics().front().category,
+            LevelDiagnosticCategory::Filesystem);
+  ASSERT_TRUE(document.undo());
+  EXPECT_FALSE(document.dirty());
+}
+
 TEST(EditorDocument, CleanActionsExecuteWithoutPrompt) {
   EditorDocument close_document;
   ASSERT_TRUE(close_document.open(packagedLevel()));

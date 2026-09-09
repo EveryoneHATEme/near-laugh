@@ -199,8 +199,10 @@ void EditorUi::drawDocumentSummary(EditorDocument& editor_document) {
                   [](const auto& light) { return light.casts_shadows; })));
   ImGui::Text("Entries: %zu / 16; default: %s", document.entries.size(),
               document.default_entry.c_str());
-  ImGui::Text("Props: %zu / %zu", document.props.size(), level_maximum_prop_count);
-  ImGui::Text("Doors: %zu / %zu", document.doors.size(), level_maximum_door_count);
+  ImGui::Text("Props: %zu / %zu", document.props.size(),
+              level_maximum_prop_count);
+  ImGui::Text("Doors: %zu / %zu", document.doors.size(),
+              level_maximum_door_count);
   ImGui::Text("Light switches: %zu / 16", document.light_switches.size());
   float ambient = document.environment_light.ambient_intensity;
   if (ImGui::InputFloat("Ambient (0 to 0.20)", &ambient, .005F, .02F, "%.3f",
@@ -363,7 +365,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
                              std::is_same_v<T, AudioRoomDefinition> ||
                              std::is_same_v<T, AudioConnectionDefinition>) {
           // The concrete audio controls use the same property transaction.
-        } else {
+        } else if constexpr (std::is_same_v<T, PrototypeStaticProp>) {
           std::array<char, 65> name{};
           std::memcpy(name.data(), value.id.data(),
                       std::min(value.id.size(), name.size() - 1));
@@ -417,6 +419,8 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
   if (editorAudioKind(*property_edit_.value()))
     commit |= drawEditorAudioProperties(*property_edit_.value(),
                                         *editor_document.document());
+  if (editorCharacterKind(*property_edit_.value()))
+    drawCharacterProperties(editor_document);
   if (commit) static_cast<void>(property_edit_.commit(editor_document));
   ImGui::End();
 }
@@ -605,6 +609,7 @@ void EditorUi::drawObjects(EditorDocument& document) {
        std::holds_alternative<PrototypePointLight>(*selected_value) ||
        std::holds_alternative<PrototypeLightSwitch>(*selected_value) ||
        editorAudioKind(*selected_value).has_value() ||
+       editorCharacterKind(*selected_value).has_value() ||
        std::holds_alternative<PrototypeStaticProp>(*selected_value));
   ImGui::BeginDisabled(!(selected_solid || selected_entry || selected_content));
   if (ImGui::Button("Duplicate"))
@@ -640,8 +645,11 @@ void EditorUi::drawObjects(EditorDocument& document) {
   if (!document.object(document.selection())) placing_ = false;
   const auto audio_kind =
       selected_value ? editorAudioKind(*selected_value) : std::nullopt;
+  const auto placement_value = document.object(document.placementTarget());
   const bool placeable =
-      selected_value && (!audio_kind || *audio_kind == EditorAudioKind::Source);
+      placement_value &&
+      !std::holds_alternative<CharacterRouteDefinition>(*placement_value) &&
+      (!audio_kind || *audio_kind == EditorAudioKind::Source);
   if (!placeable) placing_ = false;
   ImGui::BeginDisabled(!placeable);
   if (ImGui::Checkbox("Place on surface", &placing_) && placing_) {
@@ -707,8 +715,8 @@ void EditorUi::drawObjects(EditorDocument& document) {
                   faces[static_cast<int>(placement_hit_->face)],
                   placement_hit_->position.y);
       showPosition("Normal", placement_hit_->normal);
-      if (selected_value &&
-          !editorPlacedObject(*selected_value, *placement_hit_,
+      if (placement_value &&
+          !editorPlacedObject(*placement_value, *placement_hit_,
                               placement_offsets_))
         ImGui::TextUnformatted("This face cannot place the selected object.");
     }
@@ -721,8 +729,9 @@ void EditorUi::drawObjects(EditorDocument& document) {
   ImGui::Separator();
   const auto entry = [&](EditorObjectId id, const std::string& label) {
     if (ImGui::Selectable(label.c_str(), document.selection() == id))
-      document.select(id);
+      selectObject(document, id);
   };
+  drawCharacterObjects(document);
   if (ImGui::Button("Add entry")) {
     const auto& level = *document.document();
     static_cast<void>(document.addEntry(level.entries.empty()
@@ -816,6 +825,25 @@ std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
       io.WantCaptureMouse ||
           ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) || popup,
       navigating, ImGui::IsMouseClicked(ImGuiMouseButton_Left), placing_);
+}
+
+void EditorUi::collapsePanelsForCapture(bool collapsed) {
+  for (const auto panel :
+       {"Document Summary", "Objects", "Properties", "Validation", "Playtest",
+        "Audio authoring", "Audio audition", "Character inspection"})
+    ImGui::SetWindowCollapsed(panel, collapsed);
+}
+
+void EditorUi::selectObject(EditorDocument& document, EditorObjectId id) {
+  // Lists draw before Properties. Commit the outgoing character field before
+  // its selection change causes the property draft to synchronize away.
+  property_edit_.synchronize(document);
+  const auto& draft = property_edit_.value();
+  if (draft && editorCharacterKind(*draft) &&
+      draft != document.object(document.selection()) &&
+      !property_edit_.commit(document))
+    return;
+  document.select(id);
 }
 
 void EditorUi::drawTerrainBrush(EditorDocument& document) {

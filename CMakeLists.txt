@@ -320,6 +320,9 @@ add_library(near_laugh_editor_core STATIC
     src/editor/editor_commands.cpp
     src/editor/editor_lighting_commands.cpp
     src/editor/editor_audio_commands.cpp
+    src/editor/editor_character_commands.cpp
+    src/editor/editor_character_spatial.cpp
+    src/editor/editor_character_preview.cpp
     src/editor/editor_document.cpp
     src/editor/editor_terrain.cpp
     src/editor/editor_picking.cpp
@@ -330,6 +333,7 @@ target_include_directories(near_laugh_editor_core
 )
 target_link_libraries(near_laugh_editor_core
     PRIVATE near_laugh_platform near_laugh_world near_laugh_animation
+            near_laugh_audio near_laugh_text
 )
 target_compile_definitions(near_laugh_editor_core PRIVATE
     GLM_FORCE_RADIANS
@@ -341,6 +345,8 @@ add_library(near_laugh_editor_ui STATIC
     src/editor/editor_glfw_bridge.cpp
     src/editor/editor_ui.cpp
     src/editor/editor_audio_ui.cpp
+    src/editor/editor_character_ui.cpp
+    src/editor/editor_character_preview_ui.cpp
 )
 target_include_directories(near_laugh_editor_ui
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src

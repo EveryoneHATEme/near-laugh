@@ -38,8 +38,16 @@ samples passing the unchanged gates. P07b's route/collision/audio and initial
 editor compatibility are implemented, accepted and archived; its
 [acceptance record](../openspec/changes/archive/2026-09-08-add-scripted-characters/validation.md)
 retains all nine passing measurements and the user's acceptance with physical
-listening and hardware latency unverified. P07c remains
-planned and unimplemented; complete T2 still requires its authoring workflow. The other six
+listening and hardware latency unverified. P07c's document commands, properties,
+placement, silent snapshot inspection and independent second-scene authoring/Play
+workflow are implemented, accepted and archived. Its
+[validation record](../openspec/changes/archive/2026-09-09-add-character-authoring/validation.md)
+retains the UI-authored scene, save/reopen/ordinary Play evidence, real obstruction
+and release, moving shadows, interaction caption and the user's confirmation of
+audible output. Hardware latency remains unmeasured. Together the evidence from
+P07a, P07b and P07c establishes T2 acceptance; P07c's
+[archive handoff](../openspec/changes/archive/2026-09-09-add-character-authoring/handoff.md)
+records synchronized main specs and the retained acceptance limits. The other six
 linked changes capture proposals only and still need detailed planning and
 review. Structural validation alone does not establish implementation readiness.
 Proposal-only feature changes do not qualify for the documentation-only
@@ -85,8 +93,9 @@ explicit saved-file launch. P02/P03 added the selected material/asset profile
 and moving doors; P04 added audio and captions. P10 replaces the two-light/
 single-switch limit with up to eight lights, sixteen switches and four shadow
 casters in v8. P07a adds prepared character animation and coherent animated
-shadows without changing v8. Scripted character movement and authoring,
-additional interactions, events and save-game/session support remain technical work.
+shadows, P07b adds v9 scripted movement and audio, and P07c accepts the independent
+authoring/Play workflow. Additional interactions, events and save-game/session
+support remain technical work.
 Update affected main requirements through each change's delta specs against
 the then-current implementation. Preserve useful ownership and validation
 guarantees without retaining obsolete prototype limits.
@@ -128,29 +137,34 @@ of an earlier capability in its supported scope.
 | P06 | [Household object interactions](../openspec/changes/add-household-interactions/proposal.md) | P04, P10 |
 | P07a | [Character animation and rendering](../openspec/changes/archive/2026-09-08-add-character-animation/proposal.md) | P04, P10 |
 | P07b | [Scripted character movement](../openspec/changes/archive/2026-09-08-add-scripted-characters/proposal.md) | P07a |
-| P07c | [Character authoring](../openspec/changes/add-character-authoring/proposal.md) | P07b |
+| P07c | [Character authoring](../openspec/changes/archive/2026-09-09-add-character-authoring/proposal.md) | P07b |
 | P08 | [Deferred escape/help story draft](../openspec/changes/add-escape-and-help-outcomes/proposal.md) | T6 accepted, then story scope reviewed; P12 supplies the technical prerequisites |
 | P09 | [Checkpoint resume](../openspec/changes/add-checkpoint-resume/proposal.md) | P05 |
 | P10 | [Interior lighting](../openspec/changes/archive/2026-09-07-add-interior-lighting/proposal.md) | P02, P03 |
 | P11 | [Story playtest tools](../openspec/changes/add-story-playtest-tools/proposal.md) | P09 |
 | P12 | [Game session and packaging](../openspec/changes/add-game-session-and-packaging/proposal.md) | P09 to start session work; P11 also required for final packaging/workflow acceptance |
 
-P01, P03, P02, P04, P10 and P07a are already archived. The selected remaining order is:
+P01, P03, P02, P04, P10, P07a, P07b and P07c are already archived. P07c's main
+specs are synchronized. The P07 dependency for P06/P05 is
+supported by all three stages, not animation alone. P06 still requires detailed
+planning and review against P04/P10/P07; P05 remains dependent on P06 and P07.
+No dependent implementation is started by this acceptance or archival. The
+selected remaining order is:
 
 ```text
-P07b --> P07c --> P06 --> P05 --> P09
-                                |
-                                v
-                          P12 (session)
-                                |
-                                v
-                               P11
-                                |
-                                v
-                      P12 (packaging, T6)
-                                |
-                                v
-                      Story development / P08
+P06 --> P05 --> P09
+                |
+                v
+          P12 (session)
+                |
+                v
+               P11
+                |
+                v
+      P12 (packaging, T6)
+                |
+                v
+      Story development / P08
 ```
 
 This is the chosen work order, not a claim that every adjacent pair is a hard
@@ -272,7 +286,7 @@ Keep this index and the proposal links usable when changes are archived.
 | Decision | Needed before | Starting assumption |
 | --- | --- | --- |
 | Light/shadow profile and performance budget | P10 design and T1 | A furnished control interior, explicit target hardware/resolution, measured frame times, and documented supported sources/occluders. |
-| Animated export profile and clip transitions | Remaining T2 acceptance in P07c | P07a accepts the prepared mannequin, idle/walk/interact, bounded pose blending and animated shadows. P07b accepts route foot contacts and standing yaw turns with retained visual/performance evidence and explicitly unverified physical listening/hardware latency. The authoring workflow still needs P07c acceptance. |
+| Animated export profile and clip transitions | T2 accepted through P07a/P07b/P07c | P07a accepts the prepared mannequin, idle/walk/interact, bounded pose blending and animated shadows. P07b accepts route foot contacts and standing yaw turns with retained visual/performance evidence. P07c accepts the independent UI-authored scene, save/reopen/Play, player/door obstruction and release, shadows and interaction caption; the user confirms audible output. Hardware latency and a separate per-cue listening matrix remain unmeasured. |
 | Supported object actions and placement rules | P06 design and T3 | Read a document, carry/place an object, and operate a household prop using bounded concrete actions. |
 | Supported event conditions/actions and timing policy | P05 design and T4 | Neutral tests for region entry, object state, elapsed active time, one-shot execution, interruption, and cancellation. No script language. |
 | Checkpoint boundaries, retention, and compatibility | P09 design and T5 | Safe named test-scene boundaries that restore all supported mutable state; actual story checkpoint locations are chosen later. |

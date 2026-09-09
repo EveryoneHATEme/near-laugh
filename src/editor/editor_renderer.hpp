@@ -11,6 +11,7 @@
 
 struct LevelDocument;
 struct EditorOverlayLine;
+struct EditorOverlayLabel;
 class ValidationDiagnostics;
 class Window;
 struct FrameCapture;
@@ -44,6 +45,7 @@ class EditorRenderer {
   void validateSceneAssets(const LevelDocument& level) const;
   [[nodiscard]] std::size_t terrainReplacementCount() const noexcept;
   void drawOverlays(std::span<const EditorOverlayLine> lines);
+  void drawOverlayLabels(std::span<const EditorOverlayLabel> labels);
   void clearDocument();
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
   void requestSwapchainRecreation() noexcept;

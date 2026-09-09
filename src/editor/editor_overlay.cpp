@@ -10,6 +10,7 @@
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "core/world/scene_assets.hpp"
+#include "editor/editor_character_spatial.hpp"
 #include "editor/editor_picking.hpp"
 
 std::optional<EditorOverlayLine> projectEditorLine(const CameraFrame& camera,
@@ -107,38 +108,131 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
                          return diagnostic.document_path.starts_with(record);
                        });
   };
-  for (std::size_t i = 0; i < level.characters.marks.size(); ++i)
-    if (character_error("characters.marks[" + std::to_string(i) + "]"))
-      marker(level.characters.marks[i].feet_position, character_invalid);
+  constexpr WorldColor mark_color{130, 240, 165, 255};
+  constexpr WorldColor route_color{230, 140, 255, 255};
+  constexpr WorldColor proxy_color{70, 220, 255, 255};
+  const auto arrow = [&](WorldPosition first, WorldPosition second,
+                         WorldColor color, bool tip_at_end) {
+    line(first, second, color);
+    const glm::vec3 delta{second.x - first.x, second.y - first.y,
+                          second.z - first.z};
+    const float length = glm::length(delta);
+    if (!(length > 0.001F)) return;
+    const auto forward = delta / length;
+    auto side = glm::cross(forward, glm::vec3{0, 1, 0});
+    if (glm::length(side) < 0.001F) side = {1, 0, 0};
+    side = glm::normalize(side);
+    const auto tip = glm::vec3{first.x, first.y, first.z} +
+                     delta * (tip_at_end ? 1.F : 0.65F);
+    const float size = std::min(0.2F, length * 0.25F);
+    for (const float sign : {-1.F, 1.F}) {
+      const auto wing = tip - forward * size + side * size * 0.55F * sign;
+      line({tip.x, tip.y, tip.z}, {wing.x, wing.y, wing.z}, color);
+    }
+  };
+  const auto route_handle = [&](WorldPosition point, WorldColor color) {
+    constexpr float radius = editor_character_route_radius;
+    for (int plane = 0; plane < 2; ++plane) {
+      const std::array<WorldPosition, 4> corners = {
+          {{point.x, point.y + radius, point.z},
+           {point.x + (plane == 0 ? radius : 0), point.y,
+            point.z + (plane == 1 ? radius : 0)},
+           {point.x, point.y - radius, point.z},
+           {point.x - (plane == 0 ? radius : 0), point.y,
+            point.z - (plane == 1 ? radius : 0)}}};
+      for (std::size_t i = 0; i < corners.size(); ++i)
+        line(corners[i], corners[(i + 1) % corners.size()], color);
+    }
+  };
+  for (std::size_t i = 0; i < level.characters.marks.size(); ++i) {
+    const auto& mark = level.characters.marks[i];
+    if (!editorFiniteCharacterMark(mark)) continue;
+    const auto color =
+        document.selection() ==
+                document.characterIds(EditorCharacterKind::Mark)[i]
+            ? selected_color
+        : character_error("characters.marks[" + std::to_string(i) + "]")
+            ? character_invalid
+            : mark_color;
+    const auto handle = editorCharacterMarkHandle(mark);
+    marker(handle, color);
+    line(mark.feet_position, handle, color);
+    arrow(handle, editorCharacterFacingTip(mark), color, true);
+    route_handle(editorCharacterFacingTip(mark), color);
+  }
   for (std::size_t i = 0; i < level.characters.actors.size(); ++i) {
     const auto& actor = level.characters.actors[i];
-    bool invalid =
+    const auto* mark = findCharacterMark(level.characters, actor.initial_mark);
+    if (!mark || !editorFiniteCharacterMark(*mark)) continue;
+    const bool selected = document.selection() ==
+                          document.characterIds(EditorCharacterKind::Actor)[i];
+    const bool invalid =
         character_error("characters.actors[" + std::to_string(i) + "]");
-    for (std::size_t r = 0; r < level.characters.routes.size(); ++r)
-      if (level.characters.routes[r].actor == actor.id &&
-          character_error("characters.routes[" + std::to_string(r) + "]"))
-        invalid = true;
-    if (!invalid) continue;
-    if (const auto* mark =
-            findCharacterMark(level.characters, actor.initial_mark))
-      marker(mark->feet_position, character_invalid);
-    else if (const auto* entry = findLevelEntry(level, level.default_entry))
-      marker(entry->pose.foot_position, character_invalid);
+    const auto* model = findCharacterModel(actor.model);
+    if (!model || !characterCatalogIsValid(*model)) {
+      marker(editorCharacterDiagnosticHandle(*mark), character_invalid);
+      continue;
+    }
+    const auto bounds = editorCharacterVisualBounds(*model, *mark);
+    box(bounds.center, bounds.half_extent, bounds.yaw_degrees,
+        selected  ? selected_color
+        : invalid ? character_invalid
+                  : WorldColor{180, 185, 205, 180});
+    if (!selected) continue;
+    // The capsule is authored metadata, distinct from conservative visual
+    // bounds.
+    const float radius = model->capsule_radius_m;
+    const float bottom = mark->feet_position.y + radius;
+    const float top = mark->feet_position.y + model->capsule_height_m - radius;
+    for (int step = 0; step < 24; ++step) {
+      const auto ring = [&](int i, float height) {
+        const double angle = i * 2 * std::numbers::pi / 24;
+        return WorldPosition{mark->feet_position.x +
+                                 radius * static_cast<float>(std::cos(angle)),
+                             height,
+                             mark->feet_position.z +
+                                 radius * static_cast<float>(std::sin(angle))};
+      };
+      for (const float height : {bottom, top})
+        line(ring(step, height), ring(step + 1, height), proxy_color);
+      if (step % 6 == 0) line(ring(step, bottom), ring(step, top), proxy_color);
+      for (int plane = 0; plane < 2; ++plane)
+        for (const float sign : {-1.F, 1.F}) {
+          const auto cap = [&](int i) {
+            const double angle = i * std::numbers::pi / 24;
+            const float horizontal =
+                radius * static_cast<float>(std::cos(angle));
+            return WorldPosition{
+                mark->feet_position.x + (plane == 0 ? horizontal : 0),
+                (sign < 0 ? bottom : top) +
+                    sign * radius * static_cast<float>(std::sin(angle)),
+                mark->feet_position.z + (plane == 1 ? horizontal : 0)};
+          };
+          line(cap(step), cap(step + 1), proxy_color);
+        }
+    }
   }
   for (std::size_t i = 0; i < level.characters.routes.size(); ++i) {
     const auto& route = level.characters.routes[i];
-    if (!character_error("characters.routes[" + std::to_string(i) + "]") ||
-        std::any_of(level.characters.actors.begin(),
-                    level.characters.actors.end(),
-                    [&](const auto& actor) { return actor.id == route.actor; }))
-      continue;
-    const CharacterMarkDefinition* anchor = nullptr;
-    for (const auto& id : route.marks)
-      if ((anchor = findCharacterMark(level.characters, id))) break;
-    if (anchor)
-      marker(anchor->feet_position, character_invalid);
-    else if (const auto* entry = findLevelEntry(level, level.default_entry))
-      marker(entry->pose.foot_position, character_invalid);
+    const auto color =
+        document.selection() ==
+                document.characterIds(EditorCharacterKind::Route)[i]
+            ? selected_color
+        : character_error("characters.routes[" + std::to_string(i) + "]")
+            ? character_invalid
+            : route_color;
+    const CharacterMarkDefinition* previous = nullptr;
+    for (const auto& id : route.marks) {
+      const auto* mark = findCharacterMark(level.characters, id);
+      if (mark && !editorFiniteCharacterMark(*mark)) mark = nullptr;
+      if (mark) {
+        const auto point = editorCharacterRouteHandle(*mark);
+        route_handle(point, color);
+        if (previous)
+          arrow(editorCharacterRouteHandle(*previous), point, color, false);
+      }
+      previous = mark;
+    }
   }
   constexpr WorldColor audio_color{210, 130, 255, 255};
   for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
@@ -319,4 +413,91 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     line(p, {p.x, p.y + 0.5F, p.z}, selected_color);
   }
   return lines;
+}
+
+std::vector<EditorOverlayLabel> buildEditorCharacterOverlayLabels(
+    const EditorDocument& document, const CameraFrame& camera) {
+  std::vector<EditorOverlayLabel> labels;
+  if (!document.document()) return labels;
+  constexpr WorldColor selected_color{255, 205, 60, 255};
+  constexpr WorldColor invalid_color{255, 70, 70, 255};
+  const auto label = [&](EditorObjectId object, WorldPosition point,
+                         WorldColor color, std::string text) {
+    const auto projected = projectEditorLine(camera, point, point, color);
+    if (!projected) return;
+    for (auto& existing : labels)
+      if (existing.object == object && existing.position == projected->first) {
+        existing.text += "\n" + text;
+        if (color == invalid_color) existing.color = color;
+        return;
+      }
+    labels.push_back({projected->first, color, std::move(text), object});
+  };
+  const auto& characters = document.document()->characters;
+  for (std::size_t i = 0; i < characters.actors.size(); ++i) {
+    const auto& actor = characters.actors[i];
+    const auto* mark = findCharacterMark(characters, actor.initial_mark);
+    if (!mark || !editorFiniteCharacterMark(*mark)) continue;
+    const auto id = document.characterIds(EditorCharacterKind::Actor)[i];
+    const auto* model = findCharacterModel(actor.model);
+    if (!model || !characterCatalogIsValid(*model))
+      label(id, editorCharacterDiagnosticHandle(*mark), invalid_color,
+            "Actor " + actor.id + ": missing model '" + actor.model + "'");
+    else if (document.selection() == id) {
+      auto point = mark->feet_position;
+      point.y += model->capsule_height_m + 0.2F;
+      label(id, point, selected_color,
+            "Actor " + actor.id + "\nYellow: visual bounds; cyan: capsule");
+    }
+  }
+  for (std::size_t i = 0; i < characters.marks.size(); ++i) {
+    const auto id = document.characterIds(EditorCharacterKind::Mark)[i];
+    const auto& mark = characters.marks[i];
+    if (document.selection() == id && editorFiniteCharacterMark(mark))
+      label(id, editorCharacterFacingTip(mark), selected_color,
+            "Mark " + mark.id + " / facing");
+  }
+  for (std::size_t i = 0; i < characters.routes.size(); ++i) {
+    const auto& route = characters.routes[i];
+    const auto id = document.characterIds(EditorCharacterKind::Route)[i];
+    std::vector<const CharacterMarkDefinition*> marks;
+    for (const auto& mark_id : route.marks) {
+      const auto* mark = findCharacterMark(characters, mark_id);
+      marks.push_back(mark && editorFiniteCharacterMark(*mark) ? mark
+                                                               : nullptr);
+    }
+    const auto first = std::find_if(marks.begin(), marks.end(),
+                                    [](const auto* mark) { return mark; });
+    // A wholly unresolved route has list/Properties diagnostics, no world
+    // anchor.
+    if (first == marks.end()) continue;
+    if (std::none_of(
+            characters.actors.begin(), characters.actors.end(),
+            [&](const auto& actor) { return actor.id == route.actor; }))
+      label(id, editorCharacterRouteHandle(**first), invalid_color,
+            "Route " + route.id + ": missing actor '" + route.actor + "'");
+    for (std::size_t j = 0; j < marks.size(); ++j) {
+      if (marks[j]) {
+        if (document.selection() == id)
+          label(id, editorCharacterRouteHandle(*marks[j]), selected_color,
+                "Route " + route.id + " / " + std::to_string(j + 1) + ": " +
+                    route.marks[j]);
+        continue;
+      }
+      const CharacterMarkDefinition* anchor = nullptr;
+      // Label an unresolved slot beside a real neighboring mark, without a
+      // line.
+      for (std::size_t distance = 1; distance < marks.size() && !anchor;
+           ++distance) {
+        if (j >= distance) anchor = marks[j - distance];
+        if (!anchor && j + distance < marks.size())
+          anchor = marks[j + distance];
+      }
+      if (anchor)
+        label(id, editorCharacterRouteHandle(*anchor), invalid_color,
+              "Route " + route.id + " / " + std::to_string(j + 1) +
+                  ": missing mark '" + route.marks[j] + "'");
+    }
+  }
+  return labels;
 }

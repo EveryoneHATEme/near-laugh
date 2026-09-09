@@ -54,6 +54,11 @@ std::optional<EditorObjectValue> editorPlacedObject(
             object.pose.foot_position = hit.position;
           else
             available = false;
+        } else if constexpr (std::is_same_v<T, CharacterMarkDefinition>) {
+          if (top && hit.normal.y > 0)
+            object.feet_position = hit.position;
+          else
+            available = false;
         } else if constexpr (std::is_same_v<T, DoorDefinition>) {
           if (top) {
             object.hinge_position = hit.position;
@@ -67,7 +72,9 @@ std::optional<EditorObjectValue> editorPlacedObject(
             available = false;
         } else if constexpr (std::is_same_v<T, AudioCueDefinition> ||
                              std::is_same_v<T, AudioRoomDefinition> ||
-                             std::is_same_v<T, AudioConnectionDefinition>) {
+                             std::is_same_v<T, AudioConnectionDefinition> ||
+                             std::is_same_v<T, CharacterActorDefinition> ||
+                             std::is_same_v<T, CharacterRouteDefinition>) {
           available = false;
         } else {
           object.position = hit.position;
@@ -93,6 +100,7 @@ std::optional<EditorObjectValue> editorPlacedObject(
 
 std::string editorObjectFieldError(const EditorObjectValue& value) {
   if (editorAudioKind(value)) return editorAudioFieldError(value);
+  if (editorCharacterKind(value)) return editorCharacterFieldError(value);
   return std::visit(
       [](const auto& v) -> std::string {
         using T = std::decay_t<decltype(v)>;
@@ -207,6 +215,7 @@ void EditorDocument::resetEditing() {
   }
   selection_ = editor_no_object;
   resetAudioIds();
+  resetCharacterIds();
   history_.clear();
   terrain_stroke_.reset();
   history_position_ = 0;
@@ -351,11 +360,36 @@ std::optional<EditorObjectValue> EditorDocument::object(
   if (const auto index = switchIndex(id))
     return document_->light_switches[*index];
   if (const auto index = solidIndex(id)) return document_->solids[*index];
+  if (auto value = characterObject(id)) return value;
   return audioObject(id);
 }
 
 void EditorDocument::select(EditorObjectId id) {
-  selection_ = object(id) ? id : editor_no_object;
+  const auto next = object(id) ? id : editor_no_object;
+  if (selection_ != next) ++selection_revision_;
+  selection_ = next;
+}
+
+EditorObjectId EditorDocument::placementTarget() const {
+  const auto selected = object(selection_);
+  if (!selected) return editor_no_object;
+  if (const auto* actor = std::get_if<CharacterActorDefinition>(&*selected)) {
+    for (const auto id : characterIds(EditorCharacterKind::Mark))
+      if (std::get<CharacterMarkDefinition>(*object(id)).id ==
+          actor->initial_mark)
+        return id;
+    return editor_no_object;
+  }
+  return selection_;
+}
+
+bool EditorDocument::placeSelected(const EditorSurfaceHit& hit,
+                                   const EditorPlacementOffsets& offsets) {
+  const auto target = placementTarget();
+  const auto value = object(target);
+  if (!value) return false;
+  auto placed = editorPlacedObject(*value, hit, offsets);
+  return placed && replaceObject(target, std::move(*placed));
 }
 
 bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
@@ -397,6 +431,7 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
             selection_,
             selection_};
   if (!prepareLightingEdit(edit)) return false;
+  if (!prepareCharacterEdit(edit)) return false;
   if (const auto* entry = std::get_if<LevelEntry>(&*edit.after)) {
     const auto& old = std::get<LevelEntry>(*before);
     if (old.id != entry->id && findLevelEntry(*document_, entry->id)) {
@@ -450,6 +485,8 @@ bool EditorDocument::addSolid(PrototypeSolid solid) {
 }
 
 bool EditorDocument::duplicateSelected() {
+  if (auto value = characterObject(selection_))
+    return duplicateCharacter(std::move(*value));
   static_cast<void>(finishTerrainStroke());
   if (!document_) return false;
   if (const auto index = lightIndex(selection_)) {
@@ -505,6 +542,7 @@ bool EditorDocument::duplicateSelected() {
 
 bool EditorDocument::removeSelected() {
   static_cast<void>(finishTerrainStroke());
+  if (characterObject(selection_)) return removeCharacter();
   if (auto value = audioObject(selection_)) {
     const auto& ids = audioIds(*editorAudioKind(*value));
     const auto index = static_cast<std::size_t>(
@@ -549,6 +587,13 @@ bool EditorDocument::placeSelected(WorldPosition terrain_hit) {
     return false;
   terrain_hit.y = prototypeTerrainHeightAt(*document_->terrain, terrain_hit.x,
                                            terrain_hit.z);
+  if (editorCharacterKind(*value))
+    return placeSelected({terrain_hit,
+                          {0, 1, 0},
+                          0,
+                          editor_no_object,
+                          EditorSurfaceFace::Terrain},
+                         {});
   std::visit(
       [&](auto& v) {
         using T = std::decay_t<decltype(v)>;
@@ -593,7 +638,16 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
   const auto& value = forward ? edit.after : edit.before;
   if (edit.audio_after)
     document_->audio = forward ? *edit.audio_after : *edit.audio_before;
-  if (applyLightingEdit(edit, forward)) {
+  if (edit.characters_after)
+    document_->characters =
+        forward ? *edit.characters_after : *edit.characters_before;
+  if (edit.character_ids_after)
+    character_ids_ =
+        forward ? *edit.character_ids_after : *edit.character_ids_before;
+  const auto& identity = edit.after ? edit.after : edit.before;
+  if (identity && editorCharacterKind(*identity)) {
+    // Compound character definitions/references/handles share one revision.
+  } else if (applyLightingEdit(edit, forward)) {
     // Lighting uses the same revision, selection and validation below.
   } else if (applyAudioEdit(edit, forward)) {
     // Audio commands share the same revision, selection and validation below.

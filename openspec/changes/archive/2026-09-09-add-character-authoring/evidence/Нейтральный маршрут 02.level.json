@@ -1,0 +1,340 @@
+{
+  "version": 9,
+  "terrain": null,
+  "solids": [
+    {
+      "center": {
+        "x": 0.0,
+        "y": -0.25,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 5.0,
+        "y": 0.25,
+        "z": 5.0
+      },
+      "color": [
+        150,
+        155,
+        165,
+        255
+      ],
+      "kind": "floor",
+      "material": "prototype-floor"
+    },
+    {
+      "center": {
+        "x": -2.925,
+        "y": 1.5,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 2.075,
+        "y": 1.5,
+        "z": 0.1
+      },
+      "color": [
+        180,
+        180,
+        180,
+        255
+      ],
+      "kind": "boundary",
+      "material": "prototype-obstacle"
+    },
+    {
+      "center": {
+        "x": 2.925,
+        "y": 1.5,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 2.075,
+        "y": 1.5,
+        "z": 0.1
+      },
+      "color": [
+        180,
+        180,
+        180,
+        255
+      ],
+      "kind": "boundary",
+      "material": "prototype-obstacle"
+    },
+    {
+      "center": {
+        "x": -4.9,
+        "y": 1.5,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 0.1,
+        "y": 1.5,
+        "z": 4.9
+      },
+      "color": [
+        180,
+        180,
+        180,
+        255
+      ],
+      "kind": "boundary",
+      "material": "prototype-obstacle"
+    },
+    {
+      "center": {
+        "x": 4.9,
+        "y": 1.5,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 0.1,
+        "y": 1.5,
+        "z": 4.9
+      },
+      "color": [
+        180,
+        180,
+        180,
+        255
+      ],
+      "kind": "boundary",
+      "material": "prototype-obstacle"
+    },
+    {
+      "center": {
+        "x": 0.0,
+        "y": 1.5,
+        "z": 4.9
+      },
+      "half_extent": {
+        "x": 4.8,
+        "y": 1.5,
+        "z": 0.1
+      },
+      "color": [
+        180,
+        180,
+        180,
+        255
+      ],
+      "kind": "boundary",
+      "material": "prototype-obstacle"
+    },
+    {
+      "center": {
+        "x": 0.0,
+        "y": 1.5,
+        "z": -4.9
+      },
+      "half_extent": {
+        "x": 4.8,
+        "y": 1.5,
+        "z": 0.1
+      },
+      "color": [
+        180,
+        180,
+        180,
+        255
+      ],
+      "kind": "boundary",
+      "material": "prototype-obstacle"
+    }
+  ],
+  "entries": [
+    {
+      "id": "default",
+      "foot_position": {
+        "x": -1.5,
+        "y": 0.0,
+        "z": 4.0
+      },
+      "yaw_degrees": -45.0
+    },
+    {
+      "id": "entry-1",
+      "foot_position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 1.5
+      },
+      "yaw_degrees": 90.0
+    }
+  ],
+  "default_entry": "default",
+  "environment_light": {
+    "point_lights": [
+      {
+        "id": "point-light-0",
+        "position": {
+          "x": -2.0,
+          "y": 2.4,
+          "z": 2.0
+        },
+        "color": [
+          0.3,
+          0.5,
+          0.9
+        ],
+        "intensity": 0.65,
+        "radius": 5.0,
+        "initially_on": true,
+        "casts_shadows": true
+      },
+      {
+        "id": "point-light-1",
+        "position": {
+          "x": 2.0,
+          "y": 2.8,
+          "z": -2.0
+        },
+        "color": [
+          1.0,
+          0.48,
+          0.2
+        ],
+        "intensity": 0.95,
+        "radius": 6.0,
+        "initially_on": true,
+        "casts_shadows": true
+      }
+    ],
+    "ambient_intensity": 0.12
+  },
+  "props": [],
+  "light_switches": [],
+  "doors": [
+    {
+      "id": "door-1",
+      "hinge_position": {
+        "x": -0.75,
+        "y": 0.02,
+        "z": 0.0
+      },
+      "closed_yaw_degrees": 0.0,
+      "width": 1.5,
+      "height": 2.2,
+      "thickness": 0.06,
+      "open_angle_degrees": 90.0,
+      "speed_degrees_per_second": 90.0,
+      "lock_side": "positive-z",
+      "initially_open": false,
+      "initially_locked": false
+    }
+  ],
+  "audio": {
+    "cues": [
+      {
+        "id": "cue-1",
+        "clip": "character-footstep",
+        "caption": null,
+        "kind": "ambience",
+        "loop": false,
+        "spatial": true
+      },
+      {
+        "id": "cue-2",
+        "clip": "character-interaction",
+        "caption": "character-interaction",
+        "kind": "essential",
+        "loop": false,
+        "spatial": true
+      }
+    ],
+    "sources": [
+      {
+        "id": "source-1",
+        "cue": "cue-1",
+        "position": {
+          "x": 0.0,
+          "y": 1.5,
+          "z": 2.0
+        },
+        "gain": 1.0,
+        "near_distance": 1.0,
+        "far_distance": 20.0,
+        "autoplay": false
+      },
+      {
+        "id": "source-2",
+        "cue": "cue-2",
+        "position": {
+          "x": 0.0,
+          "y": 1.5,
+          "z": 2.0
+        },
+        "gain": 1.0,
+        "near_distance": 1.0,
+        "far_distance": 20.0,
+        "autoplay": false
+      }
+    ],
+    "rooms": [],
+    "connections": []
+  },
+  "characters": {
+    "actors": [
+      {
+        "id": "actor-1",
+        "model": "test-mannequin",
+        "initial_mark": "mark-1",
+        "initial_route": "route-1",
+        "speed": 0.5,
+        "footstep_source": "source-1",
+        "interaction_source": "source-2"
+      }
+    ],
+    "marks": [
+      {
+        "id": "mark-1",
+        "feet_position": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 3.0
+        },
+        "yaw_degrees": -90.0
+      },
+      {
+        "id": "mark-2",
+        "feet_position": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 1.5
+        },
+        "yaw_degrees": -90.0
+      },
+      {
+        "id": "mark-3",
+        "feet_position": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": -1.5
+        },
+        "yaw_degrees": -90.0
+      },
+      {
+        "id": "mark-4",
+        "feet_position": {
+          "x": 1.8,
+          "y": 0.0,
+          "z": -2.8
+        },
+        "yaw_degrees": 0.0
+      }
+    ],
+    "routes": [
+      {
+        "id": "route-1",
+        "actor": "actor-1",
+        "marks": [
+          "mark-2",
+          "mark-3",
+          "mark-4"
+        ],
+        "final_clip": "interact"
+      }
+    ]
+  }
+}

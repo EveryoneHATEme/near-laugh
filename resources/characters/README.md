@@ -111,5 +111,10 @@ walk phase. Standing turns pivot the entire accepted model at 120 degrees/second
 Physics keeps authored/render/audio feet on accepted ground and derives a private
 capsule offset on slopes. There is no foot IK; the measured source sole dip
 (2.654 cm), turn pivot and capsule-versus-limb limits remain visible limitations.
-The editor's P07b compatibility view shows frozen initial idle poses; P07c adds
-dedicated authoring and snapshot inspection.
+The editor shows authored initial idle poses until explicit snapshot inspection
+starts. Its character controls edit catalog model choices, marks, routes and
+selected action-sound links; they do not import or modify the packaged asset.
+Silent clip inspection uses the same sampler. Schematic route inspection omits
+physics, doors and sound; validate those through a saved-file Play in the game.
+See the [editor controls](../../docs/DEVELOPMENT.md#p07b-scripted-characters) and
+[P07c acceptance record](../../openspec/changes/add-character-authoring/validation.md).

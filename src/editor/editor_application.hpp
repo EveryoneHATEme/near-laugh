@@ -21,7 +21,8 @@ class EditorApplication {
  public:
   EditorApplication(std::filesystem::path resource_root,
                     std::optional<std::filesystem::path> initial_level,
-                    ValidationDiagnostics& diagnostics);
+                    ValidationDiagnostics& diagnostics,
+                    FrameCapture* capture = nullptr);
 
   EditorApplication(const EditorApplication&) = delete;
   EditorApplication& operator=(const EditorApplication&) = delete;
@@ -30,19 +31,27 @@ class EditorApplication {
 
   void run();
   void runSmoke(const std::filesystem::path& valid_level);
-  void runCharacterSmoke();
+  void runCharacterSmoke(std::vector<std::string>& events,
+                         FrameCapture& capture);
   [[nodiscard]] bool tick();
 
  private:
   void updateNavigation(EditorUiCaptureIntent capture);
   void synchronizeDocumentResources();
-  void updateAudition(double now);
+  void updateAudition(double now, bool can_start = true);
+  void updateCharacterPreview(double now, bool can_start);
+  bool startCharacterPreview(const EditorCharacterPreviewRequest& request);
+  bool startAudition(EditorObjectId source, double now,
+                     AudioOutput output = AudioOutput::Device);
+  void stopInspections();
   void launchPlay(const EditorLaunchRequest& launch);
 
   ValidationDiagnostics& validation_diagnostics_;
   std::filesystem::path resource_root_;
   std::shared_ptr<const CaptionFont> caption_font_;
   EditorAudioAudition audition_;
+  EditorCharacterPreview character_preview_;
+  std::optional<double> character_preview_time_;
   Platform platform_{};
   Window window_;
   EditorGlfwBridge glfw_imgui_bridge_;
@@ -58,6 +67,10 @@ class EditorApplication {
   std::vector<std::uint8_t> preview_point_light_enabled_{};
   std::vector<CharacterPose> initial_character_palettes_{};
   std::vector<CharacterPoseFrame> initial_character_frames_{};
+  std::vector<std::shared_ptr<const CharacterAsset>>
+      initial_character_assets_{};
+  std::vector<EditorObjectId> initial_character_ids_{};
+  bool character_resources_current_{};
 };
 
 #endif

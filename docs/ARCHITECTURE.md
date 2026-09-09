@@ -279,7 +279,7 @@ state.
 
 `EditorDocument` also owns transient object IDs, one selection, concrete object
 commands, and 128-entry undo/redo history. These transient handles never enter
-the level file; durable entry/door/prop/light/switch string IDs do.
+the level file; durable entry/door/prop/light/switch/audio/character string IDs do.
 Terrain gestures share that history as sorted sparse sample before/after pairs.
 Brush settings and the active path are editor-only state. Pure brush kernels
 read pre-stamp samples; the editor resamples horizontal motion at fixed distance
@@ -314,14 +314,29 @@ props or doors. Durable entry strings are separate from transient selection IDs;
 renaming a default entry updates its reference in one undoable command.
 
 Character-bearing files retain every actor/mark/route field through unrelated
-commands and saves. The editor owns frozen initial idle poses and shares their
+commands and saves. The editor owns initial idle poses and shares their
 prepared assets with its renderer; routes never autoplay there. Invalid safe
-references produce red diagnostic markers; a missing initial mark anchors its
-diagnostic at the default entry. An orphan route uses its first surviving mark,
-or the default entry if none survives. Failed asset replacement retains the previous
+references produce red diagnostic markers only at resolved finite marks.
+Unresolved initial marks and wholly unresolved routes remain accessible through
+the list and diagnostics without invented world coordinates. Failed asset replacement retains the previous
 coherent preview. Play prepares selected characters and linked audio before
-creating a child. Dedicated character selection, properties and snapshot route
-inspection remain P07c work.
+creating a child. Actor/mark/route list selection and concrete properties share
+the document commands. Character edits retain bounded definition snapshots in
+the existing history; compound creation also retains the allocated selection
+handles. Renames rewrite incoming character links, including actor audio links,
+in the same history entry. Deletion preserves unresolved references for repair.
+Character picking uses catalog visual bounds, mark/facing handles and ordered
+route links. Actor surface placement edits its initial mark through the same
+history while preserving actor selection and all shared consumers.
+
+The application owns one explicit silent character snapshot with immutable
+selected assets and copied mark/route definitions. Clip controls reuse
+CharacterPlayback; schematic routes interpolate endpoint elevations, turn in
+place and use catalog walk calibration without physics or audio. The frame
+borrows the selected snapshot palette/placement while other actors keep initial
+poses. Edits, history, selection, replacement, minimize and Play discard the
+snapshot. Character inspection and audio audition stop each other on Start;
+controls are consumed in the current frame and never restart after invalidation.
 
 Play prepares the current document and selected entry, completes pending edits,
 and requires Save and Play or Cancel when dirty. Unsaved work uses Save As.

@@ -12,6 +12,7 @@
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "core/world/scene_assets.hpp"
+#include "editor/editor_character_spatial.hpp"
 
 namespace {
 glm::dvec3 vec(WorldPosition p) { return {p.x, p.y, p.z}; }
@@ -44,17 +45,50 @@ double boxHit(glm::dvec3 origin, glm::dvec3 direction, WorldExtent extent) {
   }
   return enter > 0 ? enter : leave;
 }
-double sphereHit(const EditorRay& ray, WorldPosition center) {
+double sphereHit(const EditorRay& ray, WorldPosition center,
+                 double radius = editor_marker_radius) {
   const glm::dvec3 relative = vec(ray.origin) - vec(center);
   const glm::dvec3 direction = vec(ray.direction);
   const double a = glm::dot(direction, direction);
   const double b = glm::dot(relative, direction);
-  const double c = glm::dot(relative, relative) -
-                   editor_marker_radius * editor_marker_radius;
+  const double c = glm::dot(relative, relative) - radius * radius;
   const double discriminant = b * b - a * c;
   if (discriminant < 0) return -1;
   const double first = (-b - std::sqrt(discriminant)) / a;
   return first > 0 ? first : (-b + std::sqrt(discriminant)) / a;
+}
+double segmentHit(const EditorRay& ray, WorldPosition first,
+                  WorldPosition second) {
+  constexpr double radius = editor_character_line_radius;
+  double nearest = std::numeric_limits<double>::infinity();
+  const auto consider = [&](double t) {
+    if (t > 0 && t < nearest) nearest = t;
+  };
+  consider(sphereHit(ray, first, radius));
+  consider(sphereHit(ray, second, radius));
+  const auto delta = vec(second) - vec(first);
+  const double length = glm::length(delta);
+  if (length > 1e-12) {
+    const auto axis = delta / length;
+    const auto origin = vec(ray.origin) - vec(first);
+    const auto direction = vec(ray.direction);
+    const double along_origin = glm::dot(origin, axis);
+    const double along_direction = glm::dot(direction, axis);
+    const auto perpendicular_origin = origin - axis * along_origin;
+    const auto perpendicular_direction = direction - axis * along_direction;
+    const double a = glm::dot(perpendicular_direction, perpendicular_direction);
+    const double b = glm::dot(perpendicular_origin, perpendicular_direction);
+    const double c =
+        glm::dot(perpendicular_origin, perpendicular_origin) - radius * radius;
+    const double discriminant = b * b - a * c;
+    if (a > 1e-12 && discriminant >= 0)
+      for (const double t : {(-b - std::sqrt(discriminant)) / a,
+                             (-b + std::sqrt(discriminant)) / a}) {
+        const double along = along_origin + t * along_direction;
+        if (along >= 0 && along <= length) consider(t);
+      }
+  }
+  return std::isfinite(nearest) ? nearest : -1;
 }
 double triangleHit(const EditorRay& ray, WorldPosition a, WorldPosition b,
                    WorldPosition c) {
@@ -155,6 +189,53 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
   for (std::size_t i = 0; i < level.entries.size(); ++i)
     consider(document.entryIds()[i],
              sphereHit(ray, editorSpawnMarker(level.entries[i].pose)));
+  for (std::size_t i = 0; i < level.characters.actors.size(); ++i) {
+    const auto& actor = level.characters.actors[i];
+    const auto* mark = findCharacterMark(level.characters, actor.initial_mark);
+    if (!mark || !editorFiniteCharacterMark(*mark)) continue;
+    const auto id = document.characterIds(EditorCharacterKind::Actor)[i];
+    if (const auto* model = findCharacterModel(actor.model);
+        model && characterCatalogIsValid(*model)) {
+      const auto bounds = editorCharacterVisualBounds(*model, *mark);
+      const double yaw = bounds.yaw_degrees * std::numbers::pi / 180.0;
+      const auto inverse_yaw = [&](glm::dvec3 v) {
+        return glm::dvec3{std::cos(yaw) * v.x - std::sin(yaw) * v.z, v.y,
+                          std::sin(yaw) * v.x + std::cos(yaw) * v.z};
+      };
+      consider(id, boxHit(inverse_yaw(vec(ray.origin) - vec(bounds.center)),
+                          inverse_yaw(vec(ray.direction)), bounds.half_extent));
+    } else {
+      consider(id, sphereHit(ray, editorCharacterDiagnosticHandle(*mark)));
+    }
+  }
+  for (std::size_t i = 0; i < level.characters.marks.size(); ++i) {
+    const auto& mark = level.characters.marks[i];
+    if (!editorFiniteCharacterMark(mark)) continue;
+    const auto id = document.characterIds(EditorCharacterKind::Mark)[i];
+    consider(id, sphereHit(ray, editorCharacterMarkHandle(mark)));
+    consider(id, segmentHit(ray, editorCharacterMarkHandle(mark),
+                            editorCharacterFacingTip(mark)));
+    consider(id, sphereHit(ray, editorCharacterFacingTip(mark),
+                           editor_character_route_radius));
+  }
+  for (std::size_t i = 0; i < level.characters.routes.size(); ++i) {
+    const auto& route = level.characters.routes[i];
+    const auto id = document.characterIds(EditorCharacterKind::Route)[i];
+    const CharacterMarkDefinition* previous = nullptr;
+    for (const auto& mark_id : route.marks) {
+      const auto* mark = findCharacterMark(level.characters, mark_id);
+      if (mark && !editorFiniteCharacterMark(*mark)) mark = nullptr;
+      if (mark) {
+        const auto point = editorCharacterRouteHandle(*mark);
+        consider(id, sphereHit(ray, point, editor_character_route_radius));
+        if (previous)
+          consider(id, segmentHit(ray, editorCharacterRouteHandle(*previous),
+                                  point));
+      }
+      // A missing endpoint breaks the polyline; never bridge over the gap.
+      previous = mark;
+    }
+  }
   for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
     consider(document.audioIds(EditorAudioKind::Source)[i],
              sphereHit(ray, level.audio.sources[i].position));
@@ -298,11 +379,7 @@ std::optional<EditorSurfaceHit> updateEditorPlacementViewport(
   const auto selected = document.object(document.selection());
   if (!selected) return std::nullopt;
   const auto hit = pickEditorSurface(document, *ray, mode);
-  if (hit && pressed) {
-    if (auto placed = editorPlacedObject(*selected, *hit, offsets))
-      static_cast<void>(
-          document.replaceObject(document.selection(), std::move(*placed)));
-  }
+  if (hit && pressed) static_cast<void>(document.placeSelected(*hit, offsets));
   return hit;
 }
 

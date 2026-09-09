@@ -59,7 +59,8 @@ TEST_F(CharacterDefinitions, EmptyAndNullDefinitionsAreValid) {
   EXPECT_TRUE(validateLevelDocument(d).empty());
 }
 
-TEST_F(CharacterDefinitions, InvalidReferencesKeepVisibleDiagnosticAnchors) {
+TEST_F(CharacterDefinitions,
+       InvalidReferencesUseOnlyResolvedDiagnosticAnchors) {
   ASSERT_TRUE(saveLevelDocument(path, characterDocument()));
   const auto valid = nlohmann::json::parse(bytes());
   for (int defect = 0; defect < 3; ++defect) {
@@ -81,9 +82,18 @@ TEST_F(CharacterDefinitions, InvalidReferencesKeepVisibleDiagnosticAnchors) {
     const auto camera =
         character_fixture::camera({anchor.x, 2, 5}, {anchor.x, 0, 0}, 4.F / 3);
     const auto lines = buildEditorOverlay(editor, camera);
-    EXPECT_TRUE(std::any_of(lines.begin(), lines.end(), [](const auto& line) {
-      return line.color == WorldColor{255, 70, 70, 255};
-    })) << defect;
+    const bool has_spatial_diagnostic =
+        std::any_of(lines.begin(), lines.end(), [](const auto& line) {
+          return line.color == WorldColor{255, 70, 70, 255};
+        });
+    EXPECT_EQ(has_spatial_diagnostic, defect != 2) << defect;
+    if (defect == 2) {
+      const auto route =
+          editor.characterIds(EditorCharacterKind::Route).front();
+      editor.select(route);
+      EXPECT_EQ(editor.selection(), route);
+      EXPECT_TRUE(buildEditorCharacterOverlayLabels(editor, camera).empty());
+    }
     EXPECT_EQ(bytes(), original_bytes);
     EXPECT_FALSE(editor.diagnostics().empty());
   }

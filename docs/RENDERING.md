@@ -203,11 +203,14 @@ shadow shaders on the editor's device before launching the game.
 
 Editor-only selection bounds, light/entry spheres, brush footprints, invalid
 terrain triangle outlines, selected light ranges/switch links, prop render/proxy bounds, door hinge/arc/bolt-side
-guides and placement feedback are CPU-projected and clipped
+guides, character catalog visual bounds/capsule proxies, mark/facing handles,
+ordered route links and placement feedback are CPU-projected and clipped
 to the Vulkan view volume. The editor renderer draws
 these lines through the ImGui background draw list, above scene geometry and
 below UI panels, using the existing Vulkan backend. They intentionally have no
-scene depth test and do not alter runtime frame requests or level data.
+scene depth test and do not alter runtime frame requests or level data. Character
+labels use projected finite marks and the same background list; missing endpoints
+never create a line to a substituted origin.
 
 ## Prepared character presentation
 
@@ -252,7 +255,11 @@ physics privately offsets its upright capsule. Color and shadow passes consume
 the same accepted pose. No renderer clock or separate placement interpolation
 can advance an actor through a blocker. The editor prepares initial idle poses
 without route autoplay and transactionally retains their CPU/GPU owners through
-replacement failures. Character reference diagnostics use its existing overlay.
+replacement failures. Explicit editor snapshot inspection supplies the selected
+actor's sampled palette and placement through the existing frame input while
+remaining actors keep their initial palettes. The snapshot owns its pose until
+the synchronous frame submission returns. Schematic routes do not predict
+physical support or obstruction. Character reference diagnostics use the overlay.
 
 ## Russian captions
 

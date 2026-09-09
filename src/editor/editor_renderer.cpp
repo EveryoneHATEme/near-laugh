@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "core/platform/window.hpp"
-#include "core/render/depth_attachment.hpp"
 #include "core/render/character_resources.hpp"
+#include "core/render/depth_attachment.hpp"
 #include "core/render/frame_readback.hpp"
 #include "core/render/graphics_pipeline.hpp"
 #include "core/render/immutable_mesh_buffer.hpp"
@@ -202,6 +202,21 @@ void EditorRenderer::drawOverlays(std::span<const EditorOverlayLine> lines) {
         IM_COL32(line.color[0], line.color[1], line.color[2], line.color[3]),
         1.5F);
   }
+}
+
+void EditorRenderer::drawOverlayLabels(
+    std::span<const EditorOverlayLabel> labels) {
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImDrawList* draw = ImGui::GetBackgroundDrawList();
+  draw->PushClipRect(viewport->Pos, {viewport->Pos.x + viewport->Size.x,
+                                     viewport->Pos.y + viewport->Size.y});
+  for (const auto& label : labels)
+    draw->AddText({viewport->Pos.x + label.position[0] * viewport->Size.x + 6,
+                   viewport->Pos.y + label.position[1] * viewport->Size.y + 6},
+                  IM_COL32(label.color[0], label.color[1], label.color[2],
+                           label.color[3]),
+                  label.text.c_str());
+  draw->PopClipRect();
 }
 
 void EditorRenderer::clearDocument() { impl_->clearDocument(); }
@@ -759,7 +774,8 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
   if (characters_)
     characters_->validate(request.characters);
   else if (!request.characters.empty())
-    throw std::invalid_argument("Character instance " +
+    throw std::invalid_argument(
+        "Character instance " +
         std::to_string(request.characters.front().instance) +
         ": no characters were selected for this editor scene");
   if (lighting_resources_)

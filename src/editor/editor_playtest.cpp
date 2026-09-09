@@ -3,6 +3,10 @@
 #include <stdexcept>
 #include <utility>
 
+#include "core/animation/character_scene.hpp"
+#include "core/audio/audio_content.hpp"
+#include "core/text/caption_font.hpp"
+
 LevelDocument loadEditorPlayDocument(const EditorDocument& document,
                                      const EditorLaunchRequest& request) {
   if (!document.document() || !document.path() ||
@@ -109,4 +113,20 @@ std::optional<EditorLaunchRequest> EditorPlaytest::consume() {
   auto request = std::move(launch_);
   cancel();
   return request;
+}
+
+bool launchEditorPlay(const EditorDocument& document,
+                      const EditorLaunchRequest& request,
+                      const std::filesystem::path& resource_root,
+                      const std::filesystem::path& executable,
+                      EditorGameProcess& process) {
+  const auto saved = loadEditorPlayDocument(document, request);
+  const auto content = prepareAudioContent(resource_root, saved.audio);
+  const CaptionFont current_font(resource_root);
+  validateAudioCaptions(content, saved.audio, current_font);
+  validateCharacterAudio(content, saved.audio, saved.characters);
+  (void)prepareCharacterAssets(resource_root, saved.characters);
+  // Content preparation may take time. Refuse a file changed during that work.
+  (void)loadEditorPlayDocument(document, request);
+  return process.start(executable, request);
 }

@@ -3,13 +3,17 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
+#include <functional>
 #include <numbers>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
 
 #include "core/audio/transmission.hpp"
+#include "core/development/frame_capture.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/characters.hpp"
 #include "core/world/light_switch.hpp"
@@ -35,19 +39,19 @@ std::filesystem::path requireEditorFile(const std::filesystem::path& path) {
 }
 
 EditorRendererResources resolveEditorRendererResources(
-    const std::filesystem::path& resource_root) {
+    const std::filesystem::path& resource_root, FrameCapture* capture) {
   const std::filesystem::path root =
       std::filesystem::absolute(resource_root).lexically_normal();
   return {requireEditorFile(root / "shaders" / "prototype_scene_vertex.spv"),
           requireEditorFile(root / "shaders" / "prototype_scene_fragment.spv"),
-          root};
+          root, capture};
 }
 }  // namespace
 
 EditorApplication::EditorApplication(
     std::filesystem::path resource_root,
     std::optional<std::filesystem::path> initial_level,
-    ValidationDiagnostics& diagnostics)
+    ValidationDiagnostics& diagnostics, FrameCapture* capture)
     : validation_diagnostics_(diagnostics),
       resource_root_(
           std::filesystem::absolute(resource_root).lexically_normal()),
@@ -55,7 +59,7 @@ EditorApplication::EditorApplication(
       window_(platform_, 1600, 900, "near-laugh level editor"),
       glfw_imgui_bridge_(window_, caption_font_),
       renderer_(window_, window_.framebufferExtent(),
-                resolveEditorRendererResources(resource_root),
+                resolveEditorRendererResources(resource_root, capture),
                 validation_diagnostics_) {
   if (initial_level) {
     static_cast<void>(document_.open(*initial_level));
@@ -68,12 +72,51 @@ void EditorApplication::run() {
   }
 }
 
-void EditorApplication::runCharacterSmoke() {
+void EditorApplication::runCharacterSmoke(std::vector<std::string>& events,
+                                          FrameCapture& capture) {
   const auto require = [](bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
   };
+  struct Failure {
+    explicit Failure(const char* stage) {
+#ifdef _WIN32
+      if (_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", stage) != 0)
+#else
+      if (setenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", stage, 1) != 0)
+#endif
+        throw std::runtime_error("Could not configure character smoke failure");
+    }
+    ~Failure() {
+#ifdef _WIN32
+      static_cast<void>(_putenv_s("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE", ""));
+#else
+      static_cast<void>(unsetenv("NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE"));
+#endif
+    }
+  };
+  const auto count = [&](const char* event) {
+    return std::count(events.begin(), events.end(), event);
+  };
+  const auto immutable = [&] {
+    return std::array{count("editor.document-resources.replaced"),
+                      count("editor.terrain-resources.replaced"),
+                      count("character.resources.created"),
+                      count("character.indices.uploaded"),
+                      count("texture.created"),
+                      count("lighting.created"),
+                      count("world.mesh.uploaded")};
+  };
+  const auto rendered = [&] {
+    const auto before = count("character.vertices.drawn");
+    for (int i = 0; i < 3; ++i)
+      require(tick(), "Editor character frame stopped");
+    require(count("character.vertices.drawn") > before,
+            "Editor did not submit retained character geometry");
+  };
   require(scene_resources_installed_ && initial_character_frames_.size() == 4,
           "Editor did not prepare four initial actors");
+  require(renderer_.validationEnabled(),
+          "Editor character smoke requires Vulkan validation");
   const auto original = *document_.document();
   const auto frozen = initial_character_palettes_;
   for (int i = 0; i < 4; ++i) {
@@ -82,6 +125,159 @@ void EditorApplication::runCharacterSmoke() {
     require(initial_character_palettes_ == frozen,
             "Editor played an initial route");
   }
+  const auto original_resources = immutable();
+  const auto original_uploads = count("character.vertices.uploaded");
+  const auto actor_id =
+      document_.characterIds(EditorCharacterKind::Actor).front();
+  document_.select(actor_id);
+  const EditorCharacterPreviewRequest clip_request{
+      EditorCharacterPreviewMode::Clip, actor_id, 0, "interact"};
+  require(startCharacterPreview(clip_request), "Clip snapshot could not start");
+  character_preview_.advance(.4);
+  require(character_preview_.pose() != frozen.front(),
+          "Clip snapshot did not sample a changing pose");
+  require(tick(), "Clip snapshot frame failed");
+  require(initial_character_palettes_ == frozen &&
+              *document_.document() == original,
+          "Clip inspection changed authored data or other initial poses");
+  character_preview_.pause();
+  const auto paused_pose = character_preview_.pose();
+  const auto paused_time = character_preview_.time();
+  require(tick() && character_preview_.pose() == paused_pose,
+          "Paused snapshot moved");
+  // Capture the actual tick submission, with static collapsed UI and a fixed
+  // close camera. CPU sampling alone cannot prove the snapshot reached the GPU.
+  ui_.collapsePanelsForCapture(true);
+  for (int i = 0; i < 8; ++i) camera_.update({.move_left = true}, .1);
+  for (int i = 0; i < 23; ++i) camera_.update({.move_forward = true}, .1);
+  for (int i = 0; i < 2; ++i) camera_.update({.move_down = true}, .1);
+  const auto capture_frame = [&] {
+    capture.requested = true;
+    for (int i = 0; i < 8 && capture.requested; ++i)
+      require(tick(), "Character capture frame stopped");
+    require(!capture.requested && !capture.rgba.empty(),
+            "Character GPU readback did not complete");
+    return capture.rgba;
+  };
+  const auto first_pose_pixels = capture_frame();
+  character_preview_.seek(.8);
+  const auto sought_pixels = capture_frame();
+  require(first_pose_pixels.size() == sought_pixels.size(),
+          "Window extent changed between fixed-view character captures");
+  const auto changed_bytes = std::inner_product(
+      first_pose_pixels.begin(), first_pose_pixels.end(), sought_pixels.begin(),
+      std::size_t{}, std::plus<>{}, std::not_equal_to<>{});
+  require(changed_bytes > 100,
+          "Seeking the snapshot did not change presented character pixels");
+  require(capture_frame() == sought_pixels,
+          "Paused snapshot did not retain its presented pose");
+  character_preview_.seek(paused_time);
+  require(capture_frame() == first_pose_pixels,
+          "Seeking back did not restore the same presented pose");
+  ui_.collapsePanelsForCapture(false);
+  require(tick(), "Character panels did not restore after capture");
+  window_.setSize(1280, 800);
+  rendered();
+  require(character_preview_.paused() &&
+              character_preview_.pose() == paused_pose &&
+              character_preview_.time() == paused_time,
+          "Resize changed the paused snapshot");
+  {
+    const auto alternate = count("swapchain.surface_format.alternate.selected");
+    Failure format("alternate_surface_format");
+    renderer_.requestSwapchainRecreation();
+    rendered();
+    require(count("swapchain.surface_format.alternate.selected") > alternate,
+            "Editor did not exercise alternate attachment format");
+    require(character_preview_.pose() == paused_pose &&
+                character_preview_.time() == paused_time,
+            "Format recovery changed the paused snapshot");
+  }
+  renderer_.requestSwapchainRecreation();
+  rendered();
+  character_preview_.selectClip("walk");
+  character_preview_.pause();  // Resume the same snapshot after recovery.
+  const auto running_time = character_preview_.time();
+  renderer_.requestSwapchainRecreation();
+  rendered();
+  require(character_preview_.active() && !character_preview_.paused() &&
+              character_preview_.clip() == "walk" &&
+              character_preview_.time() > running_time,
+          "Presentation recovery restarted or stopped running playback");
+  require(immutable() == original_resources &&
+              count("character.vertices.uploaded") > original_uploads,
+          "Pose playback/recovery rebuilt immutable scene resources");
+  const auto source_id = document_.audioIds(EditorAudioKind::Source).front();
+  require(startAudition(source_id, auditionNow(), AudioOutput::Silent),
+          "Silent audition could not start");
+  require(!character_preview_.active() && audition_.cues(),
+          "Audition retained character snapshot");
+  require(startCharacterPreview(clip_request),
+          "Character snapshot could not replace audition");
+  require(!audition_.cues(), "Character snapshot retained audition/captions");
+  stopInspections();
+  require(tick() && !character_preview_.active() && !audition_.cues(),
+          "Stopped inspection restarted");
+  document_.select(document_.characterIds(EditorCharacterKind::Route).front());
+  require(startCharacterPreview({EditorCharacterPreviewMode::Route, actor_id}),
+          "Route snapshot could not start");
+  character_preview_.advance(1);
+  require(tick() && *document_.document() == original,
+          "Schematic route changed authored definitions");
+  character_preview_.pause();
+  const auto route_position = character_preview_.placement().position;
+  const auto route_pose = character_preview_.pose();
+  const auto route_segment = character_preview_.segment();
+  const auto route_stage = character_preview_.stage();
+  renderer_.requestSwapchainRecreation();
+  rendered();
+  require(character_preview_.paused() &&
+              character_preview_.placement().position == route_position &&
+              character_preview_.pose() == route_pose &&
+              character_preview_.segment() == route_segment &&
+              character_preview_.stage() == route_stage &&
+              immutable() == original_resources,
+          "Recovery changed the paused route state or rebuilt its resources");
+  document_.select(actor_id);
+  require(tick() && !character_preview_.active(),
+          "Selection retained route snapshot");
+  require(startCharacterPreview(clip_request), "Fresh clip start failed");
+  window_.minimize();
+  {
+    std::jthread wake([] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      EditorGlfwBridge::postEmptyEvent();
+    });
+    require(tick() && !character_preview_.active(),
+            "Minimize retained character snapshot");
+  }
+  const auto mark_id =
+      document_.characterIds(EditorCharacterKind::Mark).front();
+  auto minimized_mark =
+      std::get<CharacterMarkDefinition>(*document_.object(mark_id));
+  minimized_mark.yaw_degrees += 25;
+  require(document_.replaceObject(mark_id, minimized_mark),
+          "Minimized mark edit failed");
+  const auto minimized_resources = immutable();
+  {
+    std::jthread wake([] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      EditorGlfwBridge::postEmptyEvent();
+    });
+    require(tick() && immutable() == minimized_resources,
+            "Minimized edit attempted GPU replacement");
+  }
+  window_.restore();
+  window_.pollEvents();
+  require(tick() && !character_preview_.active(),
+          "Restore restarted character snapshot");
+  require(character_resources_current_ &&
+              initial_character_frames_.front().yaw_degrees ==
+                  minimized_mark.yaw_degrees,
+          "Restore did not install the edit made while minimized");
+  require(document_.undo(), "Minimized mark edit undo failed");
+  synchronizeDocumentResources();
+  rendered();
   struct Temporary {
     std::filesystem::path path =
         std::filesystem::temp_directory_path() /
@@ -94,6 +290,15 @@ void EditorApplication::runCharacterSmoke() {
       std::filesystem::remove_all(path, error);
     }
   } temporary;
+  require(startCharacterPreview(clip_request),
+          "Clip start before refused Play failed");
+  launchPlay({temporary.path / "absent.level.json", document_.launchEntry()});
+  require(!game_process_.active() && !character_preview_.active(),
+          "Refused Play retained character snapshot");
+  require(tick() && !character_preview_.active(),
+          "Refused Play replayed a pending snapshot");
+  require(startCharacterPreview(clip_request),
+          "Fresh snapshot after refused Play failed");
   const auto original_root = resource_root_;
   for (const auto directory : {"audio", "captions", "fonts"})
     std::filesystem::copy(resource_root_ / directory,
@@ -111,6 +316,7 @@ void EditorApplication::runCharacterSmoke() {
       temporary
           .path;  // All selected audio/font exists; mannequin alone is absent.
   synchronizeDocumentResources();
+  require(!character_preview_.active(), "Document edit retained clip snapshot");
   require(initial_character_palettes_ == frozen &&
               initial_character_frames_.size() == 4,
           "Failed actor replacement discarded compatible pose storage");
@@ -132,6 +338,128 @@ void EditorApplication::runCharacterSmoke() {
           "Undo changed actor definitions");
   require(initial_character_palettes_ == frozen,
           "Editor recovery advanced initial animation");
+
+  // A decoder failure also retains the old CPU/GPU set, with a visible stale
+  // diagnostic. An edit/undo explicitly retries the corrected resources.
+  std::filesystem::create_directory(temporary.path / "characters");
+  std::ofstream(temporary.path / "characters/test-mannequin.glb")
+      << "invalid glb";
+  resource_root_ = temporary.path;
+  require(document_.redo(), "Character decoder failure edit failed");
+  synchronizeDocumentResources();
+  require(
+      !character_resources_current_ && initial_character_palettes_ == frozen,
+      "Decoder failure installed partial character data");
+  rendered();
+  resource_root_ = original_root;
+  require(document_.undo(), "Character decoder correction undo failed");
+  synchronizeDocumentResources();
+  rendered();
+
+  const auto stale = [&] {
+    return std::any_of(document_.diagnostics().begin(),
+                       document_.diagnostics().end(), [](const auto& d) {
+                         return d.message.find("Preview is stale") !=
+                                std::string::npos;
+                       });
+  };
+  for (const auto stage :
+       {"character_index_upload", "character_slots", "shadow_image"}) {
+    document_.select(actor_id);
+    require(startCharacterPreview(clip_request),
+            "Failure preview start failed");
+    const auto old_enables = preview_point_light_enabled_;
+    const auto old_assets = initial_character_assets_;
+    const auto old_ids = initial_character_ids_;
+    const auto installed = count("editor.document-resources.replaced");
+    document_.select(document_.characterIds(EditorCharacterKind::Actor).back());
+    require(document_.removeSelected(), "Candidate actor removal failed");
+    document_.select(document_.lightIds().back());
+    require(document_.removeSelected(), "Candidate light removal failed");
+    {
+      Failure failure(stage);
+      synchronizeDocumentResources();
+    }
+    require(!character_preview_.active() && !character_resources_current_ &&
+                scene_resources_installed_ && stale(),
+            "Failed replacement was not stopped and labeled stale");
+    require(count("editor.document-resources.replaced") == installed &&
+                initial_character_palettes_ == frozen &&
+                initial_character_assets_ == old_assets &&
+                initial_character_ids_ == old_ids &&
+                initial_character_frames_.size() == old_ids.size() &&
+                preview_point_light_enabled_ == old_enables,
+            "Failed replacement mixed old/new actors, lighting or palettes");
+    require(!startCharacterPreview(clip_request),
+            "Stale resources allowed a new snapshot");
+    const auto retained = immutable();
+    rendered();
+    require(immutable() == retained && !character_preview_.active(),
+            "Stale scene retried replacement or restarted playback implicitly");
+    require(document_.undo() && document_.undo(), "Candidate undo failed");
+    synchronizeDocumentResources();
+    rendered();
+    require(character_resources_current_ && !stale() &&
+                initial_character_palettes_ == frozen &&
+                preview_point_light_enabled_ == old_enables &&
+                !character_preview_.active(),
+            "Undo failed to install a coherent fresh preview");
+  }
+
+  // Successful replacement changes the exact actor set; no old frame span may
+  // outlive its asset/palette owner or reappear after redo/document
+  // replacement.
+  document_.select(actor_id);
+  require(startCharacterPreview(clip_request),
+          "Replacement preview start failed");
+  document_.select(document_.characterIds(EditorCharacterKind::Actor).back());
+  require(document_.removeSelected(), "Fresh actor removal failed");
+  synchronizeDocumentResources();
+  rendered();
+  require(initial_character_frames_.size() == 3 &&
+              initial_character_assets_.size() == 3 &&
+              !character_preview_.active() && character_resources_current_,
+          "Successful replacement retained obsolete actor state");
+  require(document_.undo(), "Fresh actor undo failed");
+  synchronizeDocumentResources();
+  rendered();
+  require(initial_character_frames_.size() == 4 &&
+              initial_character_palettes_ == frozen,
+          "Undo did not restore four authored initial poses");
+  require(document_.redo(), "Fresh actor redo failed");
+  synchronizeDocumentResources();
+  rendered();
+  require(initial_character_frames_.size() == 3 && !character_preview_.active(),
+          "Redo retained an old snapshot or actor");
+  require(document_.undo(), "Final actor undo failed");
+  synchronizeDocumentResources();
+  document_.select(actor_id);
+  require(startCharacterPreview(clip_request), "Document preview start failed");
+  require(
+      document_.open(resource_root_ / "levels/interior-lighting.level.json"),
+      "Empty-character document replacement failed");
+  synchronizeDocumentResources();
+  require(tick() && !character_preview_.active() &&
+              initial_character_frames_.empty() &&
+              initial_character_assets_.empty() &&
+              initial_character_ids_.empty() &&
+              initial_character_palettes_.empty(),
+          "Document replacement retained snapshot or borrowed character data");
+  require(document_.open(resource_root_ /
+                         "levels/scripted-characters-four.level.json"),
+          "Four-character document restoration failed");
+  synchronizeDocumentResources();
+  rendered();
+  const auto restored_actor =
+      document_.characterIds(EditorCharacterKind::Actor).front();
+  document_.select(restored_actor);
+  require(startCharacterPreview(
+              {EditorCharacterPreviewMode::Clip, restored_actor, 0, "walk"}),
+          "Shutdown preview start failed");
+  rendered();
+  document_.requestExit();
+  require(!tick() && !character_preview_.active() && !audition_.cues(),
+          "Exit retained active inspection state");
 }
 
 void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
@@ -626,10 +954,10 @@ bool EditorApplication::tick() {
   const FramebufferExtent framebuffer = window_.framebufferExtent();
   switch (decideEditorLoopAction(document_.exitRequested(), framebuffer)) {
     case EditorLoopAction::Exit:
-      audition_.stop();
+      stopInspections();
       return false;
     case EditorLoopAction::WaitForEvents:
-      audition_.stop();
+      stopInspections();
       static_cast<void>(document_.finishTerrainStroke());
       window_.waitEvents();
       frame_clock_.reset();
@@ -645,30 +973,51 @@ bool EditorApplication::tick() {
       camera_.frame(static_cast<float>(framebuffer.width) /
                     static_cast<float>(framebuffer.height));
   ui_.draw(document_, game_process_.active(), game_process_.status());
-  if (ui_.takePlayAttempt()) audition_.stop();
+  const bool play_attempt = ui_.takePlayAttempt();
+  if (play_attempt) stopInspections();
   if (auto launch = ui_.takeLaunchRequest()) {
     launchPlay(*launch);
   }
   const auto placement_hit =
       ui_.updateViewport(document_, camera, window_.cursorCaptured());
-  updateAudition(auditionNow());
+  synchronizeDocumentResources();
+  const double now = auditionNow();
+  const bool can_inspect = !play_attempt && document_.pendingAction().kind ==
+                                                EditorPendingActionKind::None;
+  if (!can_inspect) stopInspections();
+  updateAudition(now, can_inspect);
+  updateCharacterPreview(now, can_inspect);
   renderer_.drawOverlays(buildEditorOverlay(
       document_, camera, placement_hit,
       ui_.sculpting() ? &document_.terrainBrush() : nullptr));
+  renderer_.drawOverlayLabels(
+      buildEditorCharacterOverlayLabels(document_, camera));
   ui_.finishFrame();
-  synchronizeDocumentResources();
 
   FrameRequest frame;
   frame.framebuffer = framebuffer;
   frame.framebuffer_resized = window_.consumeFramebufferResize();
   frame.camera = camera;
   frame.point_light_enabled = preview_point_light_enabled_;
-  frame.characters = initial_character_frames_;
+  auto character_frames = initial_character_frames_;
+  if (character_preview_.active()) {
+    const auto found =
+        std::find(initial_character_ids_.begin(), initial_character_ids_.end(),
+                  character_preview_.actor());
+    if (found != initial_character_ids_.end()) {
+      auto& posed = character_frames[static_cast<std::size_t>(
+          found - initial_character_ids_.begin())];
+      posed.joint_globals = character_preview_.pose();
+      posed.position = character_preview_.placement().position;
+      posed.yaw_degrees = character_preview_.placement().yaw_degrees;
+    }
+  }
+  frame.characters = character_frames;
   const FrameOutcome outcome = renderer_.renderFrame(frame);
   return editorContinuesAfter(outcome) && !document_.exitRequested();
 }
 
-void EditorApplication::updateAudition(double now) {
+void EditorApplication::updateAudition(double now, bool allow_start) {
   const auto position = camera_.position();
   const float yaw = camera_.yawDegrees() * std::numbers::pi_v<float> / 180;
   const float pitch = camera_.pitchDegrees() * std::numbers::pi_v<float> / 180;
@@ -696,12 +1045,12 @@ void EditorApplication::updateAudition(double now) {
   }
   const auto selected = document_.object(document_.selection());
   const bool can_start =
-      selected && std::holds_alternative<AudioSourceDefinition>(*selected) &&
+      allow_start && selected &&
+      std::holds_alternative<AudioSourceDefinition>(*selected) &&
       document_.valid();
   switch (ui_.drawAudition(view, can_start)) {
     case EditorAuditionAction::Start:
-      static_cast<void>(audition_.start(document_, document_.selection(),
-                                        resource_root_, *caption_font_, now));
+      static_cast<void>(startAudition(document_.selection(), now));
       break;
     case EditorAuditionAction::Stop:
       audition_.stop();
@@ -718,19 +1067,57 @@ void EditorApplication::updateAudition(double now) {
 }
 
 void EditorApplication::launchPlay(const EditorLaunchRequest& launch) {
-  audition_.stop();
+  stopInspections();
   try {
     const auto saved = loadEditorPlayDocument(document_, launch);
     renderer_.validateSceneAssets(saved);
-    const auto content = prepareAudioContent(resource_root_, saved.audio);
-    const CaptionFont current_font(resource_root_);
-    validateAudioCaptions(content, saved.audio, current_font);
-    validateCharacterAudio(content, saved.audio, saved.characters);
-    (void)prepareCharacterAssets(resource_root_, saved.characters);
-    static_cast<void>(game_process_.start(editorGameExecutable(), launch));
+    static_cast<void>(launchEditorPlay(document_, launch, resource_root_,
+                                       editorGameExecutable(), game_process_));
   } catch (const std::exception& error) {
     document_.reportResourceError(
         std::string("Play asset validation failed: ") + error.what());
+  }
+}
+
+void EditorApplication::stopInspections() {
+  audition_.stop();
+  character_preview_.stop();
+  character_preview_time_.reset();
+}
+
+bool EditorApplication::startAudition(EditorObjectId source, double now,
+                                      AudioOutput output) {
+  character_preview_.stop();
+  character_preview_time_.reset();
+  return audition_.start(document_, source, resource_root_, *caption_font_, now,
+                         output);
+}
+
+bool EditorApplication::startCharacterPreview(
+    const EditorCharacterPreviewRequest& request) {
+  audition_.stop();
+  character_preview_.stop();
+  character_preview_time_.reset();
+  const auto found = std::find(initial_character_ids_.begin(),
+                               initial_character_ids_.end(), request.actor);
+  const auto asset =
+      character_resources_current_ && found != initial_character_ids_.end()
+          ? initial_character_assets_[static_cast<std::size_t>(
+                found - initial_character_ids_.begin())]
+          : std::shared_ptr<const CharacterAsset>{};
+  return character_preview_.start(document_, request, asset);
+}
+
+void EditorApplication::updateCharacterPreview(double now, bool can_start) {
+  character_preview_.synchronize(document_);
+  if (character_preview_.active() && character_preview_time_)
+    character_preview_.advance(std::max(0., now - *character_preview_time_));
+  character_preview_time_ = now;
+  if (auto request =
+          ui_.drawCharacterPreview(document_, character_preview_,
+                                   can_start && character_resources_current_)) {
+    static_cast<void>(startCharacterPreview(*request));
+    character_preview_time_ = now;
   }
 }
 
@@ -751,10 +1138,16 @@ void EditorApplication::updateNavigation(EditorUiCaptureIntent capture) {
 }
 
 void EditorApplication::synchronizeDocumentResources() {
+  character_preview_.synchronize(document_);
   if (rendered_document_revision_ == document_.revision()) {
     return;
   }
   try {
+    // Allocate all CPU state before installing the matching GPU candidate.
+    auto point_light_enabled =
+        document_.document()
+            ? initialPointLightEnabled(document_.document()->environment_light)
+            : std::vector<std::uint8_t>{};
     if (document_.document()) {
       if (scene_resources_installed_ &&
           rendered_object_revision_ == document_.objectRevision())
@@ -771,7 +1164,11 @@ void EditorApplication::synchronizeDocumentResources() {
           renderable.actors.push_back(actor);
           actor_indices.push_back(i);
         }
-        const auto assets = prepareCharacterAssets(resource_root_, renderable);
+        auto assets = prepareCharacterAssets(resource_root_, renderable);
+        std::vector<EditorObjectId> actor_ids;
+        for (const auto index : actor_indices)
+          actor_ids.push_back(
+              document_.characterIds(EditorCharacterKind::Actor)[index]);
         std::vector<CharacterRenderInstance> instances;
         std::vector<CharacterPose> palettes;
         std::vector<CharacterPoseFrame> frames;
@@ -797,20 +1194,24 @@ void EditorApplication::synchronizeDocumentResources() {
         // Move storage only after the renderer commits its selected resources.
         initial_character_palettes_ = std::move(palettes);
         initial_character_frames_ = std::move(frames);
+        initial_character_assets_ = std::move(assets);
+        initial_character_ids_ = std::move(actor_ids);
       }
     } else {
       renderer_.clearDocument();
       initial_character_frames_.clear();
       initial_character_palettes_.clear();
+      initial_character_assets_.clear();
+      initial_character_ids_.clear();
     }
     scene_resources_installed_ = document_.document().has_value();
-    preview_point_light_enabled_ =
-        document_.document()
-            ? initialPointLightEnabled(document_.document()->environment_light)
-            : std::vector<std::uint8_t>{};
+    character_resources_current_ = scene_resources_installed_;
+    preview_point_light_enabled_ = std::move(point_light_enabled);
     rendered_document_revision_ = document_.revision();
     rendered_object_revision_ = document_.objectRevision();
   } catch (const std::exception& error) {
+    character_resources_current_ = false;
+    character_preview_.stop();
     // Replacement is transactional: retain the last usable preview on failure.
     rendered_document_revision_ = document_.revision();
     document_.reportResourceError(

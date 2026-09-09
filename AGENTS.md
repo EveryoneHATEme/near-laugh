@@ -138,6 +138,29 @@ Respect user constraints, applicable instructions, and tool/permission limits.
   Wait for required results before claiming completion. Report failed,
   unavailable, or skipped checks, and unresolved risks explicitly.
 
+## UI Validation Routing
+
+The main agent owns test selection, implementation, and OpenSpec acceptance.
+Delegate test execution without waiting for an explicit user request:
+
+- Existing automated UI tests -> ui_test_runner.
+- Screenshot-based UI interaction -> ui_driver.
+
+Prepare the build, fixtures, scenario, and expected results before any
+foreground desktop interaction. Delegate a complete bounded scenario,
+not individual clicks.
+
+Only one agent may control a given GUI session at a time.
+Do not repeat the delegated scenario in the main agent without a specific
+evidence gap or a relevant code change.
+
+If the assigned model or GUI tools are unavailable, report the blocker.
+Do not silently fall back to foreground testing with the main agent.
+
+Do not seize the user's active desktop without explicit authorization
+for that run. Prefer an isolated test environment.
+
+Automated success is not visual acceptance. Report unavailable checks.
 
 ## Product Scope
 

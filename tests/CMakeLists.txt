@@ -9,6 +9,10 @@ add_executable(engine_tests
     core/test_audio.cpp
     core/test_audio_fixture.cpp
     core/test_editor_audio.cpp
+    core/test_editor_characters.cpp
+    core/test_editor_character_placement.cpp
+    core/test_editor_character_spatial.cpp
+    core/test_editor_character_preview.cpp
     ${CMAKE_SOURCE_DIR}/src/editor/editor_audio_audition.cpp
     core/test_caption_font.cpp
     core/test_scene_authoring.cpp

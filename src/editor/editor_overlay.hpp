@@ -3,6 +3,7 @@
 
 #include <array>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "core/frame.hpp"
@@ -15,6 +16,13 @@ struct EditorOverlayLine {
   WorldColor color{};
 };
 
+struct EditorOverlayLabel {
+  std::array<float, 2> position{};
+  WorldColor color{};
+  std::string text;
+  EditorObjectId object{};
+};
+
 [[nodiscard]] std::optional<EditorOverlayLine> projectEditorLine(
     const CameraFrame& camera, WorldPosition first, WorldPosition second,
     WorldColor color);
@@ -22,5 +30,7 @@ struct EditorOverlayLine {
     const EditorDocument& document, const CameraFrame& camera,
     std::optional<WorldPosition> placement_hit = std::nullopt,
     const EditorTerrainBrush* brush = nullptr);
+[[nodiscard]] std::vector<EditorOverlayLabel> buildEditorCharacterOverlayLabels(
+    const EditorDocument& document, const CameraFrame& camera);
 
 #endif

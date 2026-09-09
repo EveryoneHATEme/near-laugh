@@ -77,7 +77,7 @@ void EditorUi::drawAudioObjects(EditorDocument& document) {
               if constexpr (requires { v.id; })
                 if (ImGui::Selectable((labels[kind] + v.id).c_str(),
                                       document.selection() == id))
-                  document.select(id);
+                  selectObject(document, id);
             },
             value);
       }

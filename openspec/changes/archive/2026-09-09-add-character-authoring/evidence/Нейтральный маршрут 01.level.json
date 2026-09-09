@@ -1,0 +1,91 @@
+{
+  "version": 9,
+  "terrain": null,
+  "solids": [
+    {
+      "center": {
+        "x": 0.0,
+        "y": -0.25,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 5.0,
+        "y": 0.25,
+        "z": 5.0
+      },
+      "color": [
+        150,
+        155,
+        165,
+        255
+      ],
+      "kind": "floor",
+      "material": "prototype-floor"
+    }
+  ],
+  "entries": [
+    {
+      "id": "default",
+      "foot_position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 2.0
+      },
+      "yaw_degrees": -90.0
+    }
+  ],
+  "default_entry": "default",
+  "environment_light": {
+    "point_lights": [
+      {
+        "id": "point-light-0",
+        "position": {
+          "x": 0.0,
+          "y": 2.4,
+          "z": 2.0
+        },
+        "color": [
+          0.3,
+          0.5,
+          0.9
+        ],
+        "intensity": 0.65,
+        "radius": 5.0,
+        "initially_on": true,
+        "casts_shadows": false
+      },
+      {
+        "id": "point-light-1",
+        "position": {
+          "x": 0.0,
+          "y": 2.8,
+          "z": -2.0
+        },
+        "color": [
+          1.0,
+          0.48,
+          0.2
+        ],
+        "intensity": 0.95,
+        "radius": 6.0,
+        "initially_on": true,
+        "casts_shadows": false
+      }
+    ],
+    "ambient_intensity": 0.12
+  },
+  "props": [],
+  "light_switches": [],
+  "doors": [],
+  "audio": {
+    "cues": [],
+    "sources": [],
+    "rooms": [],
+    "connections": []
+  },
+  "characters": {
+    "actors": [],
+    "marks": [],
+    "routes": []
+  }
+}
