@@ -557,12 +557,65 @@ LevelCharacters parseCharacters(const Json& value) {
   return characters;
 }
 
+LevelHousehold parseHousehold(const Json& value) {
+  requireObjectFields(value, "household", {"boxes", "documents", "radios"});
+  const auto records = [&](std::string_view collection,
+                           std::size_t bound) -> const Json& {
+    const auto& array = value.at(collection);
+    if (!array.is_array() || array.size() > bound)
+      fail("household." + std::string(collection),
+           "must be an array of at most " + std::to_string(bound) + " records");
+    return array;
+  };
+  LevelHousehold household;
+  for (const auto& v : records("boxes", level_maximum_household_box_count)) {
+    const auto p =
+        "household.boxes[" + std::to_string(household.boxes.size()) + "]";
+    requireObjectFields(v, p, {"id", "center", "yaw_degrees"});
+    household.boxes.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parsePosition(v.at("center"), p + ".center"),
+         parseFloat(v.at("yaw_degrees"), p + ".yaw_degrees")});
+  }
+  for (const auto& v :
+       records("documents", level_maximum_household_document_count)) {
+    const auto p = "household.documents[" +
+                   std::to_string(household.documents.size()) + "]";
+    requireObjectFields(v, p,
+                        {"id", "position", "yaw_degrees", "title", "pages"});
+    HouseholdDocumentDefinition document{
+        parseAudioId(v.at("id"), p + ".id"),
+        parsePosition(v.at("position"), p + ".position"),
+        parseFloat(v.at("yaw_degrees"), p + ".yaw_degrees"),
+        parseString(v.at("title"), p + ".title"),
+        {}};
+    const auto& pages = v.at("pages");
+    if (!pages.is_array() || pages.size() > level_maximum_document_page_count)
+      fail(p + ".pages", "must be an array of at most 16 pages");
+    for (std::size_t i = 0; i < pages.size(); ++i)
+      document.pages.push_back(
+          parseString(pages[i], p + ".pages[" + std::to_string(i) + "]"));
+    household.documents.push_back(std::move(document));
+  }
+  for (const auto& v : records("radios", level_maximum_household_radio_count)) {
+    const auto p =
+        "household.radios[" + std::to_string(household.radios.size()) + "]";
+    requireObjectFields(v, p, {"id", "prop", "source", "initially_on"});
+    household.radios.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parseAudioId(v.at("prop"), p + ".prop"),
+         parseAudioId(v.at("source"), p + ".source"),
+         parseBool(v.at("initially_on"), p + ".initially_on")});
+  }
+  return household;
+}
+
 LevelDocument parseDocument(const Json& root) {
   if (!root.is_object()) fail("", "must be an object");
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
   if (version != 2 && version != 3 && version != 4 && version != 5 &&
-      version != 6 && version != 7 && version != 8 &&
+      version != 6 && version != 7 && version != 8 && version != 9 &&
       version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
@@ -600,11 +653,17 @@ LevelDocument parseDocument(const Json& root) {
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switches", "doors", "audio"});
-  } else {
+  } else if (version == 9) {
     requireObjectFields(root, "",
                         {"version", "terrain", "solids", "entries",
                          "default_entry", "environment_light", "props",
                          "light_switches", "doors", "audio", "characters"});
+  } else {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "props", "light_switches", "doors", "audio",
+         "characters", "household"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -622,6 +681,7 @@ LevelDocument parseDocument(const Json& root) {
   if (version >= 7) document.audio = parseAudio(root.at("audio"));
   if (version >= 9)
     document.characters = parseCharacters(root.at("characters"));
+  if (version >= 10) document.household = parseHousehold(root.at("household"));
   if (version < 4 || !root.at("terrain").is_null())
     document.terrain = parseTerrain(root.at("terrain"), version);
   document.solids = std::move(solids);
@@ -918,6 +978,26 @@ std::string serializeDocument(const LevelDocument& document) {
          {"marks", r.marks},
          {"final_clip", referenceJson(r.final_clip)}});
   root["characters"] = std::move(characters);
+  auto household = Json::object();
+  household["boxes"] = Json::array();
+  for (const auto& b : document.household.boxes)
+    household["boxes"].push_back({{"id", b.id},
+                                  {"center", positionJson(b.center)},
+                                  {"yaw_degrees", b.yaw_degrees}});
+  household["documents"] = Json::array();
+  for (const auto& d : document.household.documents)
+    household["documents"].push_back({{"id", d.id},
+                                      {"position", positionJson(d.position)},
+                                      {"yaw_degrees", d.yaw_degrees},
+                                      {"title", d.title},
+                                      {"pages", d.pages}});
+  household["radios"] = Json::array();
+  for (const auto& r : document.household.radios)
+    household["radios"].push_back({{"id", r.id},
+                                   {"prop", r.prop},
+                                   {"source", r.source},
+                                   {"initially_on", r.initially_on}});
+  root["household"] = std::move(household);
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }
 

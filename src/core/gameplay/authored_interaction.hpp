@@ -9,6 +9,17 @@
 #include "core/input/player_input.hpp"
 #include "core/player/player_controller.hpp"
 
+class HouseholdController;
+enum class AuthoredTargetKind { Door, LightSwitch, Box, Document, Radio };
+struct AuthoredTarget {
+  AuthoredTargetKind kind{};
+  std::size_t index{};
+  float distance{};
+};
+[[nodiscard]] std::optional<AuthoredTarget> selectAuthoredTarget(
+    const PlayerViewPose& view, const PrototypeLevel& level,
+    const PhysicsWorld& physics, const DoorController& doors);
+
 class AuthoredInteraction {
  public:
   // Consumes every sampled batch, including inactive and minimized batches.
@@ -16,7 +27,8 @@ class AuthoredInteraction {
       const PlayerActionSnapshot& input, bool active,
       const PlayerViewPose& view, const PrototypeLevel& level,
       const PhysicsWorld& physics, DoorController& doors,
-      LightSwitchController& light_switch);
+      LightSwitchController& light_switch,
+      HouseholdController* household = nullptr);
 
  private:
   std::array<bool, 3> armed_{};

@@ -83,6 +83,9 @@ resources/
   levels/prototype.level.json
   levels/apartment-stairs.level.json
   levels/audio-captions.level.json
+  levels/household-interactions.level.json
+  levels/household-baseline.level.json
+  levels/household-capacity.level.json
   audio/*.wav
   captions/*.captions
   fonts/NotoSans-Regular.ttf
@@ -102,7 +105,7 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-Levels write format version 9 and read exact versions 2–8 without modifying
+Levels write format version 10 and read exact versions 2–9 without modifying
 the source. The profile contains optional 97-by-97 terrain, 1–240 solids,
 1–16 entries/default, 0–8 lights/ambient, 0–128 props, 0–16 switches,
 and 0–32 doors, plus audio (up to 128 cues, 64 sources, 32 rooms and 64 connections).
@@ -111,6 +114,10 @@ and 16 routes. Earlier packaged scenes retain empty character arrays; the
 one/four-actor scripted-character fixtures exercise authored initial routes.
 The editor renders initial idle poses and supports character list/property
 commands, surface placement and explicit silent clip/schematic route inspection.
+The required `household` object contains up to 16 physical boxes, 32 readable
+documents and eight radio controls. All earlier packaged scenes retain empty
+household collections. The neutral household scenes contain 4, 0 and 16 boxes
+respectively; baseline/capacity retain the same document, radio, actor and lights.
 Prop/model/material and clip/caption IDs are logical names, never paths.
 Props have finite translation/yaw, positive uniform scale and 0–8 local boxes.
 Legacy chair/texture roles normalize to explicit legacy identities; v5 doors
@@ -119,8 +126,10 @@ unknown fields and v1 fail. Legacy lights map to `point-light-0/1` without
 shadows, and the singleton switch maps to `light-switch-0`; its initial
 enable moves to the linked light. v7 audio is preserved. Exact v8 inputs preserve
 all prior values and normalize to empty characters, as do v2–v7 after their
-existing migrations. Versions 2–8 reject character fields. Older builds cannot
-read v9: use Save As or retain
+existing migrations. Versions 2–8 reject character fields. Exact v9 retains
+all authored character data and order; versions 2–9 add empty household arrays
+and reject household fields in their original shapes. Older builds cannot
+read v10: use Save As or retain
 the original before conversion when it is still needed by an older build.
 
 The selected apartment derivatives are `models/apartment_chair.glb`,
@@ -148,12 +157,29 @@ The prototype starts with the cursor captured:
 - Left Shift: sprint;
 - Left Control: crouch;
 - Space: jump while grounded;
-- E: operate the nearest switch or door within 2 metres;
+- E: operate the nearest door, switch, document, radio or box within 2 metres;
+  while holding a box, drop it;
 - R: lock/unlock a fully closed, stationary door from its authored bolt side;
-- right mouse: knock once on the nearest door;
-- Escape: release the cursor;
+- right mouse: knock once on the nearest door, or throw the held box;
+- A/D while reading: previous/next page, one change per press;
+- E/Escape while reading: close the document and retain cursor capture;
+- Escape outside reading: release the cursor;
 - left mouse button: toggle the flashlight while captured, or recapture the
   cursor while released.
+
+Reading keeps the current stance and suppresses movement commands, look,
+flashlight and object actions while gravity, collision, doors, actors, boxes
+and audio continue. Held controls require release after mode transitions.
+Pickup/drop/throw apply once before the next world step; a zero-step frame
+retains the pending request. Cursor release owes a drop at that boundary.
+Minimize or explicit suspension cancels pending commands but retains an existing
+hold and any safety drop already owed until the next active step.
+
+Ordinary launches with any nonempty household collection enable **P** for
+development suspension and **M** for mute, except when using the explicit P04
+audio or P07 character fixture controls. These are development controls, not
+the future session menu. Mute keeps the cue clock and captions running;
+suspension freezes world, audio and feedback time together.
 
 A recapture press is suppressed until release so it does not also toggle the
 flashlight. Movement uses fixed-step gravity and static/accepted door collision, slides along
@@ -163,7 +189,8 @@ requirements.
 
 The packaged switch is the pale plate on the central obstacle facing spawn.
 Walk forward from spawn to reach it. It controls Point light 1, initially on,
-and adds no collision body. Terrain, solids, all prop boxes, door leaves and actor proxies block interaction. E/R/knock require a release before the first press and between
+and adds no collision body. Terrain, solids, all prop boxes, door leaves,
+actor proxies and household boxes block interaction. E/R/knock require a release before the first press and between
 presses; holding it through a miss, cursor transition, or minimization cannot
 trigger a later toggle. The light state persists through presentation recovery
 and resets on restart without modifying the level file. Flashlight controls
@@ -225,6 +252,26 @@ values or Ctrl-click to type. Finishing a field commits one undo step. Unsafe
 fields retain their old values; safe cross-field errors remain repairable and
 block Save/Play. Door overlays show hinge, opening arc and lock side.
 
+**Objects > Household** provides **Add box**, **Add document** and **Add radio
+control**, with separate list selection and 16/32/8 limits. Box properties edit
+ID, initial center and yaw; documents edit ID, position, yaw, title and ordered
+pages. Enter adds a page line; Ctrl+Enter or finishing the field commits the
+whole draft. Previous/Next page navigates; Add/Remove page changes the list in
+one undo step. Limits count Unicode scalars, not UTF-8 bytes: 80 for title,
+480 per page and at most 16 pages. The readable preview uses runtime wrapping
+at 800x600; glyph/fit errors retain a clearly stale last valid preview. Empty
+text and broken links remain repairable, while unsafe field values are rejected.
+
+Radio properties expose ID, prop/source links and **Initially on**. Use
+**Select radio prop** to edit or place its static model. Each radio exclusively
+owns one `apartment-radio` prop without collision boxes and one non-autoplay,
+captioned spatial ambience loop, unowned by actors or other radios. Prop/source
+rename updates all incoming radio links in one undo step; deletion leaves
+broken references. Duplicate keeps outgoing links, including visible ownership
+conflicts, and undo restores the prior state. Generated IDs skip retained
+broken links instead of reconnecting them accidentally. The editor previews
+authored household poses and radio state without running hold/throw or playback.
+
 Enable **Place on surface** with an object selected. **Scene surfaces** uses
 the nearest structural face or terrain triangle and displays the target,
 face, elevation, and normal. It excludes the moved solid. **Terrain only**
@@ -235,7 +282,11 @@ with the visible floor-clearance offset (default 0.02 m). Lights and switches us
 height offset (initially 2 m and 1.4 m, or the previous terrain offset).
 Vertical faces support solids, lights with a visible outward offset, and
 switches with their back 1 mm outside the wall and front aligned outward.
-Entries, props and doors cannot be wall-mounted. Undersides block placement;
+Boxes and document panels rest on upward structural/terrain surfaces, keeping
+their fixed thickness and yaw. Their placement does not target prop proxies.
+Radio controls have no independent placement; select their linked prop.
+Entries, props, doors, household boxes and documents cannot be wall-mounted.
+Undersides block placement;
 the editor never searches through an unsuitable nearer face. Escape, a miss,
 UI capture, or navigation cancels/suppresses placement without an edit.
 Yellow bounds identify selected geometry; sphere markers identify lights and
@@ -304,6 +355,10 @@ selected resource preparation. Required selected assets are decoded before
 creating the child; a missing/unsupported asset launches nothing. If the disk file changed externally,
 explicitly Save or Open it and try again. Errors and canceled dialogs launch
 nothing and leave no deferred request.
+
+Saved-file Play also checks every document's glyph coverage and complete layout
+with the currently selected trusted font, plus linked radio audio/captions,
+before creating a child. Text diagnostics identify the document and page.
 
 The editor starts the sibling game with the saved absolute path and chosen
 entry. One game child can run at a time. Authoring remains available; process
@@ -399,18 +454,19 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-9 level data with exact version-2/3/4/5/6/7/8 read compatibility,
+- `near_laugh_world`: version-10 level data with exact version-2/3/4/5/6/7/8/9 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
 - `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors,
-  up to four catalog actor capsules, and one virtual player character. The
+  up to four catalog actor capsules, 16 dynamic boxes, one hold constraint and
+  one virtual player character with its owned inner capsule. The
   fixed-step caller advances the shared world before participant movement.
 - `near_laugh_render`: Vulkan renderer, resource loading, and immutable scene
   GPU ownership.
 - `near_laugh_runtime`: application facade, composition, player input,
-  player/flashlight policy, fixed-step coordination, and main loop.
+  player/flashlight and household policy, fixed-step coordination, and main loop.
 - `near_laugh_audio`: bounded PCM/caption preparation, miniaudio playback,
   authored room/door transmission, cue coordination and compiled P04 fixture.
-- `near_laugh_text`: trusted font validation, atlas baking and caption layout.
+- `near_laugh_text`: trusted font validation, atlas baking and shared caption/readable layout.
 - `near_laugh_animation`: bounded animated GLB decoding, deterministic TR
   sampling/transitions and CPU deformation; one compiled cgltf owner is shared
   with the existing static loader.
@@ -418,6 +474,8 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
 - `scripted_characters`: P07b route development controls through the runtime.
 - `scripted_character_measure`: opt-in Release route comparison and short
   Debug/Release timing-recovery checks.
+- `household_measure`: opt-in baseline/16-awake-box Release comparisons and
+  Debug/Release workload/readback checks with actual fixed-boundary counts.
 - `audio_captions_fixture`: explicit P04 demo using the internal runtime entry.
 - `near_laugh`: game launcher linking only `near_laugh_runtime`.
 - `near_laugh_editor_core`: document workflow, play preparation, native child
@@ -539,8 +597,11 @@ exact RGB round trip. D16 fallback validation uses the existing test control
 `NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE=shadow_d32_unavailable`; clear it before
 ordinary runs. Reproduce the packaged lighting scenes with
 `python scripts/prepare_interior_lighting.py`; the historical level migration
-and audio preparation scripts also emit deterministic v9 data. Run
-`python scripts/level_characters_v9.py` for explicit packaged v8 migration;
+and audio preparation scripts also emit deterministic v10 data. For packaged
+v8 inputs, run `python scripts/level_characters_v9.py` followed by
+`python scripts/level_household_v10.py`. The latter accepts exact version
+markers 9/10 only, adds empty household arrays to v9 while retaining every
+prior authored field, and preserves v10 household content;
 retained compatibility fixtures under `tests/fixtures/levels` stay unchanged.
 
 Before reporting an implementation complete:
@@ -554,6 +615,97 @@ Before reporting an implementation complete:
 6. report any step the environment could not perform.
 
 Compilation alone is not behavioral validation.
+
+## P06 Household Interaction Checks
+
+Run the reproducible verification from the repository root:
+
+```powershell
+powershell -NoProfile -File scripts/check_household.ps1
+```
+
+By default this configures and builds the complete Debug preset, then runs all
+non-GPU CTest checks, including deterministic physics/runtime tests and real
+ImGui tests in memory. It creates no application windows and sends no desktop
+input. Each run retains stage logs, JUnit test results and `result.json` in a
+fresh `build/household-check-<UTC timestamp>/` directory. A failed stage stops
+the run and returns its native exit code; an empty test selection is an error.
+Use `-OutputDirectory <fresh-path>` to select the artifact directory or
+`-SkipBuild` when the Debug build already matches the sources. The opt-in
+`-Vulkan` switch also runs automated GPU readbacks, which create native windows
+and require the resolutions described below.
+
+The code checks cover hold lag and fixed-step actions, wall/door/player/actor
+contacts, door restart after obstruction, drop/throw priority, occupied-hand
+actions, reading, radio/captions, suspension and fresh-run state. They do not
+establish subjective hold/throw feel or physical audio listening. Further manual
+testing of this change was stopped at the user's request on 2026-09-11.
+
+When changing fixture generation, regenerate the three neutral authored scenes
+and run affected deterministic checks:
+
+```sh
+python -B scripts/prepare_household_level.py
+cmake --preset debug
+cmake --build --preset debug --target engine_tests near_laugh level_editor vulkan_smoke household_measure -j 4
+build/debug/tests/engine_tests.exe --gtest_filter="Household*.*:EditorHousehold.*:EditorHouseholdPicking.*"
+```
+
+Preparation overwrites only `household-interactions.level.json` (four boxes),
+`household-baseline.level.json` (zero boxes) and `household-capacity.level.json`
+(16 initially awake boxes). The ordinary game uses their authored records;
+filenames do not select behavior. The shared table, document, radio, thin wall,
+door and actor route support repeated interaction and obstruction checks.
+Launch the primary scene with:
+
+```sh
+build/debug/bin/near_laugh.exe --level resources/levels/household-interactions.level.json
+```
+
+Existing deterministic ImGui tests run without a GPU:
+
+```sh
+build/debug/tests/engine_tests.exe --gtest_filter="EditorHouseholdUiInteraction.*"
+```
+
+For agent-driven work, delegate those automated UI tests to `ui_test_runner`.
+Delegate a prepared screenshot interaction scenario to `ui_driver` only with
+authorization for that desktop run. Automated UI results do not establish
+visual acceptance. The GPU preset includes `vulkan_household_interactions` and
+`editor_household_interactions`; their readback scenarios check full box
+orientation, door-free and 248-box scenes, both caption lanes with reader text,
+800x600/1920x1080/3840x2160, replacement failures, recovery and final lifetime.
+`household_smoke_fixtures` preflights runtime fixtures without creating a window.
+The GPU runs require a desktop that can provide every requested resolution.
+
+```powershell
+ctest --preset debug --output-on-failure
+ctest --preset vulkan-smoke --output-on-failure
+.\scripts\measure_household.ps1 -OutputDirectory build/household-debug-check -Check -DebugBuild
+cmake --preset debug -B build/p10-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build/p10-release --target household_measure -j 4
+.\scripts\measure_household.ps1 -OutputDirectory build/household-release-check -Check
+.\scripts\measure_household.ps1 -OutputDirectory build/household-release-timings
+```
+
+Use fresh output directories. Measurement runs fullscreen at 1920x1080/60 Hz
+FIFO, alternating three paired zero-box/16-box runs with 10 s warmup and 60 s
+sampling. The fixed-boundary driver applies documented impulses, hold targets,
+drop/throw and actor/door requests to existing runtime owners. Sidecar workload
+CSV records actual awake/rest counts and accepted actions at every boundary;
+any sample with fewer than 16 awake bodies invalidates the capacity workload.
+No pose replacement or sleep bypass is used. `-Check` produces readbacks and
+exercises recovery; those rows are functional checks, never timings for acceptance.
+The script retains raw timing/workload data, hardware/configuration and all T1
+gates, including failures. Audio uses silent output; listening remains separate.
+
+Functional checks, Vulkan recovery/lifetime checks, the independent UI-authored
+save/reopen/Play scene and controlled Release comparisons have passed. Retain
+their results and earlier desktop observations; human P06/T3 acceptance and
+subjective feel/listening remain unverified. Do not infer performance from
+object counts or run measurements concurrently with builds, tests or other GPU
+work. Track results and unavailable checks in the selected
+[P06 validation record](../openspec/changes/add-household-interactions/validation.md).
 
 ## P07a character animation
 

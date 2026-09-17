@@ -31,6 +31,7 @@
 #include "prototype_level_fixture.hpp"
 #include "runtime_audio_smoke.hpp"
 #include "runtime_character_smoke.hpp"
+#include "runtime_household_smoke.hpp"
 
 namespace {
 RendererResources smokeResources() {
@@ -649,6 +650,29 @@ void runInteriorLightingSmoke() {
 
 int main(int argc, char** argv) {
   try {
+    if (argc == 2 && std::string_view(argv[1]) == "--household-fixtures") {
+      EngineHouseholdSmoke::preflight();
+      return 0;
+    }
+    if (argc == 2 && std::string_view(argv[1]) == "--household") {
+      ValidationDiagnostics diagnostics;
+      std::vector<std::string> events;
+      setLifecycleLog(&events);
+      try { EngineHouseholdSmoke::run(diagnostics); }
+      catch (...) { setLifecycleLog(nullptr); throw; }
+      setLifecycleLog(nullptr);
+      requireBalancedTextureLifecycle(events, "household");
+      requireBalancedLightingLifecycle(events, "household");
+      requireBalancedDepthLifecycle(events, "household");
+      requireBalancedMeshLifecycle(events, "changing", "household");
+      requireBalancedEvent(events, "text.atlas.created", "text.atlas.destroyed", "household");
+      if (std::count(events.begin(), events.end(), "text.drawn") == 0 ||
+          std::count(events.begin(), events.end(), "changing.mesh.drawn") == 0)
+        throw std::runtime_error("Household smoke did not draw geometry and text");
+      if (diagnostics.errorCount())
+        throw std::runtime_error("Household teardown recorded Vulkan errors");
+      return 0;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--characters") {
       ValidationDiagnostics diagnostics;
       EngineCharacterSmoke::run(diagnostics);

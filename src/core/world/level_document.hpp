@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-inline constexpr std::uint32_t level_format_version = 9;
+inline constexpr std::uint32_t level_format_version = 10;
 inline constexpr std::size_t level_maximum_door_count = 32;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t level_maximum_point_light_count = 8;
@@ -243,6 +243,46 @@ struct LevelCharacters {
   std::vector<CharacterRouteDefinition> routes{};
 };
 
+inline constexpr std::size_t level_maximum_household_box_count = 16;
+inline constexpr std::size_t level_maximum_household_document_count = 32;
+inline constexpr std::size_t level_maximum_household_radio_count = 8;
+inline constexpr float household_box_half_extent = 0.15F;
+inline constexpr float household_box_mass = 1.0F;
+inline constexpr std::size_t level_maximum_document_page_count = 16;
+inline constexpr std::size_t level_maximum_document_title_scalars = 80;
+inline constexpr std::size_t level_maximum_document_page_scalars = 480;
+
+struct HouseholdBoxDefinition {
+  bool operator==(const HouseholdBoxDefinition&) const = default;
+  std::string id{};
+  WorldPosition center{};
+  float yaw_degrees{};
+};
+
+struct HouseholdDocumentDefinition {
+  bool operator==(const HouseholdDocumentDefinition&) const = default;
+  std::string id{};
+  WorldPosition position{};
+  float yaw_degrees{};
+  std::string title{};
+  std::vector<std::string> pages{};
+};
+
+struct HouseholdRadioDefinition {
+  bool operator==(const HouseholdRadioDefinition&) const = default;
+  std::string id{};
+  std::string prop{};
+  std::string source{};
+  bool initially_on{};
+};
+
+struct LevelHousehold {
+  bool operator==(const LevelHousehold&) const = default;
+  std::vector<HouseholdBoxDefinition> boxes{};
+  std::vector<HouseholdDocumentDefinition> documents{};
+  std::vector<HouseholdRadioDefinition> radios{};
+};
+
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
@@ -256,6 +296,7 @@ struct LevelDocument {
   std::vector<DoorDefinition> doors{};
   LevelAudio audio{};
   LevelCharacters characters{};
+  LevelHousehold household{};
 };
 
 enum class LevelDiagnosticCategory {

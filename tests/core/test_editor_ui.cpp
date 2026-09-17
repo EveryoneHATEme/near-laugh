@@ -181,6 +181,78 @@ class EditorCharacterUiInteraction : public EditorUiInteraction {
   EditorObjectId actor{}, route{};
   bool resources_current{true};
 };
+
+class EditorHouseholdUiInteraction : public EditorUiInteraction {
+ protected:
+  void SetUp() override {
+    EditorUiInteraction::SetUp();
+    static const auto shared_font = std::make_shared<CaptionFont>("resources");
+    font = shared_font;
+    ImFontConfig config;
+    config.FontDataOwnedByAtlas = false;
+    static const ImWchar ranges[]{0x20,   0xff,   0x400,  0x45f,  0x2013,
+                                  0x2014, 0x2018, 0x2019, 0x201c, 0x201d,
+                                  0x2026, 0x2026, 0x2116, 0x2116, 0};
+    const auto bytes = font->fontBytes();
+    ImGui::GetIO().FontDefault = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+        const_cast<std::uint8_t*>(bytes.data()), static_cast<int>(bytes.size()),
+        18, &config, ranges);
+    ASSERT_NE(ImGui::GetIO().FontDefault, nullptr);
+    ui.setReadableFont(font);
+    document.requestNewInterior();
+    frame();
+    ImGui::SetWindowPos("Objects", {10, 60});
+    ImGui::SetWindowSize("Objects", {320, 800});
+    ImGui::SetWindowPos("Properties", {1200, 35});
+    ImGui::SetWindowSize("Properties", {390, 800});
+    frame();
+    frame();
+  }
+  void selectHousehold(EditorObjectId id) {
+    const auto value = *document.object(id);
+    const std::array prefixes{"Box: ", "Document: ", "Radio control: "};
+    const auto kind = *editorHouseholdKind(value);
+    std::string label;
+    std::visit(
+        [&](const auto& record) {
+          if constexpr (requires { record.id; })
+            label = prefixes[static_cast<std::size_t>(kind)] + record.id;
+        },
+        value);
+    activate("Objects", label.c_str(), static_cast<int>(id));
+    ASSERT_EQ(document.selection(), id);
+  }
+  void typeField(const char* label, const char* value,
+                 std::optional<int> scope = {}) {
+    activate("Properties", label, scope);
+    key(ImGuiKey_A, true);
+    ImGui::GetIO().AddInputCharactersUTF8(value);
+    frame();
+    ASSERT_TRUE(ImGui::GetIO().WantTextInput);
+  }
+  void checkCapturedNavigation() {
+    const auto* window = ImGui::FindWindowByName("Properties");
+    ImGui::GetIO().AddMousePosEvent(window->Pos.x + 40, window->Pos.y + 40);
+    frame();
+    const auto position = camera.position();
+    const auto yaw = camera.yawDegrees();
+    const auto pitch = camera.pitchDegrees();
+    physical.keys[static_cast<std::size_t>(PhysicalKey::W)] = true;
+    physical.cursor_delta_x = 40;
+    physical.cursor_delta_y = -20;
+    camera_navigation = true;
+    frame();
+    frame();
+    EXPECT_FLOAT_EQ(camera.position().x, position.x);
+    EXPECT_FLOAT_EQ(camera.position().y, position.y);
+    EXPECT_FLOAT_EQ(camera.position().z, position.z);
+    EXPECT_FLOAT_EQ(camera.yawDegrees(), yaw);
+    EXPECT_FLOAT_EQ(camera.pitchDegrees(), pitch);
+    physical = {};
+    camera_navigation = false;
+  }
+  std::shared_ptr<const CaptionFont> font;
+};
 }  // namespace
 
 TEST_F(EditorUiInteraction,
@@ -1078,4 +1150,213 @@ TEST_F(EditorCharacterUiInteraction,
   EXPECT_EQ(document.selection(), actor);
   EXPECT_FALSE(document.dirty());
   EXPECT_FALSE(preview.active());
+}
+
+TEST_F(EditorHouseholdUiInteraction,
+       ListsAddSelectDuplicateAndRemoveTypedObjects) {
+  const std::array buttons{"Add box", "Add document", "Add radio control"};
+  for (std::size_t kind = 0; kind < buttons.size(); ++kind) {
+    activate("Objects", buttons[kind]);
+    ASSERT_EQ(
+        document.householdIds(static_cast<EditorHouseholdKind>(kind)).size(),
+        1U);
+    EXPECT_EQ(
+        document.selection(),
+        document.householdIds(static_cast<EditorHouseholdKind>(kind)).front());
+  }
+  const auto box = document.householdIds(EditorHouseholdKind::Box).front();
+  const auto note =
+      document.householdIds(EditorHouseholdKind::Document).front();
+  const auto radio = document.householdIds(EditorHouseholdKind::Radio).front();
+  for (const auto id : {box, note, radio}) selectHousehold(id);
+  selectHousehold(box);
+  EXPECT_NE(loggedFrame().find("Physical box: 0.30 m cube, 1 kg."),
+            std::string::npos);
+  const auto before = *document.document();
+  activate("Objects", "Duplicate");
+  ASSERT_EQ(document.householdIds(EditorHouseholdKind::Box).size(), 2U);
+  const auto duplicate = document.selection();
+  EXPECT_NE(duplicate, box);
+  activate("Objects", "Delete");
+  EXPECT_EQ(document.householdIds(EditorHouseholdKind::Box).size(), 1U);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(document.selection(), duplicate);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(*document.document(), before);
+  key(ImGuiKey_Y, true);
+  EXPECT_EQ(document.selection(), duplicate);
+}
+
+TEST_F(EditorHouseholdUiInteraction,
+       RussianTextPageOperationsAndHistoryUseWholeCommits) {
+  activate("Objects", "Add document");
+  const auto note = document.selection();
+  const auto initial =
+      std::get<HouseholdDocumentDefinition>(*document.object(note));
+  const auto revision = document.revision();
+  typeField("Document title", "Ёлка у окна");
+  checkCapturedNavigation();
+  EXPECT_EQ(document.revision(), revision);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            initial);
+  key(ImGuiKey_Enter);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)).title,
+            "Ёлка у окна");
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            initial);
+  key(ImGuiKey_Y, true);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)).title,
+            "Ёлка у окна");
+  activate("Properties", "Add page");
+  ASSERT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note))
+                .pages.size(),
+            2U);
+  const auto added =
+      std::get<HouseholdDocumentDefinition>(*document.object(note));
+  typeField("Page text", "Первая строка.\nЁж ждёт у двери.", 1);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            added);
+  key(ImGuiKey_Enter, true);
+  const auto edited =
+      std::get<HouseholdDocumentDefinition>(*document.object(note));
+  EXPECT_EQ(edited.pages[0], initial.pages[0]);
+  EXPECT_EQ(edited.pages[1], "Первая строка.\nЁж ждёт у двери.");
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            added);
+  key(ImGuiKey_Y, true);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            edited);
+  const auto navigation_revision = document.revision();
+  activate("Properties", "Previous page");
+  EXPECT_NE(loggedFrame().find("Page 1 of 2"), std::string::npos);
+  activate("Properties", "Previous page");
+  EXPECT_EQ(document.revision(), navigation_revision);
+  activate("Properties", "Next page");
+  activate("Properties", "Next page");
+  EXPECT_EQ(document.revision(), navigation_revision);
+  EXPECT_NE(loggedFrame().find("Page 2 of 2"), std::string::npos);
+  activate("Properties", "Remove page");
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note))
+                .pages.size(),
+            1U);
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            edited);
+  key(ImGuiKey_Y, true);
+  const auto removal_revision = document.revision();
+  activate("Properties", "Remove page");
+  EXPECT_EQ(document.revision(), removal_revision);
+}
+
+TEST_F(EditorHouseholdUiInteraction,
+       ChangingSelectionCommitsAnOutgoingDocumentDraft) {
+  activate("Objects", "Add document");
+  const auto note = document.selection();
+  const auto original =
+      std::get<HouseholdDocumentDefinition>(*document.object(note));
+  typeField("Document title", "Заметка на столе");
+  activate("Objects", "Add box");
+  EXPECT_TRUE(std::holds_alternative<HouseholdBoxDefinition>(
+      *document.object(document.selection())));
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)).title,
+            "Заметка на столе");
+  key(ImGuiKey_Z, true);
+  EXPECT_TRUE(document.householdIds(EditorHouseholdKind::Box).empty());
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)).title,
+            "Заметка на столе");
+  key(ImGuiKey_Z, true);
+  EXPECT_EQ(std::get<HouseholdDocumentDefinition>(*document.object(note)),
+            original);
+}
+
+TEST_F(EditorHouseholdUiInteraction,
+       RadioSelectorsRepairMissingLinksAndSelectTheSeparateProp) {
+  ASSERT_TRUE(document.addProp("apartment-radio"));
+  const auto prop_handle = document.selection();
+  const auto prop_id =
+      std::get<PrototypeStaticProp>(*document.object(prop_handle)).id;
+  ASSERT_TRUE(document.addAudio(EditorAudioKind::Cue));
+  auto cue =
+      std::get<AudioCueDefinition>(*document.object(document.selection()));
+  cue.id = "radio-cue-ui";
+  cue.clip = "radio";
+  cue.caption = "radio";
+  cue.kind = AudioCueKind::Ambience;
+  cue.loop = cue.spatial = true;
+  ASSERT_TRUE(document.replaceObject(document.selection(), cue));
+  ASSERT_TRUE(document.addAudio(EditorAudioKind::Source));
+  auto source =
+      std::get<AudioSourceDefinition>(*document.object(document.selection()));
+  source.id = "radio-source-ui";
+  source.cue = cue.id;
+  source.autoplay = false;
+  ASSERT_TRUE(document.replaceObject(document.selection(), source));
+  activate("Objects", "Add radio control");
+  const auto radio_handle = document.selection();
+  auto radio =
+      std::get<HouseholdRadioDefinition>(*document.object(radio_handle));
+  radio.prop = "missing-radio-prop";
+  radio.source = "missing-radio-source";
+  ASSERT_TRUE(document.replaceObject(radio_handle, radio));
+  frame();
+  auto logged = loggedFrame();
+  EXPECT_NE(logged.find("Unresolved Radio prop: missing-radio-prop"),
+            std::string::npos);
+  EXPECT_NE(logged.find("Unresolved Radio source: missing-radio-source"),
+            std::string::npos);
+  activate("Properties", "Radio prop");
+  choosePopup(prop_id.c_str());
+  activate("Properties", "Radio source");
+  choosePopup(source.id.c_str());
+  EXPECT_EQ(
+      std::get<HouseholdRadioDefinition>(*document.object(radio_handle)).prop,
+      prop_id);
+  EXPECT_EQ(
+      std::get<HouseholdRadioDefinition>(*document.object(radio_handle)).source,
+      source.id);
+  activate("Properties", "Initially on");
+  EXPECT_TRUE(std::get<HouseholdRadioDefinition>(*document.object(radio_handle))
+                  .initially_on);
+  key(ImGuiKey_Z, true);
+  EXPECT_FALSE(
+      std::get<HouseholdRadioDefinition>(*document.object(radio_handle))
+          .initially_on);
+  activate("Properties", "Select radio prop");
+  EXPECT_EQ(document.selection(), prop_handle);
+  selectHousehold(radio_handle);
+  EXPECT_NE(
+      loggedFrame().find("Radio control (separate from its static prop)."),
+      std::string::npos);
+}
+
+TEST_F(EditorHouseholdUiInteraction,
+       InvalidPageRetainsTheLastPreviewAndRecoversThroughHistory) {
+  activate("Objects", "Add document");
+  const auto note = document.selection();
+  EXPECT_EQ(loggedFrame().find("Preview unavailable"), std::string::npos);
+  typeField("Page text", "漢", 0);
+  key(ImGuiKey_Enter, true);
+  EXPECT_EQ(
+      std::get<HouseholdDocumentDefinition>(*document.object(note)).pages[0],
+      "漢");
+  auto logged = loggedFrame();
+  EXPECT_NE(logged.find("unsupported glyph"), std::string::npos);
+  EXPECT_NE(logged.find("Stale preview: showing last valid page 1."),
+            std::string::npos);
+  typeField("Page text", "Ёж у окна. Всё спокойно.", 0);
+  key(ImGuiKey_Enter, true);
+  EXPECT_EQ(loggedFrame().find("Stale preview"), std::string::npos);
+  key(ImGuiKey_Z, true);
+  EXPECT_NE(loggedFrame().find("Stale preview"), std::string::npos);
+  key(ImGuiKey_Y, true);
+  EXPECT_EQ(loggedFrame().find("Stale preview"), std::string::npos);
+  ui.setReadableFont({});
+  logged = loggedFrame();
+  EXPECT_NE(logged.find("Trusted readable font is unavailable"),
+            std::string::npos);
+  EXPECT_NE(logged.find("Preview unavailable"), std::string::npos);
+  ui.setReadableFont(font);
+  EXPECT_EQ(loggedFrame().find("Preview unavailable"), std::string::npos);
 }

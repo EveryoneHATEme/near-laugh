@@ -137,10 +137,13 @@ bool EditorDocument::addAudioObject(EditorObjectValue value) {
                       std::get_if<std::decay_t<decltype(v)>>(&other))
                 used |= same->id == v.id;
             }
-            if (*kind == EditorAudioKind::Source)
+            if (*kind == EditorAudioKind::Source) {
               for (const auto& actor : document_->characters.actors)
                 used |= actor.footstep_source == v.id ||
                         actor.interaction_source == v.id;
+              for (const auto& radio : document_->household.radios)
+                used |= radio.source == v.id;
+            }
             if (!used) break;
           }
         }

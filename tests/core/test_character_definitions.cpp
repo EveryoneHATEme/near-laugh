@@ -223,7 +223,7 @@ TEST_F(CharacterDefinitions,
   const auto original = bytes();
   auto loaded = loadLevelDocument(path);
   ASSERT_TRUE(loaded);
-  EXPECT_EQ(loaded.source_version, 9U);
+  EXPECT_EQ(loaded.source_version, 10U);
   EXPECT_EQ(*loaded.document, d);
   EXPECT_EQ(makePrototypeLevel(d).characters(), d.characters);
   ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
@@ -317,6 +317,7 @@ TEST_F(CharacterDefinitions,
     auto old_json = nlohmann::ordered_json::parse(original);
     auto new_json = nlohmann::ordered_json::parse(bytes());
     new_json.erase("characters");
+    new_json.erase("household");
     new_json["version"] = 8;
     EXPECT_EQ(new_json, old_json);
     old_json["characters"] = {{"actors", nlohmann::json::array()},

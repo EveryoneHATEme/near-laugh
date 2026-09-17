@@ -26,7 +26,8 @@ near_laugh
 
 level_editor
   |-> near_laugh_editor_core -> near_laugh_platform, near_laugh_world,
-  |                             near_laugh_animation
+  |                             near_laugh_animation, near_laugh_audio,
+  |                             near_laugh_text
   |-> near_laugh_editor_ui -> near_laugh_editor_core, near_laugh_platform,
   |                           near_laugh_world, near_laugh_text, ImGui, GLFW
   |-> near_laugh_editor_render -> near_laugh_render, near_laugh_platform,
@@ -44,13 +45,14 @@ The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-9 level document, exact version-2/3/4/5/6/7/8 read
+- `near_laugh_world` owns the bounded version-10 level document, exact version-2/3/4/5/6/7/8/9 read
   compatibility, strict private JSON codec, shared validation, and immutable
   level data. It privately links
   `nlohmann/json`.
 - `near_laugh_physics` owns Jolt lifetime, static proxies, kinematic door leaves,
-  up to four catalog actor capsules, and one virtual player character. It consumes immutable world data and privately links
-  Jolt.
+  up to four catalog actor capsules, 16 dynamic household boxes, one hold
+  constraint and one virtual player character with its owned inner body.
+  It consumes immutable world data and privately links Jolt.
 - `near_laugh_render` owns Vulkan presentation and scene resources. It consumes
   immutable world data and uses the narrow internal GLFW/Vulkan surface bridge.
   Image decoding and the bounded static GLB profile remain renderer-private.
@@ -62,9 +64,10 @@ The concrete targets have these responsibilities:
   authored room transmission and the concrete cue coordinator. Backend types
   stay private. Device-free rendering runs the same mixer as device playback.
 - `near_laugh_text` owns bounded UTF-8 decoding, trusted Noto Sans validation,
-  atlas baking with the pinned stb dependency, and pure caption layout.
+  atlas baking with the pinned stb dependency, and shared caption/readable layout.
 - `near_laugh_runtime` owns application composition, player input mapping,
-  fixed-step player/actor/door policy, concrete character routes, interaction arbitration, flashlight and light state, player frame interpolation,
+  fixed-step player/actor/door policy, concrete character routes and household
+  modes, interaction arbitration, flashlight and light state, player frame interpolation,
   and the main-thread loop.
 - `near_laugh` is the game launcher. It discovers its native executable path,
   supplies the adjacent resource root and optional level/entry selection, and
@@ -96,7 +99,7 @@ Platform -> Window -> RuntimeResources -> PrototypeLevel
          -> prepared audio/CueCoordinator
          -> PhysicsWorld -> PlayerController -> PlayerFlashlight
          -> LightSwitchController -> DoorController -> CharacterController
-         -> AuthoredInteraction -> Renderer
+         -> HouseholdController -> AuthoredInteraction -> Renderer
 ```
 
 RAII destruction reverses that order. Raw pointers and references are
@@ -122,17 +125,23 @@ reset after the wait.
 The renderer receives immutable level data at construction and a
 backend-neutral `FrameRequest` at runtime. A request contains framebuffer
 state, a column-major camera matrix, at most one source-independent spot
-light, an exact-size borrowed span of point-light enables, up to 192 changing
-opaque boxes, borrowed resolved foreground/ambience captions, and the exact
+light, an exact-size borrowed span of point-light enables, up to 248 changing
+opaque boxes, borrowed resolved captions/readable/hint/feedback text, and the exact
 selected set of zero through four character poses. Boxes carry
-geometry and tint, not door IDs or action policy. Rendering returns
+geometry, full unit XYZW orientation and tint, not durable IDs or action policy.
+Rendering returns
 `Rendered`, `Skipped`, or `Recovered`; the runtime handles every outcome and
 retains application-lifetime control. Rendering does
 not interpret player actions, update simulation, poll events, or decide when
 the game exits.
 
-The runtime advances the physics world once before player movement in each
-fixed step. Individual participant movement does not advance the shared world.
+Each fixed step first consumes at most one pending household command and
+updates the hold target from the current simulation view, then advances the
+shared physics world, player, actors and doors. A zero-step batch retains its
+one pending command; suspension cancels it. Pickup rechecks the selected box's
+identity, current bounds, range and visibility. Throw retains the direction
+accepted with the input edge. Individual participant movement does not advance
+the shared world.
 Jolt uses its single-threaded job implementation; the project has
 no runtime job system.
 
@@ -163,7 +172,7 @@ connection-path products model transmission, and gains smooth over 50 ms.
 
 ## World Boundary
 
-The bounded v9 document contains optional 97-by-97 terrain, 1–240 axis-aligned
+The bounded v10 document contains optional 97-by-97 terrain, 1–240 axis-aligned
 solids, 1–16 named entries/default, 0–8 point lights plus ambient, 0–128 static
 model placements, 0–16 switches and 0–32 hinged door definitions. Terrain
 and solids select a game-owned structural material ID independently of collision
@@ -185,6 +194,48 @@ Physics derives a private vertical capsule offset on terrain slopes; shared
 validation and continuous motion use the same actual capsule placement.
 Endpoint validation does not certify route segment traversability.
 
+Required `household` arrays contain up to 16 boxes, 32 documents and eight
+radio controls with collection-local durable IDs. Boxes author only initial
+center/yaw; documents author position/yaw, an 80-scalar title and 1–16 ordered
+480-scalar pages; radios reference one static prop and one audio source plus
+an initial enable. Runtime poses, velocities, held state and handles are absent.
+Metadata validation checks finite derived geometry, initial box clearance,
+text structure and exclusive radio ownership. A radio requires an
+`apartment-radio` prop without collision proxies and a non-autoplay spatial
+ambience loop with a caption, not owned by another radio or character.
+Selected text/font and audio preparation runs before runtime playback and
+before the editor launches the saved file.
+
+Jolt owns each 0.30 m, one-kilogram dynamic cube and its full orientation.
+The profile uses 0.6 friction, 0.1 restitution, linear-cast CCD, two collision
+substeps per world update, and 12 m/s linear and 12 rad/s angular caps. A private
+SixDOF motor follows a point 0.9 m ahead and 0.15 m below the eye with the
+pickup-relative view orientation: 5 Hz, damping ratio 1, 80 N and 4 Nm limits.
+Invalid targets or more than 1.5 m separation release the hold. Drop preserves
+actual pose/velocity; throw releases the same body and adds one 6 N·s impulse.
+There is no target body or placement teleport. Constraint destruction precedes
+body destruction, including partial initialization failures.
+
+The virtual player owns one kinematic inner capsule so rigid boxes see it;
+native character queries exclude that self body. Standing/crouched shapes
+change together after clearance acceptance. Boxes never supply player or actor
+support. Controlled side contacts push free boxes; held boxes and falling top
+contacts do not receive character weight. Player landing slides through the
+collision solver and clips blocked downward velocity to accepted displacement,
+without granting ground or relocating the player. Actor and door motion treats
+free and held boxes as blockers.
+
+`HouseholdController` borrows immutable definitions, physics and audio and owns
+one pending command, release gates, reader/page state, radio enables and text
+storage. Reading retains stance and disables player actions while simulation
+and audio continue. Closing consumes Escape and clears accumulated look.
+Cursor release owes a safety drop at the next active boundary; suspension
+retains an existing hold and that obligation while canceling pending requests.
+Radio starts/cancels update the same cue coordinator before frame captions are
+resolved. Its prop transform supplies run-local source position without
+rewriting authored source coordinates. Presentation borrows actual box poses
+and resolved text synchronously; a fresh process restores authored state.
+
 `CharacterController` borrows immutable definitions, physics and the cue
 coordinator, shares selected immutable animation assets, and owns independent
 action serials, route cursors, playback and palette storage. Each fixed step
@@ -199,7 +250,7 @@ to idle without accumulating contacts. Interact holds at its marker while
 foreground audio is busy, then latches one owned cue instance. The main-loop
 handoff moves reserved sources to accepted feet and drains each contact once.
 Cancellation affects only matching action-owned sounds. The P04 development
-sequence rejects actor-reserved source IDs at composition.
+sequence rejects actor- and radio-reserved source IDs at composition.
 
 Current accepted feet/yaw and palettes are borrowed synchronously by rendering;
 actors have no independent placement interpolation. Development suspension
@@ -208,17 +259,19 @@ discard the accumulator. Cursor release continues ordinary world/audio time.
 Fresh processes restore authored initial routes; presentation recovery retains
 action identities. No save-game state or general scripting boundary is added.
 
-Exact v2–v8 shapes normalize on read. The singleton chair becomes one
+Exact v2–v9 shapes normalize on read. The singleton chair becomes one
 `prototype-chair` placement with its original transform/box/material; old surface
 roles map to their legacy materials. v2/v3 spawn becomes the `default` entry;
 v2 has no switch; v2–4 have no doors; v5 retains all authored doors. Explicit
-saves write canonical v9; opening never rewrites a source file. Versions 2–6
+saves write canonical v10; opening never rewrites a source file. Versions 2–6
 normalize to empty audio. Legacy light slots become `point-light-0/1`, both
 unshadowed; the optional switch becomes `light-switch-0` and moves its initial
 enable to the linked light. A missing switch leaves both lights on. v7 audio
 survives unchanged. Exact v8 inputs preserve their lights/audio without legacy
-remapping; all older versions normalize to empty character collections and
-reject character fields in their original shapes. Older executables cannot read v9; use Save As to
+remapping; v2–v8 normalize to empty character collections and
+reject character fields in their original shapes. v9 retains all character
+fields and order. Versions 2–9 add empty household collections and reject
+household fields in their original shapes. Older executables cannot read v10; use Save As to
 retain an original needed by an older build.
 
 World validation checks finite derived geometry, references, entry support and
@@ -234,9 +287,9 @@ authored in [0, 0.20]. Four configured sources may cast shadows, including
 disabled ones; their radii are limited to [0.25, 20] metres.
 
 `AuthoredInteraction` owns release latches and nearest-target arbitration for
-the concrete switch/door actions. It finds the true minimum distance before
-applying the 0.1 mm tie tolerance, then chooses doors before switches and
-durable IDs within a type. `LightSwitchController` resolves links once and
+the concrete door/switch/box/document/radio actions. It finds the true minimum
+distance before applying the 0.1 mm tie tolerance, then chooses door, switch,
+box, document, radio and durable IDs within a type. `LightSwitchController` resolves links once and
 owns run-local enables in immutable authored light order;
 `DoorController` owns door intent, accepted angle, lock and short feedback state.
 Physics privately owns zero-velocity kinematic leaves and continuous conservative
@@ -279,7 +332,7 @@ state.
 
 `EditorDocument` also owns transient object IDs, one selection, concrete object
 commands, and 128-entry undo/redo history. These transient handles never enter
-the level file; durable entry/door/prop/light/switch/audio/character string IDs do.
+the level file; durable entry/door/prop/light/switch/audio/character/household string IDs do.
 Terrain gestures share that history as sorted sparse sample before/after pairs.
 Brush settings and the active path are editor-only state. Pure brush kernels
 read pre-stamp samples; the editor resamples horizontal motion at fixed distance
@@ -328,6 +381,18 @@ in the same history entry. Deletion preserves unresolved references for repair.
 Character picking uses catalog visual bounds, mark/facing handles and ordered
 route links. Actor surface placement edits its initial mark through the same
 history while preserving actor selection and all shared consumers.
+
+Household records use the same concrete commands, transient selection and
+128-entry history. Prop/source renames rewrite incoming radio links atomically;
+deletion retains broken links. Radio duplication retains outgoing links so
+ownership conflicts remain visible and undoable. Box/document placement uses
+upward structural or terrain faces. Radio controls have no independent
+placement; authors select the linked prop to place it.
+The editor previews authored poses and initial radio state without simulating
+holds, throws or playback. Russian page drafts commit as whole edits; the
+minimum-size readable preview shares runtime wrapping and reports stale last
+valid text after a failed layout. Missing radio links remain reachable through
+the list and diagnostics without invented world coordinates.
 
 The application owns one explicit silent character snapshot with immutable
 selected assets and copied mark/route definitions. Clip controls reuse

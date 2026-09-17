@@ -7,6 +7,7 @@
 
 #include "core/world/characters.hpp"
 #include "core/world/door.hpp"
+#include "core/world/household.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "core/world/scene_assets.hpp"
@@ -370,6 +371,30 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
     }
     if (const auto* solid = std::get_if<PrototypeSolid>(&*value))
       box(solid->center, solid->half_extent, 0);
+    if (const auto* parcel = std::get_if<HouseholdBoxDefinition>(&*value)) {
+      const auto pose = householdBoxPose(*parcel);
+      box(pose.center, pose.half_extent, pose.yaw_degrees);
+    }
+    if (const auto* readable =
+            std::get_if<HouseholdDocumentDefinition>(&*value)) {
+      const auto pose = householdDocumentPose(*readable);
+      box(pose.center, pose.half_extent, pose.yaw_degrees);
+    }
+    if (const auto* radio = std::get_if<HouseholdRadioDefinition>(&*value)) {
+      const auto& props = document.document()->props;
+      const auto prop =
+          std::find_if(props.begin(), props.end(),
+                       [&](const auto& p) { return p.id == radio->prop; });
+      if (prop != props.end() && prop->model == "apartment-radio" &&
+          prototypeStaticPropIsValid(*prop)) {
+        const auto indicator =
+            householdRadioPresentation(*prop, radio->initially_on);
+        box({indicator.center[0], indicator.center[1], indicator.center[2]},
+            {indicator.half_extent[0], indicator.half_extent[1],
+             indicator.half_extent[2]},
+            prop->yaw_degrees);
+      }
+    }
     if (const auto* door = std::get_if<DoorDefinition>(&*value);
         door && doorGeometryIsValid(*door)) {
       const auto pose = doorLeafPose(*door, doorInitialAngle(*door));

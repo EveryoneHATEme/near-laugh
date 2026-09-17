@@ -387,7 +387,7 @@ TEST_F(EditorCharacters,
   EditorDocument reopened;
   ASSERT_TRUE(reopened.open(path));
   EXPECT_EQ(*reopened.document(), saved);
-  EXPECT_EQ(reopened.sourceVersion(), 9U);
+  EXPECT_EQ(reopened.sourceVersion(), 10U);
   route.marks.clear();
   ASSERT_TRUE(editor.replaceObject(route_id, route));
   EXPECT_FALSE(editor.valid());

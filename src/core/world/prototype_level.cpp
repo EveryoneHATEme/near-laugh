@@ -11,6 +11,7 @@
 #include "core/world/audio.hpp"
 #include "core/world/characters.hpp"
 #include "core/world/door.hpp"
+#include "core/world/household.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/scene_assets.hpp"
 
@@ -327,7 +328,8 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       light_switches_(std::move(document.light_switches)),
       doors_(std::move(document.doors)),
       audio_(std::move(document.audio)),
-      characters_(std::move(document.characters)) {}
+      characters_(std::move(document.characters)),
+      household_(std::move(document.household)) {}
 
 bool levelEntryIdIsValid(std::string_view id) noexcept {
   return !id.empty() && id.size() <= level_maximum_entry_id_length &&
@@ -952,6 +954,10 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       }
     }
   }
+  const auto household_diagnostics =
+      validateHouseholdDefinitions(document, source_path);
+  diagnostics.insert(diagnostics.end(), household_diagnostics.begin(),
+                     household_diagnostics.end());
   return diagnostics;
 }
 
@@ -983,7 +989,7 @@ bool prototypeLevelIsValid(const PrototypeLevel& level) {
       level_format_version, level.terrain(),        level.solids(),
       level.entries(),      level.defaultEntryId(), level.environmentLight(),
       level.props(),        level.lightSwitches(),  level.doors(),
-      level.audio(),        level.characters()};
+      level.audio(),        level.characters(),     level.household()};
   return validateLevelDocument(document).empty();
 }
 
@@ -992,6 +998,11 @@ bool prototypeSpawnIsClear(const PrototypeLevel& level, float player_radius,
   const auto p = level.playerSpawn().foot_position;
   const float door_radius = player_radius + prototype_player_contact_padding;
   const float door_height = player_height + 2 * prototype_player_contact_padding;
+  for (const auto& box : level.household().boxes)
+    if (yawedBoxesOverlap(householdBoxPose(box),
+                         {{p.x, p.y + door_height / 2, p.z},
+                          {door_radius, door_height / 2, door_radius}, 0}))
+      return false;
   for (const auto& door : level.doors())
     if (yawedBoxesOverlap(doorLeafPose(door, doorInitialAngle(door)),
         {{p.x, p.y + door_height / 2, p.z},

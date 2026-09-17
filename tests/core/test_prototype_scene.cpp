@@ -315,7 +315,7 @@ TEST(ChangingGeometry, InitialAndMovingDoorBoxesHaveFiniteOutwardNormals) {
 
 TEST(ChangingGeometry, RejectsInvalidAndUnboundedFrameData) {
   EXPECT_TRUE(buildOpaqueBoxVertices({}).empty());
-  OpaqueBoxFrame box{{0, 0, 0}, {1, 1, 1}, 0, {255, 255, 255, 255}, 2};
+  OpaqueBoxFrame box{{0, 0, 0}, {1, 1, 1}, {0, 0, 0, 1}, {255, 255, 255, 255}, 2};
   std::vector<OpaqueBoxFrame> boxes(frame_maximum_opaque_box_count, box);
   EXPECT_EQ(buildOpaqueBoxVertices(boxes).size(), boxes.size() * 36);
   boxes.push_back(box);
@@ -326,7 +326,7 @@ TEST(ChangingGeometry, RejectsInvalidAndUnboundedFrameData) {
   EXPECT_THROW(static_cast<void>(buildOpaqueBoxVertices(boxes)),
                std::runtime_error);
   boxes[0] = box;
-  boxes[0].yaw_degrees = std::numeric_limits<float>::infinity();
+  boxes[0].orientation[0] = std::numeric_limits<float>::infinity();
   EXPECT_THROW(static_cast<void>(buildOpaqueBoxVertices(boxes)),
                std::runtime_error);
   boxes[0] = box;

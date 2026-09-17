@@ -22,35 +22,43 @@ WorldPosition rotate(WorldPosition p, float angle) noexcept {
   return {float(c * p.x + s * p.z), p.y, float(-s * p.x + c * p.z)};
 }
 using V = std::array<double, 3>;
-V minus(V a, V b) { return {a[0] - b[0], a[1] - b[1], a[2] - b[2]}; }
-V cross(V a, V b) {
-  return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
-          a[0] * b[1] - a[1] * b[0]};
-}
-double dot(V a, V b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
-bool triangleOverlapsBox(const std::array<V, 3>& p, V h) {
-  const std::array<V, 3> edges{minus(p[1], p[0]), minus(p[2], p[1]),
-                               minus(p[0], p[2])};
-  const std::array<V, 3> axes{{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
-  const auto separates = [&](V axis) {
-    const double length = std::sqrt(dot(axis, axis));
-    if (length < 1e-12) return false;
-    const double r = h[0] * std::abs(axis[0]) + h[1] * std::abs(axis[1]) +
-                     h[2] * std::abs(axis[2]);
-    const std::array<double, 3> projection{dot(p[0], axis), dot(p[1], axis),
-                                           dot(p[2], axis)};
-    return *std::min_element(projection.begin(), projection.end()) >=
-               r - 0.0001 * length ||
-           *std::max_element(projection.begin(), projection.end()) <=
-               -r + 0.0001 * length;
-  };
-  for (V axis : axes)
-    if (separates(axis)) return false;
-  if (separates(cross(edges[0], edges[1]))) return false;
-  for (V edge : edges)
-    for (V axis : axes)
-      if (separates(cross(edge, axis))) return false;
-  return true;
+bool terrainTrianglePenetratesBox(const std::array<V, 3>& triangle, V h) {
+  // Clip the terrain triangle to the horizontal footprint. Its interpolated
+  // height must stay below the box bottom, even if the entire box is beneath
+  // the surface and none of its corners lies inside the terrain boundary.
+  std::vector<V> polygon(triangle.begin(), triangle.end());
+  for (std::size_t axis : {0U, 2U}) {
+    for (double side : {-1., 1.}) {
+      if (polygon.empty()) return false;
+      std::vector<V> clipped;
+      auto previous = polygon.back();
+      double previous_distance = side * previous[axis] - (h[axis] - .0001);
+      for (auto current : polygon) {
+        const double distance = side * current[axis] - (h[axis] - .0001);
+        if ((distance <= 0) != (previous_distance <= 0)) {
+          const double t = previous_distance / (previous_distance - distance);
+          V intersection{};
+          for (std::size_t i = 0; i < 3; ++i)
+            intersection[i] = previous[i] + t * (current[i] - previous[i]);
+          clipped.push_back(intersection);
+        }
+        if (distance <= 0) clipped.push_back(current);
+        previous = current;
+        previous_distance = distance;
+      }
+      polygon = std::move(clipped);
+    }
+  }
+  if (polygon.size() < 3) return false;
+  double area = 0;
+  auto previous = polygon.back();
+  for (auto p : polygon) {
+    area += previous[0] * p[2] - p[0] * previous[2];
+    previous = p;
+  }
+  return std::abs(area) > 1e-12 &&
+         std::any_of(polygon.begin(), polygon.end(),
+                     [&](auto p) { return p[1] > -h[1] + .0001; });
 }
 }  // namespace
 
@@ -201,14 +209,23 @@ bool yawedBoxesOverlap(const DoorLeafPose& a, const DoorLeafPose& b,
 bool doorOverlapsTerrain(const DoorDefinition& door, float angle,
                          const PrototypeTerrain& terrain) {
   if (!doorGeometryIsValid(door)) return false;
-  const auto corners = doorCorners(door, angle);
-  for (auto p : corners)
-    if (prototypeTerrainContains(terrain, p.x, p.z) &&
-        p.y < prototypeTerrainHeightAt(terrain, p.x, p.z) - 0.0001F)
-      return true;
+  return yawedBoxOverlapsTerrain(doorLeafPose(door, angle), terrain);
+}
+
+bool yawedBoxOverlapsTerrain(const DoorLeafPose& box,
+                            const PrototypeTerrain& terrain) {
+  std::array<WorldPosition, 8> corners{};
+  for (std::size_t i = 0; i < corners.size(); ++i) {
+    const auto q = rotate({(i & 1 ? 1.F : -1.F) * box.half_extent.x,
+                           (i & 2 ? 1.F : -1.F) * box.half_extent.y,
+                           (i & 4 ? 1.F : -1.F) * box.half_extent.z},
+                          box.yaw_degrees);
+    corners[i] = {box.center.x + q.x, box.center.y + q.y, box.center.z + q.z};
+  }
   const auto local = [&](WorldPosition p) -> V {
-    const auto q = doorLocalPoint(door, angle, p);
-    return {double(q.x) - door.width / 2, double(q.y) - door.height / 2, q.z};
+    const auto q = rotate({p.x - box.center.x, p.y - box.center.y,
+                           p.z - box.center.z}, -box.yaw_degrees);
+    return {q.x, q.y, q.z};
   };
   float xmin = corners[0].x, xmax = xmin, zmin = corners[0].z, zmax = zmin;
   for (auto p : corners) {
@@ -225,9 +242,9 @@ bool doorOverlapsTerrain(const DoorDefinition& door, float angle,
         continue;
       const auto p01 = prototypeTerrainSamplePosition(terrain, x, z + 1);
       const auto p10 = prototypeTerrainSamplePosition(terrain, x + 1, z);
-      const V h{door.width / 2, door.height / 2, door.thickness / 2};
-      if (triangleOverlapsBox({local(p00), local(p01), local(p11)}, h) ||
-          triangleOverlapsBox({local(p00), local(p11), local(p10)}, h))
+      const V h{box.half_extent.x, box.half_extent.y, box.half_extent.z};
+      if (terrainTrianglePenetratesBox({local(p00), local(p01), local(p11)}, h) ||
+          terrainTrianglePenetratesBox({local(p00), local(p11), local(p10)}, h))
         return true;
     }
   return false;
@@ -241,7 +258,7 @@ std::array<OpaqueBoxFrame, 6> doorPresentationBoxes(
     const auto p = doorWorldPoint(door, angle, local);
     return OpaqueBoxFrame{{p.x, p.y, p.z},
                           {extent.x, extent.y, extent.z},
-                          doorLeafPose(door, angle).yaw_degrees,
+                          yawQuaternion(doorLeafPose(door, angle).yaw_degrees),
                           color,
                           2};
   };

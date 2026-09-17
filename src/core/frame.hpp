@@ -7,6 +7,7 @@
 #include <span>
 #include <type_traits>
 
+#include "core/rotation.hpp"
 #include "core/text/presentation.hpp"
 
 struct FramebufferExtent {
@@ -98,12 +99,13 @@ static_assert(sizeof(SpotLightFrame) == sizeof(float) * 16);
          inner_cosine > outer_cosine;
 }
 
-inline constexpr std::size_t frame_maximum_opaque_box_count = 192;
+// 32 doors * 6 boxes, 16 physical boxes, 32 documents, 8 radio indicators.
+inline constexpr std::size_t frame_maximum_opaque_box_count = 248;
 
 struct OpaqueBoxFrame {
   std::array<float, 3> center{};
   std::array<float, 3> half_extent{};
-  float yaw_degrees{};
+  std::array<float, 4> orientation{0, 0, 0, 1};
   std::array<std::uint8_t, 4> color{255, 255, 255, 255};
   // Generated surface role; 2 remains the obstacle material alias.
   std::uint32_t surface{2};
@@ -133,6 +135,7 @@ struct FrameRequest {
   std::span<const OpaqueBoxFrame> opaque_boxes{};
   CaptionPresentation captions{};
   std::span<const CharacterPoseFrame> characters{};
+  HouseholdTextPresentation household_text{};
 };
 
 [[nodiscard]] constexpr bool frameRequestCanSubmit(

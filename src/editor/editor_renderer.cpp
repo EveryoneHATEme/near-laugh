@@ -27,6 +27,7 @@
 #include "core/render/vulkan_utils.hpp"
 #include "core/testing/test_controls.hpp"
 #include "core/world/door.hpp"
+#include "core/world/household.hpp"
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_overlay.hpp"
 
@@ -308,6 +309,8 @@ void EditorRenderer::Impl::replaceDocument(
                                               door.initially_locked);
       boxes.insert(boxes.end(), leaf.begin(), leaf.end());
     }
+    const auto household = householdInitialPresentation(level);
+    boxes.insert(boxes.end(), household.begin(), household.end());
     const auto door_vertices = buildOpaqueBoxVertices(boxes);
     std::unique_ptr<ImmutableMeshBuffer> door_preview;
     if (!door_vertices.empty())

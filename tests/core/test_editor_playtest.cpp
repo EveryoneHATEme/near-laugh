@@ -210,6 +210,44 @@ class EditorCharacterPlayAssetFailure
     : public EditorCharacterPlay,
       public testing::WithParamInterface<std::string> {};
 
+TEST_F(EditorCharacterPlay, HouseholdPageFailureNamesPageAndRequiresFreshPlay) {
+  copySelectedResources();
+  ASSERT_TRUE(editor.addHousehold(EditorHouseholdKind::Document));
+  const auto id = editor.selection();
+  auto note = std::get<HouseholdDocumentDefinition>(*editor.object(id));
+  note.id = "letter";
+  note.title = "Письмо Ёжика";
+  for (const auto& bad_page :
+       {std::string("Нет глифа: 🙂"), std::string(480, 'W')}) {
+    note.pages = {"Первая страница.", bad_page};
+    ASSERT_TRUE(editor.replaceObject(id, note));
+    ASSERT_TRUE(editor.saveAs(saved_path));
+    const auto authored = *editor.document();
+    const auto saved_bytes = bytes(saved_path);
+    ASSERT_TRUE(play.request(editor, false));
+    EXPECT_FALSE(dispatch());
+    EXPECT_NE(launch_error.find("Document 'letter', page 2"), std::string::npos)
+        << launch_error;
+    EXPECT_FALSE(dispatch());
+    EXPECT_FALSE(process.active());
+    EXPECT_EQ(childCount(), 0U);
+    EXPECT_EQ(*editor.document(), authored);
+    EXPECT_EQ(bytes(saved_path), saved_bytes);
+  }
+  note.pages = {"Первая страница.", "Вторая: ёж и Latin."};
+  ASSERT_TRUE(editor.replaceObject(id, note));
+  EXPECT_FALSE(dispatch());
+  ASSERT_TRUE(play.request(editor, false));
+  ASSERT_EQ(play.state(), EditorPlayState::ConfirmSave);
+  ASSERT_TRUE(play.saveAndPlay(editor));
+  const auto authored = *editor.document();
+  ASSERT_TRUE(dispatch()) << launch_error;
+  waitForChild();
+  EXPECT_EQ(childCount(), 1U);
+  EXPECT_FALSE(dispatch());
+  EXPECT_EQ(*loadLevelDocument(saved_path).document, authored);
+}
+
 TEST_P(EditorCharacterPlayAssetFailure,
        SelectedFailureAfterSavingNeedsFreshPlay) {
   copySelectedResources();
@@ -438,7 +476,8 @@ TEST_F(EditorPlay, ConsumedLaunchRechecksTheSavedDocumentBeforeAssetPreflight) {
                std::runtime_error);
 }
 
-TEST_F(EditorPlay, BrokenLightingLinksRefuseLaunchAndRepairSavesTheV8Snapshot) {
+TEST_F(EditorPlay,
+       BrokenLightingLinksRefuseLaunchAndRepairSavesTheV10Snapshot) {
   ASSERT_TRUE(editor.addLightSwitch());
   ASSERT_TRUE(
       editor.saveAs(root / std::filesystem::path(u8"Свет и двери.json")));
@@ -461,7 +500,7 @@ TEST_F(EditorPlay, BrokenLightingLinksRefuseLaunchAndRepairSavesTheV8Snapshot) {
   EXPECT_EQ(snapshot, *editor.document());
   EXPECT_EQ(snapshot.light_switches.front().light_id, "renamed-source");
   EXPECT_FALSE(snapshot.environment_light.point_lights.front().initially_on);
-  EXPECT_NE(bytes(launch->level_path).find("\"version\": 9"),
+  EXPECT_NE(bytes(launch->level_path).find("\"version\": 10"),
             std::string::npos);
 }
 

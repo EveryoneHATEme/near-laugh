@@ -1,6 +1,7 @@
 #include "core/text/caption_font.hpp"
 
 #include "core/text/utf8.hpp"
+#include "core/world/level_document.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
@@ -72,6 +73,28 @@ std::string fontHash(std::span<const unsigned char> input) {
   return result;
 }
 constexpr std::array<float, 4> sizes{24, 32, 48, 64};
+
+std::string utf8Line(std::span<const char32_t> scalars) {
+  std::string text;
+  for (const auto scalar : scalars) {
+    if (scalar < 0x80) {
+      text.push_back(static_cast<char>(scalar));
+    } else if (scalar < 0x800) {
+      text.push_back(static_cast<char>(0xc0 | (scalar >> 6)));
+      text.push_back(static_cast<char>(0x80 | (scalar & 63)));
+    } else if (scalar < 0x10000) {
+      text.push_back(static_cast<char>(0xe0 | (scalar >> 12)));
+      text.push_back(static_cast<char>(0x80 | ((scalar >> 6) & 63)));
+      text.push_back(static_cast<char>(0x80 | (scalar & 63)));
+    } else {
+      text.push_back(static_cast<char>(0xf0 | (scalar >> 18)));
+      text.push_back(static_cast<char>(0x80 | ((scalar >> 12) & 63)));
+      text.push_back(static_cast<char>(0x80 | ((scalar >> 6) & 63)));
+      text.push_back(static_cast<char>(0x80 | (scalar & 63)));
+    }
+  }
+  return text;
+}
 }  // namespace
 
 CaptionFont::CaptionFont(const std::filesystem::path& root) {
@@ -147,7 +170,8 @@ const GlyphMetrics& CaptionFont::glyph(char32_t scalar, unsigned size) const {
                               std::to_string(static_cast<unsigned>(scalar)));
 }
 CaptionLayout CaptionFont::layout(CaptionPresentation text, unsigned width,
-                                  unsigned height) const {
+                                  unsigned height,
+                                  HouseholdTextPresentation household) const {
   CaptionLayout result;
   if (!width || !height) return result;
   const float scale = std::min(float(width) / 800, float(height) / 600);
@@ -162,7 +186,7 @@ CaptionLayout CaptionFont::layout(CaptionPresentation text, unsigned width,
                         float v0, float u1, float v1,
                         std::array<std::uint8_t, 4> color) {
     if (result.vertices.size() + 6 > maximum_vertices)
-      throw std::invalid_argument("caption exceeds vertex bound");
+      throw std::invalid_argument("combined game text exceeds vertex bound");
     x0 = std::clamp(x0, 0.0F, float(width));
     x1 = std::clamp(x1, 0.0F, float(width));
     y0 = std::clamp(y0, 0.0F, float(height));
@@ -237,10 +261,213 @@ CaptionLayout CaptionFont::layout(CaptionPresentation text, unsigned width,
   };
   result.foreground_lines = lane(text.foreground, false);
   result.ambience_lines = lane(text.ambience, true);
+  if (household.reader.title.empty() && household.reader.page.empty() &&
+      household.reader.controls.empty() && household.hint.empty() &&
+      household.feedback.empty())
+    return result;
+
+  // Use the minimum supported canvas below 800x600; quad() then clips bounded
+  // best-effort geometry. No division or allocation depends on a tiny extent.
+  const float canvas_width = float(std::max(width, 800U));
+  const float canvas_height = float(std::max(height, 600U));
+  const float ui_scale = std::min(canvas_width / 800, canvas_height / 600);
+  const float left = canvas_width * .05F, right = canvas_width * .95F;
+  const float inset = 6 * ui_scale, gap = 2 * ui_scale;
+  // Always reserve BOTH complete caption lanes, even if currently empty. The
+  // extra pixel covers the existing caption atlas thresholds at 1.33/2.66.
+  const float caption_top =
+      canvas_height * .95F -
+      std::max(6 * line_height + 5 * padding, 255.4F * ui_scale);
+  const float hint_pixels = 14 * ui_scale;
+  const float hint_line_height = hint_pixels * 1.25F;
+  const float band_height = 2 * hint_line_height + 4 * ui_scale;
+  const float band_gap = 6 * ui_scale;
+  const TextPanelBounds feedback_panel{left, caption_top - band_height, right,
+                                       caption_top};
+  const TextPanelBounds hint_panel{left,
+                                   feedback_panel.top - band_gap - band_height,
+                                   right, feedback_panel.top - band_gap};
+  const TextPanelBounds reader_panel{left, canvas_height * .05F, right,
+                                     hint_panel.top - band_gap};
+  const float line_width = right - left - 2 * inset;
+  // Household wrapping and drawing share one existing atlas size. Scaling
+  // these metrics continuously keeps a minimum-size preflight valid across
+  // caption bucket changes and never rebakes the font during resize.
+  constexpr unsigned household_size = 3;
+
+  using Lines = std::vector<std::vector<char32_t>>;
+  const auto wrap = [&](std::string_view value, unsigned scalar_limit,
+                        bool allow_newlines, float draw_pixels,
+                        std::string_view field) -> Lines {
+    const auto fail = [&](std::string_view reason) {
+      throw std::invalid_argument(std::string(field) + ": " +
+                                  std::string(reason));
+    };
+    std::vector<char32_t> scalars;
+    try {
+      scalars = readableScalars(value, allow_newlines);
+    } catch (const std::invalid_argument& error) {
+      fail(error.what());
+    }
+    if (scalars.size() > scalar_limit)
+      fail("exceeds " + std::to_string(scalar_limit) + " Unicode scalars");
+    const float glyph_scale = draw_pixels / sizes[household_size];
+    const auto metrics = [&](char32_t scalar) -> const GlyphMetrics& {
+      try {
+        return glyph(scalar, household_size);
+      } catch (const std::invalid_argument& error) {
+        fail(error.what());
+        throw;
+      }
+    };
+    Lines lines(1);
+    float used = 0;
+    for (std::size_t i = 0; i < scalars.size();) {
+      if (scalars[i] == U'\n') {
+        lines.emplace_back();
+        used = 0;
+        ++i;
+        continue;
+      }
+      if (scalars[i] == U' ') {
+        const float advance = metrics(U' ').advance * glyph_scale;
+        if (used + advance <= line_width) {
+          lines.back().push_back(U' ');
+          used += advance;
+        }
+        ++i;
+        continue;
+      }
+      std::size_t end = i;
+      float word_advance = 0, word_right = 0;
+      while (end < scalars.size() && scalars[end] != U' ' &&
+             scalars[end] != U'\n') {
+        const auto& g = metrics(scalars[end++]);
+        word_right = std::max(word_right, word_advance + g.right * glyph_scale);
+        word_advance += g.advance * glyph_scale;
+      }
+      const float word_width = std::max(word_advance, word_right);
+      if (word_width > line_width)
+        fail(
+            "word is too wide at the supported minimum; insert a space or "
+            "shorten the word");
+      if (used > 0 && used + word_width > line_width) {
+        while (!lines.back().empty() && lines.back().back() == U' ')
+          lines.back().pop_back();
+        lines.emplace_back();
+        used = 0;
+      }
+      lines.back().insert(lines.back().end(), scalars.begin() + i,
+                          scalars.begin() + end);
+      used += word_advance;
+      i = end;
+    }
+    return lines;
+  };
+  const float white = .5F / atlas_size;
+  const auto panel = [&](TextPanelBounds bounds) {
+    quad(bounds.left, bounds.top, bounds.right, bounds.bottom, white, white,
+         white, white, {5, 5, 5, 240});
+  };
+  const auto draw_lines = [&](const Lines& lines, float top, float draw_pixels,
+                              bool preview) {
+    const float glyph_scale = draw_pixels / sizes[household_size];
+    for (std::size_t row = 0; row < lines.size(); ++row) {
+      float x = left + inset;
+      const float baseline = top + draw_pixels + row * draw_pixels * 1.25F;
+      if (preview)
+        result.reader_lines.push_back(
+            {utf8Line(lines[row]), x, baseline, draw_pixels});
+      for (const auto scalar : lines[row]) {
+        const auto& g = glyph(scalar, household_size);
+        if (scalar != U' ')
+          quad(x + g.left * glyph_scale, baseline + g.top * glyph_scale,
+               x + g.right * glyph_scale, baseline + g.bottom * glyph_scale,
+               g.u0, g.v0, g.u1, g.v1, {255, 255, 255, 255});
+        x += g.advance * glyph_scale;
+      }
+    }
+  };
+  const auto band = [&](std::string_view value, unsigned limit,
+                        TextPanelBounds bounds, std::string_view field) {
+    if (value.empty()) return;
+    const auto lines = wrap(value, limit, false, hint_pixels, field);
+    if (lines.size() > 2)
+      throw std::invalid_argument(
+          std::string(field) +
+          ": cannot fit two reserved lines; shorten the message");
+    panel(bounds);
+    draw_lines(lines, bounds.top + 2 * ui_scale, hint_pixels, false);
+  };
+  const auto& reader = household.reader;
+  if (!reader.title.empty() || !reader.page.empty() ||
+      !reader.controls.empty()) {
+    if (reader.title.empty() || reader.page.empty() || reader.controls.empty())
+      throw std::invalid_argument(
+          "readable title, page and controls must be nonempty");
+    const float title_pixels = 18 * ui_scale, page_pixels = 16 * ui_scale;
+    const float control_pixels = 12 * ui_scale;
+    const auto title = wrap(reader.title, maximum_title_scalars, false,
+                            title_pixels, "readable title");
+    const auto page = wrap(reader.page, maximum_page_scalars, true, page_pixels,
+                           "readable page");
+    const auto controls = wrap(reader.controls, maximum_controls_scalars, false,
+                               control_pixels, "readable controls");
+    if (title.size() > 2)
+      throw std::invalid_argument(
+          "readable title: cannot fit two lines; shorten the title");
+    if (controls.size() > 2)
+      throw std::invalid_argument(
+          "readable controls: cannot fit two reserved lines");
+    const float title_top = reader_panel.top + inset;
+    const float page_top =
+        title_top + title.size() * title_pixels * 1.25F + gap;
+    // Reserve the worst valid two-line footer even when today's page has a
+    // shorter page number or control string. Navigation cannot move the page.
+    const float controls_top =
+        reader_panel.bottom - inset - 2 * control_pixels * 1.25F;
+    if (page_top + page.size() * page_pixels * 1.25F + gap > controls_top)
+      throw std::invalid_argument(
+          "readable page: cannot fit above the reserved controls/caption "
+          "lanes; "
+          "shorten the page or split it into authored pages");
+    panel(reader_panel);
+    result.reader_panel = reader_panel;
+    draw_lines(title, title_top, title_pixels, true);
+    draw_lines(page, page_top, page_pixels, true);
+    draw_lines(controls, controls_top, control_pixels, true);
+  }
+  band(household.hint, maximum_hint_scalars, hint_panel, "household hint");
+  band(household.feedback, maximum_feedback_scalars, feedback_panel,
+       "household feedback");
   return result;
 }
 void CaptionFont::validate(ResolvedCaption caption, bool ambience) const {
   CaptionPresentation text;
   (ambience ? text.ambience : text.foreground) = caption;
   static_cast<void>(layout(text, 800, 600));
+}
+
+void CaptionFont::validateReadable(std::string_view title,
+                                   std::string_view page) const {
+  // Maximum scalar count, with wide supported glyphs and a legal word break.
+  // Layout reserves two footer lines independently of the actual controls.
+  const std::string controls =
+      std::string(47, 'W') + " " + std::string(48, 'W');
+  static_cast<void>(layout({}, 800, 600, {{title, page, controls}, {}, {}}));
+}
+
+void validateHouseholdText(const LevelHousehold& household,
+                           const CaptionFont& font) {
+  for (const auto& document : household.documents) {
+    for (std::size_t page = 0; page < document.pages.size(); ++page) {
+      try {
+        font.validateReadable(document.title, document.pages[page]);
+      } catch (const std::invalid_argument& error) {
+        throw std::invalid_argument("Document '" + document.id + "', page " +
+                                    std::to_string(page + 1) + ": " +
+                                    error.what());
+      }
+    }
+  }
 }

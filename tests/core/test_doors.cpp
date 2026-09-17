@@ -118,7 +118,8 @@ TEST(DoorWorld, MaximumIndependentDoorDefinitionsFitThePresentationBound) {
   ASSERT_TRUE(validateLevelDocument(doc).empty());
   const auto level = makePrototypeLevel(doc);
   DoorController doors(level.doors());
-  EXPECT_EQ(doors.presentation().size(), frame_maximum_opaque_box_count);
+  EXPECT_EQ(doors.presentation().size(), level_maximum_door_count * 6);
+  EXPECT_LE(doors.presentation().size(), frame_maximum_opaque_box_count);
   auto extra = doc.doors[0];
   extra.id = "overflow";
   extra.hinge_position = {9, .02F, -9};

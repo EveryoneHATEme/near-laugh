@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9723,5 +9723,10 @@
     "actors": [],
     "marks": [],
     "routes": []
+  },
+  "household": {
+    "boxes": [],
+    "documents": [],
+    "radios": []
   }
 }

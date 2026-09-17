@@ -2,13 +2,14 @@
 import json
 from pathlib import Path
 from level_characters_v9 import migrate_characters
+from level_household_v10 import migrate_household
 
 
 def migrate_lighting(level):
-    if level["version"] in (8, 9):
+    if level["version"] in (8, 9, 10):
         return level
     if level["version"] != 7:
-        raise ValueError("Preparation expects v7, v8 or v9; legacy fixtures remain unchanged")
+        raise ValueError("Preparation expects v7 through v10; legacy fixtures remain unchanged")
     lights = level["environment_light"]["point_lights"]
     switch = level["light_switch"]
     for index, light in enumerate(lights):
@@ -27,7 +28,8 @@ def migrate_lighting(level):
 
 
 def write_level(path, level):
-    Path(path).write_text(json.dumps(migrate_characters(level), indent=2) + "\n", encoding="utf-8", newline="\n")
+    current = migrate_household(migrate_characters(level))
+    Path(path).write_text(json.dumps(current, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

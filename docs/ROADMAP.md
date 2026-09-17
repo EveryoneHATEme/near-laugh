@@ -47,9 +47,17 @@ and release, moving shadows, interaction caption and the user's confirmation of
 audible output. Hardware latency remains unmeasured. Together the evidence from
 P07a, P07b and P07c establishes T2 acceptance; P07c's
 [archive handoff](../openspec/changes/archive/2026-09-09-add-character-authoring/handoff.md)
-records synchronized main specs and the retained acceptance limits. The other six
-linked changes capture proposals only and still need detailed planning and
-review. Structural validation alone does not establish implementation readiness.
+records synchronized main specs and the retained acceptance limits. P06 now has
+reviewed planning artifacts and implementation of v10 household definitions,
+physical box actions, reading, exclusive radio controls and editor authoring.
+Its neutral four/zero/16-box scenes, automated Vulkan checks, controlled Release
+performance comparison and independent UI-authored scene with save/reopen/Play
+are verified. Remaining runtime behavior passed automated code checks after the
+user stopped further manual testing. Human T3 acceptance, subjective hold/throw
+feel and listening remain unverified in its
+[validation record](../openspec/changes/add-household-interactions/validation.md).
+The other pending linked changes remain proposals requiring detailed planning
+and review. Structural validation alone does not establish implementation readiness.
 Proposal-only feature changes do not qualify for the documentation-only
 `skip_specs` exemption.
 
@@ -146,8 +154,9 @@ of an earlier capability in its supported scope.
 
 P01, P03, P02, P04, P10, P07a, P07b and P07c are already archived. P07c's main
 specs are synchronized. The P07 dependency for P06/P05 is
-supported by all three stages, not animation alone. P06 still requires detailed
-planning and review against P04/P10/P07; P05 remains dependent on P06 and P07.
+supported by all three stages, not animation alone. P06 implementation is being
+validated against the accepted P04/P10/P07 baseline; P05 remains dependent on
+P06 acceptance and the complete P07 chain.
 No dependent implementation is started by this acceptance or archival. The
 selected remaining order is:
 
@@ -179,6 +188,11 @@ assets, sampling, changing geometry and shadows in an explicit development
 viewer without a new level format. P07b owns the one v8-to-v9 transition,
 accepted route collision/audio and initial editor compatibility. P07c reuses
 that schema for complete editing/preview and a second editor-authored scene.
+Those P07 records describe acceptance on historical v9. P06 owns the single
+v9-to-v10 transition: current packaged scenes and ordinary saving use v10,
+while prior accepted scenes retain their authored behavior with empty household
+arrays. Exact v2–v9 read compatibility and retained historical fixtures do not
+rewrite or invalidate the archived P07 evidence.
 Basic authoring is completed within P07, not postponed to P11. Archive each
 stage only after its own acceptance and rebase the next on the resulting main
 specs; OpenSpec artifact readiness does not resolve these dependencies.
@@ -287,7 +301,7 @@ Keep this index and the proposal links usable when changes are archived.
 | --- | --- | --- |
 | Light/shadow profile and performance budget | P10 design and T1 | A furnished control interior, explicit target hardware/resolution, measured frame times, and documented supported sources/occluders. |
 | Animated export profile and clip transitions | T2 accepted through P07a/P07b/P07c | P07a accepts the prepared mannequin, idle/walk/interact, bounded pose blending and animated shadows. P07b accepts route foot contacts and standing yaw turns with retained visual/performance evidence. P07c accepts the independent UI-authored scene, save/reopen/Play, player/door obstruction and release, shadows and interaction caption; the user confirms audible output. Hardware latency and a separate per-cue listening matrix remain unmeasured. |
-| Supported object actions and placement rules | P06 design and T3 | Read a document, carry/place an object, and operate a household prop using bounded concrete actions. |
+| Supported object actions and placement rules | P06 implementation; T3 pending | Fixed 0.30 m/one-kilogram physical boxes with one hold/drop/throw, bounded readable pages and exclusive radio controls are implemented with editor commands/UI. Validate obstruction, transitions, saved-file Play, presentation and measured performance before accepting T3. |
 | Supported event conditions/actions and timing policy | P05 design and T4 | Neutral tests for region entry, object state, elapsed active time, one-shot execution, interruption, and cancellation. No script language. |
 | Checkpoint boundaries, retention, and compatibility | P09 design and T5 | Safe named test-scene boundaries that restore all supported mutable state; actual story checkpoint locations are chosen later. |
 | Session controls, preferences, and packaging scope | P12 design and T5/T6 | Essential desktop controls/settings and all selected resources; final acceptance includes P11's authoring workflow. |

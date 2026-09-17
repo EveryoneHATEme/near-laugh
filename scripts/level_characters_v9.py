@@ -4,10 +4,10 @@ from pathlib import Path
 
 
 def migrate_characters(level):
-    if level["version"] == 9:
+    if level["version"] in (9, 10):
         return level
     if level["version"] != 8:
-        raise ValueError("Character migration expects v8 or v9")
+        raise ValueError("Character migration expects v8, v9 or v10")
     level = dict(level)
     level["version"] = 9
     level["characters"] = dict(actors=[], marks=[], routes=[])

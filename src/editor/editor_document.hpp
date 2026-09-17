@@ -30,7 +30,14 @@ using EditorObjectValue =
                  PrototypeStaticProp, PrototypeLightSwitch, DoorDefinition,
                  AudioCueDefinition, AudioSourceDefinition, AudioRoomDefinition,
                  AudioConnectionDefinition, CharacterActorDefinition,
-                 CharacterMarkDefinition, CharacterRouteDefinition>;
+                 CharacterMarkDefinition, CharacterRouteDefinition,
+                 HouseholdBoxDefinition, HouseholdDocumentDefinition,
+                 HouseholdRadioDefinition>;
+enum class EditorHouseholdKind : std::size_t { Box, Document, Radio };
+[[nodiscard]] std::optional<EditorHouseholdKind> editorHouseholdKind(
+    const EditorObjectValue& value);
+[[nodiscard]] std::string editorHouseholdFieldError(
+    const EditorObjectValue& value);
 enum class EditorCharacterKind : std::size_t { Actor, Mark, Route };
 [[nodiscard]] std::optional<EditorCharacterKind> editorCharacterKind(
     const EditorObjectValue& value);
@@ -111,6 +118,11 @@ class EditorDocument {
   [[nodiscard]] bool addDoor();
   [[nodiscard]] bool addAudio(EditorAudioKind kind);
   [[nodiscard]] bool addCharacter(EditorCharacterKind kind);
+  [[nodiscard]] bool addHousehold(EditorHouseholdKind kind);
+  [[nodiscard]] const std::vector<EditorObjectId>& householdIds(
+      EditorHouseholdKind kind) const {
+    return household_ids_.at(static_cast<std::size_t>(kind));
+  }
   [[nodiscard]] const std::vector<EditorObjectId>& characterIds(
       EditorCharacterKind kind) const {
     return character_ids_.at(static_cast<std::size_t>(kind));
@@ -216,6 +228,7 @@ class EditorDocument {
     std::optional<LevelCharacters> characters_before{}, characters_after{};
     std::optional<std::array<std::vector<EditorObjectId>, 3>>
         character_ids_before{}, character_ids_after{};
+    std::optional<LevelHousehold> household_before{}, household_after{};
   };
   [[nodiscard]] bool addPointLight(PrototypePointLight value);
   [[nodiscard]] bool addLightSwitch(PrototypeLightSwitch value);
@@ -226,6 +239,12 @@ class EditorDocument {
   void resetEditing();
   void resetAudioIds();
   void resetCharacterIds();
+  void resetHouseholdIds();
+  [[nodiscard]] std::optional<EditorObjectValue> householdObject(
+      EditorObjectId id) const;
+  [[nodiscard]] bool addHouseholdObject(EditorObjectValue value);
+  [[nodiscard]] bool prepareHouseholdEdit(Edit& edit);
+  [[nodiscard]] bool applyHouseholdEdit(const Edit& edit, bool forward);
   [[nodiscard]] std::optional<EditorObjectValue> characterObject(
       EditorObjectId id) const;
   [[nodiscard]] bool prepareCharacterEdit(Edit& edit);
@@ -268,6 +287,7 @@ class EditorDocument {
   std::vector<EditorObjectId> light_ids_{}, switch_ids_{};
   std::array<std::vector<EditorObjectId>, 4> audio_ids_{};
   std::array<std::vector<EditorObjectId>, 3> character_ids_{};
+  std::array<std::vector<EditorObjectId>, 3> household_ids_{};
   std::string launch_entry_{};
   std::uint32_t source_version_{level_format_version};
   EditorObjectId next_object_id_{editor_first_solid};

@@ -9,6 +9,7 @@
 #include <numbers>
 
 #include "core/world/door.hpp"
+#include "core/world/household.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/prototype_level.hpp"
 #include "core/world/scene_assets.hpp"
@@ -185,6 +186,33 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
     if (const auto hit = doorRayDistance(door, doorInitialAngle(door),
                                          ray.origin, ray.direction))
       consider(document.doorIds()[i], *hit / glm::length(vec(ray.direction)));
+  }
+  const auto householdBox = [&](EditorObjectId id,
+                                const OpaqueBoxFrame& bounds) {
+    if (const auto distance =
+            householdRayDistance(bounds, ray.origin, ray.direction))
+      consider(id, *distance / glm::length(vec(ray.direction)));
+  };
+  for (std::size_t i = 0; i < level.household.boxes.size(); ++i) {
+    const auto& box = level.household.boxes[i];
+    householdBox(
+        document.householdIds(EditorHouseholdKind::Box)[i],
+        householdBoxPresentation(box.center, yawQuaternion(box.yaw_degrees)));
+  }
+  for (std::size_t i = 0; i < level.household.documents.size(); ++i)
+    householdBox(document.householdIds(EditorHouseholdKind::Document)[i],
+                 householdDocumentPresentation(level.household.documents[i]));
+  // The radio prop selects its placement. Its separate visible indicator
+  // selects the control; the object list also exposes both identities.
+  for (std::size_t i = 0; i < level.household.radios.size(); ++i) {
+    const auto& radio = level.household.radios[i];
+    const auto prop =
+        std::find_if(level.props.begin(), level.props.end(),
+                     [&](const auto& p) { return p.id == radio.prop; });
+    if (prop != level.props.end() && prop->model == "apartment-radio" &&
+        prototypeStaticPropIsValid(*prop))
+      householdBox(document.householdIds(EditorHouseholdKind::Radio)[i],
+                   householdRadioPresentation(*prop, radio.initially_on));
   }
   for (std::size_t i = 0; i < level.entries.size(); ++i)
     consider(document.entryIds()[i],

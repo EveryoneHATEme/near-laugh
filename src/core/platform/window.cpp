@@ -204,8 +204,17 @@ void Window::setSize(std::uint32_t width, std::uint32_t height) {
       height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
     throw std::runtime_error("Window dimensions exceed GLFW's integer range");
   }
-  glfwSetWindowSize(impl_->handle, static_cast<int>(width),
-                    static_cast<int>(height));
+  const int requested_width = static_cast<int>(width);
+  const int requested_height = static_cast<int>(height);
+  // Explicit readback callers request client sizes up to 3840x2160, even on a
+  // smaller desktop. Win32's default tracking maximum otherwise subtracts the
+  // decorated frame from the monitor size. Apply this requested size through
+  // GLFW's window limits, then restore normal user resizing immediately.
+  glfwSetWindowSizeLimits(impl_->handle, requested_width, requested_height,
+                         requested_width, requested_height);
+  glfwSetWindowSize(impl_->handle, requested_width, requested_height);
+  glfwSetWindowSizeLimits(impl_->handle, GLFW_DONT_CARE, GLFW_DONT_CARE,
+                         GLFW_DONT_CARE, GLFW_DONT_CARE);
 }
 
 void Window::minimize() { glfwIconifyWindow(impl_->handle); }
@@ -234,5 +243,7 @@ void Window::setCursorCaptured(bool captured) {
 }
 
 bool Window::cursorCaptured() const noexcept { return impl_->cursor_captured; }
+
+void Window::resetLookInput() noexcept { impl_->input.resetCursorTracking(); }
 
 void* Window::surfaceBridgeHandle() const noexcept { return impl_->handle; }

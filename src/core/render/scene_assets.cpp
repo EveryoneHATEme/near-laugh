@@ -63,7 +63,10 @@ PreparedSceneAssets prepareSceneAssets(const std::filesystem::path& root,
                                        const LevelDocument& document) {
   if (document.props.size() > level_maximum_prop_count ||
       document.solids.size() > level_maximum_solid_count ||
-      document.doors.size() > level_maximum_door_count)
+      document.doors.size() > level_maximum_door_count ||
+      document.household.boxes.size() > level_maximum_household_box_count ||
+      document.household.documents.size() > level_maximum_household_document_count ||
+      document.household.radios.size() > level_maximum_household_radio_count)
     throw std::runtime_error(
         "Scene object count exceeds the supported profile");
   PreparedSceneAssets result;
@@ -86,7 +89,8 @@ PreparedSceneAssets prepareSceneAssets(const std::filesystem::path& root,
       result.world.push_back(std::move(batch));
     }
   }
-  if (!document.doors.empty())
+  if (!document.doors.empty() || !document.household.boxes.empty() ||
+      !document.household.documents.empty() || !document.household.radios.empty())
     result.obstacle_material = add_structural("prototype-obstacle");
   std::unordered_map<std::string, StaticModelData> models;
   std::unordered_map<std::string, std::size_t> batches;
@@ -144,6 +148,7 @@ PreparedSceneAssets prepareSceneAssets(const std::filesystem::path& root,
   document.props = level.props();
   document.light_switches = level.lightSwitches();
   document.doors = level.doors();
+  document.household = level.household();
   return prepareSceneAssets(root, document);
 }
 

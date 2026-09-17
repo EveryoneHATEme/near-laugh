@@ -42,6 +42,7 @@ class Window {
 
   [[nodiscard]] const PhysicalInputSnapshot& input() const noexcept;
   void setCursorCaptured(bool captured);
+  void resetLookInput() noexcept;
   [[nodiscard]] bool cursorCaptured() const noexcept;
 
  private:

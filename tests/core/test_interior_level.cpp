@@ -68,7 +68,7 @@ TEST_F(InteriorLevel, CurrentVersionRoundTripsBothTerrainStatesAndOrderedEntries
     const auto first = bytes(p);
     const auto loaded = loadLevelDocument(p);
     ASSERT_TRUE(loaded);
-    EXPECT_EQ(loaded.source_version, 9U);
+    EXPECT_EQ(loaded.source_version, 10U);
     EXPECT_EQ(*loaded.document, doc);
     EXPECT_EQ(loaded.document->entries[0].id, "lower");
     ASSERT_TRUE(saveLevelDocument(p, *loaded.document));
@@ -97,7 +97,7 @@ TEST_F(InteriorLevel, LegacyVersionsNormalizeOnlyOnExplicitSave) {
     EXPECT_EQ(editor.document()->default_entry, "default");
     EXPECT_EQ(bytes(p), legacy);
     ASSERT_TRUE(editor.save());
-    EXPECT_EQ(loadLevelDocument(p).source_version, 9U);
+    EXPECT_EQ(loadLevelDocument(p).source_version, 10U);
   }
 }
 
@@ -267,13 +267,13 @@ TEST_F(InteriorLevel,
   ASSERT_TRUE(editor.open(path));
   const auto before = *editor.document();
   for (const auto& [from, to] :
-       {std::pair{"\"version\": 9", "\"version\": 5"},
+       {std::pair{"\"version\": 10", "\"version\": 5"},
         std::pair{"\"id\": \"lower\"", "\"id\": false"},
         std::pair{"\"id\": \"lower\"", "\"unknown\": \"lower\""},
         std::pair{"\"default_entry\": \"lower\"", "\"default_entry\": 1"},
         std::pair{"\"x\": 5.0", "\"x\": 3.4e38"},
-        std::pair{"\"version\": 9",
-                  "\"player_spawn\": null, \"version\": 9"}}) {
+        std::pair{"\"version\": 10",
+                  "\"player_spawn\": null, \"version\": 10"}}) {
     auto bad = canonical;
     const auto offset = bad.find(from);
     ASSERT_NE(offset, std::string::npos);
@@ -563,8 +563,16 @@ TEST_F(InteriorLevel, PackagedApartmentStairsWalkBothDirectionsFromBothStarts) {
   const auto source = bytes(path);
   const auto loaded = loadLevelDocument(path);
   ASSERT_TRUE(loaded);
-  ASSERT_TRUE(saveLevelDocument(root / "apartment.json", *loaded.document));
-  EXPECT_EQ(bytes(root / "apartment.json"), source);
+  const auto saved_path = root / "apartment.json";
+  ASSERT_TRUE(saveLevelDocument(saved_path, *loaded.document));
+  const auto canonical = bytes(saved_path);
+  const auto reloaded = loadLevelDocument(saved_path);
+  ASSERT_TRUE(reloaded);
+  EXPECT_EQ(reloaded.source_version, level_format_version);
+  EXPECT_EQ(*reloaded.document, *loaded.document);
+  ASSERT_TRUE(saveLevelDocument(saved_path, *reloaded.document));
+  EXPECT_EQ(bytes(saved_path), canonical);
+  EXPECT_EQ(bytes(path), source);
   const auto level = makePrototypeLevel(*loaded.document);
   EXPECT_FALSE(level.terrain());
   EXPECT_EQ(level.defaultEntryId(), "apartment");

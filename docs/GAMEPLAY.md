@@ -78,7 +78,9 @@ assumed.
 
 ### Current Prototype
 
-The current executable uses one grounded Jolt virtual character.
+The current executable uses one Jolt virtual character with a physics-visible
+inner capsule. Standing and crouched collision shapes change together only
+when clearance permits.
 
 Mouse input controls yaw and pitch.
 
@@ -145,15 +147,16 @@ item/action/component abstraction.
 A generalized inventory or equipment system must not be introduced unless
 the actual game design requires one.
 
-### Current Door and Switch Interaction
+### Current Authored Interaction
 
 The level may contain up to 16 non-blocking switch plates and 32 hinged doors.
-The displayed eye ray selects the nearest switch or accepted door leaf within
-2 metres. Terrain, structural solids, every authored prop proxy, accepted actor proxies, and other
-doors obstruct interaction. A selected door can target its own front surface;
+The displayed eye ray selects the nearest door, switch, document, radio control
+or physical box within 2 metres. Terrain, structural solids, every authored
+prop proxy, accepted actor proxies, doors and boxes obstruct interaction.
+A selected door or box can target its own front surface;
 an inside origin is refused. Candidates within 0.1 mm of the true nearest
-distance choose doors first, then the durable ID within each type. Reordering
-authored collections does not change the result.
+distance choose door, switch, box, document, then radio, followed by the durable
+ID within each type. Reordering authored collections does not change the result.
 
 E toggles the selected plate's linked light or requests the opposite door endpoint. Mid-swing E
 reverses the last intent. R toggles a closed stationary door's lock from its
@@ -164,8 +167,9 @@ held/missed/inactive/minimized input cannot become a delayed action. Concurrent
 edges are consumed with R, E, then knock priority. Left mouse retains the
 independent flashlight/cursor behavior.
 
-Doors stop before obstructing terrain, solids, props, other leaves, or the
-player's current/interpolated presentation envelope and accepted actor envelopes.
+Doors stop before obstructing terrain, solids, props, other leaves, free or held
+boxes, the player's current/interpolated presentation envelope and accepted
+actor envelopes.
 They do not push/crush participants or resume automatically after a blocker clears. Accepted poses are
 shared by rendering, visibility and collision. Conservative clearance can
 stop a door slightly early, including space the player has just vacated.
@@ -176,6 +180,45 @@ remain later work; authored audio transmission uses the accepted leaf angle.
 Door motion, locks, feedback and switch light enables are run-local; recovery
 preserves them and restarting restores authored initial values. No level file
 is changed during play.
+
+### Current Household Actions
+
+Levels support up to 16 physical boxes, 32 readable documents and eight radio
+controls. Boxes are generated 0.30 m cubes weighing one kilogram. E picks up
+one box; while holding it, E drops it and right mouse throws it. Drop takes
+priority over throw when both are pressed together. Other object actions
+require empty hands. Pickup/drop/throw take effect once at the next physics
+boundary; turning after pressing throw does not change its accepted direction.
+
+A held box keeps its actual physical pose and collides with the world. A
+bounded motor follows a point in front of the view; obstruction can make it
+lag or release, without teleporting through a wall. Drop retains its pose and
+velocities; throw adds one bounded impulse. Boxes can be pushed sideways,
+fall, spin, collide and settle, but never provide ground, a stair or a jumping
+surface. A falling player slides off when clearance permits; confinement keeps
+collision without forcing either participant elsewhere. There is no inventory,
+placement marker, damage, destruction or automatic respawn.
+
+E opens a selected document. A/D change one page per press; E or Escape closes
+it. Reading suppresses movement commands, look, stance changes, flashlight and
+world actions while gravity, collision, boxes, doors, actors and audio continue.
+Closing with Escape keeps the cursor captured. Held controls must be released
+before they can act after a transition. Cursor release owes a drop at the next
+active physics boundary; suspension freezes an existing hold, cancels pending
+commands and preserves any drop already owed.
+
+Documents contain a nonempty title of at most 80 Unicode scalar values and
+1–16 nonempty ordered pages of at most 480 scalars each. Russian text, including
+Ё/ё and explicit page line breaks, uses the trusted font; unsupported glyphs
+or text that cannot fit at the supported minimum are diagnosed before Play.
+The reader, action hints and feedback reserve space for both audio caption lanes.
+
+E toggles a radio's exclusively linked captioned spatial ambience loop.
+Turning it off stops sound and caption together; turning it on starts from the
+beginning. The linked static `apartment-radio` prop has no collision proxies
+and stays fixed; its transform supplies the audible position. Another radio or
+actor cannot own that same source, and its autoplay must be off. Mute preserves
+captions and time. A fresh process restores authored boxes and initial radio values.
 
 ## World
 
@@ -206,10 +249,12 @@ entry must have height-specific support and standing clearance.
 
 The level contains static world geometry with independently assigned materials,
 zero through eight authored point lights, zero through 128 fixed model placements,
-up to 16 switches, hinged doors, authored audio and up to four characters.
+up to 16 switches, hinged doors, authored audio, up to four characters and the
+bounded household collections described above.
 Placements have stable model identities and zero
 through eight independent collision boxes. Decorative phone/radio placements
-have no collision or interaction. The separate P04 fixture places authored
+have no collision or interaction unless a radio control explicitly links the
+radio prop. The separate P04 fixture places authored
 radio and telephone sources at these props.
 
 Interior levels may omit terrain and use authored boxes for floors, walls,
@@ -220,8 +265,8 @@ directions after opening Lena's room door, without jumping or crouching. These
 entries are authoring starts, not checkpoints or persistent progression.
 
 The furniture and generated room door are acceptance content. Dynamic rigid
-bodies, moving platforms, and additional world behavior require concrete
-gameplay needs.
+bodies are limited to the household box profile; moving platforms and further
+world behavior require concrete gameplay needs.
 
 ## Lighting
 
@@ -244,8 +289,8 @@ Ambient may be zero and remains independent of point-light and flashlight
 toggles. Runtime changes reset to authored values on a fresh run.
 
 Up to four configured point lights cast shadows from rendered walls, furniture
-and accepted door poses. A closed leaf blocks light through its rendered
-surface; opening or stopping it changes its shadow at the accepted angle. The flashlight
+and accepted door, box and character poses. A closed leaf blocks light through
+its rendered surface; opening or stopping it changes its shadow at the accepted angle. The flashlight
 retains its independent cone/range behavior. The neutral six-light interior
 and eight-light capacity scene exercise this bounded implementation; their
 T1 measurements are tracked separately from narrative acceptance.

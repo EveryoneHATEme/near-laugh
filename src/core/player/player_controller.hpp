@@ -59,7 +59,8 @@ class PlayerController {
   PlayerController(PlayerController&&) = delete;
   PlayerController& operator=(PlayerController&&) = delete;
 
-  void sampleInput(const PlayerActionSnapshot& actions, bool controls_active);
+  void sampleInput(const PlayerActionSnapshot& actions, bool controls_active,
+                   bool preserve_stance = false);
   void fixedStep(float delta_seconds);
   void collapsePresentationState() noexcept;
 

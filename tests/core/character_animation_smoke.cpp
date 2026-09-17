@@ -262,7 +262,8 @@ void run(const std::filesystem::path& root, Evidence& evidence) {
       // into this downward-facing camera, so changing pixels must be shadows.
       frame.camera = character_fixture::camera({1.8F, 2, -1.8F}, {1.8F, 0, -1.79F}, 16.F / 9);
       std::vector<std::uint8_t> light_only, idle_shadow;
-      std::array<OpaqueBoxFrame, 1> fixed_door{{{{3, 1, -.5F}, {.04F, 1, .5F}, 25}}};
+      std::array<OpaqueBoxFrame, 1> fixed_door{{
+          {{3, 1, -.5F}, {.04F, 1, .5F}, yawQuaternion(25)}}};
       frame.opaque_boxes = fixed_door;
       std::vector<std::uint8_t> ambient_control, flashlight_control;
       {

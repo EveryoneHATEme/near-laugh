@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "terrain": null,
   "solids": [
     {
@@ -442,5 +442,10 @@
         "final_clip": null
       }
     ]
+  },
+  "household": {
+    "boxes": [],
+    "documents": [],
+    "radios": []
   }
 }

@@ -2,10 +2,9 @@
 
 #include <stdexcept>
 
-std::vector<char32_t> captionScalars(std::string_view text) {
+namespace {
+std::vector<char32_t> decode(std::string_view text, bool allow_newlines) {
   std::vector<char32_t> scalars;
-  if (text.size() > 640)
-    throw std::invalid_argument("caption UTF-8 exceeds bounded text size");
   for (std::size_t i = 0; i < text.size();) {
     const auto lead = static_cast<unsigned char>(text[i++]);
     unsigned trailing{};
@@ -36,11 +35,29 @@ std::vector<char32_t> captionScalars(std::string_view text) {
       scalar = (scalar << 6) | (byte & 63);
     }
     if (scalar < minimum || scalar > 0x10ffff ||
-        (scalar >= 0xd800 && scalar <= 0xdfff) || scalar < 0x20 ||
+        (scalar >= 0xd800 && scalar <= 0xdfff) ||
+        (scalar < 0x20 && !(allow_newlines && scalar == U'\n')) ||
         (scalar >= 0x7f && scalar < 0xa0))
       throw std::invalid_argument(
           "invalid UTF-8 scalar or unsupported text control");
     scalars.push_back(scalar);
   }
+  return scalars;
+}
+}  // namespace
+
+std::vector<char32_t> captionScalars(std::string_view text) {
+  if (text.size() > 640)
+    throw std::invalid_argument("caption UTF-8 exceeds bounded text size");
+  return decode(text, false);
+}
+
+std::vector<char32_t> readableScalars(std::string_view text,
+                                      bool allow_newlines) {
+  if (text.size() > 480 * 4)
+    throw std::invalid_argument("readable UTF-8 exceeds 480-scalar text bound");
+  auto scalars = decode(text, allow_newlines);
+  if (scalars.size() > 480)
+    throw std::invalid_argument("readable UTF-8 exceeds 480-scalar text bound");
   return scalars;
 }

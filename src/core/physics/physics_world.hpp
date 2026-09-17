@@ -1,8 +1,10 @@
 #ifndef CORE_PHYSICS_PHYSICS_WORLD_HPP
 #define CORE_PHYSICS_PHYSICS_WORLD_HPP
 
+#include <array>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
 
 #include "core/world/prototype_level.hpp"
@@ -47,6 +49,15 @@ struct PhysicsStaticSolid {
   float yaw_degrees{};
 };
 
+struct PhysicsBoxState {
+  WorldPosition center{};
+  // Unit quaternion, XYZW, matching changing opaque geometry.
+  std::array<float, 4> orientation{0, 0, 0, 1};
+  PhysicsVector linear_velocity{};
+  PhysicsVector angular_velocity{};
+  bool sleeping{};
+};
+
 struct PhysicsDoorAdvance {
   float angle{};
   bool obstructed{};
@@ -63,6 +74,7 @@ enum class PhysicsActorObstruction {
   Door,
   Player,
   Actor,
+  Box,
   Support
 };
 
@@ -105,7 +117,21 @@ class PhysicsWorld {
                                           WorldPosition endpoint) const;
   [[nodiscard]] bool worldSegmentBlocked(
       WorldPosition origin, WorldPosition endpoint,
-      std::string_view selected_door = {}) const;
+      std::string_view selected_door = {},
+      std::string_view selected_box = {}) const;
+  // Box indices retain authored order. Body creation uses durable ID order.
+  [[nodiscard]] std::size_t boxCount() const noexcept;
+  [[nodiscard]] PhysicsBoxState boxState(std::size_t index) const;
+  [[nodiscard]] std::optional<std::size_t> heldBox() const noexcept;
+  [[nodiscard]] bool beginBoxHold(std::size_t index, WorldPosition target,
+                                  std::array<float, 4> orientation);
+  [[nodiscard]] bool updateBoxHold(WorldPosition target,
+                                   std::array<float, 4> orientation);
+  void dropHeldBox();
+  [[nodiscard]] bool throwHeldBox(PhysicsVector direction);
+  // Development/contact tests use impulses, never arbitrary pose replacement.
+  void applyBoxImpulse(std::size_t index, PhysicsVector impulse,
+                       PhysicsVector angular_impulse = {});
   [[nodiscard]] PhysicsDoorAdvance advanceDoor(std::size_t index,
                                                float requested_angle);
   [[nodiscard]] float doorAngle(std::size_t index) const;

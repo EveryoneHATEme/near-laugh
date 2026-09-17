@@ -61,6 +61,7 @@ EditorApplication::EditorApplication(
       renderer_(window_, window_.framebufferExtent(),
                 resolveEditorRendererResources(resource_root, capture),
                 validation_diagnostics_) {
+  ui_.setReadableFont(caption_font_);
   if (initial_level) {
     static_cast<void>(document_.open(*initial_level));
     synchronizeDocumentResources();

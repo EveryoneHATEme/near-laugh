@@ -37,6 +37,8 @@ struct DoorLeafPose {
                                      float tolerance = 0.0001F) noexcept;
 [[nodiscard]] bool doorOverlapsTerrain(const DoorDefinition& door, float angle,
                                        const PrototypeTerrain& terrain);
+[[nodiscard]] bool yawedBoxOverlapsTerrain(const DoorLeafPose& box,
+                                          const PrototypeTerrain& terrain);
 
 // Six fixed generated boxes: leaf, two handles, bolt, and two knock plates.
 // Pure presentation used by runtime and initial-state editor preview.

@@ -33,6 +33,9 @@ class EditorApplication {
   void runSmoke(const std::filesystem::path& valid_level);
   void runCharacterSmoke(std::vector<std::string>& events,
                          FrameCapture& capture);
+  void runHouseholdSmoke(std::vector<std::string>& events,
+                         FrameCapture& capture,
+                         const std::filesystem::path& capture_directory);
   [[nodiscard]] bool tick();
 
  private:

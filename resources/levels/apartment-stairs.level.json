@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "terrain": null,
   "solids": [
     {
@@ -1278,5 +1278,10 @@
     "actors": [],
     "marks": [],
     "routes": []
+  },
+  "household": {
+    "boxes": [],
+    "documents": [],
+    "radios": []
   }
 }

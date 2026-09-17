@@ -31,8 +31,10 @@ The runtime submits at most one `FrameRequest` per loop iteration. It contains:
 - a standard-layout, column-major camera view-projection matrix;
 - at most one source-independent dynamic `SpotLightFrame`;
 - a borrowed span containing exactly one 0/1 enable per authored point light;
-- at most 192 source-independent opaque boxes for accepted door poses and feedback;
-- borrowed resolved foreground/ambience captions; and
+- at most 248 source-independent opaque boxes with full unit XYZW orientation
+  for accepted doors, physical boxes, readable panels and radio indicators;
+- borrowed resolved foreground/ambience captions, readable title/page/controls,
+  action hints and feedback; and
 - a borrowed exact set of zero through four selected character palettes and
   finite world translation/yaw, identified by render handles and skeleton tags.
 
@@ -165,11 +167,15 @@ paths clean up only resources that were successfully created. Per-frame command
 and synchronization resources are not modified while still in GPU use.
 
 Each existing frame slot owns one persistently mapped changing-geometry buffer
-with capacity for 192 boxes. The renderer waits the slot fence before updating
-it, omits empty draws and never rebuilds static resources for door movement or
-feedback. Runtime boxes describe accepted physics poses without visual motion
-ahead of collision. The editor uses the same geometry helpers at authored
-initial poses.
+with capacity for 248 boxes: 32 doors with up to six boxes each, 16 physical
+boxes, 32 document panels and eight radio indicators. The renderer waits the
+slot fence before updating it, omits empty draws and never rebuilds static
+resources for door or household motion/feedback. Quaternion rotation transforms
+positions and normals consistently; color and point-shadow passes consume the
+same geometry. Physical boxes describe accepted full physics poses without a
+separate visual hold pose. The editor uses the same geometry helpers at authored
+initial poses, with no runtime physics. Radio geometry remains a static prop;
+only its small on/off indicator joins the changing geometry.
 
 The editor reuses the narrow rendering helpers but owns a separate Vulkan
 context and active-document resources. It records scene geometry first and
@@ -211,6 +217,9 @@ below UI panels, using the existing Vulkan backend. They intentionally have no
 scene depth test and do not alter runtime frame requests or level data. Character
 labels use projected finite marks and the same background list; missing endpoints
 never create a line to a substituted origin.
+Household overlays add box/panel bounds and selected radio indicator bounds.
+Picking uses the radio indicator for its control and the model for its prop; an unresolved link stays
+available in the list instead of acquiring a fabricated position.
 
 ## Prepared character presentation
 
@@ -270,19 +279,31 @@ four-line foreground/two-line ambience lanes. Supported framebuffer sizes run
 from 800x600 through 3840x2160. Smaller windows receive bounded best-effort layout.
 No ImGui code is linked into game rendering.
 
+The same atlas and fenced text buffer render readable title/page/controls plus
+action hints and feedback, with one combined 8192-vertex limit. The reader and
+two short message bands reserve both complete caption lanes even when silent.
+Household text wraps with shared glyph metrics and explicit page newlines;
+unsupported glyphs, overwide words or text that exceeds the available panel
+are diagnosed instead of silently truncated at supported sizes. Below 800x600,
+bounded best-effort clipping remains available; a zero extent produces no text.
+
 The packaged Noto Sans Regular font is checked against its pinned SHA-256 before
-stb_truetype parsing. Glyph coverage and fit of selected Russian captions validate
-before playback. Latin, Cyrillic including Ё/ё, and selected punctuation are
+stb_truetype parsing. Glyph coverage and fit of selected Russian captions and
+every authored document page validate before playback or saved-file Play.
+Latin, Cyrillic including Ё/ё, and selected punctuation are
 baked at 24/32/48/64 pixels into one immutable atlas. Size follows framebuffer
 scale with a width cap so narrow, tall windows retain full text. The renderer
-uploads the atlas on the first nonempty caption, retains it through recovery,
+uploads the atlas on the first nonempty text, retains it through recovery,
 and rewrites a frame slot's bounded glyph buffer only after its fence. Empty
-captions clear that slot's draw count. Color/depth attachment format changes
+text clears that slot's draw count. Color/depth attachment format changes
 recreate the text pipeline; partial allocation and final destruction release
 all acquired resources before the device.
 
 The editor loads the same trusted font for Cyrillic properties, diagnostics and
-its audition panel. Source markers, room wireframes and selected connection
+its audition panel. The readable editor preview uses the runtime's wrapped
+lines and minimum 800x600 panel layout. Invalid drafts retain an explicitly
+stale last valid preview; preview construction starts no physics or audio.
+Source markers, room wireframes and selected connection
 links use the existing clipped editor overlay; audio volumes never create
 collision geometry.
 

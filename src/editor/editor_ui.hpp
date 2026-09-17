@@ -2,9 +2,11 @@
 #define EDITOR_EDITOR_UI_HPP
 
 #include <array>
+#include <memory>
 #include <utility>
 
 #include "core/frame.hpp"
+#include "core/text/caption_font.hpp"
 #include "editor/editor_character_preview.hpp"
 #include "editor/editor_playtest.hpp"
 #include "editor/editor_property_edit.hpp"
@@ -24,6 +26,11 @@ class EditorUi {
  public:
   void draw(EditorDocument& document, bool child_active = false,
             std::string_view process_status = {});
+  void setReadableFont(std::shared_ptr<const CaptionFont> font) {
+    readable_font_ = std::move(font);
+    readable_preview_.reset();
+    readable_preview_revision_.reset();
+  }
   EditorAuditionAction drawAudition(const EditorAuditionView& view,
                                     bool can_start);
   std::optional<EditorCharacterPreviewRequest> drawCharacterPreview(
@@ -47,6 +54,10 @@ class EditorUi {
   void drawAudioObjects(EditorDocument& document);
   void drawCharacterObjects(EditorDocument& document);
   void drawCharacterProperties(EditorDocument& document);
+  void drawHouseholdObjects(EditorDocument& document);
+  void drawHouseholdProperties(EditorDocument& document);
+  void drawReadablePreview(const EditorDocument& document);
+  bool commitSelectionDraft(EditorDocument& document);
   void selectObject(EditorDocument& document, EditorObjectId id);
   void drawProperties(EditorDocument& document);
   void drawTerrainBrush(EditorDocument& document);
@@ -76,6 +87,14 @@ class EditorUi {
   std::uint64_t preview_generation_{}, preview_revision_{},
       preview_selection_revision_{};
   EditorObjectId preview_selection_{};
+  std::shared_ptr<const CaptionFont> readable_font_;
+  EditorObjectId readable_object_{};
+  std::uint64_t readable_generation_{};
+  std::size_t readable_page_{}, readable_preview_page_{},
+      readable_last_good_page_{};
+  std::optional<std::uint64_t> readable_preview_revision_;
+  std::optional<CaptionLayout> readable_preview_;
+  std::string readable_preview_error_;
 };
 
 #endif

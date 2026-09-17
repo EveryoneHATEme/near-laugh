@@ -168,6 +168,7 @@ endfunction()
 near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
+    src/core/world/household.cpp
     src/core/world/characters.cpp
     src/core/world/audio.cpp
     src/core/world/door.cpp
@@ -273,6 +274,7 @@ add_library(near_laugh_runtime STATIC
     src/core/gameplay/character_controller.cpp
     src/core/gameplay/door_controller.cpp
     src/core/gameplay/authored_interaction.cpp
+    src/core/gameplay/household_controller.cpp
     src/core/application.cpp
     src/core/engine.cpp
     src/core/gameplay/player_flashlight.cpp
@@ -321,6 +323,7 @@ add_library(near_laugh_editor_core STATIC
     src/editor/editor_lighting_commands.cpp
     src/editor/editor_audio_commands.cpp
     src/editor/editor_character_commands.cpp
+    src/editor/editor_household_commands.cpp
     src/editor/editor_character_spatial.cpp
     src/editor/editor_character_preview.cpp
     src/editor/editor_document.cpp
@@ -346,6 +349,7 @@ add_library(near_laugh_editor_ui STATIC
     src/editor/editor_ui.cpp
     src/editor/editor_audio_ui.cpp
     src/editor/editor_character_ui.cpp
+    src/editor/editor_household_ui.cpp
     src/editor/editor_character_preview_ui.cpp
 )
 target_include_directories(near_laugh_editor_ui
@@ -476,6 +480,7 @@ near_laugh_enable_warnings(interior_lighting_visual)
 
 add_executable(level_editor
     src/editor/editor_application.cpp
+    src/editor/editor_household_smoke.cpp
     src/editor/editor_audio_audition.cpp
     src/editor/main.cpp
     src/launcher/executable_path.cpp
@@ -483,13 +488,21 @@ add_executable(level_editor
 target_include_directories(level_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(level_editor PRIVATE
     near_laugh_editor_core near_laugh_editor_ui near_laugh_editor_render
-    near_laugh_platform near_laugh_world near_laugh_audio
+    near_laugh_platform near_laugh_world near_laugh_audio near_laugh_imgui
 )
 near_laugh_enable_warnings(level_editor)
 set_target_properties(level_editor PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 add_dependencies(level_editor near_laugh_packaged_resources)
+
+add_executable(household_measure EXCLUDE_FROM_ALL
+    src/household_measure_main.cpp src/launcher/executable_path.cpp)
+target_include_directories(household_measure PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(household_measure PRIVATE near_laugh_runtime)
+near_laugh_enable_warnings(household_measure)
+set_target_properties(household_measure PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(household_measure near_laugh_packaged_resources)
 
 get_target_property(level_editor_links level_editor LINK_LIBRARIES)
 if(level_editor_links MATCHES "near_laugh_runtime|near_laugh_physics")

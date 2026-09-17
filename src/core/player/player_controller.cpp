@@ -61,8 +61,10 @@ PlayerController::PlayerController(PhysicsWorld& physics,
       yaw_degrees_(initial_yaw_degrees) {}
 
 void PlayerController::sampleInput(const PlayerActionSnapshot& actions,
-                                   bool controls_active) {
+                                   bool controls_active, bool preserve_stance) {
   controls_ = controls_active ? actions : PlayerActionSnapshot{};
+  if (preserve_stance)
+    controls_.crouch = state_.stance == PhysicsPlayerStance::Crouched;
   if (controls_active) {
     yaw_degrees_ +=
         static_cast<float>(actions.look_delta_x) * mouse_sensitivity_degrees;

@@ -611,7 +611,8 @@ FrameOutcome Renderer::Impl::renderFrame(const FrameRequest& request) {
     if (timing) timing->character_deformation_ms += duration(start);
   }
   const auto caption_layout = caption_font_->layout(
-      request.captions, swapchain_extent_.width, swapchain_extent_.height);
+      request.captions, swapchain_extent_.width, swapchain_extent_.height,
+      request.household_text);
   if (!caption_layout.vertices.empty() && !text_)
     text_ = std::make_unique<TextResources>(
         context_.device(), context_.physicalDevice(), context_.graphicsQueue(),

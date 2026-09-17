@@ -4,6 +4,7 @@
 #include "core/audio/apartment_audio_fixture.hpp"
 #include "core/gameplay/authored_interaction.hpp"
 #include "core/gameplay/character_controller.hpp"
+#include "core/gameplay/household_controller.hpp"
 #include "core/gameplay/light_switch_controller.hpp"
 #include "core/gameplay/player_flashlight.hpp"
 #include "core/input/player_input.hpp"
@@ -23,6 +24,9 @@ class ValidationDiagnostics;
 struct CharacterDevelopmentInput {
   bool restart{}, cancel{}, pause{}, mute{};
 };
+struct HouseholdDevelopmentInput {
+  bool pause{}, mute{};
+};
 
 class Engine {
  public:
@@ -41,15 +45,19 @@ class Engine {
   void run();
   [[nodiscard]] bool tick(
       const PlayerActionSnapshot* development_input = nullptr,
-      const CharacterDevelopmentInput* character_input = nullptr);
+      const CharacterDevelopmentInput* character_input = nullptr,
+      const HouseholdDevelopmentInput* household_input = nullptr);
 
  private:
   friend struct EngineAudioSmoke;
   friend struct InteriorLightingMeasurement;
   friend struct EngineCharacterSmoke;
+  friend struct EngineHouseholdSmoke;
+  friend struct EngineHouseholdMeasurement;
   bool samplePlayerInput(const PlayerActionSnapshot& input);
-  void sampleFixtureControls(bool active, double now,
-                             const CharacterDevelopmentInput* input = nullptr);
+  void sampleFixtureControls(
+      bool active, double now, const CharacterDevelopmentInput* input = nullptr,
+      const HouseholdDevelopmentInput* household_input = nullptr);
   void suspendWorld(bool suspended, double now);
 
   Platform platform_;
@@ -68,13 +76,17 @@ class Engine {
   LightSwitchController light_switch_;
   DoorController doors_;
   CharacterController characters_;
+  HouseholdController household_;
   AuthoredInteraction interaction_{};
   Renderer renderer_;
   PlayerInputMapper input_mapper_{};
   PlayerActionSnapshot input_{};
+  PlayerActionSnapshot exploration_input_{};
   FixedStepAccumulator fixed_step_{};
   bool character_fixture_{}, character_paused_{}, suspended_{};
   CharacterDevelopmentInput previous_character_input_{};
+  HouseholdDevelopmentInput previous_household_input_{};
+  bool household_paused_{};
 };
 
 #endif

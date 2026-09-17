@@ -199,24 +199,23 @@ std::vector<PositionColorVertex> buildOpaqueBoxVertices(
       if (!std::isfinite(box.center[axis]) ||
           !std::isfinite(box.half_extent[axis]) || box.half_extent[axis] <= 0)
         throw std::runtime_error("Changing opaque box has invalid bounds");
-    if (!std::isfinite(box.yaw_degrees) || box.surface != 2)
+    if (!quaternionIsValid(box.orientation) || box.surface != 2)
       throw std::runtime_error(
-          "Changing opaque box has invalid yaw or material");
+          "Changing opaque box has invalid unit rotation or material");
     const auto begin = vertices.size();
     const auto& h = box.half_extent;
     appendBox(vertices, {-h[0], -h[1], -h[2]}, {h[0], h[1], h[2]}, box.color,
               box.surface);
-    const float yaw = box.yaw_degrees * std::numbers::pi_v<float> / 180;
-    const float c = std::cos(yaw), s = std::sin(yaw);
     for (std::size_t i = begin; i < vertices.size(); ++i) {
       auto& v = vertices[i];
-      const float x = v.position[0], z = v.position[2];
-      v.position[0] = box.center[0] + c * x + s * z;
-      v.position[1] += box.center[1];
-      v.position[2] = box.center[2] - s * x + c * z;
-      const float nx = v.normal[0], nz = v.normal[2];
-      v.normal[0] = c * nx + s * nz;
-      v.normal[2] = -s * nx + c * nz;
+      const auto p = rotateVector(box.orientation,
+                                  {v.position[0], v.position[1], v.position[2]});
+      const auto n = rotateVector(box.orientation,
+                                  {v.normal[0], v.normal[1], v.normal[2]});
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        v.position[axis] = box.center[axis] + p[axis];
+        v.normal[axis] = n[axis];
+      }
       for (float component : v.position)
         if (!std::isfinite(component))
           throw std::runtime_error(

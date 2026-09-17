@@ -23,6 +23,7 @@
 #include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Constraints/SixDOFConstraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
 
@@ -39,6 +40,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/rotation.hpp"
 #include "core/world/characters.hpp"
 #include "core/world/door.hpp"
 #include "core/world/scene_assets.hpp"
@@ -204,6 +206,31 @@ class StaticVisibilityFilter final : public JPH::ObjectLayerFilter {
   }
 };
 
+class ExcludeBodies final : public JPH::BodyFilter {
+ public:
+  ExcludeBodies(JPH::BodyID first, JPH::BodyID second = {},
+                JPH::BodyID third = {})
+      : ids_{first, second, third} {}
+  bool ShouldCollide(const JPH::BodyID& id) const override {
+    return std::find(ids_.begin(), ids_.end(), id) == ids_.end();
+  }
+
+ private:
+  std::array<JPH::BodyID, 3> ids_;
+};
+
+bool finite(PhysicsVector v) {
+  return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+}
+
+bool finite(WorldPosition v) {
+  return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+}
+
+JPH::Quat toJoltRotation(const std::array<float, 4>& q) {
+  return JPH::Quat{q[0], q[1], q[2], q[3]}.Normalized();
+}
+
 JPH::RVec3 toJoltFootPosition(WorldPosition position) {
   return {position.x, position.y, position.z};
 }
@@ -281,18 +308,49 @@ class PhysicsWorld::Impl {
 
   class PlayerActorContacts final : public JPH::CharacterContactListener {
    public:
-    explicit PlayerActorContacts(const std::vector<Actor>& actors)
-        : actors_(actors) {}
+    PlayerActorContacts(const std::vector<Actor>& actors,
+                        const std::vector<JPH::BodyID>& boxes,
+                        JPH::PhysicsSystem& physics,
+                        const std::optional<std::size_t>& held)
+        : actors_(actors), boxes_(boxes), physics_(physics), held_(held) {}
     bool actorBody(JPH::BodyID body) const {
       if (body.IsInvalid()) return false;
       return std::any_of(actors_.begin(), actors_.end(),
                          [&](const auto& actor) { return actor.body == body; });
     }
-    void OnContactSolve(const JPH::CharacterVirtual*, const JPH::BodyID& body,
-                        const JPH::SubShapeID&, JPH::RVec3Arg position,
-                        JPH::Vec3Arg normal, JPH::Vec3Arg,
-                        const JPH::PhysicsMaterial*, JPH::Vec3Arg velocity,
-                        JPH::Vec3& resolved) override {
+    bool boxBody(JPH::BodyID body) const {
+      return !body.IsInvalid() &&
+             std::find(boxes_.begin(), boxes_.end(), body) != boxes_.end();
+    }
+    bool unsupportedBody(JPH::BodyID body) const {
+      return actorBody(body) || boxBody(body);
+    }
+    void OnAdjustBodyVelocity(const JPH::CharacterVirtual*,
+                              const JPH::Body& body, JPH::Vec3& linear,
+                              JPH::Vec3& angular) override {
+      if (boxBody(body.GetID())) linear = angular = JPH::Vec3::sZero();
+    }
+    void OnContactAdded(const JPH::CharacterVirtual*,
+                        const JPH::CharacterContact& contact,
+                        JPH::CharacterContactSettings& settings) override {
+      if (!boxBody(contact.mBodyB)) return;
+      settings.mCanPushCharacter = false;
+      // Only controlled side contact pushes free boxes. Falling contact must
+      // not convert character weight into a box-launching impulse.
+      settings.mCanReceiveImpulses =
+          contact.mContactNormal.GetY() < .25F &&
+          (!held_ || boxes_[*held_] != contact.mBodyB);
+    }
+    void OnContactPersisted(const JPH::CharacterVirtual* character,
+                            const JPH::CharacterContact& contact,
+                            JPH::CharacterContactSettings& settings) override {
+      OnContactAdded(character, contact, settings);
+    }
+    void OnContactSolve(const JPH::CharacterVirtual* character,
+                        const JPH::BodyID& body, const JPH::SubShapeID&,
+                        JPH::RVec3Arg position, JPH::Vec3Arg normal,
+                        JPH::Vec3Arg, const JPH::PhysicsMaterial*,
+                        JPH::Vec3Arg velocity, JPH::Vec3& resolved) override {
       if (normal.GetY() <
           std::cos(JPH::DegreesToRadians(player_maximum_slope_degrees)))
         return;
@@ -310,10 +368,36 @@ class PhysicsWorld::Impl {
                       normal.GetY());
         return;
       }
+      if (boxBody(body)) {
+        const auto center = physics_.GetBodyInterface().GetPosition(body);
+        const auto feet = character->GetPosition();
+        const JPH::Vec3 downhill{normal.GetX(), 0, normal.GetZ()};
+        // A capsule's contact point lies uphill of its centre on a tilted
+        // face. Using that point as the departure direction requests upward
+        // motion, which Jolt correctly rejects as a reversal of the fall.
+        // Follow the downhill normal on slopes; depart from the player's
+        // accepted centre on a level face, with a deterministic centred tie.
+        JPH::Vec3 away{float(feet.GetX() - center.GetX()), 0,
+                       float(feet.GetZ() - center.GetZ())};
+        if (downhill.LengthSq() > .0001F) away = downhill;
+        if (away.IsNearZero()) away = {velocity.GetX(), 0, velocity.GetZ()};
+        away = away.NormalizedOr(JPH::Vec3::sAxisZ());
+        // Even a nearly flat settled stack has a small residual tilt. Keep
+        // departure tangent and downhill instead of accumulating upward work.
+        if (away.Dot(downhill) < 0) away = -away;
+        resolved =
+            away * std::max(1.F, std::hypot(velocity.GetX(), velocity.GetZ()));
+        resolved.SetY(-(normal.GetX() * resolved.GetX() +
+                        normal.GetZ() * resolved.GetZ()) /
+                      normal.GetY());
+      }
     }
 
    private:
     const std::vector<Actor>& actors_;
+    const std::vector<JPH::BodyID>& boxes_;
+    JPH::PhysicsSystem& physics_;
+    const std::optional<std::size_t>& held_;
   };
 
   Impl(const PrototypeLevel& level, const LevelEntry& entry)
@@ -321,6 +405,7 @@ class PhysicsWorld::Impl {
         standing_shape_(makePlayerCapsule(player_standing_height)),
         crouched_shape_(makePlayerCapsule(player_crouched_height)),
         doors_(level.doors()),
+        box_definitions_(level.household().boxes),
         terrain_(level.terrain() ? &*level.terrain() : nullptr) {
     if (!prototypeLevelIsValid(level) || !level.entry(entry.id) ||
         *level.entry(entry.id) != entry) {
@@ -345,6 +430,12 @@ class PhysicsWorld::Impl {
     door_body_ids_.reserve(doors_.size());
     door_angles_.reserve(doors_.size());
     actors_.resize(level.characters().actors.size());
+    box_body_ids_.resize(box_definitions_.size());
+    for (std::size_t i = 0; i < box_definitions_.size(); ++i)
+      box_order_.push_back(i);
+    std::sort(box_order_.begin(), box_order_.end(), [&](auto a, auto b) {
+      return box_definitions_[a].id < box_definitions_[b].id;
+    });
     for (std::size_t i = 0; i < actors_.size(); ++i) actor_order_.push_back(i);
     std::sort(actor_order_.begin(), actor_order_.end(), [&](auto a, auto b) {
       return level.characters().actors[a].id < level.characters().actors[b].id;
@@ -453,6 +544,13 @@ class PhysicsWorld::Impl {
 
       JPH::CharacterVirtualSettings character_settings;
       character_settings.mShape = standing_shape_;
+      // Jolt otherwise applies character weight to any ground body even if
+      // game-side support is rejected. Controlled side pushes remain bounded.
+      character_settings.mMass = 0;
+      character_settings.mMaxStrength = 80;
+      if (!forcedFailureAt("player-inner-body"))
+        character_settings.mInnerBodyShape = standing_shape_;
+      character_settings.mInnerBodyLayer = layers::moving;
       character_settings.mCharacterPadding = prototype_player_contact_padding;
       character_settings.mMaxSlopeAngle =
           JPH::DegreesToRadians(player_maximum_slope_degrees);
@@ -462,6 +560,9 @@ class PhysicsWorld::Impl {
       character_ = new JPH::CharacterVirtual(
           &character_settings, toJoltFootPosition(entry.pose.foot_position),
           JPH::Quat::sIdentity(), 0, &physics_system_);
+      if (character_->GetInnerBodyID().IsInvalid())
+        throw std::runtime_error(
+            "Create physics-visible player inner body failed");
       character_->SetListener(&player_actor_contacts_);
       previous_character_ = characterState();
       if (forcedFailureAt("character")) {
@@ -503,7 +604,36 @@ class PhysicsWorld::Impl {
               "Physics initialization forced to fail after actor: " +
               definition.id);
       }
+      for (auto index : box_order_) {
+        const auto& definition = box_definitions_[index];
+        JPH::BodyCreationSettings settings(
+            new JPH::BoxShape(JPH::Vec3::sReplicate(household_box_half_extent),
+                              0),
+            toJoltFootPosition(definition.center),
+            toJoltRotation(yawQuaternion(definition.yaw_degrees)),
+            JPH::EMotionType::Dynamic, layers::moving);
+        settings.mMotionQuality = JPH::EMotionQuality::LinearCast;
+        settings.mOverrideMassProperties =
+            JPH::EOverrideMassProperties::CalculateInertia;
+        settings.mMassPropertiesOverride.mMass = household_box_mass;
+        settings.mMaxLinearVelocity = 12;
+        settings.mMaxAngularVelocity = 12;
+        settings.mFriction = .6F;
+        settings.mRestitution = .1F;
+        auto& id = box_body_ids_[index];
+        id = physics_system_.GetBodyInterface().CreateAndAddBody(
+            settings, JPH::EActivation::Activate);
+        if (id.IsInvalid())
+          throw std::runtime_error("Create household box failed: " +
+                                   definition.id);
+        const auto stage = "box-body-" + std::to_string(++created_box_count_);
+        if (forcedFailureAt(stage.c_str()))
+          throw std::runtime_error(
+              "Physics initialization forced to fail after box: " +
+              definition.id);
+      }
     } catch (...) {
+      dropHeldBox();
       character_ = nullptr;
       destroyStaticBodies();
       throw;
@@ -511,6 +641,7 @@ class PhysicsWorld::Impl {
   }
 
   ~Impl() {
+    dropHeldBox();
     character_ = nullptr;
     destroyStaticBodies();
   }
@@ -519,7 +650,29 @@ class PhysicsWorld::Impl {
     if (!(delta_seconds > 0.0F) || !std::isfinite(delta_seconds))
       throw std::invalid_argument(
           "Physics world step requires a finite positive delta");
-    physics_system_.Update(delta_seconds, 1, &temp_allocator_, &job_system_);
+    if (held_box_) {
+      if (!validHoldTarget(*held_box_, hold_target_, hold_orientation_))
+        dropHeldBox();
+      else
+        physics_system_.GetBodyInterface().ActivateBody(
+            box_body_ids_[*held_box_]);
+    }
+    const auto error =
+        forcedFailureAt("world-update")
+            ? JPH::EPhysicsUpdateError::ContactConstraintsFull
+            : physics_system_.Update(delta_seconds, 2, &temp_allocator_,
+                                     &job_system_);
+    if (error != JPH::EPhysicsUpdateError::None)
+      throw std::runtime_error("Physics world update failed: " +
+                               std::to_string(static_cast<unsigned>(error)));
+    for (auto index : box_order_) {
+      const auto state = boxState(index);
+      if (!finite(state.center) || !finite(state.linear_velocity) ||
+          !finite(state.angular_velocity) ||
+          !quaternionIsValid(state.orientation) || forcedFailureAt("box-state"))
+        throw std::runtime_error("Nonfinite household box state: " +
+                                 box_definitions_[index].id);
+    }
     for (auto& actor : actors_) actor.previous_feet = actor.capsule_feet;
   }
 
@@ -531,6 +684,8 @@ class PhysicsWorld::Impl {
     }
 
     previous_character_ = characterState();
+    const bool previously_on_box =
+        player_actor_contacts_.boxBody(character_->GetGroundBodyID());
     applyRequestedStance(motion.crouch_requested);
     const JPH::Vec3 gravity{motion.gravity.x, motion.gravity.y,
                             motion.gravity.z};
@@ -540,7 +695,8 @@ class PhysicsWorld::Impl {
     JPH::CharacterVirtual::ExtendedUpdateSettings settings;
     settings.mWalkStairsStepUp = {0.0F, player_maximum_step_height, 0.0F};
     settings.mStickToFloorStepDown = {0.0F, -player_maximum_step_height, 0.0F};
-    if (player_actor_contacts_.actorBody(character_->GetGroundBodyID())) {
+    if (player_actor_contacts_.unsupportedBody(character_->GetGroundBodyID()) ||
+        boxNearCharacterProbe(motion.linear_velocity, delta_seconds)) {
       settings.mWalkStairsStepUp = JPH::Vec3::sZero();
       settings.mStickToFloorStepDown = JPH::Vec3::sZero();
     }
@@ -549,6 +705,21 @@ class PhysicsWorld::Impl {
         physics_system_.GetDefaultBroadPhaseLayerFilter(layers::moving),
         physics_system_.GetDefaultLayerFilter(layers::moving), {}, {},
         temp_allocator_);
+    if (motion.linear_velocity.y < 0 &&
+        (previously_on_box ||
+         player_actor_contacts_.boxBody(character_->GetGroundBodyID()))) {
+      // CharacterVirtual retains the requested velocity, not the contact's
+      // resolved velocity. Boxes remain unsupported, so without this clipping
+      // a blocked fall would accumulate gravity indefinitely and burst downward
+      // when lateral clearance becomes available. No ground/jump is granted.
+      const float accepted_vertical =
+          float(character_->GetPosition().GetY() -
+                previous_character_.foot_position.y) /
+          delta_seconds;
+      auto velocity = character_->GetLinearVelocity();
+      velocity.SetY(std::max(velocity.GetY(), accepted_vertical));
+      character_->SetLinearVelocity(velocity);
+    }
     // A stair probe must not install an actor's head as a new support surface.
     // Falling contacts retain collision and slide off through the listener.
     if (previous_character_.supported() &&
@@ -567,19 +738,21 @@ class PhysicsWorld::Impl {
   }
 
   PhysicsCharacterState characterState() const noexcept {
-    return {fromJoltPosition(character_->GetPosition()),
-            fromJoltVector(character_->GetLinearVelocity()),
-            player_actor_contacts_.actorBody(character_->GetGroundBodyID())
-                ? PhysicsGroundState::Unsupported
-                : fromJoltGroundState(character_->GetGroundState()),
-            crouched_ ? PhysicsPlayerStance::Crouched
-                      : PhysicsPlayerStance::Standing};
+    return {
+        fromJoltPosition(character_->GetPosition()),
+        fromJoltVector(character_->GetLinearVelocity()),
+        player_actor_contacts_.unsupportedBody(character_->GetGroundBodyID())
+            ? PhysicsGroundState::Unsupported
+            : fromJoltGroundState(character_->GetGroundState()),
+        crouched_ ? PhysicsPlayerStance::Crouched
+                  : PhysicsPlayerStance::Standing};
   }
 
   void applyRequestedStance(bool crouch_requested) {
     if (crouch_requested == crouched_) {
       return;
     }
+    if (forcedFailureAt("player-stance")) return;
     const JPH::Shape* requested_shape =
         crouch_requested ? crouched_shape_ : standing_shape_;
     const float allowed_penetration =
@@ -591,8 +764,138 @@ class PhysicsWorld::Impl {
             physics_system_.GetDefaultBroadPhaseLayerFilter(layers::moving),
             physics_system_.GetDefaultLayerFilter(layers::moving), {}, {},
             temp_allocator_)) {
+      // Both capsule shapes already exist. Inner shape replacement does not
+      // allocate or replace its body and cannot fail after SetShape accepts.
+      character_->SetInnerBodyShape(requested_shape);
       crouched_ = crouch_requested;
     }
+  }
+
+  bool boxNearCharacterProbe(PhysicsVector velocity, float delta) const {
+    const auto p = character_->GetPosition();
+    // Conservative bounds of the stair/stick probes, including their forward
+    // test. Ordinary collision still sees every box; only optional locomotion
+    // assistance is suppressed near them, before any probe can install support.
+    const float travel = std::hypot(velocity.x, velocity.z) * delta;
+    const float radius =
+        player_capsule_radius + character_->GetCharacterPadding() +
+        household_box_half_extent * std::sqrt(3.F) + .15F + travel;
+    const float height =
+        crouched_ ? player_crouched_height : player_standing_height;
+    for (const auto id : box_body_ids_) {
+      const auto center = physics_system_.GetBodyInterface().GetPosition(id);
+      if (std::hypot(float(center.GetX() - p.GetX()),
+                     float(center.GetZ() - p.GetZ())) <= radius &&
+          center.GetY() + .26F >= p.GetY() - player_maximum_step_height &&
+          center.GetY() - .26F <=
+              p.GetY() + height + player_maximum_step_height)
+        return true;
+    }
+    return false;
+  }
+
+  PhysicsBoxState boxState(std::size_t index) const {
+    const auto id = box_body_ids_.at(index);
+    const auto& bodies = physics_system_.GetBodyInterface();
+    const auto p = bodies.GetPosition(id);
+    const auto q = bodies.GetRotation(id);
+    return {{float(p.GetX()), float(p.GetY()), float(p.GetZ())},
+            {q.GetX(), q.GetY(), q.GetZ(), q.GetW()},
+            fromJoltVector(bodies.GetLinearVelocity(id)),
+            fromJoltVector(bodies.GetAngularVelocity(id)),
+            !bodies.IsActive(id)};
+  }
+
+  bool validHoldTarget(std::size_t index, WorldPosition target,
+                       const std::array<float, 4>& orientation) const {
+    if (index >= box_body_ids_.size() || !finite(target) ||
+        !quaternionIsValid(orientation))
+      return false;
+    const auto center =
+        physics_system_.GetBodyInterface().GetPosition(box_body_ids_[index]);
+    return (toJoltFootPosition(target) - center).LengthSq() <= 1.5F * 1.5F;
+  }
+
+  bool beginBoxHold(std::size_t index, WorldPosition target,
+                    std::array<float, 4> orientation) {
+    if (held_box_ || !validHoldTarget(index, target, orientation)) return false;
+    JPH::SixDOFConstraintSettings settings;
+    // The fixed-world frame is world origin; the dynamic frame is its COM.
+    // This gives world position/orientation targets without a target body.
+    settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+    for (auto& motor : settings.mMotorSettings)
+      motor = JPH::MotorSettings(5, 1, 80, 4);
+    JPH::Ref<JPH::SixDOFConstraint> candidate;
+    try {
+      if (forcedFailureAt("hold-constraint")) return false;
+      candidate = static_cast<JPH::SixDOFConstraint*>(
+          physics_system_.GetBodyInterface().CreateConstraint(
+              &settings, JPH::BodyID(), box_body_ids_[index]));
+      if (candidate == nullptr) return false;
+      // Failure after allocation exercises the uncommitted constraint owner.
+      if (forcedFailureAt("hold-constraint-created")) return false;
+      for (int i = 0; i < JPH::SixDOFConstraintSettings::EAxis::Num; ++i)
+        candidate->SetMotorState(
+            static_cast<JPH::SixDOFConstraintSettings::EAxis>(i),
+            JPH::EMotorState::Position);
+      candidate->SetTargetPositionCS({target.x, target.y, target.z});
+      candidate->SetTargetOrientationCS(toJoltRotation(orientation));
+      physics_system_.AddConstraint(candidate);
+    } catch (const std::bad_alloc&) {
+      return false;
+    }
+    hold_constraint_ = candidate;
+    held_box_ = index;
+    hold_target_ = target;
+    hold_orientation_ = orientation;
+    physics_system_.GetBodyInterface().ActivateBody(box_body_ids_[index]);
+    return true;
+  }
+
+  bool updateBoxHold(WorldPosition target, std::array<float, 4> orientation) {
+    if (!held_box_) return false;
+    if (!validHoldTarget(*held_box_, target, orientation)) {
+      dropHeldBox();
+      return false;
+    }
+    hold_constraint_->SetTargetPositionCS({target.x, target.y, target.z});
+    hold_constraint_->SetTargetOrientationCS(toJoltRotation(orientation));
+    hold_target_ = target;
+    hold_orientation_ = orientation;
+    physics_system_.GetBodyInterface().ActivateBody(box_body_ids_[*held_box_]);
+    return true;
+  }
+
+  void dropHeldBox() noexcept {
+    if (hold_constraint_ != nullptr) {
+      physics_system_.RemoveConstraint(hold_constraint_);
+      hold_constraint_ = nullptr;
+    }
+    held_box_.reset();
+  }
+
+  void applyBoxImpulse(std::size_t index, PhysicsVector impulse,
+                       PhysicsVector angular_impulse) {
+    const auto id = box_body_ids_.at(index);
+    if (!finite(impulse) || !finite(angular_impulse))
+      throw std::invalid_argument("Household impulse must be finite");
+    auto& bodies = physics_system_.GetBodyInterface();
+    bodies.AddImpulse(id, {impulse.x, impulse.y, impulse.z});
+    bodies.AddAngularImpulse(
+        id, {angular_impulse.x, angular_impulse.y, angular_impulse.z});
+    // Jolt's AddImpulse/AddAngularImpulse clamp the resulting velocities to
+    // the body's declared caps immediately, including at this command boundary.
+  }
+
+  bool throwHeldBox(PhysicsVector direction) {
+    if (!held_box_) return false;
+    const auto index = *held_box_;
+    dropHeldBox();
+    const JPH::Vec3 d{direction.x, direction.y, direction.z};
+    if (!finite(direction) || !std::isfinite(d.LengthSq()) || d.IsNearZero())
+      return false;
+    applyBoxImpulse(index, fromJoltVector(d.Normalized() * 6), {});
+    return true;
   }
 
   DoorLeafPose playerEnvelope() const {
@@ -655,7 +958,7 @@ class PhysicsWorld::Impl {
         {actor.shape, JPH::Vec3::sReplicate(1),
          JPH::RMat44::sTranslation(center), delta},
         settings, center, hits, {}, {},
-        JPH::IgnoreSingleBodyFilter(actor.body));
+        ExcludeBodies(actor.body, character_->GetInnerBodyID()));
     ActorCast result;
     for (const auto& hit : hits.mHits) {
       if (support_only && !supportBody(hit.mBodyID2)) continue;
@@ -676,6 +979,8 @@ class PhysicsWorld::Impl {
       for (const auto& other : actors_)
         if (other.body == hit.mBodyID2)
           result.obstruction = PhysicsActorObstruction::Actor;
+      if (player_actor_contacts_.boxBody(hit.mBodyID2))
+        result.obstruction = PhysicsActorObstruction::Box;
     }
     if (support_only) {
       if (terrain_ && result.body == static_body_ids_.front()) {
@@ -911,10 +1216,11 @@ class PhysicsWorld::Impl {
         &shape, JPH::Vec3::sReplicate(1),
         JPH::RMat44::sRotationTranslation(rotation, position), settings,
         position, collector, {}, {},
-        JPH::IgnoreSingleBodyFilter(door_body_ids_[index]));
+        ExcludeBodies(door_body_ids_[index], character_->GetInnerBodyID()));
     if (!collector.HadHit() || collector.mHit.mPenetrationDepth < 0)
       return true;
-    if (std::any_of(actors_.begin(), actors_.end(), [&](const Actor& actor) {
+    if (player_actor_contacts_.boxBody(collector.mHit.mBodyID2) ||
+        std::any_of(actors_.begin(), actors_.end(), [&](const Actor& actor) {
           return actor.body == collector.mHit.mBodyID2;
         }))
       return refine_actor_contact();
@@ -971,6 +1277,13 @@ class PhysicsWorld::Impl {
 
   void destroyStaticBodies() noexcept {
     JPH::BodyInterface& bodies = physics_system_.GetBodyInterface();
+    for (auto& id : box_body_ids_) {
+      if (id.IsInvalid()) continue;
+      bodies.RemoveBody(id);
+      bodies.DestroyBody(id);
+      id = JPH::BodyID();
+    }
+    box_body_ids_.clear();
     for (auto& actor : actors_) {
       if (!actor.body.IsInvalid()) {
         bodies.RemoveBody(actor.body);
@@ -1007,12 +1320,21 @@ class PhysicsWorld::Impl {
   std::size_t support_body_count_{};
   std::vector<PhysicsStaticSolid> static_solids_{};
   const std::vector<DoorDefinition>& doors_;
+  const std::vector<HouseholdBoxDefinition>& box_definitions_;
   const PrototypeTerrain* terrain_;
   std::vector<JPH::BodyID> door_body_ids_{};
   std::vector<float> door_angles_{};
   std::vector<Actor> actors_{};
   std::vector<std::size_t> actor_order_{};
-  PlayerActorContacts player_actor_contacts_{actors_};
+  std::vector<JPH::BodyID> box_body_ids_{};
+  std::vector<std::size_t> box_order_{};
+  std::size_t created_box_count_{};
+  std::optional<std::size_t> held_box_{};
+  JPH::Ref<JPH::SixDOFConstraint> hold_constraint_{};
+  WorldPosition hold_target_{};
+  std::array<float, 4> hold_orientation_{0, 0, 0, 1};
+  PlayerActorContacts player_actor_contacts_{actors_, box_body_ids_,
+                                             physics_system_, held_box_};
   PhysicsCharacterState previous_character_{};
   JPH::Ref<JPH::CharacterVirtual> character_{};
   bool terrain_collision_installed_{};
@@ -1071,15 +1393,17 @@ bool PhysicsWorld::staticSegmentBlocked(WorldPosition origin,
   const JPH::RRayCast ray{start, delta * (1.0F + 0.0001F / length)};
   JPH::RayCastResult hit;
   // The closest-hit overload treats convex shapes as solid at the origin
-  // and includes back-facing terrain triangles. CharacterVirtual has no
-  // static body; the explicit layer filter also excludes moving bodies.
+  // and includes back-facing terrain triangles. The explicit layer filter
+  // excludes moving bodies, including the character's inner representation.
   return impl_->physics_system_.GetNarrowPhaseQuery().CastRay(
       ray, hit, {}, StaticVisibilityFilter{});
 }
 
 bool PhysicsWorld::worldSegmentBlocked(WorldPosition origin,
                                        WorldPosition endpoint,
-                                       std::string_view selected_door) const {
+                                       std::string_view selected_door,
+                                       std::string_view selected_box) const {
+  if (!selected_door.empty() && !selected_box.empty()) return true;
   if (staticSegmentBlocked(origin, endpoint)) return true;
   for (std::size_t i = 0; i < impl_->doors_.size(); ++i) {
     const auto& door = impl_->doors_[i];
@@ -1096,13 +1420,62 @@ bool PhysicsWorld::worldSegmentBlocked(WorldPosition origin,
   const JPH::Vec3 delta{endpoint.x - origin.x, endpoint.y - origin.y,
                         endpoint.z - origin.z};
   JPH::BodyID selected;
+  JPH::BodyID box_selected;
   for (std::size_t i = 0; i < impl_->doors_.size(); ++i)
     if (impl_->doors_[i].id == selected_door)
       selected = impl_->door_body_ids_[i];
+  for (std::size_t i = 0; i < impl_->box_body_ids_.size(); ++i) {
+    const auto state = impl_->boxState(i);
+    auto inverse = state.orientation;
+    for (int axis = 0; axis < 3; ++axis) inverse[axis] = -inverse[axis];
+    const auto local = rotateVector(
+        inverse, {origin.x - state.center.x, origin.y - state.center.y,
+                  origin.z - state.center.z});
+    if (std::abs(local[0]) < household_box_half_extent &&
+        std::abs(local[1]) < household_box_half_extent &&
+        std::abs(local[2]) < household_box_half_extent)
+      return true;
+    if (impl_->box_definitions_[i].id == selected_box)
+      box_selected = impl_->box_body_ids_[i];
+  }
   JPH::RayCastResult hit;
   return impl_->physics_system_.GetNarrowPhaseQuery().CastRay(
       {start, delta * (1.F + .0001F / delta.Length())}, hit, {}, {},
-      JPH::IgnoreSingleBodyFilter(selected));
+      ExcludeBodies(impl_->character_->GetInnerBodyID(), selected,
+                    box_selected));
+}
+
+std::size_t PhysicsWorld::boxCount() const noexcept {
+  return impl_->box_body_ids_.size();
+}
+
+PhysicsBoxState PhysicsWorld::boxState(std::size_t index) const {
+  return impl_->boxState(index);
+}
+
+std::optional<std::size_t> PhysicsWorld::heldBox() const noexcept {
+  return impl_->held_box_;
+}
+
+bool PhysicsWorld::beginBoxHold(std::size_t index, WorldPosition target,
+                                std::array<float, 4> orientation) {
+  return impl_->beginBoxHold(index, target, orientation);
+}
+
+bool PhysicsWorld::updateBoxHold(WorldPosition target,
+                                 std::array<float, 4> orientation) {
+  return impl_->updateBoxHold(target, orientation);
+}
+
+void PhysicsWorld::dropHeldBox() { impl_->dropHeldBox(); }
+
+bool PhysicsWorld::throwHeldBox(PhysicsVector direction) {
+  return impl_->throwHeldBox(direction);
+}
+
+void PhysicsWorld::applyBoxImpulse(std::size_t index, PhysicsVector impulse,
+                                   PhysicsVector angular_impulse) {
+  impl_->applyBoxImpulse(index, impulse, angular_impulse);
 }
 
 PhysicsDoorAdvance PhysicsWorld::advanceDoor(std::size_t index,

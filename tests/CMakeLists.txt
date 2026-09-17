@@ -1,4 +1,12 @@
 add_executable(engine_tests
+    core/test_household_definitions.cpp
+    core/test_household_codec.cpp
+    core/test_household_presentation.cpp
+    core/test_household_physics.cpp
+    core/test_household_text.cpp
+    core/test_household_runtime.cpp
+    core/test_editor_household.cpp
+    core/test_editor_household_picking.cpp
     core/test_character_controller.cpp
     core/test_actor_physics.cpp
     core/test_character_definitions.cpp
@@ -89,6 +97,15 @@ set_tests_properties(vulkan_interior_lighting PROPERTIES LABELS "vulkan-smoke" T
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 add_test(NAME vulkan_audio_runtime COMMAND vulkan_smoke --audio)
 add_test(NAME vulkan_scripted_characters COMMAND vulkan_smoke --characters)
+add_test(NAME vulkan_household_interactions COMMAND vulkan_smoke --household)
+add_test(NAME household_smoke_fixtures COMMAND vulkan_smoke --household-fixtures)
+set_tests_properties(household_smoke_fixtures PROPERTIES LABELS "household" TIMEOUT 30
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
+add_test(NAME editor_household_interactions COMMAND level_editor --household-smoke)
+set_tests_properties(vulkan_household_interactions PROPERTIES LABELS "vulkan-smoke" TIMEOUT 240
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
+set_tests_properties(editor_household_interactions PROPERTIES LABELS "vulkan-smoke" TIMEOUT 180
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>")
 add_test(NAME editor_scripted_characters COMMAND level_editor --character-smoke)
 set_tests_properties(editor_scripted_characters PROPERTIES LABELS "vulkan-smoke" TIMEOUT 120
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>")

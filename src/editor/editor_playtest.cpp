@@ -123,6 +123,7 @@ bool launchEditorPlay(const EditorDocument& document,
   const auto saved = loadEditorPlayDocument(document, request);
   const auto content = prepareAudioContent(resource_root, saved.audio);
   const CaptionFont current_font(resource_root);
+  validateHouseholdText(saved.household, current_font);
   validateAudioCaptions(content, saved.audio, current_font);
   validateCharacterAudio(content, saved.audio, saved.characters);
   (void)prepareCharacterAssets(resource_root, saved.characters);

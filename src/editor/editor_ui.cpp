@@ -59,6 +59,7 @@ void EditorUi::draw(EditorDocument& document, bool child_active,
   drawObjects(document);
   drawAudioObjects(document);
   drawProperties(document);
+  drawReadablePreview(document);
   drawPlay(document, child_active, process_status);
   drawValidation(document);
   drawPathModals(document);
@@ -421,6 +422,8 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
                                         *editor_document.document());
   if (editorCharacterKind(*property_edit_.value()))
     drawCharacterProperties(editor_document);
+  if (editorHouseholdKind(*property_edit_.value()))
+    drawHouseholdProperties(editor_document);
   if (commit) static_cast<void>(property_edit_.commit(editor_document));
   ImGui::End();
 }
@@ -610,14 +613,16 @@ void EditorUi::drawObjects(EditorDocument& document) {
        std::holds_alternative<PrototypeLightSwitch>(*selected_value) ||
        editorAudioKind(*selected_value).has_value() ||
        editorCharacterKind(*selected_value).has_value() ||
+       editorHouseholdKind(*selected_value).has_value() ||
        std::holds_alternative<PrototypeStaticProp>(*selected_value));
   ImGui::BeginDisabled(!(selected_solid || selected_entry || selected_content));
-  if (ImGui::Button("Duplicate"))
+  if (ImGui::Button("Duplicate") && commitSelectionDraft(document))
     static_cast<void>(document.duplicateSelected());
   ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::BeginDisabled(!selected_solid && !selected_entry && !selected_content);
-  if (ImGui::Button("Delete")) static_cast<void>(document.removeSelected());
+  if (ImGui::Button("Delete") && commitSelectionDraft(document))
+    static_cast<void>(document.removeSelected());
   ImGui::EndDisabled();
   ImGui::BeginDisabled(document.lightIds().size() >=
                        level_maximum_point_light_count);
@@ -732,6 +737,7 @@ void EditorUi::drawObjects(EditorDocument& document) {
       selectObject(document, id);
   };
   drawCharacterObjects(document);
+  drawHouseholdObjects(document);
   if (ImGui::Button("Add entry")) {
     const auto& level = *document.document();
     static_cast<void>(document.addEntry(level.entries.empty()
@@ -830,20 +836,25 @@ std::optional<WorldPosition> EditorUi::updateViewport(EditorDocument& document,
 void EditorUi::collapsePanelsForCapture(bool collapsed) {
   for (const auto panel :
        {"Document Summary", "Objects", "Properties", "Validation", "Playtest",
-        "Audio authoring", "Audio audition", "Character inspection"})
+        "Audio authoring", "Audio audition", "Character inspection",
+        "Readable preview"})
     ImGui::SetWindowCollapsed(panel, collapsed);
 }
 
-void EditorUi::selectObject(EditorDocument& document, EditorObjectId id) {
-  // Lists draw before Properties. Commit the outgoing character field before
+bool EditorUi::commitSelectionDraft(EditorDocument& document) {
+  // Lists draw before Properties. Commit the outgoing authored field before
   // its selection change causes the property draft to synchronize away.
   property_edit_.synchronize(document);
   const auto& draft = property_edit_.value();
-  if (draft && editorCharacterKind(*draft) &&
+  if (draft && (editorCharacterKind(*draft) || editorHouseholdKind(*draft)) &&
       draft != document.object(document.selection()) &&
       !property_edit_.commit(document))
-    return;
-  document.select(id);
+    return false;
+  return true;
+}
+
+void EditorUi::selectObject(EditorDocument& document, EditorObjectId id) {
+  if (commitSelectionDraft(document)) document.select(id);
 }
 
 void EditorUi::drawTerrainBrush(EditorDocument& document) {

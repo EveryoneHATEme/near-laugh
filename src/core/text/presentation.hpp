@@ -12,5 +12,12 @@ struct CaptionPresentation {
   ResolvedCaption foreground{};
   ResolvedCaption ambience{};
 };
+struct ReadablePresentation {
+  std::string_view title{}, page{}, controls{};
+};
+struct HouseholdTextPresentation {
+  ReadablePresentation reader{};
+  std::string_view hint{}, feedback{};
+};
 
 #endif
