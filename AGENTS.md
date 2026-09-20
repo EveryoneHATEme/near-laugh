@@ -141,11 +141,38 @@ Respect user constraints, applicable instructions, and tool/permission limits.
 ## UI Validation Routing
 
 The main agent owns test selection, implementation, and OpenSpec acceptance.
-Delegate test execution without waiting for an explicit user request:
+All functional editor UI checks first use editor-ui MCP or the existing
+official SDK client for that same host. This includes new features without
+an existing regression executable: prepare a new runtime action/assertion
+batch. Missing tests are not a reason to use Windows input.
 
-- Existing automated UI tests -> ui_test_runner, using an available model
-  inherited from the parent; no specific model is required.
-- Screenshot-based UI interaction -> ui_driver.
+Delegate whole bounded scenarios without waiting for another explicit request:
+
+- Existing automated regressions -> ui_test_runner, inheriting the parent's model.
+- New semantic scenarios -> ui_test_runner, with expected draft/applied states,
+  discovery scope, fixture and cleanup. Use the editor-ui-testing project skill.
+- Separate appearance/screenshot checks -> ui_driver with visual expectations.
+
+Before a functional run, incrementally build affected targets outside MCP;
+configure only when setup/options require it. Matching exe/manifest fingerprints
+do not establish freshness against current source. Batch known actions and
+assertions in one ui_execute within existing limits; observe again for unknown
+content, structural change, error recovery or a necessary state check. Use
+scopes, filters, field selection and pagination; resolve fresh refs per session.
+
+Missing MCP tools, failed scenarios or unsupported operations require precise
+blocked/unsupported diagnostics. Never automatically fall back to Windows mouse
+or keyboard input. SDK execution from a terminal is allowed for an authorized
+run, but does not verify an agent's MCP connection. Report separately: A no-window
+tests, B SDK -> production host -> real editor, C runner-visible four-tool use.
+Retain bounded transcripts and compact status, failed step, expected/observed,
+effects, cleanup, request counts and evidence paths. Never replay mutations
+automatically after timeout, disconnect or lost responses; unknown is not not_run.
+
+New standard UI features require semantic metadata, independent applied-state
+assertions and a reproducible regression scenario. Viewport picking, placement,
+sculpting, navigation, gizmos, docking, OS dialogs and game launch remain separate
+future coverage; semantic success cannot certify appearance.
 
 Prepare the build, fixtures, scenario, and expected results before any
 foreground desktop interaction. Delegate a complete bounded scenario,
@@ -156,9 +183,9 @@ Do not repeat the delegated scenario in the main agent without a specific
 evidence gap or a relevant code change.
 
 If ui_test_runner cannot start because its configured model is unavailable,
-report it and delegate in-memory automated tests to a worker using the parent's
-available model. This fallback needs no additional confirmation and does not
-authorize opening windows or controlling the desktop. Keep the same test-only
+report it and delegate the prepared semantic/in-memory tests to a worker using
+the parent's available model. This fallback needs no additional confirmation and
+does not grant desktop authorization. Keep the same test-only
 scope: no source edits, assertion changes, or baseline updates.
 If GUI tools or an executor for a desktop run are unavailable, report the
 blocker. Do not silently fall back to foreground testing with the main agent.

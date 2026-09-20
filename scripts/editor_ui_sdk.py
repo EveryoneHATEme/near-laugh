@@ -22,6 +22,18 @@ from mcp.types import (CallToolRequestParams, CallToolResult, ListToolsResult,
 import editor_ui_protocol as protocol
 from editor_ui_process import LineReader, LineWriter
 
+SERVER_INSTRUCTIONS = (
+    "Use ui_session to start an authorized disposable fixture and always close it. "
+    "Discover targets/commit methods with scoped ui_observe; send known actions and assertions "
+    "together in ui_execute (up to 64 steps). Use app_inspect selected fields to verify applied "
+    "state independently: UI draft/input is not application. No Windows mouse/keyboard fallback. "
+    "Build affected targets outside MCP before testing. Follow pagination/availability and ref "
+    "lifetimes; resolve targets anew per session. Failure stops the suffix, retaining prior effects. "
+    "Observe after verified cleanup before a corrected request; never automatically replay mutations "
+    "after timeout/disconnect/lost responses. Report blocked/unsupported and unknown honestly. "
+    "Functional success does not establish visual acceptance."
+)
+
 
 class McpServer:
     def __init__(self, controller, input_stream, output_stream, *, descriptions, format_result):
@@ -40,6 +52,7 @@ class McpServer:
                                                        open_world_hint=False))
                       for name, schema in protocol.INPUT_SCHEMAS.items()]
         self.server = Server("near-laugh-editor-ui", version="1",
+                             instructions=SERVER_INSTRUCTIONS,
                              on_list_tools=self.list_tools, on_call_tool=self.call_tool)
 
     async def list_tools(self, ctx: ServerRequestContext,

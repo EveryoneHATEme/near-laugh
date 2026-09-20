@@ -188,6 +188,9 @@ class ControllerTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/editor_ui_fixtures.json").write_text(
+            '{"version":1,"fixtures":{"apartment-stairs":"apartment-stairs.level.json"}}', encoding="utf-8")
         binary = self.root / "build/debug/bin"
         (binary / "resources/levels").mkdir(parents=True)
         (binary / "level_editor_automation.exe").write_bytes(b"not executable: fake peer only")
@@ -259,6 +262,20 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "version_mismatch")
         self.assertTrue(self.children[0].closed)
         self.assertFalse(any(message["kind"] == "start" for message in self.children[0].sent))
+
+    def test_new_reviewed_fixture_uses_same_host_session_path(self):
+        manifest = self.root / "scripts/editor_ui_fixtures.json"
+        manifest.write_text('{"version":1,"fixtures":{"new-panel":"new-panel.level.json"}}', encoding="utf-8")
+        source = self.fixture.with_name("new-panel.level.json")
+        source.write_bytes(b'{"new":"fixture"}')
+        result = self.controller.call("ui_session", arguments(op="start", fixture="new-panel",
+                                                              environment="test-profile"))
+        self.assertTrue(result["ok"], result)
+        copied = Path(self.children[0].configuration["input_path"])
+        self.assertEqual(copied.read_bytes(), source.read_bytes())
+        self.assertNotEqual(copied, source)
+        self.call("ui_session", op="close")
+        self.assertEqual(source.read_bytes(), b'{"new":"fixture"}')
 
     def test_startup_exception_cannot_replace_unverified_owned_child(self):
         self.mode = "mismatch"

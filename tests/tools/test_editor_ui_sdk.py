@@ -14,6 +14,7 @@ from mcp.shared.exceptions import MCPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import editor_ui_protocol as protocol
 from editor_ui_client import host_parameters
+from editor_ui_sdk import SERVER_INSTRUCTIONS
 
 
 class SdkStdioTests(unittest.IsolatedAsyncioTestCase):
@@ -23,6 +24,7 @@ class SdkStdioTests(unittest.IsolatedAsyncioTestCase):
                               read_timeout_seconds=10) as client:
                 self.assertEqual(client.protocol_version, protocol.MCP_PROTOCOL_VERSION)
                 self.assertEqual(client.server_info.name, "near-laugh-editor-ui")
+                self.assertEqual(client.instructions, SERVER_INSTRUCTIONS)
                 tools = (await client.list_tools()).tools
                 self.assertEqual({tool.name for tool in tools}, set(protocol.INPUT_SCHEMAS))
                 for tool in tools:

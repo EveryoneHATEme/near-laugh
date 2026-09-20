@@ -10,6 +10,7 @@ Functional editor checks currently require repeated screenshots and coordinate s
 - Cover the standard widget families already used by the editor with shared adapters, including compound numeric/color controls, multiline text, menus, popups, lists and conditional sections. Report unsupported custom viewport operations explicitly.
 - Enforce one controller, finite deadlines, fail-fast execution, input cleanup, fixture confinement, and test-only file/process policies. Ordinary game/editor builds contain no automation endpoint or Test Engine dependency.
 - Document structured functional testing through `ui_test_runner` separately from authorized visual checks through `ui_driver`.
+- Make this the everyday route for new runtime scenarios as well as regressions: no-window SDK doctor, compact measured batch evidence, strict fixture manifest, server instructions and a project testing skill. Verify agent-visible tools separately from a terminal SDK client; unavailable connections never trigger Windows input fallback.
 
 ### Required acceptance
 
@@ -38,4 +39,4 @@ Implementation will touch editor composition/lifetime and GLFW input isolation, 
 
 Dependency: retain ImGui `v1.92.9b-docking`; select Test Engine commit `2628e39cc0ea3a0a612d5d039543c9d4e873c720` (2026-09-15). Its engine license is Dear ImGui Test Engine License v1.04, **not MIT**; eligibility and redistribution notices must be recorded before integration. The MCP host uses the official Python MCP SDK, with all runtime dependencies pinned in `scripts/requirements-editor-ui.txt` and installed in a local virtual environment. It adds no network service or C++ runtime dependency. Build/link evidence, API limits and unresolved verification belong in `design.md`.
 
-Implementation is in progress in the working tree. Current verification and remaining gates are recorded in `tasks.md` and `validation.md`; this change is not archived.
+Implementation and required semantic acceptance are complete. Verification and separate visual limitations are recorded in `tasks.md` and `validation.md`; this change is not archived.

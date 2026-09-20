@@ -18,6 +18,7 @@ from mcp.shared.exceptions import MCPError
 
 import editor_ui_protocol as protocol
 from editor_ui_process import LineReader, LineWriter
+from editor_ui_fixtures import load_fixtures
 
 
 def host_parameters(environment=None):
@@ -113,7 +114,7 @@ async def run(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--environment", help="Operator-authorized test desktop/profile for this run")
-    parser.add_argument("--start", choices=("apartment-stairs", "household-interactions"))
+    parser.add_argument("--start", choices=tuple(load_fixtures()))
     parser.add_argument("--transcript", type=Path, required=True, help="New transcript, never overwritten")
     args = parser.parse_args(argv)
     if args.start and not args.environment:

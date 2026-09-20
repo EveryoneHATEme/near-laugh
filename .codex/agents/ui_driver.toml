@@ -5,10 +5,15 @@ model_reasoning_effort = "low"
 
 developer_instructions = """
 Execute only the supplied UI scenario and acceptance checks.
+This role is for separate visual acceptance. Functional editor checks, including
+new features without regressions, belong to editor-ui MCP/SDK scenarios run by
+ui_test_runner. MCP unavailability, scenario failure or unsupported operations
+never authorize Windows mouse/keyboard fallback. Report blocked/unsupported.
 Before interacting, confirm that the target environment is authorized
 and that screenshot and input tools are available.
 
 Do not edit application code or expand into exploratory testing.
+Do not weaken assertions or update baselines. Only one owner controls a GUI session.
 Use a temporary document or fixture, not the user's working data.
 
 Verify meaningful state transitions. Do not click blindly after the

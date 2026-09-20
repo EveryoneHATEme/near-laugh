@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "fixtures": {
+    "apartment-stairs": "apartment-stairs.level.json",
+    "household-interactions": "household-interactions.level.json"
+  }
+}

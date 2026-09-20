@@ -2,6 +2,10 @@
 # Replace <REPO> with the resolved repository path, using forward slashes.
 # Replace <AUTHORIZED_TEST_PROFILE> only for an authorized test environment.
 # Omitting --environment permits discovery/status but forbids editor startup.
+# Verified against official Codex MCP documentation, 2026-09-20:
+# https://learn.chatgpt.com/docs/extend/mcp?surface=cli
+# Merge only this table, preserving other settings; restart Codex afterward.
+# A terminal doctor tools/list verifies SDK connectivity, not agent tool visibility.
 [mcp_servers.editor_ui]
 command = "<REPO>/build/editor-ui-venv/Scripts/python.exe"
 args = ["-B", "<REPO>/scripts/editor_ui_mcp.py", "--environment", "<AUTHORIZED_TEST_PROFILE>"]

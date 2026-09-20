@@ -1,5 +1,29 @@
 ## ADDED Requirements
 
+### Requirement: Everyday semantic testing route and readiness evidence
+
+All functional editor UI checks SHALL first use editor-ui MCP or its official SDK client, including newly prepared runtime scenarios without an existing test executable. The main agent SHALL prepare expectations and delegate the whole bounded scenario. Unavailable tools, failed scenarios and unsupported operations SHALL retain precise diagnostics without automatic Windows input fallback. Visual checks SHALL remain separately authorized and SHALL NOT be inferred from functional success.
+
+#### Scenario: New feature has no regression yet
+- **WHEN** a feature uses supported standard widgets
+- **THEN** its readiness requires semantic metadata, independent applied-state assertions and a reproducible runtime regression without new feature-specific host handlers
+
+#### Scenario: Doctor runs without launch permission
+- **WHEN** an operator runs the ordinary diagnostic command
+- **THEN** it checks exact Python/dependency prerequisites, fixed build/resource manifests and real official SDK initialization/tools-list without opening an editor or changing configuration/environment; untested desktop/GPU and build freshness remain `not_checked`
+
+#### Scenario: Functional run is prepared
+- **WHEN** a runner is assigned a semantic scenario
+- **THEN** affected targets are incrementally built outside MCP before the run, known steps are batched within existing limits, fresh identities are discovered with scoped bounded observations, and transcript/summary retain statuses, failed step, expected/observed, effects, cleanup, counts, timing and evidence locations
+
+#### Scenario: SDK client works but agent tools are absent
+- **WHEN** a terminal SDK client initializes and executes successfully but the runner cannot see the four MCP tools
+- **THEN** evidence distinguishes A no-window tests, B production-host/editor SDK integration and C agent-visible tool execution, leaves C blocked and explains any required Codex restart rather than claiming connection
+
+#### Scenario: Operator adds a fixture
+- **WHEN** a reviewed new level is registered in the bounded fixture manifest
+- **THEN** it can be selected without host semantic changes while only simple filenames beneath the trusted packaged level directory are accepted; arbitrary executables, outside paths and user documents remain forbidden
+
 ### Requirement: Official SDK local MCP integration
 
 The local MCP host SHALL use the official MCP SDK with pinned runtime dependencies. It SHALL expose the four existing generic semantic tools with typed input/output schemas and machine-readable results, forwarding complete execution batches to the editor without reproducing semantic resolution or widget execution in the host. Reproducible setup and a project-local Codex configuration template SHALL document supported settings using current official documentation, without changing global user configuration, agent models or committing machine-specific absolute paths.

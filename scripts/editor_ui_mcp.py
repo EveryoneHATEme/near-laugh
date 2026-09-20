@@ -25,10 +25,9 @@ import uuid
 
 import editor_ui_protocol as protocol
 from editor_ui_process import LineReader, LineWriter, OwnedProcess, ProcessExit
+from editor_ui_fixtures import load_fixtures, fixture_path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = {"apartment-stairs": "apartment-stairs.level.json",
-            "household-interactions": "household-interactions.level.json"}
 EXCLUDED = ["viewport_picking", "placement", "sculpting", "navigation", "gizmos",
             "docking", "os_dialogs", "game_process"]
 TOOL_DESCRIPTIONS = {
@@ -264,13 +263,14 @@ class SessionController:
     def _configuration(self, arguments):
         if self.environment is None or arguments["environment"] != self.environment:
             raise protocol.ProtocolError("environment_not_authorized", "Operator did not authorize this test environment")
-        if arguments["fixture"] not in FIXTURES:
+        fixtures = load_fixtures(self.root)
+        if arguments["fixture"] not in fixtures:
             raise protocol.ProtocolError("invalid_request", "Fixture ID is not in the configured manifest")
         binary_dir = self.root / "build" / "debug" / "bin"
         executable = binary_dir / "level_editor_automation.exe"
         metadata = binary_dir / "editor-ui-build.json"
         resources = binary_dir / "resources"
-        fixture = resources / "levels" / FIXTURES[arguments["fixture"]]
+        fixture = fixture_path(resources, fixtures[arguments["fixture"]])
         if not executable.is_file() or not metadata.is_file() or not fixture.is_file():
             raise protocol.ProtocolError("environment_unavailable", "Automation build, fingerprint or packaged fixture is missing")
         if metadata.stat().st_size > 4096 or fixture.stat().st_size > 16 * 1024 * 1024:
