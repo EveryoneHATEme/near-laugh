@@ -1,6 +1,7 @@
 #include "editor/editor_application.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
@@ -20,6 +21,10 @@
 #include "core/world/prototype_level.hpp"
 #include "editor/editor_loop.hpp"
 #include "editor/editor_overlay.hpp"
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+#include "editor/automation/session.hpp"
+#include "editor/automation/application_snapshot.hpp"
+#endif
 
 namespace {
 double auditionNow() {
@@ -51,22 +56,42 @@ EditorRendererResources resolveEditorRendererResources(
 EditorApplication::EditorApplication(
     std::filesystem::path resource_root,
     std::optional<std::filesystem::path> initial_level,
-    ValidationDiagnostics& diagnostics, FrameCapture* capture)
+    ValidationDiagnostics& diagnostics, FrameCapture* capture
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+    , editor_automation::SessionController* session
+#endif
+    )
     : validation_diagnostics_(diagnostics),
       resource_root_(
           std::filesystem::absolute(resource_root).lexically_normal()),
       caption_font_(std::make_shared<CaptionFont>(resource_root_)),
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+      session_(session),
+#endif
       window_(platform_, 1600, 900, "near-laugh level editor"),
       glfw_imgui_bridge_(window_, caption_font_),
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+      document_(session ? session->filePolicy() : nullptr),
+#endif
       renderer_(window_, window_.framebufferExtent(),
                 resolveEditorRendererResources(resource_root, capture),
-                validation_diagnostics_) {
+                validation_diagnostics_)
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+      , game_process_(false)
+#endif
+      {
   ui_.setReadableFont(caption_font_);
   if (initial_level) {
     static_cast<void>(document_.open(*initial_level));
     synchronizeDocumentResources();
   }
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  automation_.start();
+  renderer_.setAutomationEngine(automation_.engine());
+#endif
 }
+
+EditorApplication::~EditorApplication() = default;
 
 void EditorApplication::run() {
   while (tick()) {
@@ -949,11 +974,23 @@ bool EditorApplication::tick() {
   window_.pollEvents();
   if (window_.shouldClose()) {
     window_.cancelCloseRequest();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+    session_->requestClose();
+#else
     document_.requestExit();
+#endif
   }
 
   const FramebufferExtent framebuffer = window_.framebufferExtent();
-  switch (decideEditorLoopAction(document_.exitRequested(), framebuffer)) {
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  if (document_.exitRequested()) session_->requestClose();
+  session_->service(framebuffer.width != 0 && framebuffer.height != 0);
+  if (session_->closing()) { stopInspections(); return false; }
+  const bool exit_requested = false;  // Session drains active input first.
+#else
+  const bool exit_requested = document_.exitRequested();
+#endif
+  switch (decideEditorLoopAction(exit_requested, framebuffer)) {
     case EditorLoopAction::Exit:
       stopInspections();
       return false;
@@ -962,14 +999,23 @@ bool EditorApplication::tick() {
       static_cast<void>(document_.finishTerrainStroke());
       window_.waitEvents();
       frame_clock_.reset();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+      return !session_->closing();
+#else
       return !document_.exitRequested();
+#endif
     case EditorLoopAction::Render:
       break;
   }
 
   renderer_.beginUiFrame();
   glfw_imgui_bridge_.beginFrame();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  session_->beginFrame(document_);
+#endif
+#if !defined(NEAR_LAUGH_UI_AUTOMATION)
   updateNavigation(glfw_imgui_bridge_.captureIntent());
+#endif
   const CameraFrame camera =
       camera_.frame(static_cast<float>(framebuffer.width) /
                     static_cast<float>(framebuffer.height));
@@ -979,8 +1025,12 @@ bool EditorApplication::tick() {
   if (auto launch = ui_.takeLaunchRequest()) {
     launchPlay(*launch);
   }
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  const std::optional<WorldPosition> placement_hit;
+#else
   const auto placement_hit =
       ui_.updateViewport(document_, camera, window_.cursorCaptured());
+#endif
   synchronizeDocumentResources();
   const double now = auditionNow();
   const bool can_inspect = !play_attempt && document_.pendingAction().kind ==
@@ -994,6 +1044,54 @@ bool EditorApplication::tick() {
   renderer_.drawOverlayLabels(
       buildEditorCharacterOverlayLabels(document_, camera));
   ui_.finishFrame();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  using editor_automation::knownValue;
+  editor_automation::Json preview{
+      {"audition.active", knownValue(audition_.cues() != nullptr, "boolean")},
+      {"audition.source", knownValue(audition_.source(), "string")},
+      {"audition.warning", knownValue(audition_.error(), "string")},
+      {"audition.muted", knownValue(audition_.cues() && audition_.cues()->muted(), "boolean")},
+      {"audition.paused", knownValue(audition_.cues() && audition_.cues()->suspended(), "boolean")},
+      {"character.active", knownValue(character_preview_.active(), "boolean")},
+      {"character.paused", knownValue(character_preview_.paused(), "boolean")},
+      {"character.time", knownValue(character_preview_.time(), "float")},
+      {"character.duration", knownValue(character_preview_.duration(), "float")},
+      {"character.clip", knownValue(character_preview_.clip(), "string")},
+      {"character.mode", knownValue(character_preview_.mode() == EditorCharacterPreviewMode::Clip ? "clip" : "route", "string")},
+      {"character.stage", knownValue(std::array{"heading", "travel", "facing", "interaction", "completed"}.at(
+          static_cast<std::size_t>(character_preview_.stage())), "string")},
+      {"character.segment", knownValue(character_preview_.segment(), "integer")},
+      {"character.target_mark", knownValue(character_preview_.targetMark(), "string")},
+      {"character.final_clip", knownValue(character_preview_.finalClip(), "string")},
+      {"character.error", knownValue(character_preview_.error(), "string")},
+      {"resource_revision", knownValue(std::to_string(rendered_document_revision_), "string")},
+      {"resource_current", knownValue(scene_resources_installed_ && character_resources_current_ && rendered_document_revision_ == document_.revision(), "boolean")},
+      {"error", knownValue(automation_preview_error_, "string")}};
+  if (auto* cues = audition_.cues()) {
+    preview["audition.gain"] = knownValue(cues->effectiveGain(audition_.source()), "float");
+    preview["audition.warning"] = knownValue(cues->playback().warning(), "string");
+    const auto position = camera_.position();
+    preview["audition.listener_room"] = knownValue(audioRoomAt(cues->definitions(),
+        {position.x, position.y, position.z}).value_or("outside"), "string");
+    for (const auto& source : cues->definitions().sources)
+      if (source.id == audition_.source())
+        preview["audition.source_room"] = knownValue(audioRoomAt(cues->definitions(), source.position).value_or("outside"), "string");
+    const auto captions = cues->captions();
+    preview["audition.caption"] = knownValue(std::string(captions.foreground.text) +
+        (captions.foreground.text.empty() || captions.ambience.text.empty() ? "" : "\n") +
+        std::string(captions.ambience.text), "string");
+  }
+  const auto readable = ui_.readablePreview(document_);
+  const auto unavailable = editor_automation::unavailableValue("No readable preview is selected", "not_applicable");
+  preview["readable.page"] = readable.selected ? knownValue(readable.page, "integer") : unavailable;
+  preview["readable.title"] = readable.available ? knownValue(readable.title, "string") :
+      readable.selected ? editor_automation::unavailableValue("No readable layout is available") : unavailable;
+  preview["readable.text"] = readable.available ? knownValue(readable.text, "string") :
+      readable.selected ? editor_automation::unavailableValue("No readable layout is available") : unavailable;
+  preview["readable.layout_diagnostics"] = readable.selected ? knownValue(readable.layout_diagnostics, "string") : unavailable;
+  preview["readable.validation_diagnostics"] = readable.selected ? knownValue(readable.validation_diagnostics, "strings") : unavailable;
+  session_->publish(document_, std::move(preview), character_preview_.active() ? character_preview_.actor() : 0);
+#endif
 
   FrameRequest frame;
   frame.framebuffer = framebuffer;
@@ -1015,7 +1113,12 @@ bool EditorApplication::tick() {
   }
   frame.characters = character_frames;
   const FrameOutcome outcome = renderer_.renderFrame(frame);
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  if (document_.exitRequested()) session_->requestClose();
+  return editorContinuesAfter(outcome) && !session_->closing();
+#else
   return editorContinuesAfter(outcome) && !document_.exitRequested();
+#endif
 }
 
 void EditorApplication::updateAudition(double now, bool allow_start) {
@@ -1210,11 +1313,17 @@ void EditorApplication::synchronizeDocumentResources() {
     preview_point_light_enabled_ = std::move(point_light_enabled);
     rendered_document_revision_ = document_.revision();
     rendered_object_revision_ = document_.objectRevision();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+    automation_preview_error_.clear();
+#endif
   } catch (const std::exception& error) {
     character_resources_current_ = false;
     character_preview_.stop();
     // Replacement is transactional: retain the last usable preview on failure.
     rendered_document_revision_ = document_.revision();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+    automation_preview_error_ = error.what();
+#endif
     document_.reportResourceError(
         std::string("Preview is stale; scene resource replacement failed: ") +
         error.what());

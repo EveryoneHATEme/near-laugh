@@ -5,11 +5,13 @@
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <variant>
 #include <vector>
 
 #include "core/world/level_document.hpp"
+#include "editor/editor_file_policy.hpp"
 #include "editor/editor_terrain.hpp"
 
 enum class EditorPendingActionKind { None, Open, NewInterior, Close, Exit };
@@ -80,6 +82,15 @@ struct EditorPlacementOffsets {
 
 class EditorDocument {
  public:
+  explicit EditorDocument(std::shared_ptr<EditorFilePolicy> file_policy = {});
+  [[nodiscard]] const EditorFilePolicy* filePolicy() const noexcept {
+    return file_policy_.get();
+  }
+  [[nodiscard]] std::uint64_t policyDenialRevision() const noexcept {
+    return policy_denial_revision_;
+  }
+  // Records evidence of a real restricted operation being denied.
+  void reportPolicyDenial(std::string message);
   [[nodiscard]] bool open(const std::filesystem::path& path);
   [[nodiscard]] bool save();
   [[nodiscard]] bool saveAs(const std::filesystem::path& path);
@@ -272,10 +283,14 @@ class EditorDocument {
   [[nodiscard]] bool performPendingAction();
   [[nodiscard]] std::optional<std::filesystem::path> resolvePath(
       const std::filesystem::path& path);
+  [[nodiscard]] std::optional<EditorFilePolicy::Permit> filePermit(
+      const std::filesystem::path& path, EditorFilePolicy::Access access);
   void setOperationError(LevelDiagnosticCategory category,
                          const std::filesystem::path& path,
                          std::string message);
 
+  std::shared_ptr<EditorFilePolicy> file_policy_;
+  std::uint64_t policy_denial_revision_{};
   std::optional<LevelDocument> document_{};
   std::optional<std::filesystem::path> path_{};
   std::vector<LevelDiagnostic> diagnostics_{};

@@ -1,10 +1,17 @@
 #include "editor/editor_document.hpp"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
+EditorDocument::EditorDocument(std::shared_ptr<EditorFilePolicy> file_policy)
+    : file_policy_(std::move(file_policy)) {}
+
 bool EditorDocument::open(const std::filesystem::path& path) {
-  const auto candidate_path = resolvePath(path);
+  auto permit = filePermit(path, EditorFilePolicy::Access::Read);
+  if (file_policy_ && !permit) return false;
+  const auto candidate_path = permit ? std::optional(permit->path())
+                                     : resolvePath(path);
   if (!candidate_path) {
     return false;
   }
@@ -23,6 +30,9 @@ bool EditorDocument::open(const std::filesystem::path& path) {
 }
 
 bool EditorDocument::save() {
+  auto permit = path_ ? filePermit(*path_, EditorFilePolicy::Access::Write)
+                      : std::nullopt;
+  if (file_policy_ && path_ && !permit) return false;
   static_cast<void>(finishTerrainStroke());
   if (!document_) {
     setOperationError(LevelDiagnosticCategory::Validation, {},
@@ -35,8 +45,16 @@ bool EditorDocument::save() {
     return false;
   }
 
-  const LevelDocumentSaveResult result = saveLevelDocument(*path_, *document_);
+  const LevelDocumentSaveResult result = file_policy_
+      ? file_policy_->save(*permit, *document_)
+      : saveLevelDocument(*path_, *document_);
   if (!result) {
+    if (file_policy_ && std::any_of(
+            result.diagnostics.begin(), result.diagnostics.end(),
+            [](const auto& diagnostic) {
+              return diagnostic.message.starts_with("policy_denied:");
+            }))
+      ++policy_denial_revision_;
     diagnostics_ = result.diagnostics;
     return false;
   }
@@ -47,19 +65,29 @@ bool EditorDocument::save() {
 }
 
 bool EditorDocument::saveAs(const std::filesystem::path& path) {
+  auto permit = filePermit(path, EditorFilePolicy::Access::Write);
+  if (file_policy_ && !permit) return false;
   static_cast<void>(finishTerrainStroke());
   if (!document_) {
     setOperationError(LevelDiagnosticCategory::Validation, path,
                       "No level document is open");
     return false;
   }
-  const auto candidate_path = resolvePath(path);
+  const auto candidate_path = permit ? std::optional(permit->path())
+                                     : resolvePath(path);
   if (!candidate_path) {
     return false;
   }
   const LevelDocumentSaveResult result =
-      saveLevelDocument(*candidate_path, *document_);
+      file_policy_ ? file_policy_->save(*permit, *document_)
+                   : saveLevelDocument(*candidate_path, *document_);
   if (!result) {
+    if (file_policy_ && std::any_of(
+            result.diagnostics.begin(), result.diagnostics.end(),
+            [](const auto& diagnostic) {
+              return diagnostic.message.starts_with("policy_denied:");
+            }))
+      ++policy_denial_revision_;
     diagnostics_ = result.diagnostics;
     return false;
   }
@@ -71,9 +99,12 @@ bool EditorDocument::saveAs(const std::filesystem::path& path) {
 }
 
 void EditorDocument::requestOpen(const std::filesystem::path& path) {
+  auto permit = filePermit(path, EditorFilePolicy::Access::Read);
+  if (file_policy_ && !permit) return;
   static_cast<void>(finishTerrainStroke());
   if (dirty()) {
-    const auto candidate_path = resolvePath(path);
+    const auto candidate_path = permit ? std::optional(permit->path())
+                                       : resolvePath(path);
     if (candidate_path) {
       pending_ = {EditorPendingActionKind::Open, *candidate_path};
     }
@@ -137,6 +168,12 @@ bool EditorDocument::resolvePending(EditorPendingDecision decision) {
     pending_ = {};
     return true;
   }
+  if (file_policy_ && pending_.kind == EditorPendingActionKind::Open) {
+    // Validate the pending target again before Save changes the active file.
+    // Release this read pin before saving, since Open may name that same file.
+    auto permit = filePermit(pending_.path, EditorFilePolicy::Access::Read);
+    if (!permit) return false;
+  }
   if (decision == EditorPendingDecision::Save && !save()) {
     return false;
   }
@@ -162,6 +199,10 @@ void EditorDocument::performExit() noexcept { exit_requested_ = true; }
 
 bool EditorDocument::performPendingAction() {
   const EditorPendingAction action = pending_;
+  // Restricted Open preserves its decision on policy/load failure. A successful
+  // open resets pending state together with the replaced document.
+  if (file_policy_ && action.kind == EditorPendingActionKind::Open)
+    return open(action.path);
   pending_ = {};
   switch (action.kind) {
     case EditorPendingActionKind::None:
@@ -181,6 +222,17 @@ bool EditorDocument::performPendingAction() {
   return false;
 }
 
+std::optional<EditorFilePolicy::Permit> EditorDocument::filePermit(
+    const std::filesystem::path& path, EditorFilePolicy::Access access) {
+  if (!file_policy_) return std::nullopt;
+  try {
+    return file_policy_->permit(path, access);
+  } catch (const std::exception& error) {
+    setOperationError(LevelDiagnosticCategory::Filesystem, path, error.what());
+    return std::nullopt;
+  }
+}
+
 std::optional<std::filesystem::path> EditorDocument::resolvePath(
     const std::filesystem::path& path) {
   if (path.empty()) {
@@ -198,8 +250,18 @@ std::optional<std::filesystem::path> EditorDocument::resolvePath(
   return absolute_path.lexically_normal();
 }
 
+void EditorDocument::reportPolicyDenial(std::string message) {
+  if (!file_policy_) return;
+  if (!message.starts_with("policy_denied:"))
+    message = "policy_denied: " + message;
+  setOperationError(LevelDiagnosticCategory::Filesystem,
+                    path_.value_or(std::filesystem::path{}), std::move(message));
+}
+
 void EditorDocument::setOperationError(LevelDiagnosticCategory category,
                                        const std::filesystem::path& path,
                                        std::string message) {
+  if (file_policy_ && message.starts_with("policy_denied:"))
+    ++policy_denial_revision_;
   diagnostics_ = {{category, path, {}, std::move(message)}};
 }

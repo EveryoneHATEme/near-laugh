@@ -46,6 +46,228 @@ respectively. Windows additionally reports MSVC simulation IDs.
 
 ## Run
 
+### Optional semantic editor automation (Windows)
+
+This development profile uses Windows x64, Python 3.12 and the existing
+C++/Vulkan tools. Install the official MCP SDK and its fully pinned dependency
+closure into a local venv; no global Python/Codex configuration is changed:
+
+```powershell
+python -m venv build/editor-ui-venv
+& ./build/editor-ui-venv/Scripts/python.exe -m pip install --only-binary=:all: -r scripts/requirements-editor-ui.txt
+& ./build/editor-ui-venv/Scripts/python.exe -m pip check
+```
+
+The lock selects official `mcp==2.2.0` and every transitive runtime dependency.
+The SDK's [low-level Server](https://py.sdk.modelcontextprotocol.io/advanced/low-level-server/)
+publishes the existing JSON Schemas directly; the SDK owns MCP lifecycle and
+dispatch. The bounded byte transport supplies the project's pre-parse limits.
+Python only owns the test process and forwards requests; C++ resolves targets
+and executes each whole batch. There are no feature-specific MCP tools.
+
+Enable it explicitly; ordinary configurations neither fetch nor link Test
+Engine:
+
+```powershell
+cmake --preset debug -DNEAR_LAUGH_UI_AUTOMATION=ON
+cmake --build --preset debug --target level_editor level_editor_automation editor_automation_tests -j 4
+& ./build/editor-ui-venv/Scripts/python.exe -B -m unittest discover -s tests/tools -p "test_editor_ui_*.py"
+ctest --test-dir build/debug -L editor-automation --output-on-failure
+```
+
+Those tests use in-memory ImGui and process/pipe fixtures without opening an
+editor window. Run normal checks too. The dedicated executable still requires
+a real authorized desktop and Vulkan device; semantic success is separate
+from presentation/visual acceptance. The selected change's
+[validation record](../openspec/changes/add-semantic-imgui-automation/validation.md)
+records the actual checks and outstanding hardware gates.
+
+ImGui stays at `v1.92.9b-docking`. Test Engine is pinned to
+`2628e39cc0ea3a0a612d5d039543c9d4e873c720` under its v1.04 license, which is
+not MIT. The operator must establish an applicable license basis; this project's
+record is linked above. Preserve the full copied
+`bin/licenses/imgui-test-engine.txt` when distributing the optional executable.
+
+Start the stdio host only after authorizing that test environment for the run:
+
+```powershell
+& ./build/editor-ui-venv/Scripts/python.exe -B scripts/editor_ui_mcp.py --environment authorized-test-desktop
+```
+
+The environment identifier records operator authorization; it does not create
+or isolate a desktop. Omitting it makes session startup fail. Opening the host
+alone launches no window. `ui_session` start accepts only `apartment-stairs` or
+`household-interactions`, copies the fixture to an owned temporary directory,
+and returns the session identity and reserved file slots. The executable,
+resource root and startup argument are fixed. No existing editor is attached.
+
+For Codex, merge the table from
+[editor-ui-mcp.example.toml](../.codex/editor-ui-mcp.example.toml) into the local
+`.codex/config.toml`, replacing `<REPO>` with `(Get-Location).Path` expressed
+with forward slashes and `<AUTHORIZED_TEST_PROFILE>` with the authorized
+environment ID. Run from the repository root. Do not overwrite an existing
+configuration; retain its other tables. This local file is ignored by Git.
+If startup is not authorized, omit both `--environment` and its value; discovery
+and closed-session status still work. The profile string does not create an
+isolated desktop or itself grant authorization.
+
+Verified against the current official
+[Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+on 2026-09-18: trusted projects support `.codex/config.toml`; stdio settings
+include `command`, `args`, `cwd`, `startup_timeout_sec`, `tool_timeout_sec` and
+`enabled_tools`. The template allows 75 seconds per call for the 60-second
+maximum batch plus bounded cleanup/transport overhead. Restart the Codex
+session after editing; `codex mcp list` and `/mcp` report connection status.
+No agent model settings or global user config are changed.
+
+| Tool | Purpose |
+| --- | --- |
+| `ui_session` | Start, status, cancel an active request, close |
+| `ui_observe` | Passive current UI records, exact scope/filter, bounded pages |
+| `ui_execute` | Up to 64 data-only actions/assertions against current semantic targets |
+| `app_inspect` | Explicit read-only document, selection, history, object, diagnostic and preview fields |
+
+Requests and responses have strict schemas in `scripts/editor_ui_protocol.py`;
+the C++ build generates its contract from that source. Start with scope `root`,
+then use returned scope/control refs or exact `{scope,key,owner}` selectors.
+Use `owner: "selection"` only when resolving against the current selection.
+The observation includes supported actions, capacities, commit methods, typed
+drafts and active raw text. An incomplete numeric buffer can be known text
+while its previously copied numeric draft remains known. `app_inspect` reports applied state,
+which may differ from an uncommitted draft. Closed/clipped/unregistered content
+is explicit coverage, not proof of absence.
+
+Execution request IDs are increasing positive decimal strings. Identical
+retries return retained results; conflicting or expired IDs never replay
+mutations. A failure stops the suffix and retains prior real effects. Results
+distinguish `passed`, `failed`, `not_run` and `unknown`: lost execution evidence
+cannot establish that a step did not run. Cleanup is `released`,
+`process_terminated` or `unverified`; failed cleanup requires a new session.
+No assertion on a truncated/unavailable value proves equality or inequality.
+There is no automatic retry/reconnect for a lost response and no exactly-once
+claim. Early cancellation is remembered by session/request ID (16 distinct
+pending IDs maximum); repeated cancellation shares capacity. Overflow closes
+the channel. Cancelled queued work cannot start later; cancelling startup also
+closes the instance that startup acquired.
+
+Type only returned temporary paths into the real Open/Save As UI. Restricted
+saving validates/serializes before exclusive writes. It cannot overwrite an
+unexpected competing file, but an I/O failure may leave partial bytes in an
+owned temporary output and keeps the document unsaved. Ordinary editor saves
+still use atomic replacement. Viewport picking, placement, sculpting,
+navigation, gizmos, docking, OS dialogs and Play process creation are excluded.
+
+`ui_execute` defaults to strict operation: it will not reveal a clipped target
+or recover window focus implicitly. Opt in with
+`"policy": {"auto_scroll": true, "auto_focus": true}` when those conveniences
+are appropriate. Every step returns its `assistance` evidence. Even an assisted
+packet cannot dismiss an obstructing popup, expand hidden ancestors, or
+move/resize windows. Use explicit `open`, `close`, `focus` and `scroll` steps.
+
+Numeric `edit` enters text; `commit` or `key` supplies a separate confirmation
+or Escape gesture. A real drag uses `{"op":"drag","target":{"ref":"..."},
+"direction":"increase","fraction":0.2,"frames":8}`. The fraction is relative
+to the observed widget width, not an exact numeric assignment. Assert the
+resulting document/preview value independently. Viewport and gizmo dragging
+remain excluded. RGB component adapters explicitly reject other color modes.
+
+Observation copies current Test Engine facts and UI metadata without invoking
+`ItemReadAs*`. `engine.frame/status_frame` show source freshness; `input.text`,
+`input_validation.status` and `value.draft` distinguish an incomplete numeric
+buffer from its retained number. A fresh frame can advance application time.
+Use `next_cursor` for immutable continuation pages, and increase depth or query
+an observed child scope on `depth_limit`. Nested row refs are conservatively
+invalidated when their array changes; re-observe or use a current selector.
+Oversized labels expose `label_availability: truncated`; inactive input also
+reports truncation. Prefixes cannot pass full-value assertions. Immediate
+preview/placement handlers carry adjacent commit-policy metadata; Enter/Tab
+remain input gestures, independently of when the handler applies a value.
+
+For a runtime JSON-lines client with a new transcript file:
+
+```powershell
+& ./build/editor-ui-venv/Scripts/python.exe -B scripts/editor_ui_client.py --environment authorized-test-desktop --start apartment-stairs --transcript build/editor-ui-run.jsonl
+```
+
+After startup, input lines have `{ "tool": "ui_observe", "arguments": ... }`
+using the returned session ID. The client supports arbitrary schema-valid
+batches, not named scenarios. Both channels enforce 1 MiB messages, UTF-8,
+bounded nesting and a five-second partial-line deadline. Operation defaults
+are five seconds (maximum 30); batch defaults are 20 seconds (maximum 60).
+Cancellation cleanup allows two seconds before owned-child termination.
+Normal close also verifies the child's final exit and Vulkan diagnostics after
+destruction. The host writes its bounded exit/diagnostic audit to stderr.
+`diagnostic_path` identifies the retained per-session stderr file (16 MiB cap,
+explicit truncation marker). Large responses instead identify a JSON result
+artifact (1 MiB, up to 32 retained per host) and return compact failure evidence.
+These local files survive close; remove them after reviewing evidence. Older
+result artifact paths can expire. Ordinary execution returns checks, revisions,
+partial changes and errors; inspect/observe are separate explicit requests.
+The SDK client transcript records connection facts and actual tool payloads;
+its output IDs correlate input lines and are separate from SDK wire IDs.
+
+SDK acceptance of the real editor (requires authorization for this run):
+
+```powershell
+& ./build/editor-ui-venv/Scripts/python.exe -B tests/automation/real_editor_sdk.py --environment authorized-test-desktop --transcript build/editor-ui-sdk-integration.jsonl
+```
+
+Use a new transcript filename on subsequent runs. The driver tests initialization,
+tool schemas/calls, a real UI edit and applied document value, retained duplicate
+results, bad input, mid-batch failure, timeout, explicit and SDK cancellation,
+incompatible hello and owned-editor death. The latter two use a test-only
+fault wrapper around the real executable, with no production tool/config hook.
+It retains complete tool exchanges, stderr and a `.summary.json`; normal close
+requires zero Vulkan validation errors after destruction. Mock tests do not
+replace this chain, and missing desktop/GPU access is **blocked**.
+
+If an installed overlay breaks Vulkan loading, rerun the driver with
+`--disable-implicit-layers` and a new transcript name. This applies
+`VK_LOADER_LAYERS_DISABLE=~implicit~` only to that test host and its child;
+explicit Khronos validation remains enabled and checked. The optional `env`
+table in the Codex template provides the same child-local setting. This follows
+the [Khronos loader layer filtering contract](https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderLayerInterface.md#layer-filtering).
+Retain the failed run as environment evidence rather than hiding its errors.
+
+Prepared acceptance drivers under `tests/automation/real_editor_*.py` exercise
+the real MCP/editor path. Each requires prior desktop authorization, an
+`--environment` identifier and a new `--transcript` path. For example:
+
+```powershell
+& ./build/editor-ui-venv/Scripts/python.exe -B tests/automation/real_editor_acceptance.py --environment authorized-test-desktop --transcript build/editor-acceptance.jsonl
+```
+
+`real_editor_lifecycle.py` resizes/minimizes only its owned editor window;
+`real_editor_failures.py` checks rejected actions and stopped suffixes;
+`real_editor_widgets.py` checks the remaining workspace families;
+`real_editor_shutdown.py --mode construction|file-exit|disconnect|host-death`
+selects a prepared shutdown check (pass one mode). These are external test
+clients, not host/executor scenario handlers. The separately built
+`editor_automation_input_probe` runs as CTest `editor_automation_input_isolation`
+under the `vulkan-smoke` label. It calls the owned GLFW callbacks in-process,
+without OS keyboard/mouse injection, and checks camera/document isolation and
+the session-local clipboard. Native WM-message/gamepad hardware and visual
+appearance require separate evidence.
+
+For a supported new control, keep its ordinary editor handler and add adjacent
+metadata with an existing read-only binding. Document Summary's `Zero ambient`
+button is the verified example:
+
+```cpp
+EditorWidgetMetadata::next("zero-ambient", "ambient_intensity", "", "document");
+if (EditorWidgets::Button("Zero ambient"))
+  static_cast<void>(editor_document.setAmbient(0.F));
+```
+
+After rebuilding `level_editor` and `level_editor_automation`, discover its
+returned ref with `ui_observe`, send `activate`, and assert the document's
+`ambient_intensity` with `app_inspect` or a typed batch assertion. The ordinary
+Undo command restores the previous value. No host schema or executor handler
+changes are needed. The prepared `real_editor_extension.py` driver runs this
+example with the same `--environment` and `--transcript` arguments above.
+
+### Ordinary launch
+
 On Windows:
 
 ```powershell

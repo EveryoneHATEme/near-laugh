@@ -2,6 +2,7 @@
 #include <atomic>
 #include <cerrno>
 #include <cmath>
+#include <cstddef>
 #include <fstream>
 #include <initializer_list>
 #include <iterator>
@@ -1001,6 +1002,87 @@ std::string serializeDocument(const LevelDocument& document) {
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }
 
+#if defined(_WIN32)
+// Own the native temporary handle through replacement. An exists()+ofstream
+// sequence could follow a dangling or concurrently substituted sibling link.
+class TemporaryLevelFile {
+ public:
+  explicit TemporaryLevelFile(const std::filesystem::path& destination) {
+    static std::atomic<std::uint64_t> sequence{0};
+    for (int attempt = 0; attempt < 100; ++attempt) {
+      const auto candidate =
+          destination.parent_path() /
+          std::filesystem::path(destination.filename())
+              .concat(".tmp-" + std::to_string(sequence.fetch_add(
+                                    1, std::memory_order_relaxed)));
+      handle_ = CreateFileW(candidate.c_str(), GENERIC_WRITE | DELETE,
+                            FILE_SHARE_READ, nullptr, CREATE_NEW,
+                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+                            nullptr);
+      if (handle_ != INVALID_HANDLE_VALUE) return;
+      const DWORD error = GetLastError();
+      if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS)
+        throw std::system_error(static_cast<int>(error), std::system_category(),
+                                "could not create sibling temporary level document");
+    }
+    throw std::runtime_error("could not allocate a sibling temporary path");
+  }
+  ~TemporaryLevelFile() {
+    if (handle_ == INVALID_HANDLE_VALUE) return;
+    if (!committed_) {
+      FILE_DISPOSITION_INFO disposition{TRUE};
+      SetFileInformationByHandle(handle_, FileDispositionInfo, &disposition,
+                                 sizeof(disposition));
+    }
+    CloseHandle(handle_);
+  }
+  TemporaryLevelFile(const TemporaryLevelFile&) = delete;
+  TemporaryLevelFile& operator=(const TemporaryLevelFile&) = delete;
+
+  void write(const std::string& bytes) {
+    std::size_t offset{};
+    while (offset != bytes.size()) {
+      const auto chunk = static_cast<DWORD>(std::min<std::size_t>(
+          bytes.size() - offset, std::numeric_limits<DWORD>::max()));
+      DWORD written{};
+      if (!WriteFile(handle_, bytes.data() + offset, chunk, &written, nullptr) ||
+          written == 0)
+        throw std::system_error(static_cast<int>(GetLastError()),
+                                std::system_category(),
+                                "could not write complete level document");
+      offset += written;
+    }
+    if (!FlushFileBuffers(handle_))
+      throw std::system_error(static_cast<int>(GetLastError()),
+                              std::system_category(),
+                              "could not flush complete level document");
+  }
+
+  void replace(const std::filesystem::path& destination) {
+    const auto filename_bytes = destination.native().size() * sizeof(wchar_t);
+    if (filename_bytes > std::numeric_limits<DWORD>::max() -
+                             sizeof(FILE_RENAME_INFO))
+      throw std::runtime_error("level file path is too long");
+    std::vector<std::byte> storage(sizeof(FILE_RENAME_INFO) + filename_bytes);
+    auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
+    rename->ReplaceIfExists = TRUE;
+    rename->RootDirectory = nullptr;
+    rename->FileNameLength = static_cast<DWORD>(filename_bytes);
+    std::copy(destination.native().begin(), destination.native().end(),
+              rename->FileName);
+    if (!SetFileInformationByHandle(handle_, FileRenameInfo, rename,
+                                    static_cast<DWORD>(storage.size())))
+      throw std::system_error(static_cast<int>(GetLastError()),
+                              std::system_category(),
+                              "could not atomically replace level document");
+    committed_ = true;
+  }
+
+ private:
+  HANDLE handle_{INVALID_HANDLE_VALUE};
+  bool committed_{};
+};
+#else
 std::filesystem::path temporaryPathFor(
     const std::filesystem::path& destination) {
   static std::atomic<std::uint64_t> sequence{0};
@@ -1019,18 +1101,11 @@ std::filesystem::path temporaryPathFor(
 
 std::error_code replaceFile(const std::filesystem::path& temporary,
                             const std::filesystem::path& destination) {
-#if defined(_WIN32)
-  if (MoveFileExW(temporary.c_str(), destination.c_str(),
-                  MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0) {
-    return {};
-  }
-  return {static_cast<int>(GetLastError()), std::system_category()};
-#else
   std::error_code error;
   std::filesystem::rename(temporary, destination, error);
   return error;
-#endif
 }
+#endif
 
 LevelDiagnostic filesystemDiagnostic(const std::filesystem::path& path,
                                      std::string message) {
@@ -1071,17 +1146,31 @@ LevelDocumentLoadResult loadLevelDocument(const std::filesystem::path& path) {
   }
 }
 
+LevelDocumentSerializationResult serializeLevelDocument(
+    const LevelDocument& document, const std::filesystem::path& diagnostic_path) {
+  std::vector<LevelDiagnostic> diagnostics =
+      validateLevelDocument(document, diagnostic_path);
+  if (!diagnostics.empty()) return {{}, std::move(diagnostics)};
+  try {
+    return {serializeDocument(document), {}};
+  } catch (const std::exception& error) {
+    return {{}, {filesystemDiagnostic(diagnostic_path, error.what())}};
+  }
+}
+
 LevelDocumentSaveResult saveLevelDocument(const std::filesystem::path& path,
                                           const LevelDocument& document) {
   const std::filesystem::path resolved = normalizedAbsolute(path);
-  std::vector<LevelDiagnostic> diagnostics =
-      validateLevelDocument(document, resolved);
-  if (!diagnostics.empty()) {
-    return {std::move(diagnostics)};
-  }
+  auto serialized = serializeLevelDocument(document, resolved);
+  if (!serialized) return {std::move(serialized.diagnostics)};
 
   std::filesystem::path temporary;
   try {
+#if defined(_WIN32)
+    TemporaryLevelFile output(resolved);
+    output.write(serialized.bytes);
+    output.replace(resolved);
+#else
     temporary = temporaryPathFor(resolved);
     std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     output.imbue(std::locale::classic());
@@ -1089,9 +1178,8 @@ LevelDocumentSaveResult saveLevelDocument(const std::filesystem::path& path,
       return {{filesystemDiagnostic(
           resolved, "could not create sibling temporary level document")}};
     }
-    const std::string serialized = serializeDocument(document);
-    output.write(serialized.data(),
-                 static_cast<std::streamsize>(serialized.size()));
+    output.write(serialized.bytes.data(),
+                 static_cast<std::streamsize>(serialized.bytes.size()));
     output.flush();
     if (!output) {
       output.close();
@@ -1115,6 +1203,7 @@ LevelDocumentSaveResult saveLevelDocument(const std::filesystem::path& path,
           resolved, "could not atomically replace destination: " +
                         replacement_error.message())}};
     }
+#endif
     return {};
   } catch (const std::exception& error) {
     if (!temporary.empty()) {

@@ -12,7 +12,7 @@ struct EditorLaunchRequest {
 
 // Revalidate the saved snapshot immediately before its assets and process.
 [[nodiscard]] LevelDocument loadEditorPlayDocument(
-    const EditorDocument& document, const EditorLaunchRequest& request);
+    EditorDocument& document, const EditorLaunchRequest& request);
 
 enum class EditorPlayState { Idle, ConfirmSave, SaveAs, Ready };
 
@@ -30,8 +30,8 @@ class EditorPlaytest {
   [[nodiscard]] const std::string& error() const noexcept { return error_; }
 
  private:
-  bool unchanged(const EditorDocument& document);
-  bool preflight(const EditorDocument& document);
+  bool unchanged(EditorDocument& document);
+  bool preflight(EditorDocument& document);
   bool fail(std::string error);
   EditorPlayState state_{};
   std::optional<LevelDocument> prepared_{};
@@ -43,7 +43,7 @@ class EditorPlaytest {
 
 class EditorGameProcess {
  public:
-  EditorGameProcess();
+  explicit EditorGameProcess(bool allow_launch = true);
   ~EditorGameProcess();
   EditorGameProcess(const EditorGameProcess&) = delete;
   EditorGameProcess& operator=(const EditorGameProcess&) = delete;
@@ -60,7 +60,7 @@ class EditorGameProcess {
 
 // The application validates GPU scene resources before this final, device-free
 // selected-content preflight. Failures throw before any child is created.
-[[nodiscard]] bool launchEditorPlay(const EditorDocument& document,
+[[nodiscard]] bool launchEditorPlay(EditorDocument& document,
                                     const EditorLaunchRequest& request,
                                     const std::filesystem::path& resource_root,
                                     const std::filesystem::path& executable,

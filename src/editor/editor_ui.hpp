@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "core/frame.hpp"
 #include "core/text/caption_font.hpp"
@@ -17,6 +18,12 @@ struct EditorAuditionView {
   CaptionPresentation captions{};
   std::string_view source{}, warning{}, listener_room{}, source_room{};
   float gain{};
+};
+struct EditorReadablePreviewView {
+  bool selected{}, available{}, stale{};
+  std::size_t page{};  // Zero-based page actually represented by the preview.
+  std::string title, text, layout_diagnostics;
+  std::vector<std::string> validation_diagnostics;
 };
 enum class EditorAuditionAction { None, Start, Stop, Mute, Pause };
 bool drawEditorAudioProperties(EditorObjectValue& value,
@@ -46,6 +53,8 @@ class EditorUi {
   // Fixed-scene GPU smoke excludes changing panel text from pixel comparisons.
   void collapsePanelsForCapture(bool collapsed);
   [[nodiscard]] bool sculpting() const noexcept { return sculpting_; }
+  [[nodiscard]] EditorReadablePreviewView readablePreview(
+      const EditorDocument& document) const;
 
  private:
   void drawMenu(EditorDocument& document);
@@ -95,6 +104,7 @@ class EditorUi {
   std::optional<std::uint64_t> readable_preview_revision_;
   std::optional<CaptionLayout> readable_preview_;
   std::string readable_preview_error_;
+  std::string readable_preview_title_, readable_preview_text_;
 };
 
 #endif

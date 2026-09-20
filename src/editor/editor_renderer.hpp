@@ -15,6 +15,9 @@ struct EditorOverlayLabel;
 class ValidationDiagnostics;
 class Window;
 struct FrameCapture;
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+struct ImGuiTestEngine;
+#endif
 
 struct EditorRendererResources {
   std::filesystem::path vertex_shader{};
@@ -50,6 +53,9 @@ class EditorRenderer {
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
   void requestSwapchainRecreation() noexcept;
   [[nodiscard]] bool validationEnabled() const noexcept;
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  void setAutomationEngine(ImGuiTestEngine* engine) noexcept;
+#endif
 
  private:
   class Impl;

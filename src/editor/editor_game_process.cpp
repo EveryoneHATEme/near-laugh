@@ -46,6 +46,7 @@ std::wstring quoteArgument(std::wstring_view value) {
 
 class EditorGameProcess::Impl {
  public:
+  explicit Impl(bool allow_launch) : allow_launch(allow_launch) {}
   ~Impl() {
 #if defined(_WIN32)
     if (process) CloseHandle(process);
@@ -70,6 +71,10 @@ class EditorGameProcess::Impl {
   }
   bool start(const std::filesystem::path& executable,
              const EditorLaunchRequest& request) {
+    if (!allow_launch) {
+      message = "policy_denied: game process creation is disabled for this session";
+      return false;
+    }
     if (active()) {
       message = "A game process is already active.";
       return false;
@@ -154,6 +159,7 @@ class EditorGameProcess::Impl {
   }
   std::string message{};
   std::string context{};
+  bool allow_launch;
 #if defined(_WIN32)
   HANDLE process{};
 #else
@@ -161,7 +167,8 @@ class EditorGameProcess::Impl {
 #endif
 };
 
-EditorGameProcess::EditorGameProcess() : impl_(std::make_unique<Impl>()) {}
+EditorGameProcess::EditorGameProcess(bool allow_launch)
+    : impl_(std::make_unique<Impl>(allow_launch)) {}
 EditorGameProcess::~EditorGameProcess() = default;
 bool EditorGameProcess::start(const std::filesystem::path& executable,
                               const EditorLaunchRequest& request) {

@@ -2,6 +2,9 @@
 
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+#include <imgui_te_engine.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -119,6 +122,11 @@ class EditorRenderer::Impl {
   void clearDocument();
   [[nodiscard]] FrameOutcome renderFrame(const FrameRequest& request);
   void requestSwapchainRecreation() noexcept { recreate_requested_ = true; }
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  void setAutomationEngine(ImGuiTestEngine* engine) noexcept {
+    automation_engine_ = engine;
+  }
+#endif
   [[nodiscard]] bool validationEnabled() const noexcept {
     return context_.validationEnabled();
   }
@@ -159,6 +167,9 @@ class EditorRenderer::Impl {
   bool recreate_requested_{};
   bool imgui_backend_initialized_{};
   std::size_t terrain_replacement_count_{};
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  ImGuiTestEngine* automation_engine_{};
+#endif
 };
 
 EditorRenderer::EditorRenderer(const Window& window,
@@ -169,6 +180,12 @@ EditorRenderer::EditorRenderer(const Window& window,
                                    diagnostics)) {}
 
 EditorRenderer::~EditorRenderer() = default;
+
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+void EditorRenderer::setAutomationEngine(ImGuiTestEngine* engine) noexcept {
+  impl_->setAutomationEngine(engine);
+}
+#endif
 
 void EditorRenderer::beginUiFrame() { impl_->beginUiFrame(); }
 
@@ -864,8 +881,14 @@ FrameOutcome EditorRenderer::Impl::renderFrame(const FrameRequest& request) {
   present_info.swapchainCount = 1;
   present_info.pSwapchains = &swapchain_;
   present_info.pImageIndices = &image_index;
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  if (automation_engine_) ImGuiTestEngine_PreSwap(automation_engine_);
+#endif
   const VkResult present =
       vkQueuePresentKHR(context_.presentQueue(), &present_info);
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  if (automation_engine_) ImGuiTestEngine_PostSwap(automation_engine_);
+#endif
   if (present != VK_SUCCESS && present != VK_SUBOPTIMAL_KHR &&
       present != VK_ERROR_OUT_OF_DATE_KHR) {
     requireVulkan(present, "Present Vulkan swapchain image");

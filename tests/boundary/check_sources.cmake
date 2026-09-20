@@ -53,7 +53,10 @@ endforeach()
 
 foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     # These tests construct malformed GLB/level fixtures and compare migrations.
-    # JSON remains private to the codec in all production targets.
+    # JSON remains private to the codec and optional editor automation protocol.
+    if(JSON_SOURCE MATCHES "src/editor/automation/protocol[.]hpp$")
+        continue()
+    endif()
     if(JSON_SOURCE MATCHES "tests/core/test_character_(animation|definitions)[.]cpp$")
         continue()
     endif()
@@ -67,7 +70,7 @@ foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     file(READ "${JSON_SOURCE}" JSON_SOURCE_CONTENT)
     if(JSON_SOURCE_CONTENT MATCHES "nlohmann[/\\\\]json")
         message(FATAL_ERROR
-            "JSON dependency escaped the private level codec: ${JSON_SOURCE}")
+            "JSON dependency escaped the private codec/automation protocol: ${JSON_SOURCE}")
     endif()
 endforeach()
 

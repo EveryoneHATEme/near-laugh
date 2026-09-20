@@ -7,8 +7,13 @@
 #include "core/audio/audio_content.hpp"
 #include "core/text/caption_font.hpp"
 
-LevelDocument loadEditorPlayDocument(const EditorDocument& document,
+LevelDocument loadEditorPlayDocument(EditorDocument& document,
                                      const EditorLaunchRequest& request) {
+  if (document.filePolicy()) {
+    document.reportPolicyDenial("Play is disabled for this editor session");
+    throw std::runtime_error(
+        "policy_denied: Play is disabled for this editor session");
+  }
   if (!document.document() || !document.path() ||
       *document.path() != request.level_path ||
       document.launchEntry() != request.entry_id)
@@ -47,6 +52,10 @@ void EditorPlaytest::cancel() {
 bool EditorPlaytest::request(EditorDocument& document, bool child_active) {
   if (state_ != EditorPlayState::Idle) return false;
   cancel();
+  if (document.filePolicy()) {
+    document.reportPolicyDenial("Play is disabled for this editor session");
+    return fail("policy_denied: Play is disabled for this editor session");
+  }
   static_cast<void>(document.finishTerrainStroke());
   if (child_active) return fail("A game process is already active.");
   if (!document.document()) return fail("Open or create a level before Play.");
@@ -65,7 +74,11 @@ bool EditorPlaytest::request(EditorDocument& document, bool child_active) {
   return preflight(document);
 }
 
-bool EditorPlaytest::unchanged(const EditorDocument& document) {
+bool EditorPlaytest::unchanged(EditorDocument& document) {
+  if (document.filePolicy()) {
+    document.reportPolicyDenial("Play is disabled for this editor session");
+    return fail("policy_denied: Play is disabled for this editor session");
+  }
   if (!prepared_ || document.generation() != generation_ ||
       !document.document() || *document.document() != *prepared_ ||
       document.launchEntry() != entry_)
@@ -94,7 +107,7 @@ bool EditorPlaytest::saveAsAndPlay(EditorDocument& document,
   return preflight(document);
 }
 
-bool EditorPlaytest::preflight(const EditorDocument& document) {
+bool EditorPlaytest::preflight(EditorDocument& document) {
   if (!unchanged(document)) return false;
   if (!document.path()) return fail("Save the level before Play.");
   const EditorLaunchRequest request{*document.path(), entry_};
@@ -115,7 +128,7 @@ std::optional<EditorLaunchRequest> EditorPlaytest::consume() {
   return request;
 }
 
-bool launchEditorPlay(const EditorDocument& document,
+bool launchEditorPlay(EditorDocument& document,
                       const EditorLaunchRequest& request,
                       const std::filesystem::path& resource_root,
                       const std::filesystem::path& executable,

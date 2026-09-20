@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include "editor/editor_widget_metadata.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -9,64 +10,66 @@
 EditorAuditionAction EditorUi::drawAudition(const EditorAuditionView& view,
                                             bool can_start) {
   auto action = EditorAuditionAction::None;
-  ImGui::SetNextWindowPos({340, 470}, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize({380, 230}, ImGuiCond_FirstUseEver);
-  ImGui::Begin("Audio audition");
-  ImGui::BeginDisabled(!can_start ||
+  EditorWidgets::SetNextWindowPos({340, 470}, ImGuiCond_FirstUseEver);
+  EditorWidgets::SetNextWindowSize({380, 230}, ImGuiCond_FirstUseEver);
+  EditorWidgets::Begin("Audio audition");
+  EditorWidgets::BeginDisabled(!can_start ||
                        playtest_.state() != EditorPlayState::Idle);
-  if (ImGui::Button("Start audition")) action = EditorAuditionAction::Start;
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!view.active);
-  if (ImGui::Button("Stop")) action = EditorAuditionAction::Stop;
+  if (EditorWidgets::Button("Start audition")) action = EditorAuditionAction::Start;
+  EditorWidgets::EndDisabled();
+  EditorWidgets::SameLine();
+  EditorWidgets::BeginDisabled(!view.active);
+  if (EditorWidgets::Button("Stop")) action = EditorAuditionAction::Stop;
   bool muted = view.muted, paused = view.paused;
-  if (ImGui::Checkbox("Mute", &muted)) action = EditorAuditionAction::Mute;
-  ImGui::SameLine();
-  if (ImGui::Checkbox("Pause", &paused)) action = EditorAuditionAction::Pause;
-  ImGui::EndDisabled();
+  EditorWidgetMetadata::next("mute", "audition.muted", "", "preview");
+  if (EditorWidgets::Checkbox("Mute", &muted)) action = EditorAuditionAction::Mute;
+  EditorWidgets::SameLine();
+  EditorWidgetMetadata::next("pause", "audition.paused", "", "preview");
+  if (EditorWidgets::Checkbox("Pause", &paused)) action = EditorAuditionAction::Pause;
+  EditorWidgets::EndDisabled();
   if (view.active) {
-    ImGui::Text("Source: %.*s  Gain: %.3f", int(view.source.size()),
+    EditorWidgets::Text("Source: %.*s  Gain: %.3f", int(view.source.size()),
                 view.source.data(), view.gain);
-    ImGui::Text("Source room: %.*s", int(view.source_room.size()),
+    EditorWidgets::Text("Source room: %.*s", int(view.source_room.size()),
                 view.source_room.data());
-    ImGui::Text("Listener room: %.*s", int(view.listener_room.size()),
+    EditorWidgets::Text("Listener room: %.*s", int(view.listener_room.size()),
                 view.listener_room.data());
   }
   for (const auto caption : {view.captions.foreground, view.captions.ambience})
     if (!caption.text.empty())
-      ImGui::TextWrapped("%.*s: %.*s", int(caption.label.size()),
+      EditorWidgets::TextWrapped("%.*s: %.*s", int(caption.label.size()),
                          caption.label.data(), int(caption.text.size()),
                          caption.text.data());
   if (!view.warning.empty())
-    ImGui::TextWrapped("%.*s", int(view.warning.size()), view.warning.data());
-  ImGui::End();
+    EditorWidgets::TextWrapped("%.*s", int(view.warning.size()), view.warning.data());
+  EditorWidgets::End();
   return action;
 }
 
 void EditorUi::drawAudioObjects(EditorDocument& document) {
-  ImGui::SetNextWindowPos({340, 205}, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize({380, 255}, ImGuiCond_FirstUseEver);
-  ImGui::Begin("Audio authoring");
+  EditorWidgets::SetNextWindowPos({340, 205}, ImGuiCond_FirstUseEver);
+  EditorWidgets::SetNextWindowSize({380, 255}, ImGuiCond_FirstUseEver);
+  EditorWidgets::Begin("Audio authoring");
   if (document.document()) {
     const std::array buttons{"Add cue", "Add source", "Add room",
                              "Add connection"};
     const std::array<std::size_t, 4> limits{128, 64, 32, 64};
     for (std::size_t i = 0; i < buttons.size(); ++i) {
       const auto kind = static_cast<EditorAudioKind>(i);
-      ImGui::BeginDisabled(document.audioIds(kind).size() >= limits[i]);
-      if (i % 2) ImGui::SameLine();
-      if (ImGui::Button(buttons[i])) static_cast<void>(document.addAudio(kind));
-      ImGui::EndDisabled();
+      EditorWidgets::BeginDisabled(document.audioIds(kind).size() >= limits[i]);
+      if (i % 2) EditorWidgets::SameLine();
+      if (EditorWidgets::Button(buttons[i])) static_cast<void>(document.addAudio(kind));
+      EditorWidgets::EndDisabled();
     }
     const auto selected = document.object(document.selection());
-    ImGui::BeginDisabled(!selected || !editorAudioKind(*selected));
-    if (ImGui::Button("Duplicate audio"))
+    EditorWidgets::BeginDisabled(!selected || !editorAudioKind(*selected));
+    if (EditorWidgets::Button("Duplicate audio"))
       static_cast<void>(document.duplicateSelected());
-    ImGui::SameLine();
-    if (ImGui::Button("Delete audio"))
+    EditorWidgets::SameLine();
+    if (EditorWidgets::Button("Delete audio"))
       static_cast<void>(document.removeSelected());
-    ImGui::EndDisabled();
-    ImGui::Separator();
+    EditorWidgets::EndDisabled();
+    EditorWidgets::Separator();
     const std::array labels{"Cue: ", "Source: ", "Room: ", "Connection: "};
     for (std::size_t kind = 0; kind < labels.size(); ++kind)
       for (const auto id :
@@ -74,16 +77,19 @@ void EditorUi::drawAudioObjects(EditorDocument& document) {
         const auto value = *document.object(id);
         std::visit(
             [&](const auto& v) {
-              if constexpr (requires { v.id; })
-                if (ImGui::Selectable((labels[kind] + v.id).c_str(),
+              if constexpr (requires { v.id; }) {
+                EditorWidgetMetadata::Owner owner(id);
+                EditorWidgetMetadata::next("select");
+                if (EditorWidgets::Selectable((labels[kind] + v.id).c_str(),
                                       document.selection() == id))
                   selectObject(document, id);
+              }
             },
             value);
       }
   } else
-    ImGui::TextUnformatted("Open a level to author audio.");
-  ImGui::End();
+    EditorWidgets::TextUnformatted("Open a level to author audio.");
+  EditorWidgets::End();
 }
 
 bool drawEditorAudioProperties(EditorObjectValue& object,
@@ -93,33 +99,33 @@ bool drawEditorAudioProperties(EditorObjectValue& object,
     std::array<char, 65> buffer{};
     std::memcpy(buffer.data(), value.data(),
                 std::min(value.size(), buffer.size() - 1));
-    if (ImGui::InputText(label, buffer.data(), buffer.size()))
+    if (EditorWidgets::InputText(label, buffer.data(), buffer.size()))
       value = buffer.data();
-    commit |= ImGui::IsItemDeactivatedAfterEdit();
+    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
   };
   const auto scalar = [&](const char* label, float& value) {
-    ImGui::DragFloat(label, &value, .02F);
-    commit |= ImGui::IsItemDeactivatedAfterEdit();
+    EditorWidgets::DragFloat(label, &value, .02F);
+    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
   };
   const auto triple = [&](const char* label, auto& value) {
     float xyz[]{value.x, value.y, value.z};
-    if (ImGui::DragFloat3(label, xyz, .05F)) value = {xyz[0], xyz[1], xyz[2]};
-    commit |= ImGui::IsItemDeactivatedAfterEdit();
+    if (EditorWidgets::DragFloat3(label, xyz, .05F)) value = {xyz[0], xyz[1], xyz[2]};
+    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
   };
   const auto reference = [&](const char* label,
                              std::optional<std::string>& value,
                              const auto& choices, const char* empty) {
-    if (ImGui::BeginCombo(label, value ? value->c_str() : empty)) {
-      if (ImGui::Selectable(empty, !value)) {
+    if (EditorWidgets::BeginCombo(label, value ? value->c_str() : empty)) {
+      if (EditorWidgets::Selectable(empty, !value)) {
         value.reset();
         commit = true;
       }
       for (const auto& choice : choices)
-        if (ImGui::Selectable(choice.id.c_str(), value == choice.id)) {
+        if (EditorWidgets::Selectable(choice.id.c_str(), value == choice.id)) {
           value = choice.id;
           commit = true;
         }
-      ImGui::EndCombo();
+      EditorWidgets::EndCombo();
     }
   };
   std::visit(
@@ -129,60 +135,79 @@ bool drawEditorAudioProperties(EditorObjectValue& object,
                       std::is_same_v<T, AudioSourceDefinition> ||
                       std::is_same_v<T, AudioRoomDefinition> ||
                       std::is_same_v<T, AudioConnectionDefinition>) {
+          EditorWidgetMetadata::next("audio-id", "id", "", "object");
           text("Audio ID", v.id);
           if constexpr (std::is_same_v<T, AudioCueDefinition>) {
-            if (ImGui::BeginCombo("Clip", v.clip.c_str())) {
+            EditorWidgetMetadata::next("clip", "clip", "", "object");
+            if (EditorWidgets::BeginCombo("Clip", v.clip.c_str())) {
               for (const auto& entry : audioCatalog())
-                if (ImGui::Selectable(entry.label.data(), v.clip == entry.id)) {
+                if (EditorWidgets::Selectable(entry.label.data(), v.clip == entry.id)) {
                   v.clip = entry.id;
                   commit = true;
                 }
-              ImGui::EndCombo();
+              EditorWidgets::EndCombo();
             }
-            if (ImGui::BeginCombo("Caption",
+            EditorWidgetMetadata::next("caption", "caption", "", "object");
+            if (EditorWidgets::BeginCombo("Caption",
                                   v.caption ? v.caption->c_str() : "None")) {
-              if (ImGui::Selectable("None", !v.caption)) {
+              if (EditorWidgets::Selectable("None", !v.caption)) {
                 v.caption.reset();
                 commit = true;
               }
               for (const auto& entry : audioCatalog())
-                if (ImGui::Selectable(entry.label.data(),
+                if (EditorWidgets::Selectable(entry.label.data(),
                                       v.caption == entry.id)) {
                   v.caption = entry.id;
                   commit = true;
                 }
-              ImGui::EndCombo();
+              EditorWidgets::EndCombo();
             }
             int kind = static_cast<int>(v.kind);
-            if (ImGui::Combo("Cue kind", &kind,
+            EditorWidgetMetadata::next("cue-kind", "kind", "", "object");
+            if (EditorWidgets::Combo("Cue kind", &kind,
                              "Dialogue\0Essential\0Ambience\0")) {
               v.kind = static_cast<AudioCueKind>(kind);
               commit = true;
             }
-            commit |= ImGui::Checkbox("Loop", &v.loop);
-            commit |= ImGui::Checkbox("Spatial", &v.spatial);
+            EditorWidgetMetadata::next("loop", "loop", "", "object");
+            commit |= EditorWidgets::Checkbox("Loop", &v.loop);
+            EditorWidgetMetadata::next("spatial", "spatial", "", "object");
+            commit |= EditorWidgets::Checkbox("Spatial", &v.spatial);
           } else if constexpr (std::is_same_v<T, AudioSourceDefinition>) {
-            if (ImGui::BeginCombo("Cue", v.cue.c_str())) {
+            EditorWidgetMetadata::next("cue", "cue", "", "object");
+            if (EditorWidgets::BeginCombo("Cue", v.cue.c_str())) {
               for (const auto& cue : level.audio.cues)
-                if (ImGui::Selectable(cue.id.c_str(), v.cue == cue.id)) {
+                if (EditorWidgets::Selectable(cue.id.c_str(), v.cue == cue.id)) {
                   v.cue = cue.id;
                   commit = true;
                 }
-              ImGui::EndCombo();
+              EditorWidgets::EndCombo();
             }
+            EditorWidgetMetadata::next("position", "position", "m", "object");
             triple("Position", v.position);
+            EditorWidgetMetadata::next("gain", "gain", "", "object");
             scalar("Gain", v.gain);
+            EditorWidgetMetadata::next("near-distance-m", "near_distance", "m", "object");
             scalar("Near distance (m)", v.near_distance);
+            EditorWidgetMetadata::next("far-distance-m", "far_distance", "m", "object");
             scalar("Far distance (m)", v.far_distance);
-            commit |= ImGui::Checkbox("Autoplay", &v.autoplay);
+            EditorWidgetMetadata::next("autoplay", "autoplay", "", "object");
+            commit |= EditorWidgets::Checkbox("Autoplay", &v.autoplay);
           } else if constexpr (std::is_same_v<T, AudioRoomDefinition>) {
+            EditorWidgetMetadata::next("center", "center", "m", "object");
             triple("Center", v.center);
+            EditorWidgetMetadata::next("half-extent", "half_extent", "m", "object");
             triple("Half extent", v.half_extent);
           } else {
+            EditorWidgetMetadata::next("room-a", "room_a", "", "object");
             reference("Room A", v.room_a, level.audio.rooms, "Outside");
+            EditorWidgetMetadata::next("room-b", "room_b", "", "object");
             reference("Room B", v.room_b, level.audio.rooms, "Outside");
+            EditorWidgetMetadata::next("door", "door", "", "object");
             reference("Door", v.door, level.doors, "No door");
+            EditorWidgetMetadata::next("closed-gain", "closed_gain", "", "object");
             scalar("Closed gain", v.closed_gain);
+            EditorWidgetMetadata::next("open-gain", "open_gain", "", "object");
             scalar("Open gain", v.open_gain);
           }
         }

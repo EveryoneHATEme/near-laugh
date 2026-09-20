@@ -42,6 +42,7 @@
 
 build/
 .vscode/
+/.codex/config.toml
 
 # Local files, mainly for testing
 /house_interior_pack/

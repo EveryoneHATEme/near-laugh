@@ -1,0 +1,15 @@
+# Copy this table into your LOCAL .codex/config.toml in a trusted project.
+# Replace <REPO> with the resolved repository path, using forward slashes.
+# Replace <AUTHORIZED_TEST_PROFILE> only for an authorized test environment.
+# Omitting --environment permits discovery/status but forbids editor startup.
+[mcp_servers.editor_ui]
+command = "<REPO>/build/editor-ui-venv/Scripts/python.exe"
+args = ["-B", "<REPO>/scripts/editor_ui_mcp.py", "--environment", "<AUTHORIZED_TEST_PROFILE>"]
+cwd = "<REPO>"
+startup_timeout_sec = 15
+tool_timeout_sec = 75
+enabled_tools = ["ui_session", "ui_observe", "ui_execute", "app_inspect"]
+
+# Optional if external overlays break Vulkan in the authorized test environment:
+# [mcp_servers.editor_ui.env]
+# VK_LOADER_LAYERS_DISABLE = "~implicit~"

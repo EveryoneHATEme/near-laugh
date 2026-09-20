@@ -20,5 +20,7 @@ returning control or investigating further.
 
 Return observed versus expected behavior, reproduction steps,
 evidence paths, and passed/failed/blocked/not_run status.
+Semantic Test Engine results are not screenshot evidence or visual acceptance.
+Keep visual checks separate from any prepared four-tool semantic transcript.
 Do not spawn further agents.
 """

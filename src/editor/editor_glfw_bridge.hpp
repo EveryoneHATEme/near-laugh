@@ -2,6 +2,7 @@
 #define EDITOR_EDITOR_GLFW_BRIDGE_HPP
 
 #include <memory>
+#include <string>
 
 #include "editor/editor_camera.hpp"
 
@@ -48,6 +49,9 @@ class EditorGlfwBridge {
 
  private:
   std::shared_ptr<const CaptionFont> font_;
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  std::string clipboard_;
+#endif
   std::unique_ptr<EditorBridgeLifetime> lifetime_;
 };
 

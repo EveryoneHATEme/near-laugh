@@ -143,7 +143,8 @@ Respect user constraints, applicable instructions, and tool/permission limits.
 The main agent owns test selection, implementation, and OpenSpec acceptance.
 Delegate test execution without waiting for an explicit user request:
 
-- Existing automated UI tests -> ui_test_runner.
+- Existing automated UI tests -> ui_test_runner, using an available model
+  inherited from the parent; no specific model is required.
 - Screenshot-based UI interaction -> ui_driver.
 
 Prepare the build, fixtures, scenario, and expected results before any
@@ -154,8 +155,13 @@ Only one agent may control a given GUI session at a time.
 Do not repeat the delegated scenario in the main agent without a specific
 evidence gap or a relevant code change.
 
-If the assigned model or GUI tools are unavailable, report the blocker.
-Do not silently fall back to foreground testing with the main agent.
+If ui_test_runner cannot start because its configured model is unavailable,
+report it and delegate in-memory automated tests to a worker using the parent's
+available model. This fallback needs no additional confirmation and does not
+authorize opening windows or controlling the desktop. Keep the same test-only
+scope: no source edits, assertion changes, or baseline updates.
+If GUI tools or an executor for a desktop run are unavailable, report the
+blocker. Do not silently fall back to foreground testing with the main agent.
 
 Do not seize the user's active desktop without explicit authorization
 for that run. Prefer an isolated test environment.

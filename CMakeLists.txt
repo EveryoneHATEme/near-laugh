@@ -25,6 +25,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 include(CTest)
 
+option(NEAR_LAUGH_UI_AUTOMATION "Build the dedicated semantic UI automation editor" OFF)
+if(NEAR_LAUGH_UI_AUTOMATION AND NOT WIN32)
+    message(FATAL_ERROR "The editor automation profile currently requires Windows")
+endif()
+
 find_package(Vulkan 1.3 REQUIRED)
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -316,6 +321,7 @@ if(near_laugh_runtime_interface_links MATCHES
 endif()
 
 add_library(near_laugh_editor_core STATIC
+    src/editor/editor_file_policy.cpp
     src/editor/editor_playtest.cpp
     src/editor/editor_game_process.cpp
     src/editor/editor_camera.cpp
@@ -512,4 +518,8 @@ endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+
+if(NEAR_LAUGH_UI_AUTOMATION)
+    include(cmake/editor_ui_automation.cmake)
 endif()

@@ -343,6 +343,21 @@ struct LevelDocumentSaveResult {
   }
 };
 
+// Canonical bytes are produced only after the same validation used by Save.
+// Restricted editor sessions reuse this value result before touching a slot.
+struct LevelDocumentSerializationResult {
+  std::string bytes{};
+  std::vector<LevelDiagnostic> diagnostics{};
+
+  [[nodiscard]] explicit operator bool() const noexcept {
+    return diagnostics.empty();
+  }
+};
+
+[[nodiscard]] LevelDocumentSerializationResult serializeLevelDocument(
+    const LevelDocument& document,
+    const std::filesystem::path& diagnostic_path = {});
+
 [[nodiscard]] std::vector<LevelDiagnostic> validateLevelDocument(
     const LevelDocument& document,
     const std::filesystem::path& source_path = {});

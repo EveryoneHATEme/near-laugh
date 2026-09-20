@@ -82,7 +82,8 @@ The concrete targets have these responsibilities:
 - `character_animation_viewer` composes explicit animation inspection and
   measurement without the runtime, physics or audio coordinator.
 
-All target include and link relationships are declared in `CMakeLists.txt`.
+Target include and link relationships are declared in `CMakeLists.txt` and the
+optional `cmake/editor_ui_automation.cmake` profile.
 The public runtime boundary is the PImpl-based `near_laugh::Application` and
 `RuntimeConfig` under `include/near_laugh`; those headers expose only standard
 library types. Other subsystem headers are repository-internal. Vulkan, GLFW,
@@ -323,6 +324,46 @@ The standalone editor constructs Vulkan diagnostics, `Platform`, `Window`, the
 GLFW/ImGui callback bridge, `EditorDocument`, and `EditorRenderer`. Shutdown
 reverses that order so ImGui backends are released before their Vulkan and GLFW
 dependencies.
+
+The optional Windows `level_editor_automation` composition recompiles the same
+workspace and presentation sources with a separate instrumented ImGui library.
+Its pipe workers exchange bounded JSON values; only the frame thread and the
+cooperatively suspended Test Engine coroutine access UI state. One persistent
+dispatcher performs runtime batches through real widgets. UI-local metadata
+copies identities, capabilities and drafts without storing setters or editor
+pointers. Read-only application projections are immutable completed-frame
+copies with separate document, selection and preview revisions.
+
+Passive snapshots join timestamp-checked Test Engine hook facts with copied
+widget metadata and active input buffers. They never use interactive value
+readers. The executor's strict default performs no implicit visibility/focus
+recovery; explicitly permitted helpers are recorded per step. Numeric dragging
+uses real engine mouse down/movement/release, independently from temporary text
+input and document assertions. Nested rows conservatively invalidate their
+semantic refs on array changes or explicit structural UI gestures.
+
+An application member stops and joins the Test Engine before renderer/backend
+destruction, including constructor-body failure. The engine owner outlives the
+GLFW bridge's ImGui context. The external session remains alive through both,
+and detachment disables the transport wake callback before GLFW teardown.
+The Python host owns its single child in a kill-on-close Windows Job Object.
+Its four tools use the official pinned MCP Python SDK for initialization,
+dispatch, errors and cancellation. A bounded byte transport feeds the SDK;
+the host forwards each execution packet once over inherited anonymous pipes.
+Only C++ resolves semantic targets, runs real widgets and retains execution
+results. Early cancellation IDs are bounded and retained until the matching
+batch finishes or the channel closes, even if priority control arrives first.
+Neither transport threads nor watchdogs invoke ImGui or document operations.
+Normal close requires the child's final successful exit after GPU destruction;
+a closing acknowledgement alone does not establish cleanup. Forced termination
+and missing execution evidence remain explicit in tool results.
+
+This composition disables physical navigation/input and OS clipboard/cursor
+effects. Its concrete file policy restricts document IO to owned temporary
+slots and forbids Play process creation. Restricted saves use exclusive,
+identity-checked handles; a failed write can leave partial temporary output.
+Ordinary saves retain atomic replacement. The policy has no Test Engine or MCP
+dependency, and ordinary editor construction supplies no restricted policy.
 
 The editor loop owns event polling, minimized waits, camera timing, UI capture,
 and render outcomes. `EditorDocument` loads candidates transactionally and

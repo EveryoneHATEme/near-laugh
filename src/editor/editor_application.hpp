@@ -16,13 +16,22 @@
 #include "editor/editor_glfw_bridge.hpp"
 #include "editor/editor_renderer.hpp"
 #include "editor/editor_ui.hpp"
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+#include "editor/automation/engine_session.hpp"
+#include "editor/automation/session.hpp"
+#endif
 
 class EditorApplication {
  public:
   EditorApplication(std::filesystem::path resource_root,
                     std::optional<std::filesystem::path> initial_level,
                     ValidationDiagnostics& diagnostics,
-                    FrameCapture* capture = nullptr);
+                    FrameCapture* capture = nullptr
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+                    , editor_automation::SessionController* session = nullptr
+#endif
+                    );
+  ~EditorApplication();
 
   EditorApplication(const EditorApplication&) = delete;
   EditorApplication& operator=(const EditorApplication&) = delete;
@@ -39,6 +48,9 @@ class EditorApplication {
   [[nodiscard]] bool tick();
 
  private:
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  friend struct EditorAutomationInputProbe;
+#endif
   void updateNavigation(EditorUiCaptureIntent capture);
   void synchronizeDocumentResources();
   void updateAudition(double now, bool can_start = true);
@@ -55,8 +67,16 @@ class EditorApplication {
   EditorAudioAudition audition_;
   EditorCharacterPreview character_preview_;
   std::optional<double> character_preview_time_;
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  editor_automation::SessionController* session_{};
+  std::string automation_preview_error_;
+#endif
   Platform platform_{};
   Window window_;
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  // Outlives the bridge/context. The stop guard below runs before backends.
+  editor_automation::EngineSession automation_{};
+#endif
   EditorGlfwBridge glfw_imgui_bridge_;
   EditorDocument document_{};
   EditorRenderer renderer_;
@@ -74,6 +94,9 @@ class EditorApplication {
       initial_character_assets_{};
   std::vector<EditorObjectId> initial_character_ids_{};
   bool character_resources_current_{};
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  editor_automation::SessionAttachment automation_attachment_{automation_, session_};
+#endif
 };
 
 #endif

@@ -5,7 +5,9 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 
+#include <algorithm>
 #include <stdexcept>
+#include <string_view>
 
 #include "core/platform/window.hpp"
 #include "core/testing/test_controls.hpp"
@@ -28,7 +30,12 @@ bool createEditorContext() {
 
 bool initializeEditorGlfw(void* native_window) {
   const bool initialized = ImGui_ImplGlfw_InitForVulkan(
-      static_cast<GLFWwindow*>(native_window), true);
+      static_cast<GLFWwindow*>(native_window),
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+      false);
+#else
+      true);
+#endif
   if (initialized) {
     recordLifecycleEvent("editor.imgui-glfw.created");
   }
@@ -87,6 +94,29 @@ EditorGlfwBridge::EditorGlfwBridge(Window& window,
           window.surfaceBridgeHandle(),
           EditorBridgeOperations{createEditorContext, initializeEditorGlfw,
                                  shutdownEditorGlfw, destroyEditorContext})) {
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  auto& io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+  io.ConfigNavMoveSetMousePos = false;
+  auto& platform = ImGui::GetPlatformIO();
+  platform.Platform_ClipboardUserData = &clipboard_;
+  platform.Platform_GetClipboardTextFn = [](ImGuiContext*) {
+    return static_cast<std::string*>(
+        ImGui::GetPlatformIO().Platform_ClipboardUserData)->c_str();
+  };
+  platform.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) {
+    // Protocol/widget limits bound useful clipboard data; never touch the OS.
+    auto& clipboard = *static_cast<std::string*>(
+        ImGui::GetPlatformIO().Platform_ClipboardUserData);
+    const std::string_view value(text ? text : "");
+    std::size_t size = std::min(value.size(), std::size_t{16 * 1024});
+    while (size > 0 && size < value.size() &&
+           (static_cast<unsigned char>(value[size]) & 0xc0) == 0x80)
+      --size;
+    clipboard.assign(value.substr(0, size));
+  };
+  platform.Platform_SetImeDataFn = nullptr;
+#endif
   if (font_) {
     ImFontConfig config;
     config.FontDataOwnedByAtlas = false;
@@ -105,7 +135,20 @@ EditorGlfwBridge::EditorGlfwBridge(Window& window,
 EditorGlfwBridge::~EditorGlfwBridge() = default;
 
 void EditorGlfwBridge::beginFrame() {
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  auto& io = ImGui::GetIO();
+  // Retain backend display/timing updates, dropping its physical mouse/gamepad
+  // polling. GLFW input callbacks are not installed in this profile.
+  io.SetAppAcceptingEvents(false);
+  io.WantSetMousePos = false;
+#endif
   ImGui_ImplGlfw_NewFrame();
+#if defined(NEAR_LAUGH_UI_AUTOMATION)
+  io.SetAppAcceptingEvents(true);
+  // The pinned Windows backend latches mouse source in its native hook even
+  // without installed GLFW callbacks; synthetic actions always use a mouse.
+  io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+#endif
   ImGui::NewFrame();
 }
 

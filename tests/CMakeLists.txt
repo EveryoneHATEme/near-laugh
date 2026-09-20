@@ -1,4 +1,5 @@
 add_executable(engine_tests
+    core/test_editor_file_policy.cpp
     core/test_household_definitions.cpp
     core/test_household_codec.cpp
     core/test_household_presentation.cpp
