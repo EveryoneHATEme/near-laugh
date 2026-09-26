@@ -344,8 +344,11 @@ and suspension/recovery. Its default run builds and tests without windows; GPU
 readbacks remain a separate opt-in. Retain earlier desktop observations and the
 coverage/evidence mapping in `validation.md`. This changes the verification
 method, not the gameplay requirements. Do not resume manual execution or treat
-automated success as subjective hold/throw feel, physical listening or human T3
-acceptance; those remain explicitly unverified.
+automated success as subjective hold/throw feel or physical listening; those
+remain explicitly unverified. On 2026-09-26 the user accepted closing P06/T3
+using the retained evidence with these limitations. The decision is recorded
+in `validation.md` separately from historical execution and does not establish
+hands-on confirmation of the unverified qualities.
 
 **Performance:** measure a separate Release build under the existing supported
 1920x1080/60 Hz conditions, with no concurrent build or GPU work. Use a neutral

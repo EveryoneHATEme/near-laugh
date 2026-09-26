@@ -2,8 +2,11 @@
 
 P06 implementation, automated functional/Vulkan checks and the controlled
 six-run Release performance comparison have passed. On 2026-09-11 the user
-stopped further manual testing and requested scripts/code checks. Subjective
-feel, listening and human T3 acceptance remain unverified as recorded below.
+stopped further manual testing and requested scripts/code checks. On 2026-09-26
+the user accepted closing the remaining P06/T3 item on this evidence with
+subjective hold/throw feel and physical listening retained as unverified
+limitations. This acceptance decision does not represent a new test run or
+hands-on confirmation of those qualities; see the final decision below.
 
 ## Current acceptance status
 
@@ -11,10 +14,11 @@ feel, listening and human T3 acceptance remain unverified as recorded below.
 | --- | --- | --- |
 | Integrated Debug / real-ImGui | 561/561 passed, including all 29 real-ImGui checks | `build/household-automated-20260911/result.json`, `debug-tests.xml` and stage logs in that directory |
 | Vulkan runtime/editor | 14/14 passed | `build/household-vulkan-final.log` |
-| Release performance | Six paired runs passed all workload/timing gates | `build/household-t3-20260910/release-desktop-repeat/acceptance.json` |
+| Release performance | Three paired zero/16-box comparisons (six runs) passed all workload/timing gates | `build/household-t3-20260910/release-desktop-repeat/acceptance.json` |
 | Runtime behavior | Automated physical contact/carry/input/state checks passed; earlier reader recovery, pickup/hold/throw and normal/muted radio observations retained | Automated coverage below; `build/household-t3-20260910/runtime/` |
 | Independent UI-authored scene | Passed creation, save/reopen, ordinary Play, box/document/radio behavior, history, reference repair and changed-pose Save-and-Play | [Retained scene](evidence/second-room.level.json); captures in `build/household-t3-20260910/authoring/` |
-| Human feel, listening and T3 acceptance | Unverified; no further manual testing requested | Neither earlier desktop authorization nor the switch to automation establishes human acceptance |
+| Human feel and listening | Unverified; accepted limitations, with no further manual testing planned | Neither earlier desktop authorization nor automated results establish subjective quality or physical listening |
+| P06/T3 acceptance | Accepted with the recorded limitations on 2026-09-26; task 9.5 closed | User's decision after the remaining acceptance item and limitations were reported; see final decision below |
 
 ## Definitions and compatibility
 
@@ -392,8 +396,9 @@ feel, listening and human T3 acceptance remain unverified as recorded below.
 
 The user explicitly requested scripts/code checks and stopped manual testing.
 The visual agent was stopped; root verified no remaining editor/runtime process.
-This replaces the remaining manual functional execution in task 9.2, while
-preserving the gameplay requirements and the unverified human acceptance in 9.5.
+This replaced the remaining manual functional execution in task 9.2, while
+preserving the gameplay requirements and leaving acceptance in 9.5 open at
+that time. The later acceptance decision is recorded separately below.
 No further window launches, screenshot interaction or desktop input were used
 for this run. The last floor-box desktop attempt had not established wall
 contact or carry pause/minimize recovery and is not counted as that evidence.
@@ -426,15 +431,15 @@ remaining scenario; names are searchable in the linked sources:
 
 | Behavior | Automated evidence |
 | --- | --- |
-| Hold follows physically, safety release does not relocate | [Physics tests](../../../tests/core/test_household_physics.cpp): `StillHoldFollowsNewTargetAndInvalidOrDistantTargetsRelease` |
+| Hold follows physically, safety release does not relocate | [Physics tests](../../../../tests/core/test_household_physics.cpp): `StillHoldFollowsNewTargetAndInvalidOrDistantTargetsRelease` |
 | Hold/throw against walls; fast spinning contacts | Physics: `BlockedHoldAndNearWallThrowNeverRelocateBox`, `MaximumSpeedSpinningCubeCannotCrossThinWallOrDoor` |
 | Player contact without propulsion or box support | Physics: `MovingBoxHitsStationaryStandingAndCrouchedPlayerWithoutPropulsion`, `ControlledMotionPushesFreeBoxWithoutUsingItAsAStair`, `IsolatedTiltedAndStackedLandingsDoNotCreateSupport` |
 | Actor waits/resumes; free/held boxes stop doors until a new action | Physics: `ActorWaitsAtBoxThenResumesAndCannotBeMovedByAnImpact`, `DoorStopsBeforeFreeOrHeldBoxAndRequiresNewPress` |
-| One fixed-step command; drop outranks throw; occupied hands | [Runtime tests](../../../tests/core/test_household_runtime.cpp): `PickupAndThrowWaitForOneBoundaryAndKeepAcceptedDirection`, `DropOutranksThrowAndPendingCommandsRefuseCompetition`, `CarryingKeepsFlashlightAndExcludesTargetedWorldActions` |
+| One fixed-step command; drop outranks throw; occupied hands | [Runtime tests](../../../../tests/core/test_household_runtime.cpp): `PickupAndThrowWaitForOneBoundaryAndKeepAcceptedDirection`, `DropOutranksThrowAndPendingCommandsRefuseCompetition`, `CarryingKeepsFlashlightAndExcludesTargetedWorldActions` |
 | Reader controls, active world and suspended state | Runtime: `ReadingRetainsStanceAndBlocksInheritedActionsAndEscape`, `ReaderPagesAndFeedbackSurviveSuspensionWithoutReplay`, `ReadingAllowsConcurrentCharacterBoxAndRadioActivity` |
 | Radio/mute/caption lifecycle and fresh-run reset | Runtime: `RadioOnOffRestartUsesOneOwnedSourceAndCurrentCaptions`, `FreshRunAndLaterAuthoringOwnIndependentState` |
 | Suspension cancels pending action but preserves owed safety release | Runtime: `SuspensionCancelsRequestWhileSafetyReleaseSurvivesRecapture` |
-| Real window/Engine recovery, geometry/text and lifetime | Earlier passing `vulkan_household_interactions` in [runtime smoke](../../../tests/core/runtime_household_smoke.hpp); earlier desktop reader recovery described above |
+| Real window/Engine recovery, geometry/text and lifetime | Earlier passing `vulkan_household_interactions` in [runtime smoke](../../../../tests/core/runtime_household_smoke.hpp); earlier desktop reader recovery described above |
 
 Headless tests exercise logical input/state and real simulation; they do not
 prove physical keyboard delivery or visible recovery by themselves. Earlier GPU
@@ -452,10 +457,57 @@ PowerShell parsing, new-file whitespace/conflict checks, `git diff --check` and
 `build/household-automated-diff-check.log` and
 `build/household-automated-openspec-validation.log`.
 
-## Remaining acceptance
+## Final acceptance decision — 2026-09-26
 
-The selected `tasks.md` is the implementation checklist (40/41 verified).
-Functional verification is complete under the user's chosen automated method.
-Task 9.5 remains open for human T3 acceptance; feel and listening are unverified.
-No additional manual run is planned. Main specs have not been synchronized and
-the change has not been archived.
+After being told that 40/41 tasks were closed, the retained automated/GPU/
+performance checks had passed, and task 9.5 remained open for T3 acceptance
+with subjective feel and listening unverified, the user requested resolution
+of the remaining P06 item. P06/T3 is accepted on the retained evidence with
+those limitations explicitly accepted. No further manual run is planned.
+
+A read-only independent review confirmed the retained 2026-09-10/11 evidence:
+the Debug JSON/JUnit records show 561 tests with no failures, skips or disabled
+tests, including 29 real-ImGui checks; the final Vulkan log shows 14/14 passing;
+the Release acceptance, run summaries and raw timing/workload CSVs retain all
+six successful runs and their passing gates. The tracked second-room scene
+matches the retained UI-authored file, and the referenced authoring/Play
+captures remain present. This review checked records and artifact integrity;
+it did not repeat execution or provide new visual acceptance.
+
+The status table and earlier coverage mapping consolidate tasks 8.1–9.4.
+Earlier failed measurement attempts and inconclusive manual observations stay
+in this record; the controlled passing Release repeat is the accepted timing
+series. The following limits remain part of this acceptance:
+
+- Subjective hold/throw comfort and physical audio listening remain unverified.
+- Automated checks do not establish subjective quality or physical input
+  delivery; their scope remains separate from the retained desktop observations.
+- Acceptance changes no gameplay requirements, supported physical profile or
+  timing gates, and does not turn earlier inconclusive observations into passes.
+
+Task 9.5 is closed and `tasks.md` now records 41/41 completed tasks. The user
+decision, together with the consolidated evidence and accepted limitations,
+establishes T3 acceptance; artifact readiness or passing tests alone does not.
+This closure changes documentation only and does not repeat builds, tests,
+GPU runs or measurements. At acceptance, main-spec synchronization and archival
+were still pending; their subsequent completion is recorded below.
+
+## Archive handoff — 2026-09-26
+
+All 12 P06 delta capabilities were synchronized into main specs: the new
+`household-interactions` capability and 11 existing capabilities, with 21
+requirements added and 13 modified. Existing Purpose sections, unrelated
+requirements and prior scenarios were preserved. The main persistence spec
+now describes v10 with the accepted v2-v9 compatibility contract.
+
+A comparison of every delta requirement against its merged main spec found
+nothing left to apply. Independent review found no semantic or formatting
+issue in the merge. Strict validation passed for P06 and all 30 main specs;
+logs are retained under `build/p06-archive-20260926/`.
+
+The complete change, including `.openspec.yaml` and its authored evidence, was
+moved to `openspec/changes/archive/2026-09-26-add-household-interactions/`.
+All 41 tasks are closed. The accepted subjective feel/listening limitations
+remain unchanged; no additional runtime, GPU or performance run was made for
+this documentation-only handoff. P05 is next for detailed planning against
+the synchronized main specs; no dependent implementation was started.

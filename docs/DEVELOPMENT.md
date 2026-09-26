@@ -1040,11 +1040,13 @@ gates, including failures. Audio uses silent output; listening remains separate.
 
 Functional checks, Vulkan recovery/lifetime checks, the independent UI-authored
 save/reopen/Play scene and controlled Release comparisons have passed. Retain
-their results and earlier desktop observations; human P06/T3 acceptance and
-subjective feel/listening remain unverified. Do not infer performance from
+their results and earlier desktop observations. The user accepted P06/T3 on
+2026-09-26 with subjective hold/throw feel and physical listening explicitly
+unverified; the acceptance decision is separate from test execution and does
+not require another manual run. Do not infer performance from
 object counts or run measurements concurrently with builds, tests or other GPU
-work. Track results and unavailable checks in the selected
-[P06 validation record](../openspec/changes/add-household-interactions/validation.md).
+work. Track results and unavailable checks in the archived
+[P06 validation record](../openspec/changes/archive/2026-09-26-add-household-interactions/validation.md).
 
 ## P07a character animation
 

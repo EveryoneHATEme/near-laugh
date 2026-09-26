@@ -5,7 +5,9 @@ request on 2026-09-11. The authorization from 2026-09-10 no longer authorizes
 continuing these steps. Functional verification now uses
 `scripts/check_household.ps1`; see [coverage and results](validation.md).
 The steps below document the earlier plan and retained observations, not work
-to resume. Subjective feel, listening and human T3 acceptance remain unverified.
+to resume. On 2026-09-26 the user accepted P06/T3 using the retained evidence
+with subjective feel and physical listening explicitly unverified. That decision
+does not mark the unperformed steps below as passed; see `validation.md`.
 
 ## 1. Neutral interaction scene
 

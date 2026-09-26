@@ -78,8 +78,8 @@ P02 stationary radio asset. No new asset importer is required.
 ## Dependencies and Boundaries
 
 P06; requires
-[P04](../archive/2026-09-07-add-spatial-audio-and-captions/proposal.md) and
-[P10](../archive/2026-09-07-add-interior-lighting/proposal.md), including their asset, door, and
+[P04](../2026-09-07-add-spatial-audio-and-captions/proposal.md) and
+[P10](../2026-09-07-add-interior-lighting/proposal.md), including their asset, door, and
 interaction prerequisites. Rebase targeting on P10's multiple switches. The
 selected work order puts this after the accepted P07a-P07c chain. Physical boxes
 now require regression checks with the existing actors as well as player and
@@ -110,6 +110,9 @@ shapes and art are follow-up work with their own supported-profile review.
   Play. Fresh scene entry restores initial state; minimize, explicit suspension
   and presentation recovery preserve existing state without delayed actions.
 - Run deterministic state/input/reference/physics checks, integrated Debug
-  checks, affected Vulkan smoke/readback, manual T3 interaction and authoring
-  acceptance, and bounded Release measurements. Keep unavailable checks and
-  unresolved visual or physical-behavior acceptance explicit.
+  checks, affected Vulkan smoke/readback, independent UI authoring acceptance,
+  and bounded Release measurements. Consolidate the retained desktop and
+  automated evidence for the user's T3 decision. On 2026-09-26 the user accepted
+  P06/T3 with subjective hold/throw feel and physical listening unverified,
+  following the earlier decision to stop further manual testing; retain these
+  limitations explicitly in [the acceptance record](validation.md).

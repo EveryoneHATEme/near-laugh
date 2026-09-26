@@ -41,7 +41,7 @@ One accepted interaction action SHALL request opening from the closed endpoint a
 - **THEN** exactly one knock result is produced for that door without changing its current motion or lock
 
 ### Requirement: Obstructed motion without crushing
-Door motion SHALL stop at a verified clear pose before its continuous sweep would penetrate structural collision, terrain, a static prop proxy, another door, the player, or a scripted actor. Obstruction SHALL stop the current request without automatically resuming when the blocker leaves. A new interaction press SHALL reverse the last requested direction when stopped strictly between endpoints; at an endpoint it SHALL request the opposite endpoint, including retrying when an earlier obstruction allowed no progress. Opening and closing SHALL use the same safety policy. Motion SHALL NOT push, carry, crush, damage, or embed the player or actors, jump across an intervening blocker, or move through a blocker merely because the endpoint is clear. The visible leaf and target blocker SHALL use the accepted pose. Simultaneous door updates SHALL have deterministic outcomes independent of rendering frequency.
+Door motion SHALL stop at a verified clear pose before its continuous sweep would penetrate structural collision, terrain, a static prop proxy, a current physical household box, another door, the player, or a scripted actor. Obstruction SHALL stop the current request without automatically resuming when the blocker leaves. A new interaction press SHALL reverse the last requested direction when stopped strictly between endpoints; at an endpoint it SHALL request the opposite endpoint, including retrying when an earlier obstruction allowed no progress. Opening and closing SHALL use the same safety policy. Motion SHALL NOT push, carry, crush, damage, or embed the player, actors or physical boxes, jump across an intervening blocker, or move through a blocker merely because the endpoint is clear. The visible leaf and target blocker SHALL use the accepted pose. Simultaneous door updates SHALL have deterministic outcomes independent of rendering frequency.
 
 #### Scenario: Player blocks closing
 - **WHEN** a closing leaf would reach a standing, crouched, or moving player
@@ -66,6 +66,14 @@ Door motion SHALL stop at a verified clear pose before its continuous sweep woul
 #### Scenario: Actor blocks a swinging door
 - **WHEN** a moving actor or its accepted stationary proxy obstructs an opening or closing leaf
 - **THEN** the leaf stops before penetration and retains P03's requirement for a new eligible interaction after clearance, while a blocked actor may independently retry its route
+
+#### Scenario: Free or held box obstructs a door
+- **WHEN** a physical household box occupies part of a requested door sweep
+- **THEN** the leaf stops at a verified clear pose without shoving or crushing the box, and clearing the box alone does not resume the request
+
+#### Scenario: Box hits an accepted leaf
+- **WHEN** a thrown box contacts the current accepted door pose
+- **THEN** physical contact is resolved against that pose without changing the door's lock or motion intent
 
 ### Requirement: Run-local door results and feedback
 Accepted open/close requests, endpoint arrival, obstruction, accepted lock changes, refused actions, and knocks SHALL produce bounded concrete results identifying the affected door for the current runtime consumers. Current feedback SHALL consume these results without a general event bus, action registry, subscription framework, or persistent event queue. The player SHALL be able to distinguish locked state, an opening refusal, and a knock using the delivered temporary visual presentation without requiring P04 audio or text. Feedback SHALL NOT change collision, replay an action, or modify authored data. Render skips and recovery SHALL preserve authoritative pose and lock state; restart SHALL restore authored initial state.
