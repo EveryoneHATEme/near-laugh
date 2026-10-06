@@ -32,6 +32,7 @@
 #include "runtime_audio_smoke.hpp"
 #include "runtime_character_smoke.hpp"
 #include "runtime_household_smoke.hpp"
+#include "development/narrative_fixture.hpp"
 
 namespace {
 RendererResources smokeResources() {
@@ -650,6 +651,15 @@ void runInteriorLightingSmoke() {
 
 int main(int argc, char** argv) {
   try {
+    if (argc == 2 && std::string_view(argv[1]) == "--narrative") {
+      ValidationDiagnostics diagnostics;
+      const auto directory = std::filesystem::absolute("build/narrative-runtime-checks") /
+          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+      std::cout << "Narrative report: " << directory / "report.json" << '\n';
+      runNarrativeFixtureChecks(std::filesystem::absolute("resources"), directory, diagnostics);
+      if (diagnostics.errorCount()) throw std::runtime_error("Narrative teardown recorded Vulkan errors");
+      return 0;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--household-fixtures") {
       EngineHouseholdSmoke::preflight();
       return 0;

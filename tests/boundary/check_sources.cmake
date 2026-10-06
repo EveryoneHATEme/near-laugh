@@ -53,7 +53,12 @@ endforeach()
 
 foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
     # These tests construct malformed GLB/level fixtures and compare migrations.
-    # JSON remains private to the codec and optional editor automation protocol.
+    # Runtime JSON remains private to the codec and optional editor automation
+    # protocol. Explicit development executables serialize their own evidence;
+    # their JSON types must not enter public headers or the runtime target.
+    if(JSON_SOURCE MATCHES "src/development/narrative_(fixture|measure)[.]cpp$")
+        continue()
+    endif()
     if(JSON_SOURCE MATCHES "src/editor/automation/protocol[.]hpp$")
         continue()
     endif()
@@ -61,6 +66,9 @@ foreach(JSON_SOURCE IN LISTS DECODER_BOUNDARY_SOURCES)
         continue()
     endif()
     if(JSON_SOURCE MATCHES "tests/core/test_household_codec[.]cpp$")
+        continue()
+    endif()
+    if(JSON_SOURCE MATCHES "tests/core/test_narrative_codec[.]cpp$")
         continue()
     endif()
     if(JSON_SOURCE MATCHES
@@ -270,11 +278,13 @@ endif()
 string(REGEX MATCHALL
        "target_link_libraries\\([^)]*nlohmann_json::nlohmann_json[^)]*\\)"
        JSON_LINK_BLOCKS "${ROOT_CMAKE_CONTENT}")
-list(LENGTH JSON_LINK_BLOCKS JSON_LINK_BLOCK_COUNT)
-if(NOT JSON_LINK_BLOCK_COUNT EQUAL 1)
-    message(FATAL_ERROR
-        "nlohmann/json is linked by a target other than near_laugh_world")
-endif()
+foreach(JSON_LINK_BLOCK IN LISTS JSON_LINK_BLOCKS)
+    if(NOT JSON_LINK_BLOCK MATCHES
+       "target_link_libraries\\((near_laugh_world|narrative_fixture|narrative_measure)[ \r\n]+PRIVATE[ \r\n]")
+        message(FATAL_ERROR
+            "JSON must remain private to the world codec or explicit narrative evidence executable: ${JSON_LINK_BLOCK}")
+    endif()
+endforeach()
 if(NOT ROOT_CMAKE_CONTENT MATCHES
    "target_link_libraries\\(near_laugh_physics PRIVATE near_laugh_world Jolt\\)")
     message(FATAL_ERROR

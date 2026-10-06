@@ -128,24 +128,25 @@ bool EditorDocument::addAudioObject(EditorObjectValue value) {
   std::visit(
       [&](auto& v) {
         if constexpr (requires { v.id; }) {
-          for (std::size_t n = 1;; ++n) {
-            v.id = prefixes[slot] + std::to_string(n);
-            bool used = false;
-            for (const auto id : audio_ids_[slot]) {
-              const auto other = *audioObject(id);
-              if (const auto* same =
-                      std::get_if<std::decay_t<decltype(v)>>(&other))
-                used |= same->id == v.id;
-            }
-            if (*kind == EditorAudioKind::Source) {
-              for (const auto& actor : document_->characters.actors)
-                used |= actor.footstep_source == v.id ||
-                        actor.interaction_source == v.id;
-              for (const auto& radio : document_->household.radios)
-                used |= radio.source == v.id;
-            }
-            if (!used) break;
-          }
+          v.id = editorFreshId(
+              prefixes[slot], document_->narrative, value,
+              [&](const std::string& candidate) {
+                bool used = false;
+                for (const auto id : audio_ids_[slot]) {
+                  const auto other = *audioObject(id);
+                  if (const auto* same =
+                          std::get_if<std::decay_t<decltype(v)>>(&other))
+                    used |= same->id == candidate;
+                }
+                if (*kind == EditorAudioKind::Source) {
+                  for (const auto& actor : document_->characters.actors)
+                    used |= actor.footstep_source == candidate ||
+                            actor.interaction_source == candidate;
+                  for (const auto& radio : document_->household.radios)
+                    used |= radio.source == candidate;
+                }
+                return used;
+              });
         }
       },
       value);

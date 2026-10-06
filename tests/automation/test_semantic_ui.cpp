@@ -21,7 +21,7 @@ class SemanticEditorUi : public testing::Test {
     io.IniFilename = nullptr;
     io.DisplaySize = {1600, 1000};
     io.DeltaTime = 1.0F / 60;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     ASSERT_TRUE(document.open("resources/levels/prototype.level.json"));
     frame(); frame();
@@ -515,6 +515,93 @@ TEST_F(SemanticEditorUi, ReadableProjectionCopiesTheDisplayedLastGoodPageAndDiag
   EXPECT_EQ(failed.text, good.text);
   document.select(document.solidIds().front()); frame();
   EXPECT_FALSE(ui.readablePreview(document).selected);
+}
+
+TEST_F(SemanticEditorUi, NarrativeRecordsHaveIndependentTypedAppliedProjections) {
+  for (const auto kind : {EditorNarrativeKind::Fact, EditorNarrativeKind::Region, EditorNarrativeKind::Event}) {
+    ASSERT_TRUE(document.addNarrative(kind)); const auto id = document.selection(); frame();
+    EXPECT_EQ(byKey("narrative-id").record["owner"], snapshot.object_refs.at(id));
+    EXPECT_EQ(byKey("narrative-id").record["applied_binding"]["field"], "id");
+    EXPECT_FALSE(byKey("narrative-id").record["capabilities"].empty());
+    std::set<std::string> refs;
+    for (const auto& item : snapshot.items)
+      EXPECT_TRUE(refs.insert(item.record["ref"].get<std::string>()).second) << item.record["key"];
+  }
+  const auto id = document.selection();
+  auto event = std::get<NarrativeEventDefinition>(*document.object(id));
+  event.trigger = NarrativeConditionTrigger{{NarrativeElapsedPredicate{2}}};
+  event.guards = {NarrativeFactPredicate{"missing", true}};
+  event.cancel = std::vector<NarrativePredicate>{NarrativeRegionPredicate{"missing", false}};
+  event.steps = {NarrativeDelayStep{3}, NarrativeWaitUntilStep{{NarrativeElapsedPredicate{4}}}};
+  ASSERT_TRUE(document.replaceObject(id, event)); frame();
+  const auto fields = narrativeEventFields(event);
+  EXPECT_EQ(fields["steps"]["value"][0]["seconds"], 3);
+  EXPECT_EQ(fields["steps"]["value"][1]["predicates"][0]["seconds"], 4);
+  EXPECT_EQ(byKey("steps[0]/seconds").record["applied_binding"]["field"], "steps");
+  EXPECT_EQ(byKey("guards[0]/fact").record["applied_binding"]["field"], "guards");
+  EXPECT_EQ(byKey("cancel[0]/region").record["applied_binding"]["field"], "cancel");
+  EXPECT_EQ(byKey("trigger.predicates[0]/seconds").record["applied_binding"]["field"], "trigger");
+  const auto stamp = Json{{"snapshot_id", "test"}, {"frame", "1"}, {"document_generation", "1"},
+      {"document_revision", "1"}, {"selection_revision", "1"}, {"preview_revision", "1"}, {"stale", false}};
+  for (const auto& value : captureApplication(document, snapshot.object_refs)) {
+    const Json result{{"protocol_version", 1}, {"request_id", "test"}, {"session_id", "test"},
+      {"build_fingerprint", "test"}, {"ok", true}, {"snapshot", stamp}, {"values", Json::array({value})},
+      {"next_cursor", nullptr}, {"truncated", false}};
+    EXPECT_NO_THROW(validateResult("app_inspect", result)) << value.dump();
+  }
+}
+
+TEST_F(SemanticEditorUi, NarrativeAllTriggerPredicateAndStepKindsPublishRealControls) {
+  ASSERT_TRUE(document.addNarrative(EditorNarrativeKind::Event)); const auto id = document.selection();
+  auto event = std::get<NarrativeEventDefinition>(*document.object(id));
+  const std::vector<NarrativeTrigger> triggers{NarrativeSceneEntryTrigger{}, NarrativeRegionEntryTrigger{"missing"},
+      NarrativeInteractionTrigger{}, NarrativeConditionTrigger{{NarrativeElapsedPredicate{1}}}};
+  const std::vector<NarrativePredicate> predicates{NarrativeFactPredicate{}, NarrativeRegionPredicate{}, NarrativeLightPredicate{},
+      NarrativeDoorEndpointPredicate{}, NarrativeDoorLockedPredicate{}, NarrativeRadioPredicate{}, NarrativeBoxPredicate{},
+      NarrativeDocumentPredicate{}, NarrativeActorPredicate{}, NarrativeEventPredicate{}, NarrativeElapsedPredicate{}};
+  const std::vector<NarrativeStep> steps{NarrativeSetFactStep{}, NarrativeSetLightStep{}, NarrativeSetDoorOpenStep{},
+      NarrativeSetDoorLockedStep{}, NarrativeSetRadioStep{}, NarrativePlayCueStep{}, NarrativeRunRouteStep{}, NarrativeDelayStep{}, NarrativeWaitUntilStep{}};
+  for (const auto& trigger : triggers) {
+    event.trigger = trigger; ASSERT_TRUE(document.replaceObject(id, event) || *document.object(id) == EditorObjectValue(event)); frame();
+    EXPECT_EQ(byKey("trigger-kind").record["applied_binding"]["field"], "trigger");
+  }
+  for (const auto& predicate : predicates) {
+    event.guards = {predicate}; ASSERT_TRUE(document.replaceObject(id, event)); frame();
+    EXPECT_EQ(byKey("guards[0]/condition-kind").record["applied_binding"]["field"], "guards");
+  }
+  for (const auto& step : steps) {
+    event.steps = {step}; ASSERT_TRUE(document.replaceObject(id, event)); frame();
+    EXPECT_EQ(byKey("steps[0]/step-kind").record["applied_binding"]["field"], "steps");
+    std::set<std::string> refs;
+    for (const auto& item : snapshot.items)
+      EXPECT_TRUE(refs.insert(item.record["ref"].get<std::string>()).second) << item.record["key"];
+  }
+}
+
+TEST_F(SemanticEditorUi, NarrativeInvalidNumericDraftCancelCommitUndoAndStructuralRows) {
+  ASSERT_TRUE(document.addNarrative(EditorNarrativeKind::Event)); const auto id = document.selection(); frame();
+  const auto before = *document.object(id); const auto revision = document.revision();
+  activate(byKey("steps[0]/seconds"), true);
+  key(ImGuiKey_A, true); ImGui::GetIO().AddInputCharactersUTF8("-"); frame();
+  EXPECT_EQ(byKey("steps[0]/seconds").record["input"]["text"], "-");
+  EXPECT_EQ(byKey("steps[0]/seconds").record["input_validation"]["status"], "invalid");
+  EXPECT_EQ(*document.object(id), before); EXPECT_EQ(document.revision(), revision);
+  key(ImGuiKey_Escape); EXPECT_EQ(*document.object(id), before);
+  activate(byKey("steps[0]/seconds"), true);
+  key(ImGuiKey_A, true); ImGui::GetIO().AddInputCharactersUTF8("2.5"); frame();
+  EXPECT_EQ(*document.object(id), before);
+  key(ImGuiKey_Tab);
+  EXPECT_EQ(std::get<NarrativeDelayStep>(std::get<NarrativeEventDefinition>(*document.object(id)).steps[0]).seconds, 2.5F);
+  ASSERT_TRUE(document.undo()); frame(); EXPECT_EQ(*document.object(id), before);
+  ASSERT_TRUE(document.redo()); frame();
+  activate(byKey("add-step"));
+  ASSERT_EQ(std::get<NarrativeEventDefinition>(*document.object(id)).steps.size(), 2U);
+  const auto old_ref = byKey("steps[0]/seconds").record["ref"];
+  activate(byKey("steps[1]/move-step-up"));
+  EXPECT_THROW(static_cast<void>(semantic.resolve({{"ref", old_ref}}, snapshot)), ProtocolError);
+  EXPECT_EQ(std::get<NarrativeDelayStep>(std::get<NarrativeEventDefinition>(*document.object(id)).steps[0]).seconds, 0.F);
+  ASSERT_TRUE(document.undo()); frame();
+  EXPECT_EQ(std::get<NarrativeDelayStep>(std::get<NarrativeEventDefinition>(*document.object(id)).steps[0]).seconds, 2.5F);
 }
 }  // namespace
 }  // namespace editor_automation

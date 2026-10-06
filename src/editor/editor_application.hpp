@@ -40,6 +40,8 @@ class EditorApplication {
 
   void run();
   void runSmoke(const std::filesystem::path& valid_level);
+  void runNarrativeSmoke(std::vector<std::string>& events, FrameCapture& capture,
+                         const std::filesystem::path& capture_directory);
   void runCharacterSmoke(std::vector<std::string>& events,
                          FrameCapture& capture);
   void runHouseholdSmoke(std::vector<std::string>& events,

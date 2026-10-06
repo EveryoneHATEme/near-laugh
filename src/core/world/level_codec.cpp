@@ -14,10 +14,12 @@
 #include <stdexcept>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 
 #include "core/world/door.hpp"
 #include "core/world/level_document.hpp"
 #include "core/world/light_switch.hpp"
+#include "core/world/narrative.hpp"
 #include "core/world/prototype_level.hpp"
 #include "core/world/scene_assets.hpp"
 
@@ -611,12 +613,241 @@ LevelHousehold parseHousehold(const Json& value) {
   return household;
 }
 
+template <class Enum, std::size_t N>
+Enum parseNarrativeEnum(const Json& value, const std::string& path,
+                        const std::array<std::string_view, N>& names) {
+  const auto name = parseString(value, path);
+  for (std::size_t i = 0; i < names.size(); ++i)
+    if (name == names[i]) return static_cast<Enum>(i);
+  fail(path, "unsupported value '" + name + "'");
+}
+
+NarrativePredicate parseNarrativePredicate(const Json& value,
+                                           const std::string& p) {
+  if (!value.is_object() || !value.contains("kind"))
+    fail(p + ".kind", "required predicate kind is missing");
+  const auto kind = parseString(value.at("kind"), p + ".kind");
+  if (kind == "fact") {
+    requireObjectFields(value, p, {"kind", "fact", "value"});
+    return NarrativeFactPredicate{parseAudioId(value.at("fact"), p + ".fact"),
+                                  parseBool(value.at("value"), p + ".value")};
+  }
+  if (kind == "region") {
+    requireObjectFields(value, p, {"kind", "region", "inside"});
+    return NarrativeRegionPredicate{
+        parseAudioId(value.at("region"), p + ".region"),
+        parseBool(value.at("inside"), p + ".inside")};
+  }
+  if (kind == "light") {
+    requireObjectFields(value, p, {"kind", "light", "enabled"});
+    return NarrativeLightPredicate{
+        parseAudioId(value.at("light"), p + ".light"),
+        parseBool(value.at("enabled"), p + ".enabled")};
+  }
+  if (kind == "door_endpoint") {
+    requireObjectFields(value, p, {"kind", "door", "open"});
+    return NarrativeDoorEndpointPredicate{
+        parseAudioId(value.at("door"), p + ".door"),
+        parseBool(value.at("open"), p + ".open")};
+  }
+  if (kind == "door_locked") {
+    requireObjectFields(value, p, {"kind", "door", "locked"});
+    return NarrativeDoorLockedPredicate{
+        parseAudioId(value.at("door"), p + ".door"),
+        parseBool(value.at("locked"), p + ".locked")};
+  }
+  if (kind == "radio") {
+    requireObjectFields(value, p, {"kind", "radio", "enabled"});
+    return NarrativeRadioPredicate{
+        parseAudioId(value.at("radio"), p + ".radio"),
+        parseBool(value.at("enabled"), p + ".enabled")};
+  }
+  if (kind == "box") {
+    requireObjectFields(value, p, {"kind", "box", "held"});
+    return NarrativeBoxPredicate{parseAudioId(value.at("box"), p + ".box"),
+                                 parseBool(value.at("held"), p + ".held")};
+  }
+  if (kind == "document") {
+    requireObjectFields(value, p, {"kind", "document", "open"});
+    return NarrativeDocumentPredicate{
+        parseAudioId(value.at("document"), p + ".document"),
+        parseBool(value.at("open"), p + ".open")};
+  }
+  if (kind == "actor") {
+    requireObjectFields(value, p, {"kind", "actor", "state"});
+    return NarrativeActorPredicate{
+        parseAudioId(value.at("actor"), p + ".actor"),
+        parseNarrativeEnum<NarrativeActorState>(value.at("state"), p + ".state",
+                                                narrative_actor_state_names)};
+  }
+  if (kind == "event") {
+    requireObjectFields(value, p, {"kind", "event", "state"});
+    return NarrativeEventPredicate{
+        parseAudioId(value.at("event"), p + ".event"),
+        parseNarrativeEnum<NarrativeEventTerminalState>(
+            value.at("state"), p + ".state", narrative_event_state_names)};
+  }
+  if (kind == "elapsed") {
+    requireObjectFields(value, p, {"kind", "seconds"});
+    return NarrativeElapsedPredicate{
+        parseFloat(value.at("seconds"), p + ".seconds")};
+  }
+  fail(p + ".kind", "unsupported predicate kind '" + kind + "'");
+}
+std::vector<NarrativePredicate> parseNarrativePredicates(const Json& value,
+                                                         const std::string& p) {
+  if (!value.is_array() ||
+      value.size() > level_maximum_narrative_predicate_count)
+    fail(p, "must be an array of at most eight predicates");
+  std::vector<NarrativePredicate> predicates;
+  for (std::size_t i = 0; i < value.size(); ++i)
+    predicates.push_back(
+        parseNarrativePredicate(value[i], p + "[" + std::to_string(i) + "]"));
+  return predicates;
+}
+NarrativeTrigger parseNarrativeTrigger(const Json& value,
+                                       const std::string& p) {
+  if (!value.is_object() || !value.contains("kind"))
+    fail(p + ".kind", "required trigger kind is missing");
+  const auto kind = parseString(value.at("kind"), p + ".kind");
+  if (kind == "scene_entry") {
+    requireObjectFields(value, p, {"kind"});
+    return NarrativeSceneEntryTrigger{};
+  }
+  if (kind == "region_entry") {
+    requireObjectFields(value, p, {"kind", "region"});
+    return NarrativeRegionEntryTrigger{
+        parseAudioId(value.at("region"), p + ".region")};
+  }
+  if (kind == "interaction") {
+    requireObjectFields(value, p, {"kind", "target_kind", "target", "action"});
+    return NarrativeInteractionTrigger{
+        parseNarrativeEnum<NarrativeInteractionTarget>(value.at("target_kind"),
+                                                       p + ".target_kind",
+                                                       narrative_target_kind_names),
+        parseAudioId(value.at("target"), p + ".target"),
+        parseNarrativeEnum<NarrativeInteractionAction>(
+            value.at("action"), p + ".action", narrative_action_names)};
+  }
+  if (kind == "condition") {
+    requireObjectFields(value, p, {"kind", "predicates"});
+    return NarrativeConditionTrigger{
+        parseNarrativePredicates(value.at("predicates"), p + ".predicates")};
+  }
+  fail(p + ".kind", "unsupported trigger kind '" + kind + "'");
+}
+NarrativeStep parseNarrativeStep(const Json& value, const std::string& p) {
+  if (!value.is_object() || !value.contains("kind"))
+    fail(p + ".kind", "required step kind is missing");
+  const auto kind = parseString(value.at("kind"), p + ".kind");
+  if (kind == "set_fact") {
+    requireObjectFields(value, p, {"kind", "fact", "value"});
+    return NarrativeSetFactStep{parseAudioId(value.at("fact"), p + ".fact"),
+                                parseBool(value.at("value"), p + ".value")};
+  }
+  if (kind == "set_light") {
+    requireObjectFields(value, p, {"kind", "light", "enabled"});
+    return NarrativeSetLightStep{
+        parseAudioId(value.at("light"), p + ".light"),
+        parseBool(value.at("enabled"), p + ".enabled")};
+  }
+  if (kind == "set_door_open") {
+    requireObjectFields(value, p, {"kind", "door", "open"});
+    return NarrativeSetDoorOpenStep{parseAudioId(value.at("door"), p + ".door"),
+                                    parseBool(value.at("open"), p + ".open")};
+  }
+  if (kind == "set_door_locked") {
+    requireObjectFields(value, p, {"kind", "door", "locked"});
+    return NarrativeSetDoorLockedStep{
+        parseAudioId(value.at("door"), p + ".door"),
+        parseBool(value.at("locked"), p + ".locked")};
+  }
+  if (kind == "set_radio") {
+    requireObjectFields(value, p, {"kind", "radio", "enabled"});
+    return NarrativeSetRadioStep{
+        parseAudioId(value.at("radio"), p + ".radio"),
+        parseBool(value.at("enabled"), p + ".enabled")};
+  }
+  if (kind == "play_cue") {
+    requireObjectFields(value, p, {"kind", "source"});
+    return NarrativePlayCueStep{
+        parseAudioId(value.at("source"), p + ".source")};
+  }
+  if (kind == "run_route") {
+    requireObjectFields(value, p, {"kind", "actor", "route"});
+    return NarrativeRunRouteStep{parseAudioId(value.at("actor"), p + ".actor"),
+                                 parseAudioId(value.at("route"), p + ".route")};
+  }
+  if (kind == "delay") {
+    requireObjectFields(value, p, {"kind", "seconds"});
+    return NarrativeDelayStep{parseFloat(value.at("seconds"), p + ".seconds")};
+  }
+  if (kind == "wait_until") {
+    requireObjectFields(value, p, {"kind", "predicates"});
+    return NarrativeWaitUntilStep{
+        parseNarrativePredicates(value.at("predicates"), p + ".predicates")};
+  }
+  fail(p + ".kind", "unsupported step kind '" + kind + "'");
+}
+LevelNarrative parseNarrative(const Json& value) {
+  requireObjectFields(value, "narrative", {"facts", "regions", "events"});
+  const auto records = [&](std::string_view collection,
+                           std::size_t bound) -> const Json& {
+    const auto& values = value.at(collection);
+    if (!values.is_array() || values.size() > bound)
+      fail("narrative." + std::string(collection),
+           "must be an array of at most " + std::to_string(bound) + " records");
+    return values;
+  };
+  LevelNarrative narrative;
+  for (const auto& v : records("facts", level_maximum_narrative_fact_count)) {
+    const auto p =
+        "narrative.facts[" + std::to_string(narrative.facts.size()) + "]";
+    requireObjectFields(v, p, {"id", "initial_value"});
+    narrative.facts.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parseBool(v.at("initial_value"), p + ".initial_value")});
+  }
+  for (const auto& v :
+       records("regions", level_maximum_narrative_region_count)) {
+    const auto p =
+        "narrative.regions[" + std::to_string(narrative.regions.size()) + "]";
+    requireObjectFields(v, p, {"id", "center", "half_extent"});
+    narrative.regions.push_back(
+        {parseAudioId(v.at("id"), p + ".id"),
+         parsePosition(v.at("center"), p + ".center"),
+         parseExtent(v.at("half_extent"), p + ".half_extent")});
+  }
+  for (const auto& v : records("events", level_maximum_narrative_event_count)) {
+    const auto p =
+        "narrative.events[" + std::to_string(narrative.events.size()) + "]";
+    requireObjectFields(
+        v, p, {"id", "trigger", "guards", "cancel", "repeat", "steps"});
+    NarrativeEventDefinition event;
+    event.id = parseAudioId(v.at("id"), p + ".id");
+    event.trigger = parseNarrativeTrigger(v.at("trigger"), p + ".trigger");
+    event.guards = parseNarrativePredicates(v.at("guards"), p + ".guards");
+    if (!v.at("cancel").is_null())
+      event.cancel = parseNarrativePredicates(v.at("cancel"), p + ".cancel");
+    event.repeat = parseNarrativeEnum<NarrativeRepeat>(
+        v.at("repeat"), p + ".repeat", narrative_repeat_names);
+    const auto& steps = v.at("steps");
+    if (!steps.is_array() || steps.size() > level_maximum_narrative_step_count)
+      fail(p + ".steps", "must be an array of at most 32 steps");
+    for (std::size_t i = 0; i < steps.size(); ++i)
+      event.steps.push_back(parseNarrativeStep(
+          steps[i], p + ".steps[" + std::to_string(i) + "]"));
+    narrative.events.push_back(std::move(event));
+  }
+  return narrative;
+}
+
 LevelDocument parseDocument(const Json& root) {
   if (!root.is_object()) fail("", "must be an object");
   if (!root.contains("version")) fail("version", "required field is missing");
   const std::uint32_t version = parseUnsigned(root.at("version"), "version");
   if (version != 2 && version != 3 && version != 4 && version != 5 &&
-      version != 6 && version != 7 && version != 8 && version != 9 &&
+      version != 6 && version != 7 && version != 8 && version != 9 && version != 10 &&
       version != level_format_version) {
     fail("version",
          "unsupported level format version " + std::to_string(version));
@@ -659,12 +890,18 @@ LevelDocument parseDocument(const Json& root) {
                         {"version", "terrain", "solids", "entries",
                          "default_entry", "environment_light", "props",
                          "light_switches", "doors", "audio", "characters"});
-  } else {
+  } else if (version == 10) {
     requireObjectFields(
         root, "",
         {"version", "terrain", "solids", "entries", "default_entry",
          "environment_light", "props", "light_switches", "doors", "audio",
          "characters", "household"});
+  } else {
+    requireObjectFields(
+        root, "",
+        {"version", "terrain", "solids", "entries", "default_entry",
+         "environment_light", "props", "light_switches", "doors", "audio",
+         "characters", "household", "narrative"});
   }
   const Json& solids_json = root.at("solids");
   if (!solids_json.is_array()) {
@@ -683,6 +920,7 @@ LevelDocument parseDocument(const Json& root) {
   if (version >= 9)
     document.characters = parseCharacters(root.at("characters"));
   if (version >= 10) document.household = parseHousehold(root.at("household"));
+  if (version >= 11) document.narrative = parseNarrative(root.at("narrative"));
   if (version < 4 || !root.at("terrain").is_null())
     document.terrain = parseTerrain(root.at("terrain"), version);
   document.solids = std::move(solids);
@@ -815,6 +1053,140 @@ std::string_view solidKindString(PrototypeSolidKind kind) {
       return "low_clearance";
   }
   throw std::logic_error("validated level has unsupported solid kind");
+}
+
+Json narrativePredicateJson(const NarrativePredicate& predicate) {
+  return std::visit(
+      [](const auto& v) -> Json {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, NarrativeFactPredicate>)
+          return {{"kind", "fact"}, {"fact", v.fact}, {"value", v.value}};
+        else if constexpr (std::is_same_v<T, NarrativeRegionPredicate>)
+          return {
+              {"kind", "region"}, {"region", v.region}, {"inside", v.inside}};
+        else if constexpr (std::is_same_v<T, NarrativeLightPredicate>)
+          return {
+              {"kind", "light"}, {"light", v.light}, {"enabled", v.enabled}};
+        else if constexpr (std::is_same_v<T, NarrativeDoorEndpointPredicate>)
+          return {
+              {"kind", "door_endpoint"}, {"door", v.door}, {"open", v.open}};
+        else if constexpr (std::is_same_v<T, NarrativeDoorLockedPredicate>)
+          return {
+              {"kind", "door_locked"}, {"door", v.door}, {"locked", v.locked}};
+        else if constexpr (std::is_same_v<T, NarrativeRadioPredicate>)
+          return {
+              {"kind", "radio"}, {"radio", v.radio}, {"enabled", v.enabled}};
+        else if constexpr (std::is_same_v<T, NarrativeBoxPredicate>)
+          return {{"kind", "box"}, {"box", v.box}, {"held", v.held}};
+        else if constexpr (std::is_same_v<T, NarrativeDocumentPredicate>)
+          return {
+              {"kind", "document"}, {"document", v.document}, {"open", v.open}};
+        else if constexpr (std::is_same_v<T, NarrativeActorPredicate>)
+          return {{"kind", "actor"},
+                  {"actor", v.actor},
+                  {"state",
+                   narrative_actor_state_names[static_cast<std::size_t>(v.state)]}};
+        else if constexpr (std::is_same_v<T, NarrativeEventPredicate>)
+          return {{"kind", "event"},
+                  {"event", v.event},
+                  {"state",
+                   narrative_event_state_names[static_cast<std::size_t>(v.state)]}};
+        else
+          return {{"kind", "elapsed"}, {"seconds", v.seconds}};
+      },
+      predicate);
+}
+Json narrativePredicatesJson(
+    const std::vector<NarrativePredicate>& predicates) {
+  auto values = Json::array();
+  for (const auto& predicate : predicates)
+    values.push_back(narrativePredicateJson(predicate));
+  return values;
+}
+Json narrativeTriggerJson(const NarrativeTrigger& trigger) {
+  return std::visit(
+      [](const auto& v) -> Json {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, NarrativeSceneEntryTrigger>)
+          return {{"kind", "scene_entry"}};
+        else if constexpr (std::is_same_v<T, NarrativeRegionEntryTrigger>)
+          return {{"kind", "region_entry"}, {"region", v.region}};
+        else if constexpr (std::is_same_v<T, NarrativeInteractionTrigger>)
+          return {
+              {"kind", "interaction"},
+              {"target_kind",
+               narrative_target_kind_names[static_cast<std::size_t>(v.target_kind)]},
+              {"target", v.target},
+              {"action",
+               narrative_action_names[static_cast<std::size_t>(v.action)]}};
+        else
+          return {{"kind", "condition"},
+                  {"predicates", narrativePredicatesJson(v.predicates)}};
+      },
+      trigger);
+}
+Json narrativeStepJson(const NarrativeStep& step) {
+  return std::visit(
+      [](const auto& v) -> Json {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, NarrativeSetFactStep>)
+          return {{"kind", "set_fact"}, {"fact", v.fact}, {"value", v.value}};
+        else if constexpr (std::is_same_v<T, NarrativeSetLightStep>)
+          return {{"kind", "set_light"},
+                  {"light", v.light},
+                  {"enabled", v.enabled}};
+        else if constexpr (std::is_same_v<T, NarrativeSetDoorOpenStep>)
+          return {
+              {"kind", "set_door_open"}, {"door", v.door}, {"open", v.open}};
+        else if constexpr (std::is_same_v<T, NarrativeSetDoorLockedStep>)
+          return {{"kind", "set_door_locked"},
+                  {"door", v.door},
+                  {"locked", v.locked}};
+        else if constexpr (std::is_same_v<T, NarrativeSetRadioStep>)
+          return {{"kind", "set_radio"},
+                  {"radio", v.radio},
+                  {"enabled", v.enabled}};
+        else if constexpr (std::is_same_v<T, NarrativePlayCueStep>)
+          return {{"kind", "play_cue"}, {"source", v.source}};
+        else if constexpr (std::is_same_v<T, NarrativeRunRouteStep>)
+          return {
+              {"kind", "run_route"}, {"actor", v.actor}, {"route", v.route}};
+        else if constexpr (std::is_same_v<T, NarrativeDelayStep>)
+          return {{"kind", "delay"}, {"seconds", v.seconds}};
+        else
+          return {{"kind", "wait_until"},
+                  {"predicates", narrativePredicatesJson(v.predicates)}};
+      },
+      step);
+}
+Json narrativeJson(const LevelNarrative& narrative) {
+  auto value = Json::object();
+  value["facts"] = Json::array();
+  for (const auto& fact : narrative.facts)
+    value["facts"].push_back(
+        {{"id", fact.id}, {"initial_value", fact.initial_value}});
+  value["regions"] = Json::array();
+  for (const auto& region : narrative.regions)
+    value["regions"].push_back(
+        {{"id", region.id},
+         {"center", positionJson(region.center)},
+         {"half_extent", extentJson(region.half_extent)}});
+  value["events"] = Json::array();
+  for (const auto& event : narrative.events) {
+    auto steps = Json::array();
+    for (const auto& step : event.steps)
+      steps.push_back(narrativeStepJson(step));
+    value["events"].push_back(
+        {{"id", event.id},
+         {"trigger", narrativeTriggerJson(event.trigger)},
+         {"guards", narrativePredicatesJson(event.guards)},
+         {"cancel", event.cancel ? narrativePredicatesJson(*event.cancel)
+                                 : Json(nullptr)},
+         {"repeat",
+          narrative_repeat_names[static_cast<std::size_t>(event.repeat)]},
+         {"steps", std::move(steps)}});
+  }
+  return value;
 }
 
 std::string serializeDocument(const LevelDocument& document) {
@@ -999,6 +1371,7 @@ std::string serializeDocument(const LevelDocument& document) {
                                    {"source", r.source},
                                    {"initially_on", r.initially_on}});
   root["household"] = std::move(household);
+  root["narrative"] = narrativeJson(document.narrative);
   return root.dump(2, ' ', false, Json::error_handler_t::strict) + '\n';
 }
 

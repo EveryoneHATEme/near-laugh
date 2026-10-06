@@ -20,24 +20,30 @@ int wmain(int argc, wchar_t** argv) {
 int main(int argc, char** argv) {
 #endif
   try {
+    const bool narrative_smoke = argc >= 2 && std::filesystem::path(argv[1]) == "--narrative-smoke";
+    const bool narrative_preflight = argc == 2 && std::filesystem::path(argv[1]) == "--narrative-preflight";
     const bool smoke = argc >= 2 && std::filesystem::path(argv[1]) == "--smoke";
     const bool character_smoke =
         argc == 2 && std::filesystem::path(argv[1]) == "--character-smoke";
     const bool household_smoke =
         argc >= 2 && std::filesystem::path(argv[1]) == "--household-smoke";
-    if ((!smoke && !household_smoke && argc > 2) ||
-        ((smoke || household_smoke) && argc > 3)) {
+    if ((!smoke && !household_smoke && !narrative_smoke && argc > 2) ||
+        ((smoke || household_smoke || narrative_smoke) && argc > 3)) {
       std::cerr
           << "usage: level_editor [level-path]\n"
              "       level_editor --smoke [level-path]\n"
              "       level_editor --character-smoke\n"
+             "       level_editor --narrative-smoke [capture-directory]\n"
+             "       level_editor --narrative-preflight\n"
              "       level_editor --household-smoke [capture-directory]\n";
       return 2;
     }
     const std::filesystem::path resource_root =
         launcher::executableResourceRoot();
     std::optional<std::filesystem::path> initial_level;
-    if (household_smoke) {
+    if (narrative_smoke || narrative_preflight) {
+      initial_level = resource_root / "levels/narrative-t4.level.json";
+    } else if (household_smoke) {
       initial_level =
           resource_root / "levels/household-interactions.level.json";
     } else if (character_smoke) {
@@ -50,6 +56,17 @@ int main(int argc, char** argv) {
     } else if (argc == 2) {
       initial_level = std::filesystem::path(argv[1]);
     }
+    if (narrative_preflight) {
+      EditorDocument document;
+      if (!document.open(*initial_level) || !document.valid() ||
+          document.document()->narrative.regions.empty() || document.document()->narrative.events.empty())
+        throw std::runtime_error("Narrative editor preflight failed: " + formatLevelDiagnostics(document.diagnostics()));
+      EditorPlaytest play;
+      if (!play.request(document, false) || !play.consume())
+        throw std::runtime_error("Narrative editor saved-file preflight failed: " + play.error());
+      std::cout << "Narrative editor definition/saved-file preflight passed; GPU not checked\n";
+      return 0;
+    }
     ValidationDiagnostics diagnostics;
     struct CharacterLifecycle {
       std::vector<std::string> events;
@@ -57,11 +74,11 @@ int main(int argc, char** argv) {
         if (enabled) setLifecycleLog(&events);
       }
       ~CharacterLifecycle() { setLifecycleLog(nullptr); }
-    } lifecycle(character_smoke || household_smoke);
+    } lifecycle(character_smoke || household_smoke || narrative_smoke);
     const std::filesystem::path household_captures =
-        household_smoke && argc == 3
+        (household_smoke || narrative_smoke) && argc == 3
             ? std::filesystem::path(argv[2])
-            : std::filesystem::current_path() / "household-editor-smoke" /
+            : std::filesystem::current_path() / (narrative_smoke ? "narrative-editor-smoke" : "household-editor-smoke") /
                   std::to_string(std::chrono::steady_clock::now()
                                      .time_since_epoch()
                                      .count());
@@ -69,8 +86,10 @@ int main(int argc, char** argv) {
     {
       EditorApplication application(
           resource_root, initial_level, diagnostics,
-          character_smoke || household_smoke ? &capture : nullptr);
-      if (household_smoke)
+          character_smoke || household_smoke || narrative_smoke ? &capture : nullptr);
+      if (narrative_smoke)
+        application.runNarrativeSmoke(lifecycle.events, capture, household_captures);
+      else if (household_smoke)
         application.runHouseholdSmoke(lifecycle.events, capture,
                                       household_captures);
       else if (character_smoke)
@@ -79,6 +98,20 @@ int main(int argc, char** argv) {
         application.runSmoke(*initial_level);
       else
         application.run();
+    }
+    if (narrative_smoke) {
+      std::ofstream evidence(household_captures / "lifecycle.txt");
+      for (const auto& event : lifecycle.events) evidence << event << '\n';
+      for (const auto& pair : {std::pair{"editor.renderer.created", "editor.renderer.destroyed"},
+                               std::pair{"device.created", "device.destroyed"}}) {
+        const auto created = std::count(lifecycle.events.begin(), lifecycle.events.end(), pair.first);
+        const auto destroyed = std::count(lifecycle.events.begin(), lifecycle.events.end(), pair.second);
+        if (created == 0 || created != destroyed)
+          throw std::runtime_error(std::string("Unbalanced narrative editor lifetime: ") + pair.first);
+      }
+      evidence << "Vulkan validation errors after teardown: " << diagnostics.errorCount() << '\n';
+      if (!evidence) throw std::runtime_error("Narrative lifecycle evidence write failed");
+      std::cout << "Editor narrative captures: " << household_captures << '\n';
     }
     if (household_smoke) {
       std::ofstream evidence(household_captures / "lifecycle.txt");

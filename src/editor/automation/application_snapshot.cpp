@@ -4,6 +4,8 @@
 #include <cmath>
 #include <type_traits>
 
+#include "core/world/narrative.hpp"
+
 namespace editor_automation {
 
 Json knownValue(Json value, std::string_view type) {
@@ -49,7 +51,7 @@ Json unavailableValue(std::string_view reason, std::string_view availability) {
 std::string objectRecordType(const EditorObjectValue& value) {
   static constexpr std::array names{"solid", "entry", "point_light", "prop", "light_switch", "door",
       "audio_cue", "audio_source", "audio_room", "audio_connection", "actor", "mark", "route",
-      "household_box", "readable_document", "radio"};
+      "household_box", "readable_document", "radio", "narrative_fact", "narrative_region", "narrative_event"};
   return names.at(value.index());
 }
 
@@ -60,6 +62,55 @@ std::string pathText(const std::filesystem::path& path) {
 }
 Json optionalString(const std::optional<std::string>& value) {
   return knownValue(value ? Json(*value) : Json(nullptr), "optional_string");
+}
+Json narrativeParameters(const auto& v) {
+  Json result = Json::object();
+  if constexpr (requires { v.fact; }) result["fact"] = v.fact;
+  if constexpr (requires { v.region; }) result["region"] = v.region;
+  if constexpr (requires { v.light; }) result["light"] = v.light;
+  if constexpr (requires { v.door; }) result["door"] = v.door;
+  if constexpr (requires { v.radio; }) result["radio"] = v.radio;
+  if constexpr (requires { v.box; }) result["box"] = v.box;
+  if constexpr (requires { v.document; }) result["document"] = v.document;
+  if constexpr (requires { v.actor; }) result["actor"] = v.actor;
+  if constexpr (requires { v.event; }) result["event"] = v.event;
+  if constexpr (requires { v.source; }) result["source"] = v.source;
+  if constexpr (requires { v.route; }) result["route"] = v.route;
+  if constexpr (requires { v.value; }) result["value"] = v.value;
+  if constexpr (requires { v.inside; }) result["inside"] = v.inside;
+  if constexpr (requires { v.enabled; }) result["enabled"] = v.enabled;
+  if constexpr (requires { v.open; }) result["open"] = v.open;
+  if constexpr (requires { v.locked; }) result["locked"] = v.locked;
+  if constexpr (requires { v.held; }) result["held"] = v.held;
+  if constexpr (requires { v.seconds; }) result["seconds"] = v.seconds;
+  if constexpr (requires { v.state; }) {
+    if constexpr (std::is_same_v<std::decay_t<decltype(v.state)>, NarrativeActorState>)
+      result["state"] = narrative_actor_state_names.at(static_cast<std::size_t>(v.state));
+    else
+      result["state"] = narrative_event_state_names.at(static_cast<std::size_t>(v.state));
+  }
+  if constexpr (requires { v.target_kind; }) {
+    result["target_kind"] = narrative_target_kind_names.at(static_cast<std::size_t>(v.target_kind));
+    result["target"] = v.target;
+    result["action"] = narrative_action_names.at(static_cast<std::size_t>(v.action));
+  }
+  if constexpr (requires { v.predicates; }) {
+    result["predicates"] = Json::array();
+    for (const auto& term : v.predicates) {
+      auto predicate = std::visit([](const auto& part) { return narrativeParameters(part); }, term);
+      predicate["kind"] = narrative_predicate_kind_names.at(term.index());
+      result["predicates"].push_back(std::move(predicate));
+    }
+  }
+  return result;
+}
+Json narrativePredicates(const std::vector<NarrativePredicate>& list) {
+  Json result = Json::array();
+  for (const auto& term : list) {
+    auto predicate = std::visit([](const auto& part) { return narrativeParameters(part); }, term);
+    predicate["kind"] = narrative_predicate_kind_names.at(term.index()); result.push_back(std::move(predicate));
+  }
+  return result;
 }
 Json objectFields(const EditorObjectValue& object) {
   Json fields = Json::object();
@@ -151,11 +202,35 @@ Json objectFields(const EditorObjectValue& object) {
     } else if constexpr (std::is_same_v<T, HouseholdRadioDefinition>) {
       string("id", value.id); string("prop", value.prop); string("source", value.source);
       boolean("initially_on", value.initially_on);
+    } else if constexpr (std::is_same_v<T, NarrativeFactDefinition>) {
+      string("id", value.id); boolean("initial_value", value.initial_value);
+    } else if constexpr (std::is_same_v<T, NarrativeRegionDefinition>) {
+      string("id", value.id); position("center", value.center); extent("half_extent", value.half_extent);
+    } else if constexpr (std::is_same_v<T, NarrativeEventDefinition>) {
+      fields.update(narrativeEventFields(value));
     }
   }, object);
   return fields;
 }
 }  // namespace
+
+Json narrativeEventFields(const NarrativeEventDefinition& value) {
+  Json fields = Json::object();
+  fields["id"] = knownValue(value.id, "string");
+  fields["repeat"] = knownValue(narrative_repeat_names.at(static_cast<std::size_t>(value.repeat)), "string");
+      auto trigger = std::visit([](const auto& part) { return narrativeParameters(part); }, value.trigger);
+      trigger["kind"] = narrative_trigger_kind_names.at(value.trigger.index()); fields["trigger"] = knownValue(trigger, "narrative_trigger");
+      fields["guards"] = knownValue(narrativePredicates(value.guards), "narrative_predicates");
+      fields["cancel_enabled"] = knownValue(value.cancel.has_value(), "boolean");
+      fields["cancel"] = knownValue(value.cancel ? narrativePredicates(*value.cancel) : Json(nullptr), "narrative_predicates");
+      Json steps = Json::array();
+      for (const auto& step : value.steps) {
+        auto record = std::visit([](const auto& part) { return narrativeParameters(part); }, step);
+        record["kind"] = narrative_step_kind_names.at(step.index()); steps.push_back(std::move(record));
+      }
+      fields["steps"] = knownValue(steps, "narrative_steps");
+  return fields;
+}
 
 Json captureApplication(const EditorDocument& document, const ObjectRefs& refs, const Json& preview_fields) {
   Json result = Json::array();
@@ -190,7 +265,9 @@ Json captureApplication(const EditorDocument& document, const ObjectRefs& refs, 
         {"audio_room_count", level.audio.rooms.size()}, {"audio_connection_count", level.audio.connections.size()},
         {"actor_count", level.characters.actors.size()}, {"mark_count", level.characters.marks.size()},
         {"route_count", level.characters.routes.size()}, {"box_count", level.household.boxes.size()},
-        {"document_count", level.household.documents.size()}, {"radio_count", level.household.radios.size()}})
+        {"document_count", level.household.documents.size()}, {"radio_count", level.household.radios.size()},
+        {"fact_count", level.narrative.facts.size()}, {"region_count", level.narrative.regions.size()},
+        {"event_count", level.narrative.events.size()}})
       doc(key, count, "integer");
   }
   const auto selected = refs.find(document.selection());

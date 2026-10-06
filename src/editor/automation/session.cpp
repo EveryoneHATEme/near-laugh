@@ -88,7 +88,8 @@ SessionController::SessionController(Channel& channel, Json configuration)
   if (session_id_.empty() || session_id_.size() > 128)
     throw ProtocolError("invalid_request", "Invalid session identity");
   const auto fixture = start_request_.at("fixture").get<std::string>();
-  if (fixture != "apartment-stairs" && fixture != "household-interactions")
+  if (fixture != "apartment-stairs" && fixture != "household-interactions" &&
+      fixture != "narrative-t4")
     throw ProtocolError("policy_denied", "Fixture is not allowlisted");
   resource_root_ = path(configuration_.at("resource_root"));
   if (resource_root_.lexically_normal() != launcher::executableResourceRoot().lexically_normal())

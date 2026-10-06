@@ -17,4 +17,6 @@ std::string objectRecordType(const EditorObjectValue& value);
 // contains no editor pointers and is retained with its completed-frame stamp.
 Json captureApplication(const EditorDocument& document, const ObjectRefs& refs,
                         const Json& preview_fields = Json::object());
+// Copied ordered narrative data also identifies ephemeral semantic rows.
+Json narrativeEventFields(const NarrativeEventDefinition& event);
 }  // namespace editor_automation

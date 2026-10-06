@@ -68,6 +68,7 @@ std::vector<EditorObjectId> objectIds(const EditorDocument& document) {
   for (int kind = 0; kind != 3; ++kind) {
     append(document.characterIds(static_cast<EditorCharacterKind>(kind)));
     append(document.householdIds(static_cast<EditorHouseholdKind>(kind)));
+    append(document.narrativeIds(static_cast<EditorNarrativeKind>(kind)));
   }
   return ids;
 }
@@ -153,6 +154,19 @@ struct SemanticUi::Impl {
         structure("pages", readable->pages);
       else if (const auto* route = std::get_if<CharacterRouteDefinition>(&*value))
         structure("marks", route->marks);
+      else if (const auto* event = std::get_if<NarrativeEventDefinition>(&*value)) {
+        const auto fields = narrativeEventFields(*event);
+        structure("steps", fields["steps"]["value"]);
+        structure("guards", fields["guards"]["value"]);
+        structure("cancel", fields["cancel"]["value"]);
+        const auto& trigger = fields["trigger"]["value"];
+        structure("trigger.predicates", trigger.value("predicates", Json::array()));
+        const auto& steps = fields["steps"]["value"];
+        for (std::size_t i = 0; i < steps.size(); ++i) {
+          const auto family = "steps." + std::to_string(i) + ".predicates";
+          structure(family.c_str(), steps[i].value("predicates", Json::array()));
+        }
+      }
     }
     std::erase_if(structures, [&](const auto& entry) {
       return !live_refs.contains(entry.first.first);

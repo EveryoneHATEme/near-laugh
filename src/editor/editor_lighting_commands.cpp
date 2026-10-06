@@ -33,12 +33,11 @@ bool EditorDocument::addPointLight(PrototypePointLight value) {
     return false;
   }
   auto& lights = document_->environment_light.point_lights;
-  for (std::size_t i = 1;; ++i) {
-    value.id = "point-light-" + std::to_string(i);
-    if (std::none_of(lights.begin(), lights.end(),
-                     [&](const auto& v) { return v.id == value.id; }))
-      break;
-  }
+  value.id = editorFreshId(
+      "point-light-", document_->narrative, value, [&](const std::string& id) {
+        return std::any_of(lights.begin(), lights.end(),
+                           [&](const auto& v) { return v.id == id; });
+      });
   edit_error_ = editorObjectFieldError(value);
   if (!edit_error_.empty()) return false;
   const auto id = next_object_id_++;
@@ -62,13 +61,12 @@ bool EditorDocument::addLightSwitch(PrototypeLightSwitch value) {
     edit_error_ = "A level supports at most sixteen switches.";
     return false;
   }
-  for (std::size_t i = 1;; ++i) {
-    value.id = "light-switch-" + std::to_string(i);
-    if (std::none_of(document_->light_switches.begin(),
-                     document_->light_switches.end(),
-                     [&](const auto& v) { return v.id == value.id; }))
-      break;
-  }
+  value.id = editorFreshId(
+      "light-switch-", document_->narrative, value, [&](const std::string& id) {
+        return std::any_of(document_->light_switches.begin(),
+                           document_->light_switches.end(),
+                           [&](const auto& v) { return v.id == id; });
+      });
   edit_error_ = editorObjectFieldError(value);
   if (!edit_error_.empty()) return false;
   const auto id = next_object_id_++;

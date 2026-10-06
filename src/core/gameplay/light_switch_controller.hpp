@@ -9,6 +9,7 @@ class LightSwitchController {
       const PrototypeEnvironmentLight& lights,
       const std::vector<PrototypeLightSwitch>& switches);
   void toggle(std::size_t switch_index);
+  [[nodiscard]] bool setEnabled(std::size_t light_index, bool enabled);
   [[nodiscard]] const std::vector<std::uint8_t>& pointLightEnabled()
       const noexcept {
     return enabled_;

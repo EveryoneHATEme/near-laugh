@@ -83,7 +83,14 @@ std::optional<EditorObjectValue> editorPlacedObject(
             object.position.y += household_document_half_extent.y;
           } else
             available = false;
-        } else if constexpr (std::is_same_v<T, AudioCueDefinition> ||
+        } else if constexpr (std::is_same_v<T, NarrativeRegionDefinition>) {
+          if (top && hit.normal.y > 0) {
+            object.center = hit.position;
+            object.center.y += object.half_extent.y;
+          } else available = false;
+        } else if constexpr (std::is_same_v<T, NarrativeFactDefinition> ||
+                             std::is_same_v<T, NarrativeEventDefinition> ||
+                             std::is_same_v<T, AudioCueDefinition> ||
                              std::is_same_v<T, AudioRoomDefinition> ||
                              std::is_same_v<T, AudioConnectionDefinition> ||
                              std::is_same_v<T, CharacterActorDefinition> ||
@@ -116,6 +123,7 @@ std::string editorObjectFieldError(const EditorObjectValue& value) {
   if (editorAudioKind(value)) return editorAudioFieldError(value);
   if (editorCharacterKind(value)) return editorCharacterFieldError(value);
   if (editorHouseholdKind(value)) return editorHouseholdFieldError(value);
+  if (editorNarrativeKind(value)) return editorNarrativeFieldError(value);
   return std::visit(
       [](const auto& v) -> std::string {
         using T = std::decay_t<decltype(v)>;
@@ -232,6 +240,7 @@ void EditorDocument::resetEditing() {
   resetAudioIds();
   resetCharacterIds();
   resetHouseholdIds();
+  resetNarrativeIds();
   history_.clear();
   terrain_stroke_.reset();
   history_position_ = 0;
@@ -279,12 +288,12 @@ bool EditorDocument::addDoor() {
   static_cast<void>(finishTerrainStroke());
   if (!document_ || document_->doors.size() >= 32) return false;
   DoorDefinition door;
-  for (std::size_t i = 1;; ++i) {
-    door.id = "door-" + std::to_string(i);
-    if (std::none_of(document_->doors.begin(), document_->doors.end(),
-                     [&](const auto& d) { return d.id == door.id; }))
-      break;
-  }
+  door.id = editorFreshId("door-", document_->narrative, door,
+                          [&](const std::string& id) {
+                            return std::any_of(
+                                document_->doors.begin(), document_->doors.end(),
+                                [&](const auto& d) { return d.id == id; });
+                          });
   const auto* entry = findLevelEntry(*document_, document_->default_entry);
   door.hinge_position = entry ? entry->pose.foot_position : WorldPosition{};
   door.hinge_position.x += 1.5F;
@@ -381,6 +390,7 @@ std::optional<EditorObjectValue> EditorDocument::object(
   if (const auto index = solidIndex(id)) return document_->solids[*index];
   if (auto value = characterObject(id)) return value;
   if (auto value = householdObject(id)) return value;
+  if (auto value = narrativeObject(id)) return value;
   return audioObject(id);
 }
 
@@ -453,6 +463,7 @@ bool EditorDocument::replaceObject(EditorObjectId id, EditorObjectValue value) {
   if (!prepareLightingEdit(edit)) return false;
   if (!prepareCharacterEdit(edit)) return false;
   if (!prepareHouseholdEdit(edit)) return false;
+  if (!prepareNarrativeEdit(edit)) return false;
   if (const auto* entry = std::get_if<LevelEntry>(&*edit.after)) {
     const auto& old = std::get<LevelEntry>(*before);
     if (old.id != entry->id && findLevelEntry(*document_, entry->id)) {
@@ -506,6 +517,8 @@ bool EditorDocument::addSolid(PrototypeSolid solid) {
 }
 
 bool EditorDocument::duplicateSelected() {
+  if (auto value = narrativeObject(selection_))
+    return addNarrativeObject(std::move(*value));
   if (auto value = characterObject(selection_))
     return duplicateCharacter(std::move(*value));
   if (auto value = householdObject(selection_)) {
@@ -533,12 +546,13 @@ bool EditorDocument::duplicateSelected() {
     if (document_->doors.size() >= 32) return false;
     auto copy = document_->doors[*index];
     copy.hinge_position.x += copy.width + 0.5F;
-    for (std::size_t i = 1;; ++i) {
-      copy.id = "door-" + std::to_string(i);
-      if (std::none_of(document_->doors.begin(), document_->doors.end(),
-                       [&](const auto& d) { return d.id == copy.id; }))
-        break;
-    }
+    copy.id = editorFreshId("door-", document_->narrative, copy,
+                            [&](const std::string& id) {
+                              return std::any_of(
+                                  document_->doors.begin(),
+                                  document_->doors.end(),
+                                  [&](const auto& d) { return d.id == id; });
+                            });
     if (!editorObjectFieldError(copy).empty()) return false;
     const auto id = next_object_id_++;
     return commit(
@@ -574,6 +588,12 @@ bool EditorDocument::duplicateSelected() {
 bool EditorDocument::removeSelected() {
   static_cast<void>(finishTerrainStroke());
   if (characterObject(selection_)) return removeCharacter();
+  if (auto value = narrativeObject(selection_)) {
+    const auto& ids = narrativeIds(*editorNarrativeKind(*value));
+    const auto index = static_cast<std::size_t>(
+        std::find(ids.begin(), ids.end(), selection_) - ids.begin());
+    return commit({selection_, index, value, std::nullopt, selection_, editor_no_object});
+  }
   if (auto value = householdObject(selection_)) {
     const auto& ids = householdIds(*editorHouseholdKind(*value));
     const auto index = static_cast<std::size_t>(
@@ -625,7 +645,7 @@ bool EditorDocument::placeSelected(WorldPosition terrain_hit) {
     return false;
   terrain_hit.y = prototypeTerrainHeightAt(*document_->terrain, terrain_hit.x,
                                            terrain_hit.z);
-  if (editorCharacterKind(*value) || editorHouseholdKind(*value))
+  if (editorCharacterKind(*value) || editorHouseholdKind(*value) || editorNarrativeKind(*value))
     return placeSelected({terrain_hit,
                           {0, 1, 0},
                           0,
@@ -682,12 +702,16 @@ void EditorDocument::applyEdit(const Edit& edit, bool forward) {
   if (edit.household_after)
     document_->household =
         forward ? *edit.household_after : *edit.household_before;
+  if (edit.narrative_after)
+    document_->narrative = forward ? *edit.narrative_after : *edit.narrative_before;
   if (edit.character_ids_after)
     character_ids_ =
         forward ? *edit.character_ids_after : *edit.character_ids_before;
   const auto& identity = edit.after ? edit.after : edit.before;
   if (identity && editorCharacterKind(*identity)) {
     // Compound character definitions/references/handles share one revision.
+  } else if (applyNarrativeEdit(edit, forward)) {
+    // Narrative definitions and incoming references share the same history edit.
   } else if (applyHouseholdEdit(edit, forward)) {
     // Household values use the same bounded history and selection below.
   } else if (applyLightingEdit(edit, forward)) {

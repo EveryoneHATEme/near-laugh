@@ -175,8 +175,9 @@ shared by rendering, visibility and collision. Conservative clearance can
 stop a door slightly early, including space the player has just vacated.
 
 Generated handles, a sliding bolt and distinct brief knock/refusal cues provide
-temporary visual feedback. Automatic door action sounds and narrative reactions
-remain later work; authored audio transmission uses the accepted leaf angle.
+temporary visual feedback. Automatic door action sounds remain later work;
+authored events can react to accepted door actions or actual endpoints/locks.
+Audio transmission uses the accepted leaf angle.
 Door motion, locks, feedback and switch light enables are run-local; recovery
 preserves them and restarting restores authored initial values. No level file
 is changed during play.
@@ -325,7 +326,7 @@ authored transmission, with no geometric occlusion, reverb or diffraction.
 and ring, moving footsteps, the entire phone conversation, a two-second pause,
 then an invitation contradicting the completed call. Neutral source labels do
 not reveal hidden identity. Opening its level in the ordinary game runs only
-authored autoplay ambience. Full narrative progression remains P05 work.
+authored autoplay ambience; this legacy fixture contains no authored events.
 See [fixture controls and acceptance](DEVELOPMENT.md#p04-audio-and-caption-fixture).
 
 Do not introduce a generic audio graph, middleware abstraction layer,
@@ -333,23 +334,31 @@ or procedural audio architecture without a concrete need.
 
 ## Events and Narrative State
 
-The game may require authored sequences whose behavior depends on player
-location, interaction, previous events, or persistent state.
+The v11 authoring profile supports Boolean facts, named regions and finite
+linear events. Triggers are scene entry, region entry, accepted player actions
+and condition transitions. Conditions can observe facts, regions, lights,
+actual door endpoints/locks, radio state, held boxes, open documents, actor
+actions, event terminal states and elapsed active time. Opening a document
+does not establish that its text was read or understood.
 
-Useful concrete concepts may include:
+Steps set facts, lights, door targets/locks and radios, play a one-shot cue,
+run an actor route, delay or wait for conditions. Door target acceptance is
+distinct from arrival. A blocked door stays stopped until an explicit request;
+a blocked actor retains its existing retry policy. Busy audio or actors wait
+without preemption. Refused commands fail the event. Cancellation discards later
+steps and stops only cue/route instances started by that run; accepted world
+changes remain. Events never take the player's hands or force reader changes.
 
-* trigger volumes
-* one-shot events
-* event conditions
-* simple sequencing
-* local state flags
-* changes to world objects
-* changes to lighting or audio
-* character or threat activation
-* progression checkpoints
+The ordinary neutral T4 scene enables a light on region entry, plays a captioned
+cue, delays, runs a character route and records completion. Turning its
+initially-on radio off cancels the sequence. Its validation remains separate
+from story development and from human listening/visual acceptance; see the
+[T4 evidence record](../openspec/changes/add-narrative-state-and-sequences/validation.md).
 
-Prefer explicit data and game-specific event logic while the requirements
-remain small.
+Facts and sequence history currently belong to one running process. Story
+content, progression checkpoints and persistent session state remain separate
+work. Prefer explicit data and game-specific event logic as those concrete
+requirements arrive.
 
 Do not introduce a general-purpose scripting language, behavior-tree
 framework, or visual scripting system merely to implement simple authored

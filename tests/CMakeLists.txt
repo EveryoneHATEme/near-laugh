@@ -1,4 +1,8 @@
 add_executable(engine_tests
+    core/test_narrative_definitions.cpp
+    core/test_narrative_progression.cpp
+    core/test_editor_narrative.cpp
+    core/test_narrative_codec.cpp
     core/test_editor_file_policy.cpp
     core/test_household_definitions.cpp
     core/test_household_codec.cpp
@@ -82,10 +86,12 @@ gtest_discover_tests(engine_tests
     PROPERTIES LABELS "unit" TIMEOUT 120
 )
 
-add_executable(vulkan_smoke core/vulkan_smoke.cpp)
+add_executable(vulkan_smoke core/vulkan_smoke.cpp
+    ${CMAKE_SOURCE_DIR}/src/development/narrative_fixture.cpp)
 target_include_directories(vulkan_smoke PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(vulkan_smoke PRIVATE
     near_laugh_runtime near_laugh_platform near_laugh_render Vulkan::Vulkan glfw
+    nlohmann_json::nlohmann_json
 )
 near_laugh_enable_warnings(vulkan_smoke)
 set_target_properties(vulkan_smoke PROPERTIES
@@ -100,6 +106,27 @@ add_test(NAME vulkan_audio_runtime COMMAND vulkan_smoke --audio)
 add_test(NAME vulkan_scripted_characters COMMAND vulkan_smoke --characters)
 add_test(NAME vulkan_household_interactions COMMAND vulkan_smoke --household)
 add_test(NAME household_smoke_fixtures COMMAND vulkan_smoke --household-fixtures)
+# The fixture refuses to overwrite evidence, so one fixed report directory is
+# cleared before each run instead of accumulating timestamped trees in bin/.
+set(NARRATIVE_PREFLIGHT_REPORT "${CMAKE_CURRENT_BINARY_DIR}/narrative-preflight")
+add_test(NAME narrative_smoke_fixtures_reset
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${NARRATIVE_PREFLIGHT_REPORT}")
+set_tests_properties(narrative_smoke_fixtures_reset PROPERTIES LABELS "narrative"
+    FIXTURES_SETUP narrative_preflight_report)
+add_test(NAME narrative_smoke_fixtures COMMAND narrative_fixture --preflight
+    --output "${NARRATIVE_PREFLIGHT_REPORT}")
+set_tests_properties(narrative_smoke_fixtures PROPERTIES LABELS "narrative" TIMEOUT 60
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:narrative_fixture>"
+    FIXTURES_REQUIRED narrative_preflight_report)
+add_test(NAME vulkan_narrative_sequences COMMAND vulkan_smoke --narrative)
+set_tests_properties(vulkan_narrative_sequences PROPERTIES LABELS "vulkan-smoke"
+    RESOURCE_LOCK VulkanGPU TIMEOUT 300 WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
+add_test(NAME editor_narrative_preflight COMMAND level_editor --narrative-preflight)
+set_tests_properties(editor_narrative_preflight PROPERTIES LABELS "narrative" TIMEOUT 60
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>")
+add_test(NAME editor_narrative_sequences COMMAND level_editor --narrative-smoke)
+set_tests_properties(editor_narrative_sequences PROPERTIES LABELS "vulkan-smoke"
+    RESOURCE_LOCK VulkanGPU TIMEOUT 180 WORKING_DIRECTORY "$<TARGET_FILE_DIR:level_editor>")
 set_tests_properties(household_smoke_fixtures PROPERTIES LABELS "household" TIMEOUT 30
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_smoke>")
 add_test(NAME editor_household_interactions COMMAND level_editor --household-smoke)

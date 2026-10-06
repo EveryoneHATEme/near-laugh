@@ -61,7 +61,7 @@ class SemanticSession : public testing::Test {
     ImGui::CreateContext(); context_created_ = true;
     auto& io = ImGui::GetIO();
     io.IniFilename = nullptr; io.DisplaySize = {1600, 900}; io.DeltaTime = 1.F / 60.F;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     attachment_ = std::make_unique<SessionAttachment>(engine_, session_.get());
     engine_.start();
@@ -99,26 +99,49 @@ class SemanticSession : public testing::Test {
   }
   Json receive(std::string_view request, bool available = true) {
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-    while (std::chrono::steady_clock::now() < until) {
-      frame(available);
-      DWORD count{};
-      if (!PeekNamedPipe(output_read_, nullptr, 0, nullptr, &count, nullptr)) break;
-      if (count) {
-        std::string bytes(std::min<DWORD>(count, 4096), '\0'); DWORD read{};
-        if (!ReadFile(output_read_, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr)) break;
-        bytes.resize(read);
-        for (auto& message : decoder_.feed(bytes)) {
-          const auto& result = message.at("result");
-          validateResult(message.at("tool").get<std::string>(), result);
-          responses_[result.at("request_id").get<std::string>()] = result;
+    std::size_t received_bytes{}, buffered_before_read{};
+    const auto diagnostic = [&](std::string_view reason) {
+      return "Session receive request=" + std::string(request.substr(0, 64)) +
+          " received_bytes=" + std::to_string(received_bytes) +
+          " buffered_bytes=" + std::to_string(decoder_.bufferedBytes()) +
+          " buffered_before_read=" + std::to_string(buffered_before_read) +
+          ": " + std::string(reason.substr(0, 256));
+    };
+    try {
+      while (std::chrono::steady_clock::now() < until) {
+        // A response can exceed the pipe buffer. Drain it independently of UI
+        // rendering, otherwise one expensive frame per fragment consumes the
+        // decoder's unchanged five-second partial-line deadline.
+        while (std::chrono::steady_clock::now() < until) {
+          DWORD count{};
+          if (!PeekNamedPipe(output_read_, nullptr, 0, nullptr, &count, nullptr))
+            throw std::runtime_error("PeekNamedPipe failed: " + std::to_string(GetLastError()));
+          if (!count) break;
+          std::string bytes(std::min<DWORD>(count, 4096), '\0'); DWORD read{};
+          if (!ReadFile(output_read_, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr) || !read)
+            throw std::runtime_error("ReadFile failed: " + std::to_string(GetLastError()));
+          bytes.resize(read);
+          received_bytes += read;
+          buffered_before_read = decoder_.bufferedBytes();
+          for (auto& message : decoder_.feed(bytes)) {
+            const auto& result = message.at("result");
+            validateResult(message.at("tool").get<std::string>(), result);
+            responses_[result.at("request_id").get<std::string>()] = result;
+          }
         }
+        if (const auto found = responses_.find(std::string(request)); found != responses_.end()) {
+          auto result = found->second; responses_.erase(found); return result;
+        }
+        decoder_.expire();
+        // Once a reply has started, its writer needs pipe space, not another
+        // ImGui frame. Still expire stalled partial replies while yielding.
+        if (decoder_.bufferedBytes() == 0) frame(available);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
-      if (const auto found = responses_.find(std::string(request)); found != responses_.end()) {
-        auto result = found->second; responses_.erase(found); return result;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } catch (const std::exception& error) {
+      throw std::runtime_error(diagnostic(error.what()));
     }
-    throw std::runtime_error("No session result for " + std::string(request));
+    throw std::runtime_error(diagnostic("No session result before the 15-second deadline"));
   }
   Json call(std::string_view tool, Json arguments) {
     const auto id = arguments.at("request_id").get<std::string>(); send(tool, std::move(arguments)); return receive(id);
@@ -180,6 +203,28 @@ class SemanticSession : public testing::Test {
   bool monitor_drag_{}, saw_held_drag_{};
   std::uint64_t drag_revision_{};
 };
+
+TEST_F(SemanticSession, LargeReadyResponseDoesNotDependOnFurtherUiFrames) {
+  auto observed = call("ui_observe", {{"request_id", "large-observation"},
+      {"scope", "root"}, {"depth", 16}, {"page_size", 256}});
+  ASSERT_TRUE(observed.at("ok").get<bool>()) << observed.dump();
+  observed["request_id"] = "large-ready-response";
+  const Json message{{"kind", "result"}, {"tool", "ui_observe"}, {"result", observed}};
+  // Exercise the real writer and a real schema-valid observation spanning
+  // multiple pipe/reader fragments, with no request needing more UI frames.
+  ASSERT_GT(encodeMessage(message).size(), 4U * 4096U);
+  channel_->send(message);
+  DWORD pending{};
+  const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (!pending && std::chrono::steady_clock::now() < until) {
+    ASSERT_TRUE(PeekNamedPipe(output_read_, nullptr, 0, nullptr, &pending, nullptr));
+    if (!pending) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  ASSERT_GT(pending, 0U);
+  const auto frame_before = ImGui::GetFrameCount();
+  EXPECT_EQ(receive("large-ready-response"), observed);
+  EXPECT_EQ(ImGui::GetFrameCount(), frame_before);
+}
 
 TEST_F(SemanticSession, RealAmbientDraftSurvivesObservationAndASecondBatch) {
   const auto ambient = item("ambient-0-to-0-20");
@@ -748,6 +793,68 @@ class SemanticHouseholdSession : public SemanticSession {
  protected:
   std::string fixture() const override { return "household-interactions"; }
 };
+
+class SemanticNarrativeSession : public SemanticSession {
+ protected:
+  std::string fixture() const override { return "narrative-t4"; }
+};
+
+TEST_F(SemanticNarrativeSession, AllowlistedFixtureStartsAndSelectsAppliedEvent) {
+  selectRecord(1, "narrative_event");
+  const auto event = std::get<NarrativeEventDefinition>(
+      *document_->object(document_->selection()));
+  EXPECT_EQ(event.id, "neutral-sequence");
+  EXPECT_EQ(event.steps.size(), 5U);
+  EXPECT_FALSE(document_->dirty());
+  EXPECT_EQ(item("narrative-id")["applied_binding"]["field"], "id");
+}
+
+TEST_F(SemanticNarrativeSession, FactIdentifierTabCommitsThroughRealInputAndAppliedProjection) {
+  const auto add = item("add-fact");
+  auto result = execute(1, Json::array({
+      {{"op", "activate"}, {"target", {{"ref", add.at("ref")}}}}}));
+  ASSERT_TRUE(result.at("ok").get<bool>()) << result.dump();
+  const auto selected = document_->selection();
+  ASSERT_TRUE(std::holds_alternative<NarrativeFactDefinition>(*document_->object(selected)));
+  const auto original = std::get<NarrativeFactDefinition>(*document_->object(selected));
+  const auto field = item("narrative-id");
+  const Json target{{"ref", field.at("ref")}};
+  const auto appliedId = [&](std::string_view expected) {
+    return Json{{"op", "assert"}, {"condition", {
+        {"source", "app"}, {"projection", "object"}, {"object_ref", field.at("owner")},
+        {"field", "id"}, {"predicate", "equals"}, {"expected", expected}}}};
+  };
+  const auto revision = document_->revision();
+  // This pane has one text input followed by a checkbox. Tab must leave the
+  // text input instead of wrapping to itself and silently retaining a draft.
+  result = execute(2, Json::array({
+      {{"op", "edit"}, {"target", target}, {"text", "semantic-done"}, {"commit", "tab"}},
+      appliedId("semantic-done")}));
+  ASSERT_TRUE(result.at("ok").get<bool>()) << result.dump();
+  EXPECT_EQ(document_->revision(), revision + 1);
+  EXPECT_FALSE(item("narrative-id")["state"]["active"].get<bool>());
+  EXPECT_EQ(std::get<NarrativeFactDefinition>(*document_->object(selected)).initial_value,
+            original.initial_value);
+
+  // A deferred edit must remain a draft across observation and only commit
+  // when the separate advertised Tab operation runs.
+  result = execute(3, Json::array({
+      {{"op", "edit"}, {"target", target}, {"text", "semantic-later"}, {"commit", "none"}},
+      appliedId("semantic-done")}));
+  ASSERT_TRUE(result.at("ok").get<bool>()) << result.dump();
+  EXPECT_EQ(item("narrative-id")["input"]["text"], "semantic-later");
+  EXPECT_EQ(document_->revision(), revision + 1);
+  result = execute(4, Json::array({
+      {{"op", "commit"}, {"target", target}, {"method", "tab"}},
+      appliedId("semantic-later")}));
+  ASSERT_TRUE(result.at("ok").get<bool>()) << result.dump();
+  EXPECT_EQ(document_->revision(), revision + 2);
+  EXPECT_EQ(item("narrative-id")["ref"], field.at("ref"));
+  ASSERT_TRUE(document_->undo());
+  EXPECT_EQ(std::get<NarrativeFactDefinition>(*document_->object(selected)).id, "semantic-done");
+  ASSERT_TRUE(document_->undo());
+  EXPECT_EQ(std::get<NarrativeFactDefinition>(*document_->object(selected)), original);
+}
 
 TEST_F(SemanticHouseholdSession, UnicodeMultilineCapacityAndRejectedIdentifierUseRealControls) {
   selectRecord(1, "readable_document");

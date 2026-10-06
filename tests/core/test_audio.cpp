@@ -189,7 +189,7 @@ TEST_F(AudioPersistence,
   const auto bytes = read(file);
   const auto loaded = loadLevelDocument(file);
   ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
-  EXPECT_EQ(loaded.source_version, 10U);
+  EXPECT_EQ(loaded.source_version, 11U);
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(makePrototypeLevel(*loaded.document).audio(), document.audio);
   ASSERT_TRUE(saveLevelDocument(file, *loaded.document));
@@ -215,7 +215,7 @@ TEST_F(AudioPersistence, V6OpensCleanAndExplicitSavePreservesAllPriorData) {
   ASSERT_TRUE(editor.save());
   const auto loaded = loadLevelDocument(file);
   ASSERT_TRUE(loaded);
-  EXPECT_EQ(loaded.source_version, 10U);
+  EXPECT_EQ(loaded.source_version, 11U);
   EXPECT_EQ(*loaded.document, expected);
 }
 
@@ -603,6 +603,34 @@ struct ClearAudioFailure {
   ~ClearAudioFailure() { audioFailure(""); }
 };
 }  // namespace
+
+TEST(CueCoordinator, ExpectedInstanceCancelCannotStopReplacementOrClaimCompletion) {
+  const auto definitions = cueDefinitions();
+  for (const auto output : {AudioOutput::Silent, AudioOutput::Offline}) {
+    CueCoordinator cues(definitions, {}, prepareAudioContent("resources", definitions), output, 0);
+    cues.mute(true);
+    ASSERT_EQ(cues.start("phone-source"), CueStart::Started);
+    const auto first = cues.instance("phone-source");
+    EXPECT_FALSE(cues.cancel("phone-source", 0));
+    EXPECT_FALSE(cues.cancel("phone-source", first + 1));
+    EXPECT_EQ(cues.start("phone-source"), CueStart::AlreadyActive);
+    EXPECT_EQ(cues.start("invitation-source"), CueStart::Busy);
+    ASSERT_TRUE(cues.cancel("phone-source", first));
+    EXPECT_EQ(cues.status("phone-source"), CueStatus::Cancelled);
+    EXPECT_TRUE(cues.captions().foreground.text.empty());
+    ASSERT_EQ(cues.start("phone-source"), CueStart::Started);
+    const auto second = cues.instance("phone-source");
+    EXPECT_GT(second, first);
+    EXPECT_FALSE(cues.cancel("phone-source", first));
+    EXPECT_EQ(cues.status("phone-source"), CueStatus::Playing);
+    EXPECT_FALSE(cues.captions().foreground.text.empty());
+    cues.update(120);
+    EXPECT_EQ(cues.status("phone-source"), CueStatus::Completed);
+    EXPECT_EQ(cues.instance("phone-source"), second);
+    EXPECT_FALSE(cues.cancel("phone-source", second));
+    EXPECT_EQ(cues.status("phone-source"), CueStatus::Completed);
+  }
+}
 
 TEST(CueCoordinator, ForegroundStartBusyCancelAndCompleteAreExplicit) {
   const auto a = cueDefinitions();

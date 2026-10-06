@@ -194,14 +194,13 @@ bool EditorDocument::addHouseholdObject(EditorObjectValue value) {
     return false;
   }
   const std::array prefixes{"box-", "document-", "radio-"};
-  std::string name;
-  for (std::size_t n = 1;; ++n) {
-    name = prefixes[slot] + std::to_string(n);
-    if (std::none_of(
-            household_ids_[slot].begin(), household_ids_[slot].end(),
-            [&](auto id) { return recordId(*householdObject(id)) == name; }))
-      break;
-  }
+  const auto name = editorFreshId(
+      prefixes[slot], document_->narrative, value, [&](const std::string& id) {
+        return std::any_of(household_ids_[slot].begin(),
+                           household_ids_[slot].end(), [&](auto other) {
+                             return recordId(*householdObject(other)) == id;
+                           });
+      });
   std::visit(
       [&](auto& v) {
         if constexpr (requires { v.id; }) v.id = name;

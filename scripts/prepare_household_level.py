@@ -21,7 +21,7 @@ def parcel(name, center, yaw=0):
 
 
 def main():
-    level = dict(version=10, terrain=None, solids=[
+    level = dict(version=11, terrain=None, solids=[
         solid((0, -.25, 0), (6, .25, 7), "floor", "wood-floor"),
         solid((0, 4.15, 0), (6, .15, 7)),
         solid((-6, 2, 0), (.15, 2, 7)), solid((6, 2, 0), (.15, 2, 7)),
@@ -53,7 +53,8 @@ def main():
                             pages=["Ёжик оставил коробки у стола. Подними одну: E. Она остаётся физическим предметом и встречает преграды.",
                                    "E — опустить коробку. Правая кнопка мыши — бросить. Сначала освободи руки, чтобы читать, открыть дверь или включить радио.",
                                    "Радио стоит на столе. Чтение не останавливает мир. P — пауза проверки; M — без звука. A/D — страницы, E/Escape — закрыть."])],
-                       radios=[dict(id="receiver", prop="radio-prop", source="receiver-loop", initially_on=False)]))
+                       radios=[dict(id="receiver", prop="radio-prop", source="receiver-loop", initially_on=False)]),
+        narrative=dict(facts=[], regions=[], events=[]))
     table_boxes = [((0, .69, 0), (.837, .031, .548)),
                    ((-.72, .33, -.43), (.045, .33, .045)),
                    ((.72, .33, -.43), (.045, .33, .045)),

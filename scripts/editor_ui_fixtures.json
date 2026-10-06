@@ -2,6 +2,7 @@
   "version": 1,
   "fixtures": {
     "apartment-stairs": "apartment-stairs.level.json",
-    "household-interactions": "household-interactions.level.json"
+    "household-interactions": "household-interactions.level.json",
+    "narrative-t4": "narrative-t4.level.json"
   }
 }

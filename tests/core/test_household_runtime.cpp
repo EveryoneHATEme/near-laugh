@@ -118,6 +118,123 @@ void samePose(const PhysicsBoxState& a, const PhysicsBoxState& b) {
 }  // namespace
 
 TEST(HouseholdRuntime,
+     AcceptedOutcomesDescribePhysicalApplicationAndNeverQueueOrSafetyRelease) {
+  AcceptedInteractions accepted;
+  {
+    HouseholdRun run(scene(true));
+    run.batch();
+    ASSERT_TRUE(run.household.requestPickup(0, run.player.viewPose(1)));
+    EXPECT_TRUE(accepted.pending().empty());
+    run.household.beforeFixedStep(run.player.viewPose(1), &accepted);
+    ASSERT_EQ(accepted.pending().size(), 1U);
+    EXPECT_EQ(accepted.pending()[0].target, "parcel");
+    EXPECT_EQ(accepted.pending()[0].action,
+              NarrativeInteractionAction::BoxPickup);
+    EXPECT_EQ(accepted.pending()[0].result,
+              AcceptedInteractionResult::PickedUp);
+    const auto serial = accepted.pending()[0].occurrence;
+    accepted.consume();
+    run.household.beforeFixedStep(run.player.viewPose(1), &accepted);
+    EXPECT_TRUE(accepted.pending().empty());
+    ASSERT_TRUE(run.household.requestDrop());
+    EXPECT_TRUE(accepted.pending().empty());
+    run.household.beforeFixedStep(run.player.viewPose(1), &accepted);
+    ASSERT_EQ(accepted.pending().size(), 1U);
+    EXPECT_GT(accepted.pending()[0].occurrence, serial);
+    EXPECT_EQ(accepted.pending()[0].action,
+              NarrativeInteractionAction::BoxDrop);
+    accepted.consume();
+    ASSERT_TRUE(run.household.requestPickup(0, run.player.viewPose(1)));
+    run.household.beforeFixedStep(run.player.viewPose(1), &accepted);
+    accepted.consume();
+    ASSERT_TRUE(run.household.requestThrow({0, 0, -1}));
+    run.household.beforeFixedStep(run.player.viewPose(1), &accepted);
+    ASSERT_EQ(accepted.pending().size(), 1U);
+    EXPECT_EQ(accepted.pending()[0].action,
+              NarrativeInteractionAction::BoxThrow);
+  }
+  {
+    HouseholdRun safety;
+    safety.pickup();
+    accepted.consume();
+    (void)safety.household.sampleInput({}, false, false);
+    safety.household.beforeFixedStep(safety.player.viewPose(1), &accepted);
+    EXPECT_TRUE(accepted.pending().empty());
+    EXPECT_FALSE(safety.household.heldBox());
+  }
+  {
+    HouseholdRun suspended;
+    suspended.batch();
+    ASSERT_TRUE(
+        suspended.household.requestPickup(0, suspended.player.viewPose(1)));
+    suspended.household.suspend();
+    suspended.household.beforeFixedStep(suspended.player.viewPose(1),
+                                        &accepted);
+    EXPECT_TRUE(accepted.pending().empty());
+    EXPECT_FALSE(suspended.household.heldBox());
+  }
+}
+
+TEST(HouseholdRuntime,
+     DocumentRadioAndRefusedActionsPublishOnlyAcceptedOutcomes) {
+  HouseholdRun run(scene(true));
+  AcceptedInteractions accepted;
+  run.household.toggleRadio(0, &accepted);  // Inactive at startup.
+  run.household.openDocument(0, &accepted);
+  EXPECT_TRUE(accepted.pending().empty());
+  run.batch();
+  run.household.toggleRadio(0, &accepted);
+  ASSERT_EQ(accepted.pending().size(), 1U);
+  EXPECT_EQ(accepted.pending()[0].action, NarrativeInteractionAction::RadioOff);
+  run.household.toggleRadio(0, &accepted);
+  ASSERT_EQ(accepted.pending().size(), 2U);
+  EXPECT_EQ(accepted.pending()[1].action, NarrativeInteractionAction::RadioOn);
+  run.household.openDocument(0, &accepted);
+  ASSERT_EQ(accepted.pending().size(), 3U);
+  EXPECT_EQ(accepted.pending()[2].target, "note");
+  EXPECT_EQ(accepted.pending()[2].action,
+            NarrativeInteractionAction::DocumentOpen);
+  run.household.openDocument(0, &accepted);
+  run.household.toggleRadio(0, &accepted);
+  EXPECT_EQ(accepted.pending().size(), 3U);
+  ASSERT_TRUE(run.household.setRadioEnabled(0, false));
+  EXPECT_EQ(accepted.pending().size(),
+            3U);  // Author command is not player input.
+}
+
+TEST(HouseholdRuntime, AuthoredRadioStatePreservesInstancesAndPlayerModes) {
+  {
+    HouseholdRun run(scene(true));
+    const auto original = run.level.household();
+    const auto first = run.audio.instance("receiver-loop");
+    run.audio.update(.5);
+    ASSERT_TRUE(run.household.setRadioEnabled(0, true));
+    EXPECT_EQ(run.audio.instance("receiver-loop"), first);
+    EXPECT_DOUBLE_EQ(run.audio.offset("receiver-loop"), .5);
+    run.batch();
+    run.household.toggleRadio(0);
+    EXPECT_FALSE(run.household.radioOn(0));
+    run.household.openDocument(0);
+    ASSERT_EQ(run.household.readingDocument(), 0U);
+    ASSERT_TRUE(run.household.setRadioEnabled(0, true));
+    EXPECT_GT(run.audio.instance("receiver-loop"), first);
+    EXPECT_EQ(run.household.readingDocument(), 0U);
+    EXPECT_EQ(run.household.page(), 0U);
+    ASSERT_TRUE(run.household.setRadioEnabled(0, false));
+    EXPECT_EQ(run.household.readingDocument(), 0U);
+    EXPECT_EQ(run.audio.status("receiver-loop"), CueStatus::Cancelled);
+    EXPECT_FALSE(run.household.setRadioEnabled(1, true));
+    EXPECT_EQ(run.level.household(), original);
+  }
+  HouseholdRun carrying(scene(true));
+  carrying.pickup();
+  ASSERT_TRUE(carrying.household.setRadioEnabled(0, false));
+  ASSERT_TRUE(carrying.household.setRadioEnabled(0, true));
+  EXPECT_EQ(carrying.household.heldBox(), 0U);
+  EXPECT_EQ(carrying.audio.status("receiver-loop"), CueStatus::Playing);
+}
+
+TEST(HouseholdRuntime,
      PickupAndThrowWaitForOneBoundaryAndKeepAcceptedDirection) {
   HouseholdRun run;
   run.batch();

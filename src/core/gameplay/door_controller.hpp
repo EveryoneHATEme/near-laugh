@@ -9,6 +9,9 @@
 #include "core/world/door.hpp"
 
 enum class DoorAction { Interact, Lock, Knock };
+enum class DoorRequestResult {
+  Accepted, InvalidTarget, Locked, NotLockable, NotClosed
+};
 enum class DoorResultKind {
   Opening,
   Closing,
@@ -39,6 +42,8 @@ class DoorController {
   explicit DoorController(const std::vector<DoorDefinition>& definitions);
   [[nodiscard]] DoorResult act(std::size_t index, DoorAction action,
                                WorldPosition eye);
+  [[nodiscard]] DoorRequestResult requestOpen(std::size_t index, bool open);
+  [[nodiscard]] DoorRequestResult requestLocked(std::size_t index, bool locked);
   void fixedStep(float seconds, PhysicsWorld& physics);
   [[nodiscard]] const DoorRuntimeState& state(std::size_t index) const;
   [[nodiscard]] std::span<const OpaqueBoxFrame> presentation();

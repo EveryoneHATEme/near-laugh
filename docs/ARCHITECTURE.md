@@ -45,7 +45,7 @@ The concrete targets have these responsibilities:
 
 - `near_laugh_platform` owns GLFW lifetime, windows, event batches, cursor
   capture, and project-owned physical keyboard and mouse state.
-- `near_laugh_world` owns the bounded version-10 level document, exact version-2/3/4/5/6/7/8/9 read
+- `near_laugh_world` owns the bounded version-11 level document, exact version-2/3/4/5/6/7/8/9/10 read
   compatibility, strict private JSON codec, shared validation, and immutable
   level data. It privately links
   `nlohmann/json`.
@@ -88,6 +88,9 @@ The public runtime boundary is the PImpl-based `near_laugh::Application` and
 `RuntimeConfig` under `include/near_laugh`; those headers expose only standard
 library types. Other subsystem headers are repository-internal. Vulkan, GLFW,
 Jolt, GLM, JSON, miniaudio and ImGui types do not cross the public runtime boundary.
+The explicit `narrative_fixture` and `narrative_measure` development executables
+privately use JSON to write validation evidence. Their report types do not enter
+runtime or public headers; ordinary level data still uses the world codec.
 
 ## Runtime Ownership and Flow
 
@@ -100,7 +103,7 @@ Platform -> Window -> RuntimeResources -> PrototypeLevel
          -> prepared audio/CueCoordinator
          -> PhysicsWorld -> PlayerController -> PlayerFlashlight
          -> LightSwitchController -> DoorController -> CharacterController
-         -> HouseholdController -> AuthoredInteraction -> Renderer
+         -> HouseholdController -> AuthoredInteraction -> NarrativeProgression -> Renderer
 ```
 
 RAII destruction reverses that order. Raw pointers and references are
@@ -173,7 +176,7 @@ connection-path products model transmission, and gains smooth over 50 ms.
 
 ## World Boundary
 
-The bounded v10 document contains optional 97-by-97 terrain, 1–240 axis-aligned
+The bounded v11 document contains optional 97-by-97 terrain, 1–240 axis-aligned
 solids, 1–16 named entries/default, 0–8 point lights plus ambient, 0–128 static
 model placements, 0–16 switches and 0–32 hinged door definitions. Terrain
 and solids select a game-owned structural material ID independently of collision
@@ -260,11 +263,11 @@ discard the accumulator. Cursor release continues ordinary world/audio time.
 Fresh processes restore authored initial routes; presentation recovery retains
 action identities. No save-game state or general scripting boundary is added.
 
-Exact v2–v9 shapes normalize on read. The singleton chair becomes one
+Exact v2–v10 shapes normalize on read. The singleton chair becomes one
 `prototype-chair` placement with its original transform/box/material; old surface
 roles map to their legacy materials. v2/v3 spawn becomes the `default` entry;
 v2 has no switch; v2–4 have no doors; v5 retains all authored doors. Explicit
-saves write canonical v10; opening never rewrites a source file. Versions 2–6
+saves write canonical v11; opening never rewrites a source file. Versions 2–6
 normalize to empty audio. Legacy light slots become `point-light-0/1`, both
 unshadowed; the optional switch becomes `light-switch-0` and moves its initial
 enable to the linked light. A missing switch leaves both lights on. v7 audio
@@ -272,7 +275,9 @@ survives unchanged. Exact v8 inputs preserve their lights/audio without legacy
 remapping; v2–v8 normalize to empty character collections and
 reject character fields in their original shapes. v9 retains all character
 fields and order. Versions 2–9 add empty household collections and reject
-household fields in their original shapes. Older executables cannot read v10; use Save As to
+household fields in their original shapes. Versions 2–10 add empty narrative
+collections and reject narrative fields in their original shapes. Exact v10
+preserves all household and preceding authored content. Older executables cannot read v11; use Save As to
 retain an original needed by an older build.
 
 World validation checks finite derived geometry, references, entry support and
@@ -317,6 +322,47 @@ use the same slot geometry with per-instance vertex offsets. It never advances c
 The finite catalog carries calibrated stride, contact and interaction phases
 used by scripted routes. `scripted_characters` is an explicit development entry
 for route controls; ordinary game launches use the level's initial routes too.
+
+## Narrative ownership and observation boundary
+
+`LevelNarrative` contains up to 32 Boolean facts, 32 axis-aligned regions and
+64 events. Each event has one typed trigger, at most eight predicates per
+conjunction and 1–32 typed steps. Shared world validation and the exact v11
+codec own these definitions; execution never changes them. Direct sequence
+sources must be non-autoplay one-shots unreserved by actors/radios. The explicit
+P04 runner additionally rejects conflicts with its privately driven sources.
+
+`NarrativeProgression` is a device-free reducer in the runtime target. Engine
+supplies observations and applies typed command results. It samples region
+entries at accepted fixed steps, using player feet and half-open bounds;
+spawn-inside and unsampled crossings do not create occurrences. Player outcomes
+are published after actual acceptance; queued box commands, refusals and safety
+releases are not interactions. Bounded observation overflow is an explicit
+failure of live runs and blocks starts for that boundary only; other events keep
+their terminal history. Suspension retains accepted observations while
+discarding queued input.
+
+After ordinary interactions, Engine freezes a snapshot, applies all narrative
+cancellations and classifies existing owned completions. It then hands surviving
+character sounds off, advances the optional P04 fixture and dispatches narrative
+commands in event-ID order before resolving captions, lights and presentation.
+Conditions see changes at the next boundary. The last accepted state write wins.
+Already-active/busy work grants no ownership; cancellation checks the actor/source
+and exact instance. Observed completion survives same-boundary reuse. Refused or
+lost work fails its run without adopting a replacement. Facts, light/radio state,
+locks and accepted door targets persist after cancellation.
+
+Delays and elapsed conditions use uncapped active audio time. Physics remains
+capped; delays start when reached and never backdate physical work or new cues.
+Reading and cursor release keep the world running; development suspension and
+minimization freeze it. Once runs are consumed on start; rearm needs a fresh
+occurrence or a false observation after termination followed by a rising edge.
+Fresh launch restores initial facts. Recovery retains runs. Shutdown closes
+dispatch and conditionally cancels owned work before referenced owners die.
+
+Read-only snapshots expose run/step/wait context; a last-256-transition trace
+reports active time, target/instance and dropped records without repeated wait
+spam. No checkpoint representation, scripting VM or event bus is introduced.
 
 ## Editor Ownership
 

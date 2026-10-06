@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "terrain": {
     "origin": {
       "x": -24.0,
@@ -9728,5 +9728,10 @@
     "boxes": [],
     "documents": [],
     "radios": []
+  },
+  "narrative": {
+    "facts": [],
+    "regions": [],
+    "events": []
   }
 }

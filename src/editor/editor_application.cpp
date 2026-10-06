@@ -488,6 +488,85 @@ void EditorApplication::runCharacterSmoke(std::vector<std::string>& events,
           "Exit retained active inspection state");
 }
 
+void EditorApplication::runNarrativeSmoke(
+    std::vector<std::string>& events, FrameCapture& capture,
+    const std::filesystem::path& capture_directory) {
+  const auto require = [](bool value, const char* message) {
+    if (!value) throw std::runtime_error(std::string("Editor narrative smoke: ") + message);
+  };
+  require(renderer_.validationEnabled(), "Vulkan validation is required");
+  require(document_.valid() && scene_resources_installed_, "fixture did not prepare");
+  require(!document_.document()->narrative.regions.empty() &&
+              !document_.document()->narrative.events.empty(), "fixture needs regions and events");
+  require(!std::filesystem::exists(capture_directory), "capture directory must be fresh");
+  std::filesystem::create_directories(capture_directory);
+  std::ofstream evidence(capture_directory / "checks.txt");
+  require(bool(evidence), "could not create evidence");
+  evidence << "Automated narrative editor GPU checks. Semantic authoring, visual "
+              "acceptance and listening are separate.\n";
+  stopInspections();
+  const auto capture_ui = [&](const char* name) {
+    capture.requested = true;
+    for (int i = 0; i < 8 && capture.requested; ++i)
+      require(tick(), "frame stopped before capture");
+    require(!capture.requested && !capture.rgba.empty(), "readback incomplete");
+    capture.writePpm(capture_directory / (std::string(name) + ".ppm"));
+  };
+  require(tick(), "initial frame stopped");
+  ui_.collapsePanelsForCapture(true);
+  const auto region_id = document_.narrativeIds(EditorNarrativeKind::Region).front();
+  auto region = std::get<NarrativeRegionDefinition>(*document_.object(region_id));
+  region.center = {0, 2, 0}; region.half_extent = {.8F, 1.2F, .8F};
+  require(document_.replaceObject(region_id, region), "region edit rejected");
+  document_.select(region_id);
+  const auto saved = capture_directory / "authored.level.json";
+  require(document_.saveAs(saved), "ordinary Save As failed");
+  const auto baseline = *document_.document();
+  const auto lights = preview_point_light_enabled_;
+  capture_ui("01-region-bounds");
+  const auto outline = buildEditorOverlay(document_, camera_.frame(1600.F / 900));
+  require(std::count_if(outline.begin(), outline.end(), [](const auto& line) {
+            return line.color == WorldColor{255, 205, 60, 255};
+          }) == 12, "selected region did not submit twelve wire edges");
+  require(std::count(events.begin(), events.end(), "editor.ui.drawn") > 0,
+          "region overlay never reached an editor UI draw");
+  for (int i = 0; i < 4; ++i) require(tick(), "idle frame stopped");
+  require(*document_.document() == baseline && preview_point_light_enabled_ == lights,
+          "silent preview advanced authored event data or light state");
+  region.center.x += 1.5F;
+  require(document_.replaceObject(region_id, region), "region movement rejected");
+  require(document_.dirty(), "region edit did not dirty document");
+  capture_ui("02-moved-region");
+  require(document_.undo(), "region undo failed");
+  require(*document_.document() == baseline && !document_.dirty(), "undo did not restore clean baseline");
+  require(document_.redo() && document_.dirty(), "region redo failed");
+  require(document_.undo() && !document_.dirty(), "second undo failed");
+  const auto before = document_.document()->narrative;
+  renderer_.requestSwapchainRecreation();
+  capture_ui("03-recreated-region");
+  require(document_.document()->narrative == before, "swapchain recovery changed definitions");
+  window_.minimize();
+  {
+    std::jthread wake([] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      EditorGlfwBridge::postEmptyEvent();
+    });
+    require(tick(), "minimized frame stopped");
+  }
+  require(document_.document()->narrative == before, "minimization changed narrative data");
+  window_.restore(); window_.pollEvents();
+  capture_ui("04-restored-region");
+  require(document_.open(saved), "saved narrative scene did not reopen");
+  require(*document_.document() == baseline && !document_.dirty(), "reopen changed authored sequence");
+  synchronizeDocumentResources();
+  capture_ui("05-reopened-scene");
+  require(validation_diagnostics_.errorCount() == 0, "Vulkan errors before teardown");
+  evidence << "Region wire preview/readback, silent idle frames, ordinary Save As/reopen, "
+              "clean undo/redo, swapchain recreation and minimize/restore passed.\n"
+              "Vulkan errors before teardown: 0. Final lifetime log is lifecycle.txt.\n";
+  require(bool(evidence), "evidence write failed");
+}
+
 void EditorApplication::runSmoke(const std::filesystem::path& valid_level) {
   struct FrameEventLog {
     std::vector<std::string> events;
@@ -1233,6 +1312,7 @@ void EditorApplication::updateNavigation(EditorUiCaptureIntent capture) {
   } else if (!window_.cursorCaptured() && !capture.pointer &&
              physical.isMouseButtonDown(PhysicalMouseButton::Right)) {
     window_.setCursorCaptured(true);
+    glfw_imgui_bridge_.beginViewportNavigation();
     frame_clock_.reset();
   }
 

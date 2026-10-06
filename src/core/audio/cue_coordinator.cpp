@@ -75,6 +75,12 @@ bool CueCoordinator::cancel(std::string_view source) {
   updateGains();
   return true;
 }
+bool CueCoordinator::cancel(std::string_view source,
+                            std::uint64_t expected_instance) {
+  if (!expected_instance || instance(source) != expected_instance) return false;
+  return cancel(source);
+}
+
 void CueCoordinator::cancelAll() {
   for (const auto& source : definitions_.sources) cancel(source.id);
 }

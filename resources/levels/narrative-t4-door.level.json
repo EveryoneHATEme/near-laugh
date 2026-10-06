@@ -1,0 +1,523 @@
+{
+  "version": 11,
+  "terrain": null,
+  "solids": [
+    {
+      "center": {
+        "x": 0.0,
+        "y": -0.25,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 6.0,
+        "y": 0.25,
+        "z": 7.0
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "floor",
+      "material": "wood-floor"
+    },
+    {
+      "center": {
+        "x": 0.0,
+        "y": 4.15,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 6.0,
+        "y": 0.15,
+        "z": 7.0
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "boundary",
+      "material": "wallpaper"
+    },
+    {
+      "center": {
+        "x": -6.0,
+        "y": 2.0,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 0.15,
+        "y": 2.0,
+        "z": 7.0
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "boundary",
+      "material": "wallpaper"
+    },
+    {
+      "center": {
+        "x": 6.0,
+        "y": 2.0,
+        "z": 0.0
+      },
+      "half_extent": {
+        "x": 0.15,
+        "y": 2.0,
+        "z": 7.0
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "boundary",
+      "material": "wallpaper"
+    },
+    {
+      "center": {
+        "x": 0.0,
+        "y": 2.0,
+        "z": -7.0
+      },
+      "half_extent": {
+        "x": 6.0,
+        "y": 2.0,
+        "z": 0.15
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "boundary",
+      "material": "wallpaper"
+    },
+    {
+      "center": {
+        "x": 0.0,
+        "y": 2.0,
+        "z": 7.0
+      },
+      "half_extent": {
+        "x": 6.0,
+        "y": 2.0,
+        "z": 0.15
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "boundary",
+      "material": "wallpaper"
+    },
+    {
+      "center": {
+        "x": 1.5,
+        "y": 1.0,
+        "z": -1.0
+      },
+      "half_extent": {
+        "x": 0.01,
+        "y": 1.0,
+        "z": 1.2
+      },
+      "color": [
+        190,
+        184,
+        170,
+        255
+      ],
+      "kind": "boundary",
+      "material": "wallpaper"
+    }
+  ],
+  "entries": [
+    {
+      "id": "explore",
+      "foot_position": {
+        "x": -2.0,
+        "y": 0.0,
+        "z": 2.8
+      },
+      "yaw_degrees": -90.0
+    }
+  ],
+  "default_entry": "explore",
+  "environment_light": {
+    "ambient_intensity": 0.05,
+    "point_lights": [
+      {
+        "id": "table-light",
+        "position": {
+          "x": -2.0,
+          "y": 3.3,
+          "z": -0.5
+        },
+        "color": [
+          1.0,
+          0.9,
+          0.75
+        ],
+        "intensity": 0.9,
+        "radius": 9.0,
+        "initially_on": false,
+        "casts_shadows": true
+      },
+      {
+        "id": "route-light",
+        "position": {
+          "x": 3.0,
+          "y": 3.3,
+          "z": 1.0
+        },
+        "color": [
+          1.0,
+          0.9,
+          0.75
+        ],
+        "intensity": 0.9,
+        "radius": 9.0,
+        "initially_on": true,
+        "casts_shadows": true
+      }
+    ]
+  },
+  "props": [
+    {
+      "id": "table",
+      "model": "apartment-table",
+      "translation": {
+        "x": -2.0,
+        "y": 0.0,
+        "z": -1.0
+      },
+      "yaw_degrees": 0.0,
+      "uniform_scale": 1.0,
+      "collision_boxes": [
+        {
+          "center": {
+            "x": 0.0,
+            "y": 0.69,
+            "z": 0.0
+          },
+          "half_extent": {
+            "x": 0.837,
+            "y": 0.031,
+            "z": 0.548
+          }
+        },
+        {
+          "center": {
+            "x": -0.72,
+            "y": 0.33,
+            "z": -0.43
+          },
+          "half_extent": {
+            "x": 0.045,
+            "y": 0.33,
+            "z": 0.045
+          }
+        },
+        {
+          "center": {
+            "x": 0.72,
+            "y": 0.33,
+            "z": -0.43
+          },
+          "half_extent": {
+            "x": 0.045,
+            "y": 0.33,
+            "z": 0.045
+          }
+        },
+        {
+          "center": {
+            "x": -0.72,
+            "y": 0.33,
+            "z": 0.43
+          },
+          "half_extent": {
+            "x": 0.045,
+            "y": 0.33,
+            "z": 0.045
+          }
+        },
+        {
+          "center": {
+            "x": 0.72,
+            "y": 0.33,
+            "z": 0.43
+          },
+          "half_extent": {
+            "x": 0.045,
+            "y": 0.33,
+            "z": 0.045
+          }
+        }
+      ]
+    },
+    {
+      "id": "radio-prop",
+      "model": "apartment-radio",
+      "translation": {
+        "x": -1.5,
+        "y": 0.721,
+        "z": -1.3
+      },
+      "yaw_degrees": 0.0,
+      "uniform_scale": 1.0,
+      "collision_boxes": []
+    }
+  ],
+  "light_switches": [],
+  "doors": [
+    {
+      "id": "contact-door",
+      "hinge_position": {
+        "x": -0.5,
+        "y": 0.02,
+        "z": -2.0
+      },
+      "closed_yaw_degrees": 0.0,
+      "width": 1.0,
+      "height": 2.1,
+      "thickness": 0.04,
+      "open_angle_degrees": 90.0,
+      "speed_degrees_per_second": 90.0,
+      "lock_side": "none",
+      "initially_open": false,
+      "initially_locked": false
+    }
+  ],
+  "audio": {
+    "cues": [
+      {
+        "id": "radio-loop",
+        "clip": "radio",
+        "caption": "radio",
+        "kind": "ambience",
+        "loop": true,
+        "spatial": true
+      },
+      {
+        "id": "sequence-cue",
+        "clip": "character-interaction",
+        "caption": "character-interaction",
+        "kind": "essential",
+        "loop": false,
+        "spatial": true
+      }
+    ],
+    "sources": [
+      {
+        "id": "receiver-loop",
+        "cue": "radio-loop",
+        "position": {
+          "x": 5.0,
+          "y": 1.0,
+          "z": 5.0
+        },
+        "gain": 0.6,
+        "near_distance": 1.0,
+        "far_distance": 20.0,
+        "autoplay": false
+      },
+      {
+        "id": "sequence-source",
+        "cue": "sequence-cue",
+        "position": {
+          "x": -2.0,
+          "y": 1.0,
+          "z": -1.0
+        },
+        "gain": 1.0,
+        "near_distance": 1.0,
+        "far_distance": 20.0,
+        "autoplay": false
+      }
+    ],
+    "rooms": [],
+    "connections": []
+  },
+  "characters": {
+    "actors": [
+      {
+        "id": "walker",
+        "model": "test-mannequin",
+        "initial_mark": "route-start",
+        "initial_route": null,
+        "speed": 0.75,
+        "footstep_source": null,
+        "interaction_source": null
+      }
+    ],
+    "marks": [
+      {
+        "id": "route-start",
+        "feet_position": {
+          "x": 3.0,
+          "y": 0.0,
+          "z": -4.0
+        },
+        "yaw_degrees": 0.0
+      },
+      {
+        "id": "route-end",
+        "feet_position": {
+          "x": 3.0,
+          "y": 0.0,
+          "z": 4.0
+        },
+        "yaw_degrees": 180.0
+      }
+    ],
+    "routes": [
+      {
+        "id": "walk",
+        "actor": "walker",
+        "marks": [
+          "route-end"
+        ],
+        "final_clip": null
+      },
+      {
+        "id": "walk-back",
+        "actor": "walker",
+        "marks": [
+          "route-start"
+        ],
+        "final_clip": null
+      }
+    ]
+  },
+  "household": {
+    "boxes": [
+      {
+        "id": "floor-box",
+        "center": {
+          "x": -1.4,
+          "y": 0.15,
+          "z": 1.0
+        },
+        "yaw_degrees": 25.0
+      }
+    ],
+    "documents": [
+      {
+        "id": "letter",
+        "position": {
+          "x": -2.0,
+          "y": 0.724,
+          "z": -0.7
+        },
+        "yaw_degrees": 0.0,
+        "title": "Проверка последовательности",
+        "pages": [
+          "Войди в область перед столом: включится свет, прозвучит сигнал, затем персонаж пройдёт по комнате.",
+          "Выключи радио, чтобы отменить оставшиеся действия. Чтение сохраняет ход мира. P — пауза проверки; M — без звука."
+        ]
+      }
+    ],
+    "radios": [
+      {
+        "id": "receiver",
+        "prop": "radio-prop",
+        "source": "receiver-loop",
+        "initially_on": true
+      }
+    ]
+  },
+  "narrative": {
+    "facts": [
+      {
+        "id": "completed",
+        "initial_value": false
+      }
+    ],
+    "regions": [
+      {
+        "id": "approach",
+        "center": {
+          "x": -2.0,
+          "y": 1.0,
+          "z": 1.5
+        },
+        "half_extent": {
+          "x": 0.8,
+          "y": 1.0,
+          "z": 0.4
+        }
+      }
+    ],
+    "events": [
+      {
+        "id": "neutral-sequence",
+        "trigger": {
+          "kind": "region_entry",
+          "region": "approach"
+        },
+        "guards": [],
+        "cancel": [
+          {
+            "kind": "radio",
+            "radio": "receiver",
+            "enabled": false
+          }
+        ],
+        "repeat": "once",
+        "steps": [
+          {
+            "kind": "set_door_open",
+            "door": "contact-door",
+            "open": true
+          },
+          {
+            "kind": "wait_until",
+            "predicates": [
+              {
+                "kind": "door_endpoint",
+                "door": "contact-door",
+                "open": true
+              }
+            ]
+          },
+          {
+            "kind": "set_light",
+            "light": "table-light",
+            "enabled": true
+          },
+          {
+            "kind": "play_cue",
+            "source": "sequence-source"
+          },
+          {
+            "kind": "delay",
+            "seconds": 2.0
+          },
+          {
+            "kind": "run_route",
+            "actor": "walker",
+            "route": "walk"
+          },
+          {
+            "kind": "set_fact",
+            "fact": "completed",
+            "value": true
+          }
+        ]
+      }
+    ]
+  }
+}

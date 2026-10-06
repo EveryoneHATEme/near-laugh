@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/audio/cue_coordinator.hpp"
+#include "core/gameplay/accepted_interaction.hpp"
 #include "core/player/player_controller.hpp"
 
 enum class HouseholdCommandKind { Pickup, Drop, Throw };
@@ -49,7 +50,8 @@ class HouseholdController {
   bool requestThrow(PhysicsVector direction);
   // Called exactly once before each shared world update, using the accepted
   // simulation eye/look. Ordinary commands are consumed here at most once.
-  void beforeFixedStep(const PlayerViewPose& simulation_view);
+  void beforeFixedStep(const PlayerViewPose& simulation_view,
+                       AcceptedInteractions* accepted = nullptr);
   [[nodiscard]] bool commandPending() const noexcept {
     return pending_.has_value();
   }
@@ -58,10 +60,11 @@ class HouseholdController {
   }
   [[nodiscard]] std::optional<std::size_t> heldBox() const noexcept;
 
-  void openDocument(std::size_t document);
+  void openDocument(std::size_t document, AcceptedInteractions* accepted = nullptr);
   [[nodiscard]] std::optional<std::size_t> readingDocument() const noexcept;
   [[nodiscard]] std::size_t page() const noexcept { return page_; }
-  void toggleRadio(std::size_t radio);
+  void toggleRadio(std::size_t radio, AcceptedInteractions* accepted = nullptr);
+  [[nodiscard]] bool setRadioEnabled(std::size_t radio, bool enabled);
   [[nodiscard]] bool radioOn(std::size_t radio) const;
   [[nodiscard]] bool ownsSource(std::string_view source) const noexcept;
 

@@ -30,3 +30,9 @@ void LightSwitchController::toggle(std::size_t switch_index) {
   const auto light = links_.at(switch_index);
   enabled_[light] = !enabled_[light];
 }
+
+bool LightSwitchController::setEnabled(std::size_t light_index, bool enabled) {
+  if (light_index >= enabled_.size()) return false;
+  enabled_[light_index] = enabled;
+  return true;
+}

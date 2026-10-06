@@ -12,6 +12,7 @@
 #include "core/world/characters.hpp"
 #include "core/world/door.hpp"
 #include "core/world/household.hpp"
+#include "core/world/narrative.hpp"
 #include "core/world/light_switch.hpp"
 #include "core/world/scene_assets.hpp"
 
@@ -329,7 +330,8 @@ PrototypeLevel::PrototypeLevel(LevelDocument document)
       doors_(std::move(document.doors)),
       audio_(std::move(document.audio)),
       characters_(std::move(document.characters)),
-      household_(std::move(document.household)) {}
+      household_(std::move(document.household)),
+      narrative_(std::move(document.narrative)) {}
 
 bool levelEntryIdIsValid(std::string_view id) noexcept {
   return !id.empty() && id.size() <= level_maximum_entry_id_length &&
@@ -958,6 +960,10 @@ std::vector<LevelDiagnostic> validateLevelDocument(
       validateHouseholdDefinitions(document, source_path);
   diagnostics.insert(diagnostics.end(), household_diagnostics.begin(),
                      household_diagnostics.end());
+  const auto narrative_diagnostics =
+      validateNarrativeDefinitions(document, source_path);
+  diagnostics.insert(diagnostics.end(), narrative_diagnostics.begin(),
+                     narrative_diagnostics.end());
   return diagnostics;
 }
 
@@ -989,7 +995,8 @@ bool prototypeLevelIsValid(const PrototypeLevel& level) {
       level_format_version, level.terrain(),        level.solids(),
       level.entries(),      level.defaultEntryId(), level.environmentLight(),
       level.props(),        level.lightSwitches(),  level.doors(),
-      level.audio(),        level.characters(),     level.household()};
+      level.audio(),        level.characters(),     level.household(),
+      level.narrative()};
   return validateLevelDocument(document).empty();
 }
 

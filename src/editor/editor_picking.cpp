@@ -267,12 +267,13 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
   for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
     consider(document.audioIds(EditorAudioKind::Source)[i],
              sphereHit(ray, level.audio.sources[i].position));
-  // Pick the room's visible wire edges, keeping its empty interior transparent.
-  for (std::size_t i = 0; i < level.audio.rooms.size(); ++i) {
-    const auto& room = level.audio.rooms[i];
-    const glm::dvec3 center = vec(room.center);
-    const glm::dvec3 half{room.half_extent.x, room.half_extent.y,
-                          room.half_extent.z};
+  // Pick a volume's visible wire edges, keeping its empty interior transparent
+  // so authored content inside audio rooms and narrative regions stays
+  // selectable.
+  const auto wireBox = [&](EditorObjectId id, WorldPosition box_center,
+                           WorldExtent half_extent) {
+    const glm::dvec3 center = vec(box_center);
+    const glm::dvec3 half{half_extent.x, half_extent.y, half_extent.z};
     for (int corner = 0; corner < 8; ++corner) {
       const auto start =
           center + half * glm::dvec3{corner & 1 ? 1 : -1, corner & 2 ? 1 : -1,
@@ -282,13 +283,22 @@ EditorObjectId pickEditorObject(const EditorDocument& document,
         auto midpoint = start;
         midpoint[axis] += half[axis];
         WorldExtent wire{.04F, .04F, .04F};
-        if (axis == 0) wire.x = room.half_extent.x;
-        if (axis == 1) wire.y = room.half_extent.y;
-        if (axis == 2) wire.z = room.half_extent.z;
-        consider(document.audioIds(EditorAudioKind::Room)[i],
+        if (axis == 0) wire.x = half_extent.x;
+        if (axis == 1) wire.y = half_extent.y;
+        if (axis == 2) wire.z = half_extent.z;
+        consider(id,
                  boxHit(vec(ray.origin) - midpoint, vec(ray.direction), wire));
       }
     }
+  };
+  for (std::size_t i = 0; i < level.audio.rooms.size(); ++i)
+    wireBox(document.audioIds(EditorAudioKind::Room)[i],
+            level.audio.rooms[i].center, level.audio.rooms[i].half_extent);
+  for (std::size_t i = 0; i < level.narrative.regions.size(); ++i) {
+    const auto& region = level.narrative.regions[i];
+    if (editorNarrativeFieldError(region).empty())
+      wireBox(document.narrativeIds(EditorNarrativeKind::Region)[i],
+              region.center, region.half_extent);
   }
   for (std::size_t i = 0; i < level.light_switches.size(); ++i) {
     if (const auto hit = lightSwitchRayDistance(level.light_switches[i],

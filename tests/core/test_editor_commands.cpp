@@ -622,7 +622,7 @@ TEST_F(EditorCommands,
   EXPECT_FALSE(editor.replaceObject(editor.switchIds().front(), value));
 }
 
-TEST_F(EditorCommands, VersionTwoOpensCleanAndExplicitSaveWritesV10) {
+TEST_F(EditorCommands, VersionTwoOpensCleanAndExplicitSaveWritesV11) {
   auto old = *editor.document();
   old.light_switches.clear();
   const auto path = root / "old.json";
@@ -644,7 +644,7 @@ TEST_F(EditorCommands, VersionTwoOpensCleanAndExplicitSaveWritesV10) {
   value.light_id = "point-light-1";
   ASSERT_TRUE(editor.replaceObject(editor.switchIds().front(), value));
   ASSERT_TRUE(editor.save());
-  EXPECT_NE(bytes(path).find("\"version\": 10"), std::string::npos);
+  EXPECT_NE(bytes(path).find("\"version\": 11"), std::string::npos);
   ASSERT_TRUE(editor.open(path));
   EXPECT_FALSE(editor.dirty());
   EXPECT_EQ(editor.document()->light_switches.front(), value);

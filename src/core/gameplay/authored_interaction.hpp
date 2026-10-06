@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "core/gameplay/door_controller.hpp"
+#include "core/gameplay/accepted_interaction.hpp"
 #include "core/gameplay/light_switch_controller.hpp"
 #include "core/input/player_input.hpp"
 #include "core/player/player_controller.hpp"
@@ -28,7 +29,8 @@ class AuthoredInteraction {
       const PlayerViewPose& view, const PrototypeLevel& level,
       const PhysicsWorld& physics, DoorController& doors,
       LightSwitchController& light_switch,
-      HouseholdController* household = nullptr);
+      HouseholdController* household = nullptr,
+      AcceptedInteractions* accepted = nullptr);
 
  private:
   std::array<bool, 3> armed_{};

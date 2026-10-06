@@ -477,7 +477,7 @@ TEST_F(EditorPlay, ConsumedLaunchRechecksTheSavedDocumentBeforeAssetPreflight) {
 }
 
 TEST_F(EditorPlay,
-       BrokenLightingLinksRefuseLaunchAndRepairSavesTheV10Snapshot) {
+       BrokenLightingLinksRefuseLaunchAndRepairSavesTheV11Snapshot) {
   ASSERT_TRUE(editor.addLightSwitch());
   ASSERT_TRUE(
       editor.saveAs(root / std::filesystem::path(u8"Свет и двери.json")));
@@ -500,7 +500,7 @@ TEST_F(EditorPlay,
   EXPECT_EQ(snapshot, *editor.document());
   EXPECT_EQ(snapshot.light_switches.front().light_id, "renamed-source");
   EXPECT_FALSE(snapshot.environment_light.point_lights.front().initially_on);
-  EXPECT_NE(bytes(launch->level_path).find("\"version\": 10"),
+  EXPECT_NE(bytes(launch->level_path).find("\"version\": 11"),
             std::string::npos);
 }
 

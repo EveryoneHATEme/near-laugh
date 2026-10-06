@@ -444,7 +444,7 @@ resources/
   textures/prototype_obstacle.png
 ```
 
-Levels write format version 10 and read exact versions 2–9 without modifying
+Levels write format version 11 and read exact versions 2–10 without modifying
 the source. The profile contains optional 97-by-97 terrain, 1–240 solids,
 1–16 entries/default, 0–8 lights/ambient, 0–128 props, 0–16 switches,
 and 0–32 doors, plus audio (up to 128 cues, 64 sources, 32 rooms and 64 connections).
@@ -468,7 +468,7 @@ all prior values and normalize to empty characters, as do v2–v7 after their
 existing migrations. Versions 2–8 reject character fields. Exact v9 retains
 all authored character data and order; versions 2–9 add empty household arrays
 and reject household fields in their original shapes. Older builds cannot
-read v10: use Save As or retain
+read v11: use Save As or retain
 the original before conversion when it is still needed by an older build.
 
 The selected apartment derivatives are `models/apartment_chair.glb`,
@@ -793,7 +793,7 @@ and unavailable checks in the [P04 validation record](../openspec/changes/archiv
 ## Build Targets
 
 - `near_laugh_platform`: GLFW windowing and physical input collection.
-- `near_laugh_world`: version-10 level data with exact version-2/3/4/5/6/7/8/9 read compatibility,
+- `near_laugh_world`: version-11 level data with exact version-2/3/4/5/6/7/8/9/10 read compatibility,
   private JSON codec, validation, and immutable runtime handoff.
 - `near_laugh_physics`: Jolt lifetime, static proxies, accepted kinematic doors,
   up to four catalog actor capsules, 16 dynamic boxes, one hold constraint and
@@ -936,11 +936,14 @@ exact RGB round trip. D16 fallback validation uses the existing test control
 `NEAR_LAUGH_FORCE_VULKAN_FAILURE_STAGE=shadow_d32_unavailable`; clear it before
 ordinary runs. Reproduce the packaged lighting scenes with
 `python scripts/prepare_interior_lighting.py`; the historical level migration
-and audio preparation scripts also emit deterministic v10 data. For packaged
+and audio preparation scripts also emit deterministic v11 data. For packaged
 v8 inputs, run `python scripts/level_characters_v9.py` followed by
 `python scripts/level_household_v10.py`. The latter accepts exact version
-markers 9/10 only, adds empty household arrays to v9 while retaining every
-prior authored field, and preserves v10 household content;
+markers 9/10/11, adds empty household arrays to v9 while retaining every
+prior authored field, and preserves v10/v11 household content. Then use
+`python scripts/level_narrative_v11.py --backup-directory <new-originals-directory>`
+for v10-to-v11 conversion: originals are retained, differing backups are never
+overwritten, and existing v11 files remain byte-identical;
 retained compatibility fixtures under `tests/fixtures/levels` stay unchanged.
 
 Before reporting an implementation complete:
@@ -1217,3 +1220,97 @@ proves physical output latency or listening quality. See the
 [P07b validation record](../openspec/changes/archive/2026-09-08-add-scripted-characters/validation.md)
 for retained runs, observations and unavailable evidence. T2 remains pending
 P07c's second scene authored and played with the editor.
+
+## Narrative state and authored sequences (P05 / T4)
+
+Current level format v11 adds at most 32 Boolean facts, 32 axis-aligned regions
+and 64 events. Each event has 1-32 ordered steps and at most eight predicates
+per conjunction. Versions 2-10 still open with empty narrative definitions;
+opening alone does not rewrite them. Packaged v10 originals are retained under
+`tests/fixtures/levels/v10/`. There is no savegame persistence or story-specific
+script in this feature.
+
+In **Objects > Narrative**, add/select facts, regions and events. **Properties**
+edits typed triggers, guards, cancellation, repetition and ordered steps.
+References use durable IDs; renames update incoming links in one history edit.
+Deletion leaves unresolved links for explicit repair or Undo. Automatic IDs
+skip unresolved narrative references. Invalid drafts do not alter applied data;
+shared diagnostics block Save/Play for invalid definitions. Missing selected
+resources are additionally checked before Play. Region **Place on surface**
+puts its lower face on the nearest upward surface, preserving its extent.
+The editor preview is silent and does not execute events.
+
+Ordinary Play loads the saved file. Facts, trigger latches, terminal states and
+owned cue/route instances belong to that process and reset on a fresh launch.
+An event's desired state commands do not simulate input; accepted player
+outcomes are separate triggers. Cancellation precedes pending character sound
+handoff, stops only the event's matching instances, retains accepted state
+changes and prevents later steps. Conditions see one frozen observation per
+boundary, with event-produced state becoming visible on the next boundary.
+Delays use uncapped active audio time; physics retains its existing fixed-step
+cap. Reading continues time. Development P pauses the shared world/audio/
+narrative clock, M mutes output, and minimize discards suspended elapsed time.
+
+The generator creates the neutral T4 scene plus door endpoint, locked refusal,
+accepted box/document and busy-cue variants. Filenames do not select progression.
+The explicit development runner has a no-window resource preflight, injected
+production-Engine checks, and ordinary wall-clock Play with a final report:
+
+```powershell
+python -B scripts/prepare_narrative_level.py
+cmake --build --preset debug --target engine_tests near_laugh level_editor level_editor_automation editor_automation_tests narrative_fixture vulkan_smoke
+ctest --preset debug --output-on-failure
+.\build\debug\bin\narrative_fixture.exe --preflight --resources resources --output build/narrative-preflight-new
+```
+
+The following runs require an authorized desktop/GPU environment. The report
+retains event/run/step/reason/target, facts, the last 256 transitions and dropped
+record count. `--checks` uses explicit injected elapsed samples; ordinary Play
+uses wall time. Silent/muted checks do not establish physical listening.
+Use fresh evidence paths; a report path is never reused.
+
+```powershell
+ctest --preset vulkan-smoke --output-on-failure
+.\build\debug\bin\narrative_fixture.exe --checks --resources resources --output build/narrative-checks-new
+.\build\debug\bin\narrative_fixture.exe --play --device --level resources/levels/narrative-t4.level.json --output build/narrative-play-new
+& ./build/editor-ui-venv/Scripts/python.exe -B tests/automation/real_editor_narrative.py --environment authorized-test-desktop --transcript build/narrative-authoring-new.jsonl
+```
+
+The semantic scenario authors the second variation through ordinary controls,
+checks draft/applied values, repair/history and save/reopen, then retains the
+exact editor-saved bytes beside its transcript as `.level.json` with a SHA-256.
+It does not establish viewport picking/placement, ordinary Play, appearance or
+listening. Report A no-window, B official SDK/production-host/real-editor and
+C actual runner-visible four-tool use separately. T4 remains open until its
+[validation record](../openspec/changes/add-narrative-state-and-sequences/validation.md)
+has the required GPU, independent authoring, visual/listening and paired Release
+measurement evidence or explicit acceptance of a recorded limitation.
+
+The optional `narrative_measure` target uses production Engine dispatch and
+existing `FrameTimings` scopes. Both profiles retain the same 32 facts and 32
+regions. The capacity profile has 64 rearming events, 32 steps per event and
+eight predicates per list. Accepted radio toggles drive fresh runs; reports
+check that all expected steps completed and that actor/light/door/cue
+presentation stayed identical. Desired-state no-ops keep external work equal.
+
+```powershell
+cmake --build --preset debug --target narrative_measure
+.\build\debug\bin\narrative_measure.exe --preflight resources/levels/narrative-t4.level.json build/narrative-measure-preflight-new
+# Configure the separate Release tree only when it does not already exist:
+cmake --preset debug -B build/p10-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build/p10-release --target narrative_measure
+# Authorized desktop runs, with no concurrent builds/tests/GPU work:
+.\scripts\measure_narrative.ps1 -OutputDirectory build/narrative-debug-check-new -Check -DebugBuild
+.\scripts\measure_narrative.ps1 -OutputDirectory build/narrative-release-timings-new
+```
+
+`--preflight` creates both validated saved profiles without a window or GPU.
+`-Check` is functional evidence only. Release measurement alternates three
+paired runs, each with ten seconds warm-up and sixty seconds sampling. Raw
+CPU/GPU/frame samples, p50/p95/p99, completed event counts, executable/scene
+hashes and machine metadata are retained. Every run must meet unchanged T1
+gates: CPU/GPU p95 <=16.67 ms and frame p50/p95/p99 <=16.9/20/33.4 ms.
+Workload inspection is outside active CPU timing but remains part of frame
+intervals. Interruption, unavailable GPU timestamps, incomplete workload and
+failed gates remain failures. The script explicitly activates the measurement
+window and must only run in the authorized environment.

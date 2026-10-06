@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include "editor/editor_camera.hpp"
+#include "editor/editor_glfw_bridge.hpp"
 #include "editor/editor_overlay.hpp"
 #include "editor/editor_ui.hpp"
 
@@ -18,15 +19,16 @@ class EditorUiInteraction : public testing::Test {
     io.IniFilename = nullptr;
     io.DisplaySize = {1600, 900};
     io.DeltaTime = 1.0F / 60.0F;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     ASSERT_TRUE(document.open("resources/levels/prototype.level.json"));
     frame();
     frame();
   }
   void TearDown() override { ImGui::DestroyContext(); }
-  void frame(bool navigating = false) {
+  void frame(bool navigating = false, bool begin_navigation = false) {
     ImGui::NewFrame();
+    if (begin_navigation) EditorGlfwBridge::beginViewportNavigation();
     const auto& io = ImGui::GetIO();
     camera.update(
         editorNavigationInput(physical, navigating || camera_navigation,
@@ -364,6 +366,94 @@ TEST_F(EditorUiInteraction, UnsavedModalBlocksUnderlyingViewportAndShortcuts) {
   EXPECT_EQ(document.pendingAction().kind, EditorPendingActionKind::Close);
   ASSERT_TRUE(document.resolvePending(EditorPendingDecision::Cancel));
   EXPECT_EQ(*document.document(), edited);
+}
+
+TEST_F(EditorUiInteraction, ViewportNavigationCommitsNarrativeDraftOnceAndRestoresTabEditing) {
+  ASSERT_TRUE(document.addNarrative(EditorNarrativeKind::Fact));
+  const auto selected = document.selection();
+  const auto original = std::get<NarrativeFactDefinition>(*document.object(selected)).id;
+  ImGui::GetIO().AddMousePosEvent(1000, 350);
+  frame();
+  activate("Properties", "Narrative ID");
+  key(ImGuiKey_A, true);
+  ImGui::GetIO().AddInputCharactersUTF8("camera-handoff");
+  frame();
+  ASSERT_EQ(std::get<NarrativeFactDefinition>(*document.object(selected)).id, original);
+  const auto revision = document.revision();
+
+  // Use the production bridge handoff at the same point between NewFrame and
+  // widget submission. Its ordinary focus loss must finish the field draft.
+  frame(true, true);
+  ASSERT_EQ(std::get<NarrativeFactDefinition>(*document.object(selected)).id, "camera-handoff");
+  ASSERT_EQ(document.revision(), revision + 1);
+  const auto position = camera.position();
+  physical.keys[static_cast<std::size_t>(PhysicalKey::W)] = true;
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_W, true);
+  for (int i = 0; i != 5; ++i) frame(true);
+  EXPECT_LT(camera.position().z, position.z);
+  EXPECT_EQ(document.revision(), revision + 1);
+  physical = {};
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_W, false);
+  frame(true);
+
+  // Application releases capture on Escape. Explicit UI re-entry must retain
+  // normal keyboard navigation, including the sole text field's Tab commit.
+  key(ImGuiKey_Escape);
+  activate("Properties", "Narrative ID");
+  key(ImGuiKey_A, true);
+  ImGui::GetIO().AddInputCharactersUTF8("after-navigation");
+  frame();
+  key(ImGuiKey_Tab);
+  EXPECT_EQ(std::get<NarrativeFactDefinition>(*document.object(selected)).id, "after-navigation");
+  EXPECT_EQ(document.revision(), revision + 2);
+  ASSERT_TRUE(document.undo());
+  EXPECT_EQ(std::get<NarrativeFactDefinition>(*document.object(selected)).id, "camera-handoff");
+  ASSERT_TRUE(document.undo());
+  EXPECT_EQ(std::get<NarrativeFactDefinition>(*document.object(selected)).id, original);
+}
+
+TEST_F(EditorUiInteraction, ViewportNavigationCancelsSameFrameCheckboxActivationAndHeldKeys) {
+  ASSERT_TRUE(document.addNarrative(EditorNarrativeKind::Fact));
+  const auto selected = document.selection();
+  ImGui::GetIO().AddMousePosEvent(1000, 350);
+  frame();
+  activate("Properties", "Narrative ID");
+  key(ImGuiKey_Tab);
+  frame();
+  const auto* properties = ImGui::FindWindowByName("Properties");
+  ASSERT_NE(properties, nullptr);
+  ASSERT_EQ(ImGui::GetCurrentContext()->NavId,
+            ImHashStr("Initial value", 0, properties->ID));
+  ASSERT_FALSE(ImGui::GetIO().WantCaptureMouse);
+  const auto original = *document.document();
+  const auto revision = document.revision();
+  const auto position = camera.position();
+  physical.keys[static_cast<std::size_t>(PhysicalKey::W)] = true;
+  physical.keys[static_cast<std::size_t>(PhysicalKey::D)] = true;
+  physical.keys[static_cast<std::size_t>(PhysicalKey::Space)] = true;
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Space, true);
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, true);
+  for (auto key : {ImGuiKey_W, ImGuiKey_A, ImGuiKey_S, ImGuiKey_D})
+    ImGui::GetIO().AddKeyEvent(key, true);
+  // NewFrame queues Space activation before the accepted viewport handoff.
+  // Clearing focus alone would still toggle the submitted checkbox here.
+  frame(true, true);
+  EXPECT_EQ(document.revision(), revision);
+  ImGui::GetIO().AddInputCharactersUTF8("wasd");
+  for (int i = 0; i != 40; ++i) frame(true);
+  EXPECT_EQ(*document.document(), original);
+  EXPECT_EQ(document.revision(), revision);
+  EXPECT_EQ(document.selection(), selected);
+  EXPECT_GT(camera.position().y, position.y);
+  EXPECT_GT(camera.position().x, position.x);
+  EXPECT_LT(camera.position().z, position.z);
+  physical = {};
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Space, false);
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, false);
+  for (auto key : {ImGuiKey_W, ImGuiKey_A, ImGuiKey_S, ImGuiKey_D})
+    ImGui::GetIO().AddKeyEvent(key, false);
+  frame(true);
+  EXPECT_EQ(document.revision(), revision);
 }
 
 TEST_F(EditorUiInteraction, NumericDragCommitsOnceOnRelease) {

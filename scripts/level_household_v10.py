@@ -5,10 +5,10 @@ from pathlib import Path
 
 
 def migrate_household(level):
-    if level["version"] == 10:
+    if level["version"] in (10, 11):
         return level
     if level["version"] != 9:
-        raise ValueError("Household migration expects v9 or v10")
+        raise ValueError("Household migration expects v9 through v11")
     migrated = dict(level)
     migrated["version"] = 10
     migrated["household"] = dict(boxes=[], documents=[], radios=[])
@@ -28,4 +28,4 @@ if __name__ == "__main__":
             assert normalized == original, path
         path.write_text(json.dumps(migrated, indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8", newline="\n")
-        print(f"{path.name}: v{original['version']} -> v10; authored data retained")
+        print(f"{path.name}: v{original['version']} -> v{migrated['version']}; authored data retained")

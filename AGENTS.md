@@ -17,6 +17,77 @@ Do not infer weapons, damage, enemies, combat AI, or other shooter systems
 from legacy code, names, tests, documents, or the fact that the game uses
 a first-person perspective.
 
+## Commands
+
+Toolchain: CMake 3.25+, Ninja, `clang`/`clang++` (MSVC ABI on Windows),
+Vulkan SDK 1.3+. Windows is the primary platform; tooling uses PowerShell and
+Python 3.12.
+
+```sh
+cmake --preset debug            # add --fresh for stale compiler/target config
+cmake --build --preset debug
+ctest --preset debug --output-on-failure         # deterministic; excludes label vulkan-smoke
+ctest --preset vulkan-smoke --output-on-failure  # needs desktop + Vulkan 1.3 device
+```
+
+- One unit test (GoogleTest, label `unit`, executable `engine_tests`):
+  `ctest --preset debug -R <regex>` or
+  `build/debug/bin/engine_tests.exe --gtest_filter=Suite.Name`.
+- Test labels: `unit`, `boundary` (header/source boundary checks), `household`,
+  `narrative`, `vulkan-smoke`. Vulkan validation errors fail smoke tests.
+- Game: `near_laugh [--level <file>] [--entry <name>]` (default
+  `levels/prototype.level.json`); editor: `level_editor`. Resources resolve
+  relative to the executable.
+- `*_measure` and `interior_lighting_visual` targets are `EXCLUDE_FROM_ALL`;
+  build them explicitly (timing runs use a separate Release tree).
+- After editing scene/shadow GLSL in `resources/shaders`, recompile with `glslc`
+  and check with `spirv-val` (commands in `docs/DEVELOPMENT.md`, "Vulkan Smoke
+  Validation"); `.spv` files are committed.
+- Level data is versioned JSON (currently v11; v2-v10 still readable). Packaged
+  levels are produced/migrated by `scripts/level_*_v*.py` and
+  `scripts/prepare_*.py`; `tests/fixtures/levels` must stay unchanged.
+- Editor UI automation is opt-in (Windows): configure with
+  `-DNEAR_LAUGH_UI_AUTOMATION=ON`, venv at `build/editor-ui-venv`; run
+  `ctest --test-dir build/debug -L editor-automation` and
+  `python -B -m unittest discover -s tests/tools -p "test_editor_ui_*.py"`.
+  Setup details and routing rules: `docs/DEVELOPMENT.md` and "UI Validation
+  Routing" below.
+
+## Architecture Overview
+
+Static libraries under `src/core` and `src/editor`, composed by thin
+executables (`src/*_main.cpp`). Details: `docs/ARCHITECTURE.md`.
+
+- `near_laugh_world`: bounded level document, private strict JSON codec, shared
+  validation, immutable level data handed to everything else. Runtime and
+  editor consume the same validated data.
+- `near_laugh_platform` (GLFW/input), `near_laugh_physics` (Jolt),
+  `near_laugh_render` (Vulkan), `near_laugh_audio` (miniaudio, captions, cue
+  coordination), `near_laugh_text`, `near_laugh_animation` (skeletal GLB).
+- `near_laugh_runtime`: `Engine` (`src/core/engine.cpp`) is the concrete
+  composition owner, not a reusable engine layer. It constructs subsystems in
+  a fixed dependency order and RAII destroys them in reverse; gameplay policy
+  lives in `src/core/gameplay/*_controller.*`, advanced by a fixed-step
+  main-thread loop.
+- The renderer takes immutable level data at construction and a backend-neutral
+  `FrameRequest` per frame; it never runs simulation or decides exit. All
+  `Rendered`/`Skipped`/`Recovered` outcomes must be handled.
+- Public boundary: only the PImpl `near_laugh::Application`/`RuntimeConfig` in
+  `include/near_laugh`, standard-library types only. Vulkan, GLFW, Jolt, GLM,
+  JSON, miniaudio and ImGui types must not leak through public headers
+  (enforced by `tests/boundary`).
+- `level_editor` = `editor_core` (document workflow, play preparation, native
+  game child process) + `editor_ui` (ImGui) + `editor_render`. It deliberately
+  does NOT link `near_laugh_runtime` or `near_laugh_physics`; Play saves the
+  file and launches the game executable. `src/editor/automation` and
+  `cmake/editor_ui_automation.cmake` hold the optional semantic UI automation.
+- A level-format feature usually touches `level_document.hpp`,
+  `level_codec.cpp`, validation, `prototype_level.*`, editor commands, the
+  migration scripts and packaged `resources/levels/*.level.json` together.
+
+Requirements and decisions live in `openspec/specs/*` and
+`openspec/changes/*`.
+
 ## Context and Reading Policy
 
 Load the smallest context sufficient for a correct change. This policy limits

@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "terrain": null,
   "solids": [
     {
@@ -1446,5 +1446,10 @@
     "boxes": [],
     "documents": [],
     "radios": []
+  },
+  "narrative": {
+    "facts": [],
+    "regions": [],
+    "events": []
   }
 }

@@ -114,12 +114,49 @@ TARGET = {"oneOf": [_object({"ref": ID}), _object({"selector": SELECTOR})]}
 VECTOR = _object({axis: NUMBER for axis in "xyz"})
 COLOR = _object({axis: NUMBER for axis in "rgba"}, ["r", "g", "b"])
 COLLISION_BOX = _object({"center": VECTOR, "half_extent": VECTOR})
+# Concrete authored narrative values; no arbitrary document paths or expressions.
+_NARRATIVE_PARAMETERS = {
+    "fact": {"fact": TEXT, "value": BOOL},
+    "region": {"region": TEXT, "inside": BOOL},
+    "light": {"light": TEXT, "enabled": BOOL},
+    "door_endpoint": {"door": TEXT, "open": BOOL},
+    "door_locked": {"door": TEXT, "locked": BOOL},
+    "radio": {"radio": TEXT, "enabled": BOOL},
+    "box": {"box": TEXT, "held": BOOL},
+    "document": {"document": TEXT, "open": BOOL},
+    "actor": {"actor": TEXT, "state": _enum(("idle", "turning", "walking", "blocked", "interacting", "completed", "canceled"))},
+    "event": {"event": TEXT, "state": _enum(("completed", "canceled", "failed"))},
+    "elapsed": {"seconds": NUMBER},
+}
+# Read-only projections use bounded flat records. Authored per-kind validation
+# remains in the world module; the wire rejects unknown members and kinds.
+_predicate_fields = {"kind": _enum(_NARRATIVE_PARAMETERS)}
+for _parameters in _NARRATIVE_PARAMETERS.values():
+    _predicate_fields.update(_parameters)
+_predicate_fields["state"] = _enum(("idle", "turning", "walking", "blocked", "interacting", "completed", "canceled", "failed"))
+NARRATIVE_PREDICATE = _object(_predicate_fields, ["kind"])
+NARRATIVE_PREDICATES = _array(NARRATIVE_PREDICATE, 8)
+NARRATIVE_TRIGGER = _object({
+    "kind": _enum(("scene_entry", "region_entry", "interaction", "condition")),
+    "region": TEXT, "target_kind": _enum(("door", "switch", "radio", "document", "box")),
+    "target": TEXT, "action": _enum(("door_interact", "door_lock", "door_knock", "switch_activate", "radio_on", "radio_off", "document_open", "box_pickup", "box_drop", "box_throw")),
+    "predicates": NARRATIVE_PREDICATES,
+}, ["kind"])
+NARRATIVE_STEPS = _array(_object({
+    "kind": _enum(("set_fact", "set_light", "set_door_open", "set_door_locked", "set_radio", "play_cue", "run_route", "delay", "wait_until")),
+    "fact": TEXT, "value": BOOL, "light": TEXT, "enabled": BOOL, "door": TEXT,
+    "open": BOOL, "locked": BOOL, "radio": TEXT, "source": TEXT, "actor": TEXT,
+    "route": TEXT, "seconds": NUMBER, "predicates": NARRATIVE_PREDICATES,
+}, ["kind"]), 32)
 DATA_TYPES = {
     "boolean": BOOL, "integer": _integer(-MAX_SAFE_INTEGER), "float": NUMBER,
     "string": TEXT, "optional_string": _nullable(TEXT), "ref": _nullable(ID),
     "vector3": VECTOR, "color": COLOR,
     "strings": _array(TEXT), "numbers": _array(NUMBER),
     "collision_boxes": _array(COLLISION_BOX, 8),
+    "narrative_trigger": NARRATIVE_TRIGGER,
+    "narrative_predicates": _nullable(NARRATIVE_PREDICATES),
+    "narrative_steps": NARRATIVE_STEPS,
     "range": _object({"min": NUMBER, "max": NUMBER}, [], minProperties=1),
 }
 
@@ -135,6 +172,7 @@ OBJECT_FIELDS = {
     "room_b", "door", "closed_gain", "open_gain", "initial_mark",
     "initial_route", "speed", "footstep_source", "interaction_source",
     "actor", "marks", "final_clip", "title", "pages", "prop", "source",
+    "initial_value", "trigger", "guards", "cancel", "cancel_enabled", "repeat", "steps",
 }
 for _field in ("position", "center", "half_extent", "translation",
                "hinge_position", "feet_position", "foot_position"):
@@ -149,7 +187,7 @@ PROJECTION_FIELDS = {
                  "switch_count", "door_count", "prop_count", "audio_cue_count",
                  "audio_source_count", "audio_room_count", "audio_connection_count",
                  "actor_count", "mark_count", "route_count", "box_count",
-                 "document_count", "radio_count"),
+                 "document_count", "radio_count", "fact_count", "region_count", "event_count"),
     "selection": ("object_ref", "revision", "record_type"),
     "history": ("can_undo", "can_redo", "summary"),
     "object": tuple(sorted(OBJECT_FIELDS)),

@@ -13,6 +13,7 @@ class CueCoordinator final {
                  AudioContent content, AudioOutput output, double now);
   [[nodiscard]] CueStart start(std::string_view source);
   bool cancel(std::string_view source);
+  bool cancel(std::string_view source, std::uint64_t expected_instance);
   void cancelAll();
   void autoplay();
   void update(double now);
@@ -30,6 +31,9 @@ class CueCoordinator final {
   [[nodiscard]] bool suspended() const noexcept { return suspended_; }
   [[nodiscard]] bool muted() const noexcept { return muted_; }
   [[nodiscard]] AudioPlayback& playback() noexcept { return playback_; }
+  [[nodiscard]] const AudioPlayback& playback() const noexcept {
+    return playback_;
+  }
   [[nodiscard]] const LevelAudio& definitions() const noexcept {
     return definitions_;
   }

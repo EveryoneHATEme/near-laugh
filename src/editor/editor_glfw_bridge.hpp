@@ -44,6 +44,8 @@ class EditorGlfwBridge {
   EditorGlfwBridge& operator=(EditorGlfwBridge&&) = delete;
 
   void beginFrame();
+  // After NewFrame, before drawing widgets, on an accepted viewport capture.
+  static void beginViewportNavigation() noexcept;
   static void postEmptyEvent() noexcept;
   [[nodiscard]] EditorUiCaptureIntent captureIntent() const noexcept;
 

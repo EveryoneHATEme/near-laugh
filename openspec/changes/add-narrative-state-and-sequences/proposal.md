@@ -30,6 +30,10 @@ audio demonstration.
   action order to verify behavior without a telephone plot or rescue branch.
 - Version serialized narrative additions explicitly. No generic scripting
   language, node editor, behavior trees, or global event bus.
+- Provide a small reusable editor-authored vocabulary, not a filename-selected
+  demonstration. Use explicit desired-state commands and instance-checked
+  cancellation; observe player box/document actions without automating the
+  player's hands or introducing object transport.
 
 ## Capabilities
 
@@ -49,6 +53,17 @@ audio demonstration.
   sequence suspension, reading, and return to exploration.
 - `runtime-composition`: Own narrative advancement and coordinate concrete
   world/presentation actions under a defined active-time policy.
+- `authored-interaction`: Expose accepted player interactions once, with target
+  identity and actual outcome, for concrete scene consumers.
+- `interactive-doors`: Add authored endpoint/lock requests while preserving
+  collision, refusal and stopped-on-obstruction behavior.
+- `light-switch`: Share explicit light enables with ordinary switch actions.
+- `household-interactions`: Share explicit radio state and observe accepted
+  box/document actions without stealing player input ownership.
+- `scripted-characters`: Observe and cancel only the route instance started
+  by the requesting sequence.
+- `spatial-audio`: Reserve suitable sequence sources and observe/cancel only
+  the cue instance started by the requesting sequence.
 
 ## Impact
 
@@ -73,8 +88,11 @@ for P12. These later changes are not prerequisites for P05 acceptance.
 
 ## Acceptance Criteria
 
-- The neutral sequence reaches its defined state/action and cue order during play,
-  repeated region entry, and different render/fixed-step batch sizes.
+- The neutral sequence reaches its defined state/action and cue order during play
+  and repeated region entry. Equivalent ordered observations and active-time
+  samples produce identical dispatch and cancellation regardless of presentation;
+  varied fixed-step batches additionally exercise intermediate region crossings
+  and the existing capped-physics/uncapped-audio timing policies.
 - A completed event cannot replay merely because a region is re-entered or
   rendering recovers. Competing triggers resolve identically from equal state.
 - Activating the competing test condition cancels the incompatible pending
@@ -87,3 +105,6 @@ for P12. These later changes are not prerequisites for P05 acceptance.
   context. Editor save/reopen and undo/redo preserve state definitions and
   links. Run deterministic progression tests and play the integrated neutral
   scene audibly, muted, and without an output device.
+- Author a second variation through the editor, save/reopen and ordinary Play
+  without runtime changes; retain semantic UI evidence separately from visual
+  and listening acceptance.

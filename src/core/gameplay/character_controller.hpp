@@ -44,6 +44,7 @@ class CharacterController {
   [[nodiscard]] CharacterStart start(std::string_view actor,
                                      std::string_view route);
   bool cancel(std::string_view actor);
+  bool cancel(std::string_view actor, std::uint64_t expected_instance);
   void fixedStep(float seconds, FrameTimingSample* timings = nullptr);
   void handoffAudio();
   [[nodiscard]] const CharacterActionResult& result(std::size_t actor) const;

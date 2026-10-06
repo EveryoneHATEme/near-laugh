@@ -61,6 +61,33 @@ DoorResult DoorController::act(std::size_t index, DoorAction action,
                   open ? DoorResultKind::Opening : DoorResultKind::Closing);
 }
 
+DoorRequestResult DoorController::requestOpen(std::size_t index, bool open) {
+  if (index >= states_.size()) return DoorRequestResult::InvalidTarget;
+  auto& state = states_[index];
+  const float endpoint = open ? definitions_[index].open_angle_degrees : 0;
+  if (!state.moving && state.angle == endpoint)
+    return DoorRequestResult::Accepted;
+  if (open && state.locked) return DoorRequestResult::Locked;
+  if (state.moving && state.target_open == open)
+    return DoorRequestResult::Accepted;
+  state.target_open = open;
+  state.moving = true;
+  (void)feedback(index, open ? DoorResultKind::Opening : DoorResultKind::Closing);
+  return DoorRequestResult::Accepted;
+}
+
+DoorRequestResult DoorController::requestLocked(std::size_t index, bool locked) {
+  if (index >= states_.size()) return DoorRequestResult::InvalidTarget;
+  auto& state = states_[index];
+  if (state.locked == locked) return DoorRequestResult::Accepted;
+  if (definitions_[index].lock_side == DoorLockSide::None)
+    return DoorRequestResult::NotLockable;
+  if (state.moving || state.angle != 0) return DoorRequestResult::NotClosed;
+  state.locked = locked;
+  (void)feedback(index, locked ? DoorResultKind::Locked : DoorResultKind::Unlocked);
+  return DoorRequestResult::Accepted;
+}
+
 void DoorController::fixedStep(float seconds, PhysicsWorld& physics) {
   if (!(seconds > 0) || !std::isfinite(seconds))
     throw std::invalid_argument("Door step requires finite positive time");

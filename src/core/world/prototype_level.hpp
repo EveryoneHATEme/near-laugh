@@ -50,6 +50,9 @@ class PrototypeLevel {
   [[nodiscard]] const LevelHousehold& household() const noexcept {
     return household_;
   }
+  [[nodiscard]] const LevelNarrative& narrative() const noexcept {
+    return narrative_;
+  }
 
  private:
   explicit PrototypeLevel(LevelDocument document);
@@ -67,6 +70,7 @@ class PrototypeLevel {
   LevelAudio audio_;
   LevelCharacters characters_;
   LevelHousehold household_;
+  LevelNarrative narrative_;
 };
 
 [[nodiscard]] PrototypeLevel makePrototypeLevel(const LevelDocument& document);

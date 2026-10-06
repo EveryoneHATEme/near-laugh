@@ -64,6 +64,8 @@ class EditorUi {
   void drawCharacterObjects(EditorDocument& document);
   void drawCharacterProperties(EditorDocument& document);
   void drawHouseholdObjects(EditorDocument& document);
+  void drawNarrativeObjects(EditorDocument& document);
+  void drawNarrativeProperties(EditorDocument& document);
   void drawHouseholdProperties(EditorDocument& document);
   void drawReadablePreview(const EditorDocument& document);
   bool commitSelectionDraft(EditorDocument& document);

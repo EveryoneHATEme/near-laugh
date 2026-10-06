@@ -97,6 +97,33 @@ TEST(CharacterRoutes, StartIsIdempotentAndRestartRetainsAcceptedPose) {
   EXPECT_EQ(fresh.controller.result(0).instance, 0U);
 }
 
+TEST(CharacterRoutes, ExpectedInstanceCancelPreservesReplacementAndUnrelatedAudio) {
+  RouteRun run(routeDocument(true));
+  ASSERT_EQ(run.controller.start("actor", "route"), CharacterStart::Started);
+  const auto first = run.controller.result(0).instance;
+  run.steps(45, false);
+  EXPECT_EQ(run.controller.start("actor", "route"), CharacterStart::AlreadyActive);
+  EXPECT_EQ(run.controller.start("actor", "return"), CharacterStart::Busy);
+  ASSERT_EQ(run.audio.start("other"), CueStart::Started);
+  const auto other = run.audio.instance("other");
+  EXPECT_FALSE(run.controller.cancel("actor", 0));
+  EXPECT_FALSE(run.controller.cancel("actor", first + 1));
+  ASSERT_TRUE(run.controller.cancel("actor", first));
+  run.controller.handoffAudio();
+  EXPECT_EQ(run.audio.instance("step"), 0U);
+  EXPECT_EQ(run.audio.instance("other"), other);
+  EXPECT_EQ(run.audio.status("other"), CueStatus::Playing);
+  ASSERT_EQ(run.controller.start("actor", "return"), CharacterStart::Started);
+  const auto second = run.controller.result(0).instance;
+  EXPECT_GT(second, first);
+  EXPECT_FALSE(run.controller.cancel("actor", first));
+  EXPECT_EQ(run.controller.result(0).instance, second);
+  run.steps(300);
+  ASSERT_EQ(run.controller.result(0).action, CharacterAction::Completed);
+  EXPECT_FALSE(run.controller.cancel("actor", second));
+  EXPECT_EQ(run.controller.result(0).action, CharacterAction::Completed);
+}
+
 TEST(CharacterRoutes, InitialRouteStartsOnceAndFacesBeforeFinalInteraction) {
   auto d = routeDocument();
   d.characters.actors[0].initial_route = "route";

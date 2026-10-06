@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <limits>
 
 #include "core/gameplay/authored_interaction.hpp"
@@ -136,6 +137,31 @@ TEST(LightSwitchController,
   EXPECT_EQ(none.pointLightEnabled(), (std::vector<std::uint8_t>{true, true}));
 }
 
+TEST(LightSwitchController, AuthoredEnableSharesSwitchStateAndRejectsMissingLight) {
+  const auto document = prototypeLevelDocument();
+  LightSwitchController controller(document.environment_light,
+                                    document.light_switches);
+  const auto initial = controller.pointLightEnabled();
+  const auto& id = document.light_switches.front().light_id;
+  const auto& lights = document.environment_light.point_lights;
+  const auto index = static_cast<std::size_t>(std::find_if(
+      lights.begin(), lights.end(), [&](const auto& light) { return light.id == id; }) - lights.begin());
+  ASSERT_TRUE(controller.setEnabled(index, false));
+  ASSERT_TRUE(controller.setEnabled(index, false));
+  EXPECT_FALSE(controller.pointLightEnabled()[index]);
+  controller.toggle(0);
+  EXPECT_TRUE(controller.pointLightEnabled()[index]);
+  ASSERT_TRUE(controller.setEnabled(index, true));
+  controller.toggle(0);
+  EXPECT_FALSE(controller.pointLightEnabled()[index]);
+  for (std::size_t i = 0; i < initial.size(); ++i)
+    if (i != index) EXPECT_EQ(controller.pointLightEnabled()[i], initial[i]);
+  const auto state = controller.pointLightEnabled();
+  EXPECT_FALSE(controller.setEnabled(initial.size(), true));
+  EXPECT_EQ(controller.pointLightEnabled(), state);
+  EXPECT_EQ(document, prototypeLevelDocument());
+}
+
 TEST(LightSwitchController, RejectedAndInactivePressesCannotBeDeferred) {
   const auto level = makePrototypeLevel(prototypeLevelDocument());
   const PhysicsWorld physics(level);
@@ -155,6 +181,33 @@ TEST(LightSwitchController, RejectedAndInactivePressesCannotBeDeferred) {
   EXPECT_TRUE(controller.pointLightEnabled()[0]);
   press(controller, physics);
   EXPECT_FALSE(controller.pointLightEnabled()[0]);
+}
+
+TEST(LightSwitchController, AcceptedSwitchOutcomeExcludesMissAndAuthoredSet) {
+  const auto level = makePrototypeLevel(prototypeLevelDocument());
+  const PhysicsWorld physics(level);
+  SwitchRun controller(level);
+  AcceptedInteractions accepted;
+  const auto send = [&](bool down, PlayerViewPose view = approach()) {
+    PlayerActionSnapshot input;
+    input.interact = down;
+    (void)controller.interaction.update(input, true, view, level, physics,
+        controller.doors, controller.light, nullptr, &accepted);
+  };
+  send(false);
+  send(true);
+  ASSERT_EQ(accepted.pending().size(), 1U);
+  EXPECT_EQ(accepted.pending()[0].target_kind, NarrativeInteractionTarget::Switch);
+  EXPECT_EQ(accepted.pending()[0].target, level.lightSwitches()[0].id);
+  EXPECT_EQ(accepted.pending()[0].action, NarrativeInteractionAction::SwitchActivate);
+  EXPECT_EQ(accepted.pending()[0].result, AcceptedInteractionResult::Disabled);
+  send(true);
+  EXPECT_EQ(accepted.pending().size(), 1U);
+  send(false);
+  send(true, approach(3));
+  EXPECT_EQ(accepted.pending().size(), 1U);
+  ASSERT_TRUE(controller.light.setEnabled(0, true));
+  EXPECT_EQ(accepted.pending().size(), 1U);
 }
 
 TEST(LightSwitchController, EventBatchesAndPresentationDoNotReplayPresses) {

@@ -173,6 +173,7 @@ endfunction()
 near_laugh_enable_warnings(near_laugh_imgui)
 
 add_library(near_laugh_world STATIC
+    src/core/world/narrative.cpp
     src/core/world/household.cpp
     src/core/world/characters.cpp
     src/core/world/audio.cpp
@@ -277,6 +278,7 @@ endif()
 
 add_library(near_laugh_runtime STATIC
     src/core/gameplay/character_controller.cpp
+    src/core/gameplay/narrative_progression.cpp
     src/core/gameplay/door_controller.cpp
     src/core/gameplay/authored_interaction.cpp
     src/core/gameplay/household_controller.cpp
@@ -330,6 +332,7 @@ add_library(near_laugh_editor_core STATIC
     src/editor/editor_audio_commands.cpp
     src/editor/editor_character_commands.cpp
     src/editor/editor_household_commands.cpp
+    src/editor/editor_narrative_commands.cpp
     src/editor/editor_character_spatial.cpp
     src/editor/editor_character_preview.cpp
     src/editor/editor_document.cpp
@@ -356,6 +359,7 @@ add_library(near_laugh_editor_ui STATIC
     src/editor/editor_audio_ui.cpp
     src/editor/editor_character_ui.cpp
     src/editor/editor_household_ui.cpp
+    src/editor/editor_narrative_ui.cpp
     src/editor/editor_character_preview_ui.cpp
 )
 target_include_directories(near_laugh_editor_ui
@@ -449,6 +453,23 @@ target_link_libraries(scripted_characters PRIVATE near_laugh_runtime)
 near_laugh_enable_warnings(scripted_characters)
 set_target_properties(scripted_characters PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_dependencies(scripted_characters near_laugh_packaged_resources)
+
+add_executable(narrative_fixture
+    src/development/narrative_fixture_main.cpp
+    src/development/narrative_fixture.cpp)
+target_include_directories(narrative_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(narrative_fixture PRIVATE
+    near_laugh_runtime nlohmann_json::nlohmann_json glfw)
+near_laugh_enable_warnings(narrative_fixture)
+set_target_properties(narrative_fixture PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(narrative_fixture near_laugh_packaged_resources)
+
+add_executable(narrative_measure EXCLUDE_FROM_ALL src/development/narrative_measure.cpp)
+target_include_directories(narrative_measure PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(narrative_measure PRIVATE near_laugh_runtime nlohmann_json::nlohmann_json)
+near_laugh_enable_warnings(narrative_measure)
+set_target_properties(narrative_measure PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(narrative_measure near_laugh_packaged_resources)
 
 add_executable(scripted_character_measure EXCLUDE_FROM_ALL
     src/scripted_character_measure_main.cpp src/launcher/executable_path.cpp)

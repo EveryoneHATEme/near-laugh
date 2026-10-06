@@ -101,7 +101,7 @@ std::optional<DoorResult> AuthoredInteraction::update(
     const PlayerActionSnapshot& input, bool active, const PlayerViewPose& view,
     const PrototypeLevel& level, const PhysicsWorld& physics,
     DoorController& doors, LightSwitchController& light_switch,
-    HouseholdController* household) {
+    HouseholdController* household, AcceptedInteractions* accepted) {
   const std::array down{input.lock, input.interact, input.secondary_action};
   std::array<bool, 3> press{};
   for (std::size_t i = 0; i < down.size(); ++i) {
@@ -154,25 +154,49 @@ std::optional<DoorResult> AuthoredInteraction::update(
   }
   if (!action) return std::nullopt;
   const WorldPosition eye{view.position.x, view.position.y, view.position.z};
-  if (target->kind == AuthoredTargetKind::Door)
-    return doors.act(target->index,
+  if (target->kind == AuthoredTargetKind::Door) {
+    const auto result = doors.act(target->index,
                      *action == 0   ? DoorAction::Lock
                      : *action == 1 ? DoorAction::Interact
                                     : DoorAction::Knock,
                      eye);
+    if (accepted && result.kind != DoorResultKind::Refused) {
+      const auto outcome = result.kind == DoorResultKind::Opening ? AcceptedInteractionResult::Opening
+          : result.kind == DoorResultKind::Closing ? AcceptedInteractionResult::Closing
+          : result.kind == DoorResultKind::Locked ? AcceptedInteractionResult::Locked
+          : result.kind == DoorResultKind::Unlocked ? AcceptedInteractionResult::Unlocked
+          : AcceptedInteractionResult::Knocked;
+      accepted->publish(NarrativeInteractionTarget::Door, result.id,
+          *action == 0 ? NarrativeInteractionAction::DoorLock
+          : *action == 1 ? NarrativeInteractionAction::DoorInteract
+                        : NarrativeInteractionAction::DoorKnock, outcome);
+    }
+    return result;
+  }
   if (*action != 1) return std::nullopt;
-  if (target->kind == AuthoredTargetKind::LightSwitch)
+  if (target->kind == AuthoredTargetKind::LightSwitch) {
     light_switch.toggle(target->index);
-  else if (household) {
+    if (accepted) {
+      const auto& definition = level.lightSwitches()[target->index];
+      const auto& lights = level.environmentLight().point_lights;
+      const auto light = std::find_if(lights.begin(), lights.end(),
+          [&](const auto& value) { return value.id == definition.light_id; });
+      const bool enabled = light_switch.pointLightEnabled().at(
+          static_cast<std::size_t>(light - lights.begin()));
+      accepted->publish(NarrativeInteractionTarget::Switch, definition.id,
+          NarrativeInteractionAction::SwitchActivate,
+          enabled ? AcceptedInteractionResult::Enabled : AcceptedInteractionResult::Disabled);
+    }
+  } else if (household) {
     switch (target->kind) {
       case AuthoredTargetKind::Box:
         (void)household->requestPickup(target->index, view);
         break;
       case AuthoredTargetKind::Document:
-        household->openDocument(target->index);
+        household->openDocument(target->index, accepted);
         break;
       case AuthoredTargetKind::Radio:
-        household->toggleRadio(target->index);
+        household->toggleRadio(target->index, accepted);
         break;
       default:
         break;

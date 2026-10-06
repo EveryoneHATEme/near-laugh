@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "terrain": null,
   "solids": [
     {
@@ -445,5 +445,10 @@
         "initially_on": false
       }
     ]
+  },
+  "narrative": {
+    "facts": [],
+    "regions": [],
+    "events": []
   }
 }

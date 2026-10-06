@@ -235,6 +235,13 @@ std::vector<EditorOverlayLine> buildEditorOverlay(
       previous = mark;
     }
   }
+  for (std::size_t i = 0; i < level.narrative.regions.size(); ++i) {
+    const auto& region = level.narrative.regions[i];
+    if (editorNarrativeFieldError(region).empty())
+      box(region.center, region.half_extent, 0,
+          document.selection() == document.narrativeIds(EditorNarrativeKind::Region)[i]
+              ? selected_color : WorldColor{75, 220, 205, 205});
+  }
   constexpr WorldColor audio_color{210, 130, 255, 255};
   for (std::size_t i = 0; i < level.audio.sources.size(); ++i)
     marker(level.audio.sources[i].position,

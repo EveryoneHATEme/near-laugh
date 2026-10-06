@@ -34,7 +34,7 @@ def add_actor(level, name, initial, marks, speed=1.):
 
 
 def main():
-    level = dict(version=10, terrain=None, solids=[
+    level = dict(version=11, terrain=None, solids=[
         solid((0, -.25, 0), (6, .25, 7), "floor", "wood-floor"),
         solid((0, 4.15, 0), (6, .15, 7)),
         solid((-6, 2, 0), (.15, 2, 7)), solid((6, 2, 0), (.15, 2, 7)),
@@ -57,7 +57,8 @@ def main():
         characters=dict(actors=[], marks=[mark("start", (-3, 0, -4), 0),
             mark("corner", (-3, 0, 0), 90), mark("stairs", (0, 0, 0), 0),
             mark("landing", (0, .6, 2.65), 0), mark("touch", (0, .6, 5.3), 90)], routes=[]),
-        household=dict(boxes=[], documents=[], radios=[]))
+        household=dict(boxes=[], documents=[], radios=[]),
+        narrative=dict(facts=[], regions=[], events=[]))
     for name, xyz, color in (("front", (-2, 3.5, -3), [1., .85, .65]),
                               ("stairs", (1, 3.5, 1), [.7, .83, 1.]),
                               ("back", (-2, 3.5, 5), [1., .92, .8])):

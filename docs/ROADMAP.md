@@ -58,6 +58,11 @@ using the retained evidence with subjective hold/throw feel and physical
 listening explicitly unverified. All 41 tasks are closed; main specs were
 synchronized and P06 was archived on 2026-09-26. The decision and limits are in its
 [validation record](../openspec/changes/archive/2026-09-26-add-household-interactions/validation.md).
+P05 (`add-narrative-state-and-sequences`) is being implemented with level v11,
+bounded events and ordinary editor authoring. T4 acceptance remains open until
+the [validation record](../openspec/changes/add-narrative-state-and-sequences/validation.md)
+supports its automated, integrated, authoring, GPU, performance and human gates.
+Planning readiness and device-free test results do not close those gates.
 The other pending linked changes remain proposals requiring detailed planning
 and review. Structural validation alone does not establish implementation readiness.
 Proposal-only feature changes do not qualify for the documentation-only
@@ -191,9 +196,10 @@ viewer without a new level format. P07b owns the one v8-to-v9 transition,
 accepted route collision/audio and initial editor compatibility. P07c reuses
 that schema for complete editing/preview and a second editor-authored scene.
 Those P07 records describe acceptance on historical v9. P06 owns the single
-v9-to-v10 transition: current packaged scenes and ordinary saving use v10,
+v9-to-v10 transition. P05 now adds v11 narrative definitions to current packaged
+scenes and ordinary saving,
 while prior accepted scenes retain their authored behavior with empty household
-arrays. Exact v2–v9 read compatibility and retained historical fixtures do not
+arrays. Exact v2–v10 read compatibility and retained historical fixtures do not
 rewrite or invalidate the archived P07 evidence.
 Basic authoring is completed within P07, not postponed to P11. Archive each
 stage only after its own acceptance and rebase the next on the resulting main

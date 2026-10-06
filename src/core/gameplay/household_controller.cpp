@@ -168,7 +168,8 @@ bool HouseholdController::requestThrow(PhysicsVector direction) {
       {HouseholdCommandKind::Throw, *physics_.heldBox(), {}, direction});
 }
 
-void HouseholdController::beforeFixedStep(const PlayerViewPose& view) {
+void HouseholdController::beforeFixedStep(const PlayerViewPose& view,
+                                          AcceptedInteractions* accepted) {
   if (suspended_) return;
   if (safety_release_) {
     physics_.dropHeldBox();
@@ -179,13 +180,25 @@ void HouseholdController::beforeFixedStep(const PlayerViewPose& view) {
   const auto target = holdTarget(view);
   if (pending_) {
     const auto command = std::exchange(pending_, std::nullopt).value();
+    const auto publish = [&](NarrativeInteractionAction action,
+                             AcceptedInteractionResult result) {
+      if (accepted) accepted->publish(NarrativeInteractionTarget::Box,
+          level_.household().boxes.at(command.box).id, action, result);
+    };
     if (command.kind == HouseholdCommandKind::Drop) {
-      physics_.dropHeldBox();
-      feedback(HouseholdResult::Dropped, "Коробка опущена");
+      if (physics_.heldBox() == command.box) {
+        physics_.dropHeldBox();
+        feedback(HouseholdResult::Dropped, "Коробка опущена");
+        publish(NarrativeInteractionAction::BoxDrop, AcceptedInteractionResult::Dropped);
+      } else {
+        feedback(HouseholdResult::Refused, "Коробка уже отпущена");
+      }
     } else if (command.kind == HouseholdCommandKind::Throw) {
-      if (physics_.throwHeldBox(command.throw_direction))
+      if (physics_.heldBox() == command.box &&
+          physics_.throwHeldBox(command.throw_direction)) {
         feedback(HouseholdResult::Thrown, "Коробка брошена");
-      else
+        publish(NarrativeInteractionAction::BoxThrow, AcceptedInteractionResult::Thrown);
+      } else
         feedback(HouseholdResult::Refused, "Не удалось бросить коробку");
     } else {
       const auto box = physics_.boxState(command.box);
@@ -220,6 +233,7 @@ void HouseholdController::beforeFixedStep(const PlayerViewPose& view) {
         const auto& q = target->view_orientation;
         hold_relative_orientation_ =
             multiply({-q[0], -q[1], -q[2], q[3]}, box.orientation);
+        publish(NarrativeInteractionAction::BoxPickup, AcceptedInteractionResult::PickedUp);
         feedback(HouseholdResult::PickedUp,
                  "Коробка в руках. Положите её перед другим действием");
       } else
@@ -240,7 +254,8 @@ void HouseholdController::beforeFixedStep(const PlayerViewPose& view) {
 std::optional<std::size_t> HouseholdController::heldBox() const noexcept {
   return physics_.heldBox();
 }
-void HouseholdController::openDocument(std::size_t document) {
+void HouseholdController::openDocument(std::size_t document,
+                                      AcceptedInteractions* accepted) {
   if (!worldActionsAllowed() || physics_.heldBox()) return;
   if (pending_) {
     feedback(HouseholdResult::Busy, "Действие уже ожидает выполнения");
@@ -248,6 +263,9 @@ void HouseholdController::openDocument(std::size_t document) {
   }
   (void)level_.household().documents.at(document);
   document_ = document;
+  if (accepted) accepted->publish(NarrativeInteractionTarget::Document,
+      level_.household().documents[document].id,
+      NarrativeInteractionAction::DocumentOpen, AcceptedInteractionResult::Opened);
   page_ = 0;
   mode_changed_ = true;
   blockHeldControls();
@@ -264,19 +282,23 @@ std::optional<std::size_t> HouseholdController::readingDocument()
     const noexcept {
   return document_;
 }
-void HouseholdController::toggleRadio(std::size_t radio) {
+void HouseholdController::toggleRadio(std::size_t radio,
+                                     AcceptedInteractions* accepted) {
   if (!worldActionsAllowed() || physics_.heldBox()) return;
   if (pending_) {
     feedback(HouseholdResult::Busy, "Действие уже ожидает выполнения");
     return;
   }
-  const auto& definition = level_.household().radios.at(radio);
   if (radio_enabled_.at(radio)) {
-    audio_.cancel(definition.source);
-    radio_enabled_[radio] = false;
+    (void)setRadioEnabled(radio, false);
+    if (accepted) accepted->publish(NarrativeInteractionTarget::Radio,
+        level_.household().radios[radio].id, NarrativeInteractionAction::RadioOff,
+        AcceptedInteractionResult::Disabled);
     feedback(HouseholdResult::RadioOff, "Радио выключено");
-  } else if (audio_.start(definition.source) != CueStart::Busy) {
-    radio_enabled_[radio] = true;
+  } else if (setRadioEnabled(radio, true)) {
+    if (accepted) accepted->publish(NarrativeInteractionTarget::Radio,
+        level_.household().radios[radio].id, NarrativeInteractionAction::RadioOn,
+        AcceptedInteractionResult::Enabled);
     feedback(HouseholdResult::RadioOn, "Радио включено");
   } else
     feedback(HouseholdResult::Refused, "Не удалось включить радио");
@@ -284,6 +306,19 @@ void HouseholdController::toggleRadio(std::size_t radio) {
 }
 bool HouseholdController::radioOn(std::size_t radio) const {
   return radio_enabled_.at(radio);
+}
+
+bool HouseholdController::setRadioEnabled(std::size_t radio, bool enabled) {
+  if (radio >= radio_enabled_.size()) return false;
+  if (radio_enabled_[radio] == enabled) return true;
+  const auto& source = level_.household().radios[radio].source;
+  if (enabled) {
+    if (audio_.start(source) == CueStart::Busy) return false;
+  } else {
+    (void)audio_.cancel(source);
+  }
+  radio_enabled_[radio] = enabled;
+  return true;
 }
 bool HouseholdController::ownsSource(std::string_view source) const noexcept {
   return std::any_of(level_.household().radios.begin(),

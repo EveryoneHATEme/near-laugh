@@ -34,7 +34,29 @@ using EditorObjectValue =
                  AudioConnectionDefinition, CharacterActorDefinition,
                  CharacterMarkDefinition, CharacterRouteDefinition,
                  HouseholdBoxDefinition, HouseholdDocumentDefinition,
-                 HouseholdRadioDefinition>;
+                 HouseholdRadioDefinition, NarrativeFactDefinition,
+                 NarrativeRegionDefinition, NarrativeEventDefinition>;
+enum class EditorNarrativeKind : std::size_t { Fact, Region, Event };
+[[nodiscard]] std::optional<EditorNarrativeKind> editorNarrativeKind(
+    const EditorObjectValue& value);
+[[nodiscard]] std::string editorNarrativeFieldError(
+    const EditorObjectValue& value);
+[[nodiscard]] bool editorNarrativeReferences(const LevelNarrative& narrative,
+                                            const EditorObjectValue& type,
+                                            std::string_view id);
+// Automatic IDs must not silently repair an unresolved typed narrative link,
+// so every generated ID skips both taken IDs and dangling typed references.
+template <class Taken>
+[[nodiscard]] std::string editorFreshId(std::string_view prefix,
+                                        const LevelNarrative& narrative,
+                                        const EditorObjectValue& type,
+                                        const Taken& taken) {
+  for (std::size_t n = 1;; ++n) {
+    auto id = std::string(prefix) + std::to_string(n);
+    if (!taken(id) && !editorNarrativeReferences(narrative, type, id))
+      return id;
+  }
+}
 enum class EditorHouseholdKind : std::size_t { Box, Document, Radio };
 [[nodiscard]] std::optional<EditorHouseholdKind> editorHouseholdKind(
     const EditorObjectValue& value);
@@ -130,6 +152,11 @@ class EditorDocument {
   [[nodiscard]] bool addAudio(EditorAudioKind kind);
   [[nodiscard]] bool addCharacter(EditorCharacterKind kind);
   [[nodiscard]] bool addHousehold(EditorHouseholdKind kind);
+  [[nodiscard]] bool addNarrative(EditorNarrativeKind kind);
+  [[nodiscard]] const std::vector<EditorObjectId>& narrativeIds(
+      EditorNarrativeKind kind) const {
+    return narrative_ids_.at(static_cast<std::size_t>(kind));
+  }
   [[nodiscard]] const std::vector<EditorObjectId>& householdIds(
       EditorHouseholdKind kind) const {
     return household_ids_.at(static_cast<std::size_t>(kind));
@@ -240,6 +267,7 @@ class EditorDocument {
     std::optional<std::array<std::vector<EditorObjectId>, 3>>
         character_ids_before{}, character_ids_after{};
     std::optional<LevelHousehold> household_before{}, household_after{};
+    std::optional<LevelNarrative> narrative_before{}, narrative_after{};
   };
   [[nodiscard]] bool addPointLight(PrototypePointLight value);
   [[nodiscard]] bool addLightSwitch(PrototypeLightSwitch value);
@@ -251,6 +279,11 @@ class EditorDocument {
   void resetAudioIds();
   void resetCharacterIds();
   void resetHouseholdIds();
+  void resetNarrativeIds();
+  [[nodiscard]] std::optional<EditorObjectValue> narrativeObject(EditorObjectId id) const;
+  [[nodiscard]] bool addNarrativeObject(EditorObjectValue value);
+  [[nodiscard]] bool prepareNarrativeEdit(Edit& edit);
+  [[nodiscard]] bool applyNarrativeEdit(const Edit& edit, bool forward);
   [[nodiscard]] std::optional<EditorObjectValue> householdObject(
       EditorObjectId id) const;
   [[nodiscard]] bool addHouseholdObject(EditorObjectValue value);
@@ -303,6 +336,7 @@ class EditorDocument {
   std::array<std::vector<EditorObjectId>, 4> audio_ids_{};
   std::array<std::vector<EditorObjectId>, 3> character_ids_{};
   std::array<std::vector<EditorObjectId>, 3> household_ids_{};
+  std::array<std::vector<EditorObjectId>, 3> narrative_ids_{};
   std::string launch_entry_{};
   std::uint32_t source_version_{level_format_version};
   EditorObjectId next_object_id_{editor_first_solid};

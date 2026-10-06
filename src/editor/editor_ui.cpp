@@ -470,6 +470,8 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
                                         *editor_document.document());
   if (editorCharacterKind(*property_edit_.value()))
     drawCharacterProperties(editor_document);
+  if (editorNarrativeKind(*property_edit_.value()))
+    drawNarrativeProperties(editor_document);
   if (editorHouseholdKind(*property_edit_.value()))
     drawHouseholdProperties(editor_document);
   if (commit) static_cast<void>(property_edit_.commit(editor_document));
@@ -662,6 +664,7 @@ void EditorUi::drawObjects(EditorDocument& document) {
        editorAudioKind(*selected_value).has_value() ||
        editorCharacterKind(*selected_value).has_value() ||
        editorHouseholdKind(*selected_value).has_value() ||
+       editorNarrativeKind(*selected_value).has_value() ||
        std::holds_alternative<PrototypeStaticProp>(*selected_value));
   EditorWidgets::BeginDisabled(!(selected_solid || selected_entry || selected_content));
   if (EditorWidgets::Button("Duplicate") && commitSelectionDraft(document))
@@ -702,6 +705,8 @@ void EditorUi::drawObjects(EditorDocument& document) {
   const bool placeable =
       placement_value &&
       !std::holds_alternative<CharacterRouteDefinition>(*placement_value) &&
+      !std::holds_alternative<NarrativeFactDefinition>(*placement_value) &&
+      !std::holds_alternative<NarrativeEventDefinition>(*placement_value) &&
       (!audio_kind || *audio_kind == EditorAudioKind::Source);
   if (!placeable) placing_ = false;
   EditorWidgets::BeginDisabled(!placeable);
@@ -795,6 +800,7 @@ void EditorUi::drawObjects(EditorDocument& document) {
   };
   drawCharacterObjects(document);
   drawHouseholdObjects(document);
+  drawNarrativeObjects(document);
   if (EditorWidgets::Button("Add entry")) {
     const auto& level = *document.document();
     static_cast<void>(document.addEntry(level.entries.empty()
@@ -903,7 +909,8 @@ bool EditorUi::commitSelectionDraft(EditorDocument& document) {
   // its selection change causes the property draft to synchronize away.
   property_edit_.synchronize(document);
   const auto& draft = property_edit_.value();
-  if (draft && (editorCharacterKind(*draft) || editorHouseholdKind(*draft)) &&
+  if (draft && (editorCharacterKind(*draft) || editorHouseholdKind(*draft) ||
+                editorNarrativeKind(*draft)) &&
       draft != document.object(document.selection()) &&
       !property_edit_.commit(document))
     return false;

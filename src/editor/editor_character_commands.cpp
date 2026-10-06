@@ -8,14 +8,13 @@
 namespace {
 template <class T>
 std::string freshId(const std::vector<T>& values, std::string_view prefix,
-                    const std::set<std::string_view>& referenced) {
-  for (std::size_t n = 1;; ++n) {
-    auto id = std::string(prefix) + std::to_string(n);
-    if (!referenced.contains(id) &&
-        std::none_of(values.begin(), values.end(),
-                     [&](const auto& v) { return v.id == id; }))
-      return id;
-  }
+                    const std::set<std::string_view>& referenced,
+                    const LevelNarrative& narrative) {
+  return editorFreshId(prefix, narrative, T{}, [&](const std::string& id) {
+    return referenced.contains(id) ||
+           std::any_of(values.begin(), values.end(),
+                       [&](const auto& v) { return v.id == id; });
+  });
 }
 
 // These three bounded collections share one existing document history entry.
@@ -221,7 +220,7 @@ bool EditorDocument::addCharacterObject(
     for (const auto& id : route.marks) referenced[1].insert(id);
   }
   if (mark) {
-    mark->id = freshId(characters.marks, "mark-", referenced[1]);
+    mark->id = freshId(characters.marks, "mark-", referenced[1], document_->narrative);
     edit_error_ = editorCharacterFieldError(*mark);
     if (!edit_error_.empty()) return false;
     std::get<CharacterActorDefinition>(value).initial_mark = mark->id;
@@ -233,7 +232,7 @@ bool EditorDocument::addCharacterObject(
     using T = typename std::decay_t<decltype(values)>::value_type;
     auto& v = std::get<T>(value);
     const std::array prefixes{"actor-", "mark-", "route-"};
-    v.id = freshId(values, prefixes[slot], referenced[slot]);
+    v.id = freshId(values, prefixes[slot], referenced[slot], document_->narrative);
     values.push_back(v);
   };
   switch (*kind) {

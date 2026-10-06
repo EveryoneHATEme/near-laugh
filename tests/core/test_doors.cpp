@@ -308,6 +308,68 @@ TEST(DoorGameplay, LocksKnockReversalAndEndpointState) {
   EXPECT_FALSE(doors.state(0).moving);
 }
 
+TEST(DoorGameplay, AuthoredTargetsAreIdempotentAndRefusalsPreserveIntent) {
+  const auto level = makePrototypeLevel(doorLevel());
+  PhysicsWorld physics(level);
+  DoorController doors(level.doors());
+  EXPECT_EQ(doors.requestOpen(1, true), DoorRequestResult::InvalidTarget);
+  EXPECT_EQ(doors.requestLocked(1, true), DoorRequestResult::InvalidTarget);
+  EXPECT_EQ(doors.requestOpen(0, false), DoorRequestResult::Accepted);
+  EXPECT_FALSE(doors.state(0).moving);
+  ASSERT_EQ(doors.requestLocked(0, true), DoorRequestResult::Accepted);
+  EXPECT_EQ(doors.requestOpen(0, true), DoorRequestResult::Locked);
+  EXPECT_FALSE(doors.state(0).target_open);
+  EXPECT_FALSE(doors.state(0).moving);
+  ASSERT_EQ(doors.requestLocked(0, false), DoorRequestResult::Accepted);
+  ASSERT_EQ(doors.requestOpen(0, true), DoorRequestResult::Accepted);
+  steps(physics, doors, 15);
+  const float angle = doors.state(0).angle;
+  EXPECT_EQ(doors.requestOpen(0, true), DoorRequestResult::Accepted);
+  EXPECT_FLOAT_EQ(doors.state(0).angle, angle);
+  EXPECT_TRUE(doors.state(0).moving);
+  EXPECT_TRUE(doors.state(0).target_open);
+  EXPECT_EQ(doors.requestLocked(0, true), DoorRequestResult::NotClosed);
+  EXPECT_FALSE(doors.state(0).locked);
+  EXPECT_TRUE(doors.state(0).target_open);
+  EXPECT_EQ(doors.requestLocked(0, false), DoorRequestResult::Accepted);
+  steps(physics, doors, 60);
+  EXPECT_EQ(doors.requestOpen(0, true), DoorRequestResult::Accepted);
+  EXPECT_FALSE(doors.state(0).moving);
+  EXPECT_EQ(doors.requestLocked(0, true), DoorRequestResult::NotClosed);
+  EXPECT_EQ(doors.requestLocked(0, false), DoorRequestResult::Accepted);
+  EXPECT_EQ(doors.act(0, DoorAction::Interact, insideEye()).kind,
+            DoorResultKind::Closing);
+
+  auto unbolt = doorLevel().doors;
+  unbolt[0].lock_side = DoorLockSide::None;
+  DoorController no_lock(unbolt);
+  EXPECT_EQ(no_lock.requestLocked(0, false), DoorRequestResult::Accepted);
+  EXPECT_EQ(no_lock.requestLocked(0, true), DoorRequestResult::NotLockable);
+}
+
+TEST(DoorGameplay, AuthoredSameDirectionRetryRequiresAnExplicitNewRequest) {
+  const auto level = makePrototypeLevel(doorLevel());
+  PhysicsWorld physics(level);
+  DoorController doors(level.doors());
+  ASSERT_EQ(doors.requestOpen(0, true), DoorRequestResult::Accepted);
+  steps(physics, doors, 65);
+  steps(physics, doors, 90, {0, 0, -2});
+  const auto position = physics.characterState().foot_position;
+  ASSERT_EQ(doors.requestOpen(0, false), DoorRequestResult::Accepted);
+  steps(physics, doors, 65);
+  const float stopped = doors.state(0).angle;
+  ASSERT_GT(stopped, 0);
+  ASSERT_FALSE(doors.state(0).moving);
+  EXPECT_FLOAT_EQ(physics.characterState().foot_position.z, position.z);
+  steps(physics, doors, 100, {0, 0, 2});
+  EXPECT_FLOAT_EQ(doors.state(0).angle, stopped);
+  EXPECT_FALSE(doors.state(0).moving);
+  ASSERT_EQ(doors.requestOpen(0, false), DoorRequestResult::Accepted);
+  steps(physics, doors, 65);
+  EXPECT_FLOAT_EQ(doors.state(0).angle, 0);
+  EXPECT_FALSE(doors.state(0).moving);
+}
+
 TEST(DoorGameplay, PlayerObstructionStopsWithoutResumeOrPush) {
   const auto level = makePrototypeLevel(doorLevel());
   PhysicsWorld physics(level);
@@ -440,6 +502,45 @@ TEST(DoorGameplay, EndpointRetryAfterObstructionWithNoProgress) {
   EXPECT_FALSE(doors.state(0).moving);
   EXPECT_EQ(doors.act(0, DoorAction::Interact, insideEye()).kind,
             DoorResultKind::Opening);
+}
+
+TEST(DoorInteraction, AcceptedKnockLockAndOpeningHaveOnceOnlyTypedOutcomes) {
+  const auto level = makePrototypeLevel(doorLevel());
+  PhysicsWorld physics(level);
+  DoorController doors(level.doors());
+  LightSwitchController lights(level.environmentLight(), level.lightSwitches());
+  AuthoredInteraction interaction;
+  AcceptedInteractions accepted;
+  const auto send = [&](PlayerActionSnapshot input, bool active = true) {
+    return interaction.update(input, active, doorView(), level, physics, doors,
+                              lights, nullptr, &accepted);
+  };
+  PlayerActionSnapshot input;
+  (void)send(input);
+  input.secondary_action = true;
+  (void)send(input);
+  ASSERT_EQ(accepted.pending().size(), 1U);
+  EXPECT_EQ(accepted.pending()[0].action, NarrativeInteractionAction::DoorKnock);
+  EXPECT_EQ(accepted.pending()[0].result, AcceptedInteractionResult::Knocked);
+  EXPECT_EQ(accepted.pending()[0].target, "room");
+  EXPECT_EQ(doors.state(0).angle, 0);
+  (void)send(input);
+  EXPECT_EQ(accepted.pending().size(), 1U);
+  (void)send({}); input = {}; input.lock = true;
+  (void)send(input);
+  ASSERT_EQ(accepted.pending().size(), 2U);
+  EXPECT_EQ(accepted.pending()[1].result, AcceptedInteractionResult::Locked);
+  (void)send({}); input = {}; input.interact = true;
+  (void)send(input); // Locked opening refuses.
+  EXPECT_EQ(accepted.pending().size(), 2U);
+  ASSERT_EQ(doors.requestLocked(0, false), DoorRequestResult::Accepted);
+  EXPECT_EQ(accepted.pending().size(), 2U);
+  (void)send({}); (void)send(input, false); (void)send(input);
+  EXPECT_EQ(accepted.pending().size(), 2U);
+  (void)send({}); (void)send(input);
+  ASSERT_EQ(accepted.pending().size(), 3U);
+  EXPECT_EQ(accepted.pending()[2].action, NarrativeInteractionAction::DoorInteract);
+  EXPECT_EQ(accepted.pending()[2].result, AcceptedInteractionResult::Opening);
 }
 
 TEST(DoorInteraction, HeldMissTransitionsAndActionPriorityDoNotReplay) {

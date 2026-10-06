@@ -76,7 +76,7 @@ TEST_F(HouseholdCodec,
   const auto canonical = readBytes(path);
   const auto loaded = loadLevelDocument(path);
   ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
-  EXPECT_EQ(loaded.source_version, 10U);
+  EXPECT_EQ(loaded.source_version, 11U);
   EXPECT_EQ(*loaded.document, document);
   EXPECT_EQ(makePrototypeLevel(document).household(), document.household);
   ASSERT_TRUE(saveLevelDocument(path, *loaded.document));
@@ -259,8 +259,9 @@ TEST_F(HouseholdCodec, ExactV9PreservesEveryFieldAndOrderUntilExplicitSave) {
   ASSERT_TRUE(editor.save());
   const auto saved = readBytes(path);
   auto new_json = nlohmann::json::parse(saved);
-  EXPECT_EQ(new_json["version"], 10);
+  EXPECT_EQ(new_json["version"], 11);
   new_json.erase("household");
+  new_json.erase("narrative");
   new_json["version"] = 9;
   EXPECT_EQ(new_json, old_json);
   const auto reloaded = loadLevelDocument(path);
@@ -292,7 +293,7 @@ TEST_F(HouseholdCodec, EveryLegacyVersionNormalizesEmptyAndRejectsHousehold) {
       const auto loaded = loadLevelDocument(path);
       ASSERT_TRUE(loaded) << formatLevelDiagnostics(loaded.diagnostics);
       EXPECT_EQ(loaded.source_version, candidate);
-      EXPECT_EQ(loaded.document->version, 10U);
+      EXPECT_EQ(loaded.document->version, 11U);
       EXPECT_EQ(loaded.document->household, LevelHousehold{});
       EXPECT_EQ(readBytes(path), source);
       ASSERT_TRUE(saveLevelDocument(path, *loaded.document));

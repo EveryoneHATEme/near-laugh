@@ -9,8 +9,9 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <variant>
 
-inline constexpr std::uint32_t level_format_version = 10;
+inline constexpr std::uint32_t level_format_version = 11;
 inline constexpr std::size_t level_maximum_door_count = 32;
 inline constexpr std::size_t prototype_surface_count = 3;
 inline constexpr std::size_t level_maximum_point_light_count = 8;
@@ -283,6 +284,196 @@ struct LevelHousehold {
   std::vector<HouseholdRadioDefinition> radios{};
 };
 
+inline constexpr std::size_t level_maximum_narrative_fact_count = 32;
+inline constexpr std::size_t level_maximum_narrative_region_count = 32;
+inline constexpr std::size_t level_maximum_narrative_event_count = 64;
+inline constexpr std::size_t level_maximum_narrative_step_count = 32;
+inline constexpr std::size_t level_maximum_narrative_predicate_count = 8;
+inline constexpr float level_maximum_narrative_seconds = 3600.F;
+
+enum class NarrativeActorState {
+  Idle,
+  Turning,
+  Walking,
+  Blocked,
+  Interacting,
+  Completed,
+  Canceled
+};
+enum class NarrativeEventTerminalState { Completed, Canceled, Failed };
+enum class NarrativeRepeat { Once, Rearm };
+enum class NarrativeInteractionTarget { Door, Switch, Radio, Document, Box };
+enum class NarrativeInteractionAction {
+  DoorInteract,
+  DoorLock,
+  DoorKnock,
+  SwitchActivate,
+  RadioOn,
+  RadioOff,
+  DocumentOpen,
+  BoxPickup,
+  BoxDrop,
+  BoxThrow
+};
+
+// Per-kind records prevent authored data from carrying irrelevant parameters.
+struct NarrativeFactPredicate {
+  bool operator==(const NarrativeFactPredicate&) const = default;
+  std::string fact{};
+  bool value{};
+};
+struct NarrativeRegionPredicate {
+  bool operator==(const NarrativeRegionPredicate&) const = default;
+  std::string region{};
+  bool inside{};
+};
+struct NarrativeLightPredicate {
+  bool operator==(const NarrativeLightPredicate&) const = default;
+  std::string light{};
+  bool enabled{};
+};
+struct NarrativeDoorEndpointPredicate {
+  bool operator==(const NarrativeDoorEndpointPredicate&) const = default;
+  std::string door{};
+  bool open{};
+};
+struct NarrativeDoorLockedPredicate {
+  bool operator==(const NarrativeDoorLockedPredicate&) const = default;
+  std::string door{};
+  bool locked{};
+};
+struct NarrativeRadioPredicate {
+  bool operator==(const NarrativeRadioPredicate&) const = default;
+  std::string radio{};
+  bool enabled{};
+};
+struct NarrativeBoxPredicate {
+  bool operator==(const NarrativeBoxPredicate&) const = default;
+  std::string box{};
+  bool held{};
+};
+struct NarrativeDocumentPredicate {
+  bool operator==(const NarrativeDocumentPredicate&) const = default;
+  std::string document{};
+  bool open{};
+};
+struct NarrativeActorPredicate {
+  bool operator==(const NarrativeActorPredicate&) const = default;
+  std::string actor{};
+  NarrativeActorState state{NarrativeActorState::Idle};
+};
+struct NarrativeEventPredicate {
+  bool operator==(const NarrativeEventPredicate&) const = default;
+  std::string event{};
+  NarrativeEventTerminalState state{NarrativeEventTerminalState::Completed};
+};
+struct NarrativeElapsedPredicate {
+  bool operator==(const NarrativeElapsedPredicate&) const = default;
+  float seconds{};
+};
+using NarrativePredicate =
+    std::variant<NarrativeFactPredicate, NarrativeRegionPredicate,
+                 NarrativeLightPredicate, NarrativeDoorEndpointPredicate,
+                 NarrativeDoorLockedPredicate, NarrativeRadioPredicate,
+                 NarrativeBoxPredicate, NarrativeDocumentPredicate,
+                 NarrativeActorPredicate, NarrativeEventPredicate,
+                 NarrativeElapsedPredicate>;
+
+struct NarrativeSceneEntryTrigger {
+  bool operator==(const NarrativeSceneEntryTrigger&) const = default;
+};
+struct NarrativeRegionEntryTrigger {
+  bool operator==(const NarrativeRegionEntryTrigger&) const = default;
+  std::string region{};
+};
+struct NarrativeInteractionTrigger {
+  bool operator==(const NarrativeInteractionTrigger&) const = default;
+  NarrativeInteractionTarget target_kind{NarrativeInteractionTarget::Door};
+  std::string target{};
+  NarrativeInteractionAction action{NarrativeInteractionAction::DoorInteract};
+};
+struct NarrativeConditionTrigger {
+  bool operator==(const NarrativeConditionTrigger&) const = default;
+  std::vector<NarrativePredicate> predicates{};
+};
+using NarrativeTrigger =
+    std::variant<NarrativeSceneEntryTrigger, NarrativeRegionEntryTrigger,
+                 NarrativeInteractionTrigger, NarrativeConditionTrigger>;
+
+struct NarrativeSetFactStep {
+  bool operator==(const NarrativeSetFactStep&) const = default;
+  std::string fact{};
+  bool value{};
+};
+struct NarrativeSetLightStep {
+  bool operator==(const NarrativeSetLightStep&) const = default;
+  std::string light{};
+  bool enabled{};
+};
+struct NarrativeSetDoorOpenStep {
+  bool operator==(const NarrativeSetDoorOpenStep&) const = default;
+  std::string door{};
+  bool open{};
+};
+struct NarrativeSetDoorLockedStep {
+  bool operator==(const NarrativeSetDoorLockedStep&) const = default;
+  std::string door{};
+  bool locked{};
+};
+struct NarrativeSetRadioStep {
+  bool operator==(const NarrativeSetRadioStep&) const = default;
+  std::string radio{};
+  bool enabled{};
+};
+struct NarrativePlayCueStep {
+  bool operator==(const NarrativePlayCueStep&) const = default;
+  std::string source{};
+};
+struct NarrativeRunRouteStep {
+  bool operator==(const NarrativeRunRouteStep&) const = default;
+  std::string actor{};
+  std::string route{};
+};
+struct NarrativeDelayStep {
+  bool operator==(const NarrativeDelayStep&) const = default;
+  float seconds{};
+};
+struct NarrativeWaitUntilStep {
+  bool operator==(const NarrativeWaitUntilStep&) const = default;
+  std::vector<NarrativePredicate> predicates{};
+};
+using NarrativeStep = std::variant<
+    NarrativeSetFactStep, NarrativeSetLightStep, NarrativeSetDoorOpenStep,
+    NarrativeSetDoorLockedStep, NarrativeSetRadioStep, NarrativePlayCueStep,
+    NarrativeRunRouteStep, NarrativeDelayStep, NarrativeWaitUntilStep>;
+
+struct NarrativeFactDefinition {
+  bool operator==(const NarrativeFactDefinition&) const = default;
+  std::string id{};
+  bool initial_value{};
+};
+struct NarrativeRegionDefinition {
+  bool operator==(const NarrativeRegionDefinition&) const = default;
+  std::string id{};
+  WorldPosition center{};
+  WorldExtent half_extent{1.F, 1.F, 1.F};
+};
+struct NarrativeEventDefinition {
+  bool operator==(const NarrativeEventDefinition&) const = default;
+  std::string id{};
+  NarrativeTrigger trigger{};
+  std::vector<NarrativePredicate> guards{};
+  std::optional<std::vector<NarrativePredicate>> cancel{};
+  NarrativeRepeat repeat{NarrativeRepeat::Once};
+  std::vector<NarrativeStep> steps{};
+};
+struct LevelNarrative {
+  bool operator==(const LevelNarrative&) const = default;
+  std::vector<NarrativeFactDefinition> facts{};
+  std::vector<NarrativeRegionDefinition> regions{};
+  std::vector<NarrativeEventDefinition> events{};
+};
+
 struct LevelDocument {
   bool operator==(const LevelDocument&) const = default;
   std::uint32_t version{level_format_version};
@@ -297,6 +488,7 @@ struct LevelDocument {
   LevelAudio audio{};
   LevelCharacters characters{};
   LevelHousehold household{};
+  LevelNarrative narrative{};
 };
 
 enum class LevelDiagnosticCategory {

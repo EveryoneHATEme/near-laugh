@@ -93,8 +93,7 @@ CharacterStart CharacterController::start(std::string_view actor_id,
 void CharacterController::cancelSounds(std::size_t i) {
   auto& actor = actors_[i];
   const auto stop = [&](const auto& source, std::uint64_t instance) {
-    if (source && instance && audio_.instance(*source) == instance)
-      (void)audio_.cancel(*source);
+    if (source && instance) (void)audio_.cancel(*source, instance);
   };
   stop(definitions_.actors[i].footstep_source, actor.footstep_instance);
   stop(definitions_.actors[i].interaction_source, actor.interaction_instance);
@@ -118,6 +117,15 @@ bool CharacterController::cancel(std::string_view id) {
   publish(i);
   return true;
 }
+bool CharacterController::cancel(std::string_view id,
+                                 std::uint64_t expected_instance) {
+  const auto& actor = actors_[actorIndex(id)];
+  if (!expected_instance || actor.result.instance != expected_instance ||
+      actor.result.action == CharacterAction::Completed)
+    return false;
+  return cancel(id);
+}
+
 void CharacterController::nextMark(Actor& actor) {
   if (++actor.mark < actor.route->marks.size()) {
     actor.result.mark = actor.route->marks[actor.mark];

@@ -41,6 +41,8 @@ The current prototype provides the technical foundation for the game:
 * one authored light switch operated with E
 * depth-tested textured rendering
 * deterministic tests for core simulation and physics behavior
+* bounded v11 narrative facts, regions and sequences with editor authoring;
+  T4 integrated and human acceptance is tracked in its validation record
 * standalone level editing with object placement, terrain sculpting, property
   controls, undo/redo, and validation-gated saving
 
