@@ -21,7 +21,7 @@ class SemanticEditorUi : public testing::Test {
     io.IniFilename = nullptr;
     io.DisplaySize = {1600, 1000};
     io.DeltaTime = 1.0F / 60;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     ASSERT_TRUE(document.open("resources/levels/prototype.level.json"));
     frame(); frame();

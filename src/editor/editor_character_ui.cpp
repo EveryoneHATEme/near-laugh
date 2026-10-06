@@ -80,7 +80,7 @@ void EditorUi::drawCharacterProperties(EditorDocument& document) {
                 std::min(value.size(), buffer.size() - 1));
     if (EditorWidgets::InputText(label, buffer.data(), buffer.size()))
       value = buffer.data();
-    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+    commit |= editorTextEditFinished();
   };
   const auto required_reference = [&](const char* label, std::string& value,
                                       const auto& choices) {

@@ -19,7 +19,7 @@ class EditorUiInteraction : public testing::Test {
     io.IniFilename = nullptr;
     io.DisplaySize = {1600, 900};
     io.DeltaTime = 1.0F / 60.0F;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     ASSERT_TRUE(document.open("resources/levels/prototype.level.json"));
     frame();
@@ -412,18 +412,15 @@ TEST_F(EditorUiInteraction, ViewportNavigationCommitsNarrativeDraftOnceAndRestor
   EXPECT_EQ(std::get<NarrativeFactDefinition>(*document.object(selected)).id, original);
 }
 
-TEST_F(EditorUiInteraction, ViewportNavigationCancelsSameFrameCheckboxActivationAndHeldKeys) {
+TEST_F(EditorUiInteraction, ViewportNavigationKeepsHeldKeysOutOfTheFocusedPanel) {
   ASSERT_TRUE(document.addNarrative(EditorNarrativeKind::Fact));
   const auto selected = document.selection();
   ImGui::GetIO().AddMousePosEvent(1000, 350);
   frame();
+  // An active field in the focused panel would otherwise receive the camera
+  // keys and characters typed while the viewport navigates.
   activate("Properties", "Narrative ID");
-  key(ImGuiKey_Tab);
-  frame();
-  const auto* properties = ImGui::FindWindowByName("Properties");
-  ASSERT_NE(properties, nullptr);
-  ASSERT_EQ(ImGui::GetCurrentContext()->NavId,
-            ImHashStr("Initial value", 0, properties->ID));
+  ASSERT_NE(ImGui::GetActiveID(), 0U);
   ASSERT_FALSE(ImGui::GetIO().WantCaptureMouse);
   const auto original = *document.document();
   const auto revision = document.revision();
@@ -435,12 +432,12 @@ TEST_F(EditorUiInteraction, ViewportNavigationCancelsSameFrameCheckboxActivation
   ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, true);
   for (auto key : {ImGuiKey_W, ImGuiKey_A, ImGuiKey_S, ImGuiKey_D})
     ImGui::GetIO().AddKeyEvent(key, true);
-  // NewFrame queues Space activation before the accepted viewport handoff.
-  // Clearing focus alone would still toggle the submitted checkbox here.
   frame(true, true);
   EXPECT_EQ(document.revision(), revision);
+  EXPECT_EQ(ImGui::GetActiveID(), 0U);
   ImGui::GetIO().AddInputCharactersUTF8("wasd");
   for (int i = 0; i != 40; ++i) frame(true);
+  EXPECT_EQ(ImGui::GetActiveID(), 0U);
   EXPECT_EQ(*document.document(), original);
   EXPECT_EQ(document.revision(), revision);
   EXPECT_EQ(document.selection(), selected);
@@ -454,6 +451,25 @@ TEST_F(EditorUiInteraction, ViewportNavigationCancelsSameFrameCheckboxActivation
     ImGui::GetIO().AddKeyEvent(key, false);
   frame(true);
   EXPECT_EQ(document.revision(), revision);
+}
+
+TEST_F(EditorUiInteraction, TabFromTextInputStillReachesTheNextInputInMultiFieldPanes) {
+  const auto id = document.entryIds().front();
+  document.select(id);
+  ImGui::GetIO().AddMousePosEvent(1000, 350);
+  frame();
+  activate("Properties", "Entry ID");
+  const auto field = ImGui::GetActiveID();
+  ASSERT_NE(field, 0U);
+  key(ImGuiKey_A, true);
+  ImGui::GetIO().AddInputCharactersUTF8("tabbed-entry");
+  frame();
+  key(ImGuiKey_Tab);
+  EXPECT_EQ(std::get<LevelEntry>(*document.object(id)).id, "tabbed-entry");
+  // The sole-input commit must not replace ordinary tabbing to the following
+  // numeric input of the same pane.
+  EXPECT_NE(ImGui::GetActiveID(), 0U);
+  EXPECT_NE(ImGui::GetActiveID(), field);
 }
 
 TEST_F(EditorUiInteraction, NumericDragCommitsOnceOnRelease) {

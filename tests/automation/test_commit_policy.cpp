@@ -101,7 +101,7 @@ class ActualEditorCommitPolicy : public SemanticCommitPolicy {
     SemanticCommitPolicy::SetUp();
     auto& io = ImGui::GetIO();
     io.DisplaySize = {1600, 1000};
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     ASSERT_TRUE(document.open("resources/levels/prototype.level.json"));
     editorFrame(); editorFrame();
   }

@@ -26,6 +26,8 @@ struct EditorReadablePreviewView {
   std::vector<std::string> validation_diagnostics;
 };
 enum class EditorAuditionAction { None, Start, Stop, Mute, Pause };
+// Call right after a draft text input; true when its edit is complete.
+[[nodiscard]] bool editorTextEditFinished();
 bool drawEditorAudioProperties(EditorObjectValue& value,
                                const LevelDocument& level);
 

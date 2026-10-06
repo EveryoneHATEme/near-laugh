@@ -101,7 +101,7 @@ bool drawEditorAudioProperties(EditorObjectValue& object,
                 std::min(value.size(), buffer.size() - 1));
     if (EditorWidgets::InputText(label, buffer.data(), buffer.size()))
       value = buffer.data();
-    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+    commit |= editorTextEditFinished();
   };
   const auto scalar = [&](const char* label, float& value) {
     EditorWidgets::DragFloat(label, &value, .02F);

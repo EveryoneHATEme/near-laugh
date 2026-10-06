@@ -61,7 +61,7 @@ class SemanticSession : public testing::Test {
     ImGui::CreateContext(); context_created_ = true;
     auto& io = ImGui::GetIO();
     io.IniFilename = nullptr; io.DisplaySize = {1600, 900}; io.DeltaTime = 1.F / 60.F;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     attachment_ = std::make_unique<SessionAttachment>(engine_, session_.get());
     engine_.start();

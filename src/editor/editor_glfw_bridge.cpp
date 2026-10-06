@@ -3,7 +3,6 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <imgui.h>
-#include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
 
 #include <algorithm>
@@ -21,9 +20,7 @@ bool createEditorContext() {
     return false;
   }
   ImGuiIO& io = ImGui::GetIO();
-  // Include checkboxes and buttons in Tab navigation so even panes with one
-  // text field deactivate that field and commit its authored draft.
-  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
   io.IniFilename = nullptr;
   ImGui::StyleColorsDark();
@@ -156,15 +153,9 @@ void EditorGlfwBridge::beginFrame() {
 }
 
 void EditorGlfwBridge::beginViewportNavigation() noexcept {
+  // Releasing panel focus deactivates an active field, committing its draft,
+  // and keeps held camera keys out of the panels while the viewport navigates.
   ImGui::SetWindowFocus(nullptr);
-  // NewFrame already translated this frame's Space/Enter/Tab/arrows into
-  // navigation requests. Losing focus alone does not cancel those requests.
-  auto& context = *ImGui::GetCurrentContext();
-  context.NavActivateId = context.NavActivateDownId =
-      context.NavActivatePressedId = context.NavNextActivateId = 0;
-  context.NavJustMovedToId = 0;
-  context.NavMoveForwardToNextFrame = false;
-  ImGui::NavMoveRequestCancel();
 }
 
 void EditorGlfwBridge::postEmptyEvent() noexcept { glfwPostEmptyEvent(); }

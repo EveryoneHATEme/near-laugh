@@ -44,6 +44,31 @@ std::filesystem::path pathFromText(const char* text) {
 
 }  // namespace
 
+bool editorTextEditFinished() {
+  // Without keyboard navigation ImGui tabs only between inputable items, so
+  // Tab in a pane's sole text input wraps to that still-active input and never
+  // deactivates it. Every other Tab result releases the input by the next
+  // frame; an input still active then is released here so its draft commits.
+  const ImGuiID item = ImGui::GetItemID();
+  ImGuiStorage& storage = *ImGui::GetStateStorage();
+  const ImGuiID tab_item = ImGui::GetID("##tab-wrap-item");
+  const ImGuiID tab_frame = ImGui::GetID("##tab-wrap-frame");
+  const int frame = ImGui::GetFrameCount();
+  if (ImGui::IsItemActive()) {
+    const ImGuiIO& io = ImGui::GetIO();
+    if (storage.GetInt(tab_item) == static_cast<int>(item) &&
+        storage.GetInt(tab_frame) == frame - 1) {
+      storage.SetInt(tab_item, 0);
+      ImGui::SetWindowFocus(nullptr);
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !io.KeyCtrl &&
+               !io.KeyAlt) {
+      storage.SetInt(tab_item, static_cast<int>(item));
+      storage.SetInt(tab_frame, frame);
+    }
+  }
+  return ImGui::IsItemDeactivatedAfterEdit();
+}
+
 void EditorUi::draw(EditorDocument& document, bool child_active,
                     std::string_view process_status) {
   if (document_generation_ != document.generation()) {
@@ -312,7 +337,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           EditorWidgetMetadata::next("entry-id", "id", "", "object");
           if (EditorWidgets::InputText("Entry ID", name.data(), name.size()))
             value.id = name.data();
-          commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+          commit |= editorTextEditFinished();
           EditorWidgetMetadata::next("foot-position", "foot_position", "m", "object");
           triple("Foot position", value.pose.foot_position);
           EditorWidgetMetadata::next("yaw-degrees", "yaw_degrees", "degrees", "object");
@@ -328,7 +353,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           EditorWidgetMetadata::next("light-id", "id", "", "object");
           if (EditorWidgets::InputText("Light ID", name.data(), name.size()))
             value.id = name.data();
-          commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+          commit |= editorTextEditFinished();
           EditorWidgetMetadata::next("position", "position", "m", "object");
           triple("Position", value.position);
           EditorWidgetMetadata::next("light-color", "color", "", "object");
@@ -350,7 +375,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           EditorWidgetMetadata::next("switch-id", "id", "", "object");
           if (EditorWidgets::InputText("Switch ID", name.data(), name.size()))
             value.id = name.data();
-          commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+          commit |= editorTextEditFinished();
           EditorWidgetMetadata::next("position", "position", "m", "object");
           triple("Position", value.position);
           EditorWidgetMetadata::next("yaw-degrees", "yaw_degrees", "degrees", "object");
@@ -372,7 +397,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           EditorWidgetMetadata::next("door-id", "id", "", "object");
           if (EditorWidgets::InputText("Door ID", name.data(), name.size()))
             value.id = name.data();
-          commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+          commit |= editorTextEditFinished();
           EditorWidgetMetadata::next("bottom-hinge", "hinge_position", "m", "object");
           triple("Bottom hinge", value.hinge_position);
           EditorWidgetMetadata::next("closed-yaw", "closed_yaw_degrees", "degrees", "object");
@@ -410,7 +435,7 @@ void EditorUi::drawProperties(EditorDocument& editor_document) {
           EditorWidgetMetadata::next("prop-id", "id", "", "object");
           if (EditorWidgets::InputText("Prop ID", name.data(), name.size()))
             value.id = name.data();
-          commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+          commit |= editorTextEditFinished();
           EditorWidgetMetadata::next("model", "model", "", "object");
           if (EditorWidgets::BeginCombo("Model", value.model.c_str())) {
             for (const auto& model : sceneModels())

@@ -232,7 +232,7 @@ void EditorUi::drawNarrativeProperties(EditorDocument& document) {
     metadata("narrative-id", "id");
     if (EditorWidgets::InputText("Narrative ID", buffer.data(), buffer.size()))
       value = buffer.data();
-    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+    commit |= editorTextEditFinished();
   };
   std::visit(
       [&](auto& value) {

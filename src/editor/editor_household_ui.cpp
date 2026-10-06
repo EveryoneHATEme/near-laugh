@@ -73,7 +73,7 @@ void EditorUi::drawHouseholdProperties(EditorDocument& document) {
                                                         capacity, {0, 130})
                             : EditorWidgets::InputText(label, buffer.data(), capacity);
     if (edited) value = buffer.data();
-    commit |= EditorWidgets::IsItemDeactivatedAfterEdit();
+    commit |= editorTextEditFinished();
   };
   const auto position = [&](const char* label, WorldPosition& value) {
     float xyz[]{value.x, value.y, value.z};

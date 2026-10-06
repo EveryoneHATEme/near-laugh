@@ -261,6 +261,18 @@ engine/editor binaries rebuilt (`build/narrative-focus-build.log`), and all
 21 EditorUiInteraction tests passed in 2.677 seconds, exit 0, including both
 new focus-handoff regressions (`build/narrative-focus-tests.log` / `.json`).
 
+Superseded on 2026-10-07: global keyboard navigation made every focused panel
+capture the keyboard and let Space/Enter/arrows drive widgets, so it was
+removed together with the private ImGui navigation resets. Draft text inputs
+now detect ImGui's Tab wrap to a pane's sole, still-active input one frame
+after Tab and release focus, which commits the draft; other Tab results keep
+ordinary input-to-input tabbing. The viewport handoff only releases panel
+focus. Real-ImGui regressions cover sole-input Tab commit (in-memory editor
+and automation session), Tab to the next input in a multi-field pane, and held
+camera keys during navigation; a mutation run confirmed both sole-input tests
+fail without the release. Debug build and `ctest --preset debug` passed
+(711 tests). Live B/C editor runs were not repeated for this correction.
+
 Debug measurement workload check passed for disabled and capacity profiles:
 `build/narrative-authorized-debug-measure-1/`, both child exits 0, retained
 workload reports and raw CSV. The capacity profile executed 64 events with
