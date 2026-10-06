@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "editor-ui": {
+      "command": "${workspaceFolder}/build/editor-ui-venv/Scripts/python.exe",
+      "args": [
+        "-B",
+        "scripts/editor_ui_mcp.py",
+        "--environment",
+        "claude-testing"
+      ],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}
+
